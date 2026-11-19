@@ -1,0 +1,10 @@
+[run]
+branch = True
+relative_files = True
+source =
+    custom_components/smarthouse_gaming
+data_file = coverage-ha-data
+
+[report]
+show_missing = True
+precision = 2

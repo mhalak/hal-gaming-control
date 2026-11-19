@@ -1,0 +1,7 @@
+# Python code quality baseline
+
+The initial workflow measures line coverage and branch coverage independently for the HA integration and Windows agent. The targets are at least 90% line coverage for each component and at most Radon C (20) for every function, method and nested function. Branch coverage is reported separately, without a numeric threshold. Coverage uses source statement counts, not the combined branch/line percentage shown by some coverage.py reports.
+
+HA coverage runs the existing pure, HA runtime, Recorder and direct MQTT test groups in a pinned HA test environment. Windows coverage executes the suite on both Linux and Windows, combines the two coverage databases from the same revision and reports the union of executed statements and branches, not an average. The coverage scope includes production modules and entry points, not tests/generated files. PowerShell is covered by separate security and functional checks.
+
+This is explicitly the initial **measurement-only** stage. The CLI defaults to enforcing thresholds and fails on malformed measurements. The workflow explicitly uses --baseline while debt is enumerated; the reported PASS/FAIL and violation counts are not changed. Missing data, failed tests and tool errors still fail CI. Do not treat a green measurement job as compliance with targets. Review actual reports, fix deficits with TDD and remove --baseline to enable required gates. Do not lower targets or hide uncovered code. Track follow-up work in #2.

@@ -6,3 +6,12 @@ config.yaml
 build/
 dist/
 *.spec
+
+# Local quality reports and coverage databases
+coverage-ha-data*
+coverage-windows-data*
+coverage-ha.json
+coverage-ha.xml
+coverage-windows.json
+coverage-windows.xml
+complexity-report.json
