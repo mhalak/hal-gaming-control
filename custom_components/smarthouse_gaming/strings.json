@@ -17,7 +17,7 @@
     "abort": {
       "already_configured": "This PC is already configured.",
       "invalid_discovery": "Invalid or unsupported discovery metadata.",
-      "no_devices_found": "No new gaming PC found. Make sure the Windows agent is running and publishing to SmartHouse/Gaming/<device>/discovery, then try again."
+      "no_devices_found": "No new gaming PC found. Make sure the Windows agent is running and publishing to SmartHouse/Gaming/+/discovery, then try again."
     }
   },
   "options": {
