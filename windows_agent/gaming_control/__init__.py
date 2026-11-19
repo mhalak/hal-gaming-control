@@ -1,0 +1,1 @@
+"""SmartHouse Gaming Control."""

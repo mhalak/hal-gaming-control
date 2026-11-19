@@ -1,0 +1,30 @@
+name: Bug report
+description: Report a reproducible problem without sharing private household data
+title: "[Bug]: "
+body:
+  - type: input
+    id: versions
+    attributes:
+      label: HA / integration / Windows agent versions
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce and expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and sanitized diagnostics
+      description: No credentials, tokens, children's names, personal paths, addresses or unsanitized logs. Do not post MQTT secrets.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Before submitting
+      options:
+        - label: I removed personal and secret information from this report.
+          required: true

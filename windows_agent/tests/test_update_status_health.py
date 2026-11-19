@@ -1,0 +1,371 @@
+"""Status over a separate MQTT client, health markers bound to the request, durable files."""
+import json
+import os
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
+
+import paho.mqtt.client as mqtt
+import pytest
+import yaml
+
+import updater as U
+from gaming_control import agent as agent_module
+from gaming_control import update_control as UC
+from gaming_control.mqtt_bridge import Bridge
+from updater_fakes import Env
+
+OK = SimpleNamespace(is_failure=False)
+
+
+class FakeClient:
+    """Minimal paho stand-in. `puback` controls whether PUBACK ever arrives."""
+    instances = []
+
+    def __init__(self, *args, **kwargs):
+        self.args, self.kwargs = args, kwargs
+        self.published = []
+        self.connected = False
+        self.puback = True
+        self.credentials = None
+        self.tls = None
+        self.stopped = self.disconnected = False
+        self.on_connect = self.on_disconnect = None
+        FakeClient.instances.append(self)
+
+    def username_pw_set(self, user, password=None):
+        self.credentials = (user, password)
+
+    def tls_set(self, **kwargs):
+        self.tls = kwargs
+
+    def reconnect_delay_set(self, *a, **k):
+        pass
+
+    def connect_async(self, host, port, keepalive, **kwargs):
+        self.endpoint = (host, port)
+
+    def loop_start(self):
+        pass
+
+    def loop_stop(self):
+        self.stopped = True
+
+    def disconnect(self):
+        self.disconnected = True
+
+    def is_connected(self):
+        return self.connected
+
+    def publish(self, topic, payload, qos=0, retain=False):
+        info = Mock()
+        info.rc = 0 if self.connected else mqtt.MQTT_ERR_NO_CONN
+        acked = self.connected and self.puback
+        info.is_published.return_value = acked
+        info.wait_for_publish.side_effect = lambda timeout=None: None if acked else (_ for _ in ()).throw(RuntimeError('not published'))
+        self.published.append((topic, json.loads(payload), qos, retain, acked))
+        return info
+
+    # helpers
+    def connect(self):
+        self.connected = True
+        self.on_connect(self, None, None, OK, None)
+
+    def drop(self):
+        self.connected = False
+        self.on_disconnect(self, None, None, OK, None)
+
+
+def write_config(data, **mqtt_extra):
+    config = {'device': {'id': 'pc1', 'name': 'PC 1'},
+              'mqtt': {'host': 'broker.lan', 'port': 1883, 'username': 'u', 'password': 'secret'} | mqtt_extra}
+    (data / 'config.yaml').write_text(yaml.safe_dump(config))
+
+
+@pytest.fixture
+def reporter_factory(tmp_path):
+    FakeClient.instances.clear()
+    data = tmp_path / 'data'
+    data.mkdir()
+    write_config(data)
+
+    def make(**kwargs):
+        return U.StatusReporter(data, client_factory=FakeClient, connect_wait=0, flush_wait=0, **kwargs)
+    make.data = data
+    return make
+
+
+STATUS = {'request_id': 'a-b', 'version': '2.0.0', 'status': 'installing', 'detail': '', 'timestamp': 1}
+
+
+def test_separate_client_id_and_topic(reporter_factory):
+    reporter = reporter_factory()
+    client = FakeClient.instances[-1]
+    assert client.kwargs['client_id'] == 'gaming-updater-pc1'
+    assert client.kwargs['client_id'] != Bridge({'device': {'id': 'pc1', 'name': 'x'},
+                                                 'mqtt': {'host': 'h'}}).client._client_id.decode()
+    assert client.kwargs['protocol'] == mqtt.MQTTv5
+    assert client.endpoint == ('broker.lan', 1883)
+    assert client.credentials == ('u', 'secret')
+    client.connect()
+    assert reporter.publish(STATUS) is True
+    topic, payload, qos, retain, acked = client.published[-1]
+    assert topic == 'SmartHouse/Gaming/pc1/update/status'
+    assert (qos, retain, acked) == (1, True, True)
+    assert payload == STATUS and payload['request_id'] == 'a-b'
+
+
+def test_credentials_from_protected_environment_and_tls(tmp_path, monkeypatch):
+    FakeClient.instances.clear()
+    data = tmp_path / 'd'
+    data.mkdir()
+    write_config(data, password_env='MQTT_PW', tls=True, ca_certs='ca.pem')
+    del_cfg = yaml.safe_load((data / 'config.yaml').read_text())
+    del del_cfg['mqtt']['password']
+    (data / 'config.yaml').write_text(yaml.safe_dump(del_cfg))
+    monkeypatch.setenv('MQTT_PW', 'from-env')
+    U.StatusReporter(data, client_factory=FakeClient, connect_wait=0, flush_wait=0)
+    client = FakeClient.instances[-1]
+    assert client.credentials == ('u', 'from-env')
+    assert client.tls == {'ca_certs': 'ca.pem'}
+
+
+def test_publish_while_disconnected_is_resent_after_reconnect(reporter_factory):
+    reporter = reporter_factory()
+    client = FakeClient.instances[-1]
+    assert reporter.publish(STATUS) is False       # broker down: no false claim of delivery
+    assert client.published == []
+    client.connect()                                 # reconnect re-publishes the last status
+    assert [p[1] for p in client.published] == [STATUS]
+    assert client.published[-1][2:4] == (1, True)
+
+
+def test_last_status_survives_every_reconnect(reporter_factory):
+    reporter = reporter_factory()
+    client = FakeClient.instances[-1]
+    client.connect()
+    reporter.publish(STATUS)
+    newer = STATUS | {'status': 'success', 'timestamp': 2}
+    client.drop()
+    reporter.publish(newer)
+    client.connect()
+    assert client.published[-1][1] == newer          # newest status, never a stale one
+    assert len(client.published) == 2
+
+
+def test_no_puback_means_not_acknowledged(reporter_factory):
+    reporter = reporter_factory()
+    client = FakeClient.instances[-1]
+    client.puback = False
+    client.connect()
+    assert reporter.publish(STATUS) is False
+
+
+def test_publish_failures_never_raise(tmp_path):
+    empty = tmp_path / 'nodata'
+    empty.mkdir()
+    reporter = U.StatusReporter(empty, client_factory=FakeClient, connect_wait=0, flush_wait=0)
+    assert reporter.publish(STATUS) is False
+    reporter.close()
+    broken = tmp_path / 'broken'
+    broken.mkdir()
+    (broken / 'config.yaml').write_text('device: {id: "bad id!"}\nmqtt: {host: h}')
+    assert U.StatusReporter(broken, client_factory=FakeClient, connect_wait=0, flush_wait=0).publish(STATUS) is False
+
+
+def test_close_stops_the_client(reporter_factory):
+    reporter = reporter_factory()
+    client = FakeClient.instances[-1]
+    reporter.close()
+    assert client.disconnected and client.stopped
+    reporter.close()  # idempotent
+
+
+def test_updater_publishes_every_status_through_separate_client(tmp_path):
+    FakeClient.instances.clear()
+    env = Env(tmp_path)
+    write_config(env.data)
+    reporter = U.StatusReporter(env.data, client_factory=FakeClient, connect_wait=0, flush_wait=0)
+    FakeClient.instances[-1].connect()
+    env.release('2.0.0')
+    rid = env.request('2.0.0')
+    env.updater(reporter=reporter).run()
+    client = FakeClient.instances[-1]
+    states = [p[1]['status'] for p in client.published]
+    assert states == ['downloading', 'verifying', 'stopping', 'installing', 'starting', 'success']
+    assert {p[1]['request_id'] for p in client.published} == {rid}
+    assert all(p[2:4] == (1, True) for p in client.published)
+    assert client.disconnected
+    assert env.status()['status'] == 'success'           # durable file stays authoritative
+
+
+# ------------------------------------------------------------------ health
+def marker(data, version='2.0.0', request_id='r1', pid=4242, started=1001.0, **extra):
+    value = {'version': version, 'timestamp': 1005.0, 'request_id': request_id, 'pid': pid,
+             'process_start': started, 'mqtt_acked': True} | extra
+    (data / 'agent-health.json').write_text(json.dumps(value))
+
+
+class Clock:
+    def __init__(self):
+        self.now = 1010.0
+        self.sleeps = 0
+
+    def __call__(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.sleeps += 1
+        self.now += seconds
+
+
+def wait(data, version='2.0.0', request_id='r1', probe=lambda pid: 1001.0, check=lambda: None,
+         since=1000.0, timeout=10):
+    clock = Clock()
+    U.wait_health(data, version, since, request_id, timeout=timeout, check=check, probe=probe,
+                  clock=clock, sleep=clock.sleep)
+    return clock
+
+
+def test_health_accepts_only_fresh_bound_marker(tmp_path):
+    marker(tmp_path)
+    assert wait(tmp_path).sleeps == 0
+
+
+@pytest.mark.parametrize('field, value', [
+    ('version', '1.0.0'), ('request_id', 'other'), ('request_id', None), ('timestamp', 999.0),
+    ('pid', None), ('pid', 'x'), ('process_start', None), ('mqtt_acked', False),
+    ('mqtt_acked', None), ('process_start', 990.0),
+])
+def test_health_rejects_unbound_or_stale_markers(tmp_path, field, value):
+    marker(tmp_path, **{field: value})
+    with pytest.raises(TimeoutError):
+        wait(tmp_path, probe=lambda pid: 1001.0)
+
+
+def test_health_without_marker_or_with_corrupt_marker_times_out(tmp_path):
+    with pytest.raises(TimeoutError):
+        wait(tmp_path)
+    (tmp_path / 'agent-health.json').write_text('{')
+    with pytest.raises(TimeoutError):
+        wait(tmp_path)
+
+
+def test_health_requires_the_marker_process_to_be_the_live_new_process(tmp_path):
+    marker(tmp_path)
+    with pytest.raises(TimeoutError):
+        wait(tmp_path, probe=lambda pid: None)             # process is gone
+    with pytest.raises(TimeoutError):
+        wait(tmp_path, probe=lambda pid: 5000.0)           # pid reused by another process
+
+
+def test_health_requires_service_running(tmp_path):
+    marker(tmp_path)
+
+    def stopped():
+        raise OSError('Service is not running')
+    with pytest.raises(TimeoutError):
+        wait(tmp_path, check=stopped)
+
+
+def test_health_rollback_mode_does_not_require_request_id(tmp_path):
+    marker(tmp_path, version='1.0.0', request_id=None)
+    wait(tmp_path, version='1.0.0', request_id=None)
+
+
+def test_health_waits_with_injected_clock_not_real_sleep(tmp_path):
+    marker(tmp_path, version='9.9.9')
+    clock = Clock()
+    with pytest.raises(TimeoutError):
+        U.wait_health(tmp_path, '2.0.0', 1000.0, 'r1', timeout=10, check=lambda: None,
+                      probe=lambda pid: 1001.0, clock=clock, sleep=clock.sleep)
+    assert clock.sleeps >= 2 and clock.now >= 1020.0
+
+
+# --------------------------------------------- agent side health evidence
+def test_report_health_binds_request_and_process(tmp_path):
+    UC.report_health(tmp_path, '2.0.0', request_id='r1', pid=7, started=12.5)
+    data = json.loads((tmp_path / 'agent-health.json').read_text())
+    assert data['version'] == '2.0.0' and data['request_id'] == 'r1'
+    assert data['pid'] == 7 and data['process_start'] == 12.5 and data['mqtt_acked'] is True
+    UC.report_health(tmp_path, '2.0.0')
+    data = json.loads((tmp_path / 'agent-health.json').read_text())
+    assert data['pid'] == os.getpid() and isinstance(data['process_start'], float)
+    assert data['request_id'] is None
+
+
+def test_current_request_id_comes_from_the_transaction_journal(tmp_path):
+    assert UC.current_request_id(tmp_path) is None
+    (tmp_path / 'update-journal.json').write_text(json.dumps({'phase': 'started', 'request_id': 'r9'}))
+    assert UC.current_request_id(tmp_path) == 'r9'
+    (tmp_path / 'update-journal.json').write_text('garbage')
+    assert UC.current_request_id(tmp_path) is None
+
+
+def bridge_with(published=True, connected=True, wait_raises=False):
+    info = Mock()
+    info.is_published.return_value = published
+    if wait_raises:
+        info.wait_for_publish.side_effect = RuntimeError('not queued')
+    bridge = Mock(root='SmartHouse/Gaming/pc1')
+    bridge.client.is_connected.return_value = connected
+    bridge.client.publish.return_value = info
+    return bridge
+
+
+def test_confirm_health_only_after_puback(tmp_path):
+    (tmp_path / 'update-journal.json').write_text(json.dumps({'phase': 'started', 'request_id': 'r1'}))
+    assert agent_module.confirm_health(bridge_with(), tmp_path) is True
+    data = json.loads((tmp_path / 'agent-health.json').read_text())
+    assert data['request_id'] == 'r1' and data['mqtt_acked'] is True and data['pid'] == os.getpid()
+
+
+@pytest.mark.parametrize('kwargs', [{'published': False}, {'connected': False}, {'wait_raises': True}])
+def test_confirm_health_writes_nothing_without_publish_confirmation(tmp_path, kwargs):
+    assert agent_module.confirm_health(bridge_with(**kwargs), tmp_path) is False
+    assert not (tmp_path / 'agent-health.json').exists()
+
+
+def test_confirm_health_uses_qos1_publish(tmp_path):
+    bridge = bridge_with()
+    agent_module.confirm_health(bridge, tmp_path)
+    args, kwargs = bridge.client.publish.call_args
+    assert kwargs.get('qos') == 1 and args[0].startswith('SmartHouse/Gaming/pc1/')
+
+
+# ------------------------------------------------------- durable file writes
+def test_atomic_json_fsyncs_file_before_replace_and_directory_after(tmp_path, monkeypatch):
+    events = []
+    real_fsync, real_replace = os.fsync, os.replace
+    monkeypatch.setattr(os, 'fsync', lambda fd: (events.append('fsync'), real_fsync(fd))[1])
+    monkeypatch.setattr(os, 'replace', lambda a, b: (events.append('replace'), real_replace(a, b))[1])
+    UC.atomic_json(tmp_path / 'update-journal.json', {'phase': 'swap'})
+    assert events[:2] == ['fsync', 'replace']
+    if sys.platform != 'win32':
+        assert events[2:] == ['fsync']                       # directory entry made durable too
+    assert json.loads((tmp_path / 'update-journal.json').read_text()) == {'phase': 'swap'}
+    assert not list(tmp_path.glob('*.tmp'))
+
+
+def test_atomic_json_keeps_old_content_when_write_fails(tmp_path, monkeypatch):
+    path = tmp_path / 'update-status.json'
+    UC.atomic_json(path, {'v': 1})
+    monkeypatch.setattr(os, 'replace', lambda a, b: (_ for _ in ()).throw(OSError('disk full')))
+    with pytest.raises(OSError):
+        UC.atomic_json(path, {'v': 2})
+    assert json.loads(path.read_text()) == {'v': 1}
+
+
+def test_submit_request_replay_ledger_is_bounded(tmp_path, monkeypatch):
+    (tmp_path / 'updater.json').write_text('{}')
+    monkeypatch.setenv('SystemRoot', str(tmp_path))
+    monkeypatch.setattr(UC.subprocess, 'run', lambda *a, **k: None)
+    monkeypatch.setattr(UC.time, 'time', lambda: 1000.0)
+    ledger = {f'id{i}': 5000 for i in range(UC.REPLAY_MAX)}
+    (tmp_path / 'update-replay.json').write_text(json.dumps(ledger))
+    import uuid
+    request = {'version': '2.0.0', 'request_id': str(uuid.uuid4()), 'expires_at': 1060}
+    with pytest.raises(ValueError, match='ledger'):
+        UC.submit_request(tmp_path, request, '1.0.0')
+    assert not (tmp_path / 'update-request.json').exists()

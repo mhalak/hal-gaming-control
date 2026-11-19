@@ -1,0 +1,41 @@
+def discovery(device_id, name, prefix='homeassistant'):
+    root = f'SmartHouse/Gaming/{device_id}'
+    device = {'identifiers': [f'smarthouse_gaming_{device_id}'], 'name': name,
+              'manufacturer': 'SmartHouse', 'model': 'Windows Gaming Agent'}
+    specs = {
+        'uptime': ('sensor', 'Uptime', {'unit_of_measurement': 's', 'device_class': 'duration', 'entity_category': 'diagnostic'}),
+        'in_game': ('binary_sensor', 'In game', {}),
+        'current_game': ('sensor', 'Current game', {}),
+        'gaming_active': ('binary_sensor', 'Gaming active', {}),
+        'active_game': ('sensor', 'Active game', {}),
+        'terminate_game': ('button', 'Terminate game', {}),
+        'lock_pc': ('button', 'Lock PC', {}),
+    }
+    result = {}
+    for key, (component, label, extra) in specs.items():
+        uid = f'smarthouse_gaming_{device_id}_{key}'
+        data = {'name': label, 'unique_id': uid, 'device': device,
+                'availability_topic': root + '/availability', **extra}
+        if key in ('gaming_active', 'active_game'):
+            data.pop('availability_topic')
+            data['availability'] = [{'topic': root + '/availability'},
+                                    {'topic': root + '/state/focus_availability'}]
+            data['availability_mode'] = 'all'
+        if component == 'button':
+            data.update(command_topic=root + '/command/' + key, qos=0,
+                        retain=False, payload_press='PRESS')
+        else:
+            data['state_topic'] = root + '/state/' + key
+        result[f'{prefix}/{component}/{uid}/config'] = data
+    return result
+
+
+def obsolete_discovery_topics(device_id, prefix):
+    # One-time compatibility cleanup for an earlier development preview.
+    old = {'sensor': ('remaining', 'played', 'game'),
+           'binary_sensor': ('active', 'allowed'),
+           'switch': ('enabled', 'unlimited'),
+           'number': ('minutes',),
+           'button': ('add15', 'add30', 'add60', 'reset')}
+    return [f'{prefix}/{component}/smarthouse_gaming_{device_id}_{key}/config'
+            for component, keys in old.items() for key in keys]

@@ -1,0 +1,77 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Add gaming PC",
+        "description": "Select a gaming PC that currently advertises itself over MQTT. HA MQTT discovery does not need to be enabled.",
+        "data": {
+          "device": "Gaming PC"
+        }
+      },
+      "confirm": {
+        "title": "Discover gaming PC",
+        "description": "Set up {name}? Restrictions start disabled."
+      }
+    },
+    "abort": {
+      "already_configured": "This PC is already configured.",
+      "invalid_discovery": "Invalid or unsupported discovery metadata.",
+      "no_devices_found": "No new gaming PC found. Make sure the Windows agent is running and publishing to SmartHouse/Gaming/<device>/discovery, then try again."
+    }
+  },
+  "options": {
+    "step": {
+      "menu": {
+        "title": "Parental control",
+        "description": "Configured actions (in order): {actions}"
+      },
+      "limits": {
+        "title": "Restrictions and schedule",
+        "description": "Set time limits using the sliders on the device page. Reset options disable the selected limit (weekend reset uses the weekday limit). Start/end: HH:MM, equal means all day.",
+        "data": {
+          "enabled": "Enable restrictions",
+          "schedule_enabled": "Enable schedule",
+          "schedule_start": "Allowed from",
+          "schedule_end": "Allowed until",
+          "reset_daily": "Disable daily limit",
+          "reset_weekly": "Disable weekly limit",
+          "reset_weekend_daily": "Use weekday limit on weekends"
+        }
+      },
+      "add_action": {
+        "title": "Add action",
+        "data": {
+          "action": "Action"
+        }
+      },
+      "remove_action": {
+        "title": "Remove action",
+        "data": {
+          "action": "Action"
+        }
+      },
+      "move_action": {
+        "title": "Move action to first position",
+        "data": {
+          "action": "Action"
+        }
+      },
+      "update_settings": {
+        "title": "Windows update settings",
+        "description": "Set a trusted HTTPS URL to an approved version catalog, or leave blank to disable remote update controls.",
+        "data": {
+          "update_catalog_url": "Approved version catalog URL"
+        }
+      },
+      "mqtt_settings": {
+        "title": "MQTT configuration",
+        "description": "Connection: {connection}\n\nDevice: {device_id}\n\nMode: {mode}\n\nTopic root: {root}\n\nDiscovery: {root}/discovery\n\nThis integration uses Home Assistant's shared MQTT connection. To edit broker address, port, credentials or TLS, open Settings → Devices & services → MQTT → Configure. Configure the Windows agent separately using its protected config.yaml. No credentials are shown here."
+      }
+    },
+    "error": {
+      "invalid_time": "Enter a valid local time (HH:MM).",
+      "invalid_catalog": "Enter an HTTPS URL without credentials, query or fragment."
+    }
+  }
+}

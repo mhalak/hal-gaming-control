@@ -1,0 +1,25 @@
+device:
+  id: gaming_pc_01
+  name: Gaming PC 1
+mqtt:
+  # MQTT 5 broker required. Commands are never retained.
+  host: REPLACE_WITH_BROKER_IP
+  port: 1883
+  username: gaming_pc_01
+  password: REPLACE_WITH_PASSWORD
+  tls: false
+  discovery_prefix: homeassistant
+gaming:
+  check_interval_seconds: 1
+games:
+  - name: Minecraft Java
+    process: javaw.exe
+    command_line_arg: net.minecraft.client.main.Main
+  - name: Minecraft Bedrock
+    process: Minecraft.Windows.exe
+  - name: Roblox
+    process: RobloxPlayerBeta.exe
+
+# Disabled until a trusted HTTPS mirror and Ed25519 public key are provisioned.
+update:
+  enabled: false

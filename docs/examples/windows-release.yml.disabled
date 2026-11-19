@@ -1,0 +1,70 @@
+# ARCHIVED DESIGN ONLY — not an executable workflow for this repository.
+# This prototype signs the update manifest, NOT the Windows executable.
+# Do not install it under .github/workflows or use it to publish artifacts.
+# Future Windows distribution requires a separate approved channel, trusted Authenticode,
+# independent acceptance and a fresh security review.
+name: Signed Windows release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Numeric major.minor.patch (no v prefix)
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build and test Windows agent
+        shell: pwsh
+        working-directory: windows_agent
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          ./check_powershell.ps1 .
+          ./build.ps1 -Version $env:RELEASE_VERSION
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-windows-build
+          path: windows_agent/dist/
+          retention-days: 1
+  sign:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: windows-release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: unsigned-windows-build
+          path: windows_agent/dist/
+      - run: pip install 'cryptography>=44,<50'
+      - name: Create signed release archives
+        working-directory: windows_agent
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          WINDOWS_RELEASE_SIGNING_KEY: ${{ secrets.WINDOWS_RELEASE_SIGNING_KEY }}
+        run: python package_release.py --version "$RELEASE_VERSION" --output ../release
+      - name: Publish immutable-version release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          git fetch --tags
+          if git rev-parse --verify "refs/tags/windows-v$RELEASE_VERSION" >/dev/null 2>&1; then
+            echo "Refusing to overwrite existing release version"
+            exit 1
+          fi
+          gh release create "windows-v$RELEASE_VERSION" release/* --target "$GITHUB_SHA" --title "Windows Agent $RELEASE_VERSION" --generate-notes

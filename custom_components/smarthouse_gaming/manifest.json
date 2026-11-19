@@ -1,0 +1,20 @@
+{
+  "domain": "smarthouse_gaming",
+  "name": "SmartHouse Parental Control",
+  "version": "0.4.2",
+  "documentation": "https://github.com/mhalak/smarthouse-parental-control",
+  "issue_tracker": "https://github.com/mhalak/smarthouse-parental-control/issues",
+  "codeowners": [
+    "@mhalak"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "mqtt",
+    "recorder"
+  ],
+  "iot_class": "local_push",
+  "integration_type": "device",
+  "mqtt": [
+    "SmartHouse/Gaming/+/discovery"
+  ]
+}

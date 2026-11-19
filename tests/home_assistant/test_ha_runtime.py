@@ -1,0 +1,490 @@
+"""Exercise the actual Home Assistant flow manager, not a reimplemented UI."""
+import json
+from types import SimpleNamespace
+from unittest.mock import patch
+import pytest
+
+from homeassistant import config_entries, data_entry_flow
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+from custom_components.smarthouse_gaming.const import DOMAIN
+from custom_components.smarthouse_gaming.config_flow import GamingConfigFlow
+from custom_components.smarthouse_gaming.coordinator import GamingCoordinator
+
+pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures('recorder_mock')]
+
+DATA = {"device_id":"pc1","name":"Gaming PC 1","protocol_version":1,
+        "games":["Minecraft","Roblox"],"actions":["terminate_game","lock_pc"]}
+
+async def test_discovery_flow(hass, enable_custom_integrations):
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_MQTT},
+        data=SimpleNamespace(topic="SmartHouse/Gaming/pc1/discovery", payload=json.dumps(DATA)))
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert result["step_id"] == "confirm"
+    assert result["description_placeholders"]["name"] == "Gaming PC 1"
+
+async def test_invalid_discovery(hass, enable_custom_integrations):
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_MQTT},
+        data=SimpleNamespace(topic="SmartHouse/Gaming/other/discovery", payload=json.dumps(DATA)))
+    assert result["type"] == data_entry_flow.FlowResultType.ABORT
+    assert result["reason"] == "invalid_discovery"
+
+async def test_action_builder_flow(hass, enable_custom_integrations):
+    entry = MockConfigEntry(domain=DOMAIN, title=DATA["name"], data=DATA, unique_id="pc1")
+    entry.add_to_hass(hass)
+    manager = hass.config_entries.options
+    result = await manager.async_init(entry.entry_id)
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+    assert "add_action" in result["menu_options"]
+    result = await manager.async_configure(result["flow_id"], {"next_step_id":"add_action"})
+    assert result["step_id"] == "add_action"
+    result = await manager.async_configure(result["flow_id"], {"action":"terminate_game"})
+    assert "add_action" in result["menu_options"]
+    result = await manager.async_configure(result["flow_id"], {"next_step_id":"add_action"})
+    result = await manager.async_configure(result["flow_id"], {"action":"lock_pc"})
+    assert "add_action" not in result["menu_options"]
+    assert "remove_action" in result["menu_options"]
+    assert "move_action" in result["menu_options"]
+    result = await manager.async_configure(result["flow_id"], {"next_step_id":"move_action"})
+    result = await manager.async_configure(result["flow_id"], {"action":"lock_pc"})
+    assert result["description_placeholders"]["actions"] == "Lock PC → Terminate game"
+    result = await manager.async_configure(result["flow_id"], {"next_step_id":"remove_action"})
+    result = await manager.async_configure(result["flow_id"], {"action":"lock_pc"})
+    assert "add_action" in result["menu_options"]
+    result = await manager.async_configure(result["flow_id"], {"next_step_id":"save"})
+    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert entry.options["actions"] == ["terminate_game"]
+
+async def test_remote_update_entity_request_and_completion(hass):
+    from unittest.mock import AsyncMock, Mock
+    from custom_components.smarthouse_gaming.update import WindowsAgentUpdate
+    from homeassistant.exceptions import HomeAssistantError
+
+    coordinator = Mock()
+    coordinator.device_id = "pc1"
+    coordinator.entry.data = DATA
+    coordinator.data = {"online": True}
+    entity = WindowsAgentUpdate(coordinator)
+    entity.hass = hass
+    with patch.object(entity, "async_write_ha_state"), patch.object(entity, "_refresh_catalog", new_callable=AsyncMock), patch("custom_components.smarthouse_gaming.update.mqtt.async_publish", new_callable=AsyncMock) as publish:
+        entity._metadata(SimpleNamespace(topic="SmartHouse/Gaming/pc1/discovery",payload=json.dumps(DATA | {"agent_version":"0.1.0","remote_update":True})))
+        entity.approved = "0.2.0"
+        assert entity.available
+        with pytest.raises(HomeAssistantError):
+            await entity.async_install("0.3.0", False)
+        await entity.async_install(None, False)
+        assert entity.in_progress
+        args = publish.call_args.args
+        assert args[1] == "SmartHouse/Gaming/pc1/command/update"
+        assert publish.call_args.kwargs == {"qos":0,"retain":False}
+        request = json.loads(args[2])
+        assert request["version"] == "0.2.0"
+        payload = {"request_id":request["request_id"],"version":"0.2.0","status":"success","timestamp":1000}
+        entity._status(SimpleNamespace(payload=json.dumps(payload | {"request_id":"00000000-0000-0000-0000-000000000000"})))
+        assert entity.result == "requested"
+        entity._status(SimpleNamespace(payload=json.dumps(payload)))
+        assert entity.in_progress  # status alone is not installation proof
+        entity._metadata(SimpleNamespace(topic="SmartHouse/Gaming/pc1/discovery",payload=json.dumps(DATA | {"agent_version":"0.2.0","remote_update":True})))
+        assert not entity.in_progress
+        assert entity.installed_version == "0.2.0"
+
+async def test_remote_update_restore_after_restart(hass):
+    from time import time
+    from unittest.mock import Mock
+    from custom_components.smarthouse_gaming.update import WindowsAgentUpdate, TIMEOUT
+    from custom_components.smarthouse_gaming.update_protocol import make_request
+    coordinator = Mock()
+    coordinator.device_id = "pc1"
+    coordinator.entry.data = DATA
+    coordinator.data = {"online": False}
+    request = make_request("0.1.0", "0.2.0", time())
+    entity = WindowsAgentUpdate(coordinator)
+    entity.hass = hass
+    saved = {"pending":request, "deadline":time()+TIMEOUT-30, "result":"installing"}
+    entity._restore(saved)
+    assert entity.in_progress and entity.available
+    with patch.object(entity, "async_write_ha_state"):
+        entity._status(SimpleNamespace(payload=json.dumps({"request_id":request["request_id"],"version":"0.2.0","status":"success","timestamp":1000})))
+        assert entity.in_progress
+        entity._metadata(SimpleNamespace(topic="SmartHouse/Gaming/pc1/discovery",payload=json.dumps(DATA | {"agent_version":"0.2.0","remote_update":True})))
+        assert not entity.in_progress
+    assert entity._snapshot()["result"] == "success"
+    expired = WindowsAgentUpdate(coordinator)
+    expired._restore(saved | {"deadline":time()-1})
+    assert not expired.in_progress
+    assert expired.result == "timeout_unconfirmed"
+
+
+async def test_mqtt_manifest_subscription_dispatches_real_discovery(hass, enable_custom_integrations):
+    """Exercise HA loader, subscription registration and discovery dispatcher.
+
+    Only transport subscription is stubbed. Do not patch the HA MQTT manifest map
+    or call our config flow directly: those would miss the production failure.
+    """
+    import asyncio
+    from homeassistant.components.mqtt import discovery
+    from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
+    from homeassistant.loader import async_get_mqtt
+
+    matcher = "SmartHouse/Gaming/+/discovery"
+    assert matcher in (await async_get_mqtt(hass))[DOMAIN]
+    subscriptions = {}
+    def subscribe(_hass, topic, handler, qos, **kwargs):
+        subscriptions[topic] = handler
+        return lambda: None
+
+    fake = SimpleNamespace(discovery_unsubscribe=[], integration_unsubscribe={},
+                           data_config_flow_lock=asyncio.Lock(), last_discovery=0)
+    entry = MockConfigEntry(domain="mqtt", data={"broker":"example.invalid"})
+    # Restore MQTT dependency state before dispatch actually initializes the flow.
+    with patch.dict(hass.data, {discovery.DATA_MQTT:fake}):
+        with patch.object(discovery, "async_subscribe_internal", side_effect=subscribe):
+            await discovery.async_start(hass, "homeassistant", entry)
+            assert matcher in subscriptions
+            handler = subscriptions[matcher]
+            await discovery.async_stop(hass)
+
+    payload = DATA | {"device_id":"gaming_pc_01","name":"Gaming PC 1",
+                      "games":["Minecraft Java","Minecraft Bedrock","Roblox"],
+                      "agent_version":"0.1.0","remote_update":False}
+    message = SimpleNamespace(topic="SmartHouse/Gaming/gaming_pc_01/discovery",
+                              payload=json.dumps(payload), qos=1, retain=True,
+                              subscribed_topic=matcher, timestamp=1.0)
+    await handler(message)
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    await hass.async_block_till_done(wait_background_tasks=True)
+    flows = [flow for flow in hass.config_entries.flow.async_progress()
+             if flow["handler"] == DOMAIN]
+    assert len(flows) == 1
+    assert flows[0]["step_id"] == "confirm"
+    assert flows[0]["context"]["source"] == config_entries.SOURCE_MQTT
+    await handler(message)
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert len([f for f in hass.config_entries.flow.async_progress() if f["handler"] == DOMAIN]) == 1
+
+# --- Manual onboarding when HA MQTT discovery is disabled (issue #13) ---
+from unittest.mock import MagicMock
+from pytest_homeassistant_custom_component.common import async_fire_mqtt_message
+from custom_components.smarthouse_gaming import config_flow as cf
+
+@pytest.fixture
+def expected_lingering_timers() -> bool:
+    """The mocked MQTT client leaves a housekeeping timer."""
+    return True
+
+
+DISCOVERY_FILTER = "SmartHouse/Gaming/+/discovery"
+DATA2 = {"device_id": "pc2", "name": "Gaming PC 2", "protocol_version": 1,
+         "games": ["Fortnite"], "actions": ["lock_pc"]}
+
+
+def msg(device_id, payload):
+    body = payload if isinstance(payload, (str, bytes)) else json.dumps(payload)
+    return SimpleNamespace(topic=f"SmartHouse/Gaming/{device_id}/discovery", payload=body)
+
+
+@pytest.fixture
+def fake_mqtt():
+    """Replace the mqtt subscription used by the config flow; deliver retained messages on subscribe."""
+    state = SimpleNamespace(messages=[], filters=[], unsub=MagicMock(), raise_on_subscribe=None)
+
+    async def subscribe(hass, topic, callback, *args, **kwargs):
+        if state.raise_on_subscribe:
+            raise state.raise_on_subscribe
+        state.filters.append(topic)
+        for message in state.messages:
+            callback(message)
+        return state.unsub
+
+    async def no_wait():
+        return None
+
+    with patch.object(cf.mqtt, "async_subscribe", side_effect=subscribe), \
+            patch.object(cf, "_listen_window", no_wait):
+        yield state
+
+
+async def start_user(hass):
+    return await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+
+
+def option_values(result):
+    options = result["data_schema"].schema["device"].config["options"]
+    return [o["value"] for o in options]
+
+
+async def test_user_flow_creates_entry_with_same_data_as_confirm(hass, enable_custom_integrations, fake_mqtt):
+    fake_mqtt.messages = [msg("pc1", DATA)]
+    result = await start_user(hass)
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert result["step_id"] == "user"
+    assert option_values(result) == ["pc1"]
+    assert fake_mqtt.filters == [DISCOVERY_FILTER]
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"device": "pc1"})
+    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert result["title"] == "Gaming PC 1"
+    assert result["data"] == DATA
+    assert result["result"].unique_id == "pc1"
+    fake_mqtt.unsub.assert_called_once()
+
+
+async def test_user_flow_data_identical_to_mqtt_path(hass, enable_custom_integrations, fake_mqtt):
+    mqtt_result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_MQTT}, data=msg("pc1", DATA))
+    mqtt_result = await hass.config_entries.flow.async_configure(mqtt_result["flow_id"], {})
+    fake_mqtt.messages = [msg("pc2", {**DATA, "device_id": "pc2"})]
+    result = await start_user(hass)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"device": "pc2"})
+    assert set(result["data"]) == set(mqtt_result["data"])
+    assert result["data"] == {**DATA, "device_id": "pc2"}
+
+
+async def test_user_flow_two_devices_selectable(hass, enable_custom_integrations, fake_mqtt):
+    fake_mqtt.messages = [msg("pc2", DATA2), msg("pc1", DATA)]
+    result = await start_user(hass)
+    assert option_values(result) == ["pc1", "pc2"]
+    labels = {o["value"]: o["label"] for o in result["data_schema"].schema["device"].config["options"]}
+    assert labels == {"pc1": "Gaming PC 1", "pc2": "Gaming PC 2"}
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"device": "pc2"})
+    assert result["data"] == DATA2
+    assert result["result"].unique_id == "pc2"
+
+
+async def test_user_flow_filters_configured_devices(hass, enable_custom_integrations, fake_mqtt):
+    MockConfigEntry(domain=DOMAIN, title=DATA["name"], data=DATA, unique_id="pc1").add_to_hass(hass)
+    fake_mqtt.messages = [msg("pc1", DATA), msg("pc2", DATA2)]
+    result = await start_user(hass)
+    assert option_values(result) == ["pc2"]
+
+
+async def test_user_flow_all_configured_is_no_devices_found(hass, enable_custom_integrations, fake_mqtt):
+    MockConfigEntry(domain=DOMAIN, title=DATA["name"], data=DATA, unique_id="pc1").add_to_hass(hass)
+    fake_mqtt.messages = [msg("pc1", DATA)]
+    result = await start_user(hass)
+    assert result["type"] == data_entry_flow.FlowResultType.ABORT
+    assert result["reason"] == "no_devices_found"
+    fake_mqtt.unsub.assert_called_once()
+
+
+async def test_user_flow_no_messages_is_no_devices_found(hass, enable_custom_integrations, fake_mqtt):
+    result = await start_user(hass)
+    assert result["type"] == data_entry_flow.FlowResultType.ABORT
+    assert result["reason"] == "no_devices_found"
+    fake_mqtt.unsub.assert_called_once()
+
+
+BAD_PAYLOADS = {
+    "not_json": "{nope",
+    "not_object": "[1, 2]",
+    "wrong_protocol": json.dumps({**DATA, "protocol_version": 2}),
+    "id_mismatch": json.dumps({**DATA, "device_id": "other"}),
+    "bad_name": json.dumps({**DATA, "name": " "}),
+    "bad_games": json.dumps({**DATA, "games": "Minecraft"}),
+    "oversized": json.dumps({**DATA, "name": "x" * 200000}),
+    "none_payload": None,
+    "invalid_bytes": b"\xff\xfe\x00",
+    "int_payload": 5,
+}
+
+
+@pytest.mark.parametrize("bad", list(BAD_PAYLOADS))
+async def test_user_flow_ignores_invalid_payload(hass, enable_custom_integrations, fake_mqtt, bad):
+    fake_mqtt.messages = [msg("pc1", BAD_PAYLOADS[bad]), msg("pc2", DATA2)]
+    result = await start_user(hass)
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert option_values(result) == ["pc2"]
+    fake_mqtt.unsub.assert_called_once()
+
+
+async def test_user_flow_foreign_topic_ignored(hass, enable_custom_integrations, fake_mqtt):
+    fake_mqtt.messages = [SimpleNamespace(topic="homeassistant/sensor/x/config", payload=json.dumps(DATA)),
+                          SimpleNamespace(topic="SmartHouse/Gaming/pc1/discovery/extra", payload=json.dumps(DATA))]
+    result = await start_user(hass)
+    assert result["type"] == data_entry_flow.FlowResultType.ABORT
+    assert result["reason"] == "no_devices_found"
+
+
+async def test_user_flow_only_invalid_is_no_devices_found(hass, enable_custom_integrations, fake_mqtt):
+    fake_mqtt.messages = [msg("pc1", "{nope")]
+    result = await start_user(hass)
+    assert result["reason"] == "no_devices_found"
+
+
+async def test_user_flow_unsubscribes_when_wait_fails(hass, enable_custom_integrations, fake_mqtt):
+    async def broken_wait():
+        raise RuntimeError("boom")
+    with patch.object(cf, "_listen_window", broken_wait):
+        with pytest.raises(Exception):
+            await start_user(hass)
+    fake_mqtt.unsub.assert_called_once()
+
+
+async def test_user_flow_subscribe_error_is_no_devices_found(hass, enable_custom_integrations, fake_mqtt):
+    fake_mqtt.raise_on_subscribe = RuntimeError("mqtt not available")
+    result = await start_user(hass)
+    assert result["type"] == data_entry_flow.FlowResultType.ABORT
+    assert result["reason"] == "no_devices_found"
+
+
+async def test_user_flow_rejects_unknown_selection(hass, enable_custom_integrations, fake_mqtt):
+    fake_mqtt.messages = [msg("pc1", DATA)]
+    result = await start_user(hass)
+    with pytest.raises(Exception):
+        await hass.config_entries.flow.async_configure(result["flow_id"], {"device": "ghost"})
+    assert not hass.config_entries.async_entries(DOMAIN)
+
+
+async def test_user_flow_device_configured_meanwhile_aborts(hass, enable_custom_integrations, fake_mqtt):
+    fake_mqtt.messages = [msg("pc1", DATA)]
+    result = await start_user(hass)
+    MockConfigEntry(domain=DOMAIN, title=DATA["name"], data=DATA, unique_id="pc1").add_to_hass(hass)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"device": "pc1"})
+    assert result["type"] == data_entry_flow.FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 1
+
+
+async def test_user_then_mqtt_no_duplicate(hass, enable_custom_integrations, fake_mqtt):
+    fake_mqtt.messages = [msg("pc1", DATA)]
+    result = await start_user(hass)
+    await hass.config_entries.flow.async_configure(result["flow_id"], {"device": "pc1"})
+    again = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_MQTT}, data=msg("pc1", DATA))
+    assert again["type"] == data_entry_flow.FlowResultType.ABORT
+    assert again["reason"] == "already_configured"
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 1
+
+
+async def test_mqtt_then_user_no_duplicate(hass, enable_custom_integrations, fake_mqtt):
+    pending = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_MQTT}, data=msg("pc1", DATA))
+    assert pending["step_id"] == "confirm"
+    fake_mqtt.messages = [msg("pc1", DATA)]
+    result = await start_user(hass)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"device": "pc1"})
+    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 1
+    assert not hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+
+
+async def test_mqtt_path_regression_confirm_creates_entry(hass, enable_custom_integrations):
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_MQTT}, data=msg("pc1", DATA))
+    assert result["step_id"] == "confirm"
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert result["data"] == DATA
+    assert result["result"].unique_id == "pc1"
+
+
+async def test_user_flow_real_mqtt_subscription(hass, enable_custom_integrations, mqtt_mock):
+    """Real mqtt.async_subscribe: wildcard match, retained delivery inside the window, unsubscribe afterwards."""
+    async def window():
+        async_fire_mqtt_message(hass, "SmartHouse/Gaming/pc1/discovery", json.dumps(DATA))
+        async_fire_mqtt_message(hass, "SmartHouse/Gaming/pc2/discovery", "garbage")
+        async_fire_mqtt_message(hass, "SmartHouse/Other/pc3/discovery", json.dumps(DATA2))
+        await hass.async_block_till_done()
+    real_subscribe = cf.mqtt.async_subscribe
+    unsubs = []
+
+    async def spy(*args, **kwargs):
+        unsub = await real_subscribe(*args, **kwargs)
+        wrapped = MagicMock(side_effect=unsub)
+        unsubs.append((args[1], wrapped))
+        return wrapped
+
+    with patch.object(cf.mqtt, "async_subscribe", side_effect=spy), patch.object(cf, "_listen_window", window):
+        result = await start_user(hass)
+    assert option_values(result) == ["pc1"]
+    assert [topic for topic, _ in unsubs] == [DISCOVERY_FILTER]
+    unsubs[0][1].assert_called_once()
+    # after the window the subscription is gone: later messages must not alter the flow
+    async_fire_mqtt_message(hass, "SmartHouse/Gaming/pc2/discovery", json.dumps(DATA2))
+    await hass.async_block_till_done()
+    assert option_values(result) == ["pc1"]
+
+
+async def test_window_is_bounded():
+    assert 0 < cf.DISCOVERY_WINDOW <= 10
+
+
+def test_strings_cover_manual_onboarding():
+    import pathlib
+    base = pathlib.Path(cf.__file__).parent
+    for rel in ("strings.json", "translations/en.json"):
+        config = json.loads((base / rel).read_text())["config"]
+        assert config["step"]["user"]["data"]["device"]
+        assert config["abort"]["no_devices_found"]
+        assert "discovery_only" not in config["abort"]
+
+
+async def test_limit_form_excludes_override_and_legacy_weekend_total(hass, enable_custom_integrations):
+    entry = MockConfigEntry(domain=DOMAIN, data=DATA, unique_id="pc1",
+                            options={"daily":60,"weekend_daily":120,"weekend_total":90,"unlimited":False})
+    entry.add_to_hass(hass)
+    manager = hass.config_entries.options
+    result = await manager.async_init(entry.entry_id)
+    result = await manager.async_configure(result["flow_id"], {"next_step_id":"limits"})
+    fields = {str(k) for k in result["data_schema"].schema}
+    assert fields == {"enabled","reset_daily","reset_weekly","reset_weekend_daily","schedule_enabled","schedule_start","schedule_end"}
+    result = await manager.async_configure(result["flow_id"], {"enabled":True,"schedule_enabled":False,
+        "schedule_start":"16:00","schedule_end":"20:00"})
+    hass.config_entries.async_update_entry(entry, options=dict(entry.options) | {"unlimited":True,"daily":90,"bonus_date":"2026-11-18","bonus_minutes":30,"actions":["lock_pc"]})
+    result = await manager.async_configure(result["flow_id"], {"next_step_id":"save"})
+    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert entry.options["unlimited"] is True
+    assert entry.options["weekend_daily"] == 120
+    assert entry.options["daily"] == 90
+    assert entry.options["bonus_minutes"] == 30
+    assert entry.options["actions"] == ["lock_pc"]
+    assert "weekend_total" not in entry.options
+
+
+@pytest.mark.parametrize("connected,direct", [(True,True),(False,False)])
+async def test_mqtt_configuration_info_is_scoped_and_read_only(hass, enable_custom_integrations, connected, direct):
+    entry = MockConfigEntry(domain=DOMAIN, data=DATA, unique_id="pc1", options={"daily":60})
+    entry.add_to_hass(hass)
+    manager = hass.config_entries.options
+    result = await manager.async_init(entry.entry_id)
+    assert "mqtt_settings" in result["menu_options"]
+    with patch.object(cf.mqtt, "is_connected", return_value=connected), patch.object(cf, "direct_mode", return_value=direct):
+        result = await manager.async_configure(result["flow_id"], {"next_step_id":"mqtt_settings"})
+    assert result["step_id"] == "mqtt_settings"
+    assert result["description_placeholders"] == {
+        "connection": "Connected" if connected else "Disconnected",
+        "device_id": "pc1",
+        "root": "SmartHouse/Gaming/pc1",
+        "mode": "Scoped discovery" if direct else "Native MQTT discovery",
+    }
+    assert not result["data_schema"].schema
+    result = await manager.async_configure(result["flow_id"], {})
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+    assert entry.options == {"daily":60}
+
+
+async def test_per_game_editor_hidden_preserving_existing_settings(hass, enable_custom_integrations):
+    entry = MockConfigEntry(domain=DOMAIN, data=DATA, unique_id="pc1",
+                            options={"daily":60,"per_game":{"Roblox":30}})
+    entry.add_to_hass(hass)
+    manager = hass.config_entries.options
+    result = await manager.async_init(entry.entry_id)
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+    assert "game_limits" not in result["menu_options"]
+    assert "mqtt_settings" in result["menu_options"]
+    assert "update_settings" in result["menu_options"]
+    # Preserve concurrent updates to the now-hidden legacy setting.
+    hass.config_entries.async_update_entry(entry, options=dict(entry.options) | {
+        "per_game":{"Roblox":45}})
+    result = await manager.async_configure(result["flow_id"], {"next_step_id":"save"})
+    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert entry.options["per_game"] == {"Roblox":45}
+    assert entry.options["daily"] == 60
+
+
+def test_per_game_editor_translations_removed():
+    from pathlib import Path
+    parent = Path(cf.__file__).parent
+    for rel in ("strings.json","translations/en.json"):
+        steps = json.loads((parent / rel).read_text())["options"]["step"]
+        assert not {"game_limits","choose_game","game_limit"} & steps.keys()

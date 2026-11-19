@@ -1,0 +1,161 @@
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
+import paho.mqtt.client as mqtt
+from gaming_control.mqtt_bridge import Bridge
+
+CONFIG = {'device': {'id': 'pc1', 'name': 'PC 1'}, 'mqtt': {'host': 'localhost'}}
+
+
+def connected_bridge():
+    b = Bridge(CONFIG)
+    b.client = Mock()
+    b.client.publish.return_value.rc = mqtt.MQTT_ERR_SUCCESS
+    b.client.publish.return_value.is_published.return_value = True
+    b.on_connect(b.client, None, None, SimpleNamespace(is_failure=False), None)
+    return b
+
+
+def send(b, command='lock_pc', payload=b'PRESS', retain=False):
+    b.on_message(b.client, None, SimpleNamespace(topic=b.root + '/command/' + command,
+                                                payload=payload, retain=retain))
+
+
+def test_only_explicit_valid_commands():
+    b = connected_bridge()
+    send(b, retain=True)
+    send(b, payload=b'ON')
+    send(b, command='reset')
+    send(b)
+    assert list(b.drain_commands()) == ['lock_pc']
+    for call in b.client.subscribe.call_args_list[:2]:
+        assert call.kwargs['options'].retainAsPublished
+        assert call.kwargs['options'].retainHandling == 2
+
+
+def test_no_actions_after_reconnect():
+    b = connected_bridge()
+    send(b)
+    b.on_disconnect(b.client, None, None, None, None)
+    b.on_connect(b.client, None, None, SimpleNamespace(is_failure=False), None)
+    assert list(b.drain_commands()) == []
+    send(b, command='terminate_game')
+    assert list(b.drain_commands()) == ['terminate_game']
+
+
+def test_stale_actions_discarded():
+    b = connected_bridge()
+    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=1):
+        send(b)
+    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=12):
+        assert list(b.drain_commands()) == []
+
+
+def test_state_changes_and_uptime_period():
+    b = connected_bridge()
+    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=10):
+        b.publish({'in_game': 'OFF', 'current_game': 'idle'}, 100)
+    topics = {call.args[0] for call in b.client.publish.call_args_list}
+    assert b.root + '/state/uptime' in topics
+    assert b.root + '/availability' in topics
+    b.client.publish.reset_mock()
+    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=11):
+        b.publish({'in_game': 'ON', 'current_game': 'Roblox'}, 101)
+    assert {call.args[0] for call in b.client.publish.call_args_list} == {
+        b.root + '/state/in_game', b.root + '/state/current_game'}
+    b.client.publish.reset_mock()
+    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=70):
+        b.publish({'in_game': 'ON', 'current_game': 'Roblox'}, 160)
+    assert b.root + '/state/uptime' in {call.args[0] for call in b.client.publish.call_args_list}
+
+
+def test_republish_on_reconnect():
+    b = connected_bridge()
+    values = {'in_game': 'OFF', 'current_game': 'idle'}
+    b.publish(values, 100)
+    b.on_disconnect(b.client, None, None, None, None)
+    b.on_connect(b.client, None, None, SimpleNamespace(is_failure=False), None)
+    b.client.publish.reset_mock()
+    b.publish(values, 101)
+    topics = {call.args[0] for call in b.client.publish.call_args_list}
+    assert {b.root + '/state/' + k for k in ('uptime', 'in_game', 'current_game')} <= topics
+
+
+def test_versioned_custom_discovery():
+    import json
+    b = connected_bridge()
+    b.publish({'in_game': 'OFF', 'current_game': 'idle'}, 100)
+    calls = [c for c in b.client.publish.call_args_list if c.args[0] == b.root + '/discovery']
+    assert len(calls) == 1 and calls[0].kwargs['retain']
+    data = json.loads(calls[0].args[1])
+    assert data['protocol_version'] == 1 and data['device_id'] == 'pc1'
+    assert data['actions'] == ['terminate_game', 'lock_pc']
+
+
+def test_startup_offline_until_all_live_values_are_confirmed():
+    b = connected_bridge()
+    assert b.publish({'in_game':'OFF','current_game':'idle'}, 12)
+    calls = [(c.args[0], c.args[1], c.kwargs) for c in b.client.publish.call_args_list
+             if c.args[0].startswith(b.root + '/state/') or c.args[0] == b.root + '/availability']
+    assert calls == [
+        (b.root+'/availability','offline',{'qos':1,'retain':True}),
+        (b.root+'/state/in_game','OFF',{'qos':1,'retain':True}),
+        (b.root+'/state/current_game','idle',{'qos':1,'retain':True}),
+        (b.root+'/state/uptime','12',{'qos':1,'retain':True}),
+        (b.root+'/availability','online',{'qos':1,'retain':True}),
+    ]
+
+
+def test_initial_snapshot_timeout_never_announces_online():
+    b = connected_bridge()
+    ack = Mock(rc=mqtt.MQTT_ERR_SUCCESS)
+    ack.is_published.return_value = True
+    lost = Mock(rc=mqtt.MQTT_ERR_SUCCESS)
+    lost.is_published.return_value = False
+    def deliver(topic, *args, **kwargs):
+        return lost if topic.endswith('/state/current_game') else ack
+    b.client.publish.side_effect = deliver
+    assert not b.publish({'in_game':'OFF','current_game':'idle'}, 12)
+    assert b.synced_generation is None
+    assert b.refresh_requested
+    assert not any(c.args[:2] == (b.root+'/availability','online')
+                   for c in b.client.publish.call_args_list)
+    b.client.publish.side_effect = None
+    assert b.publish({'in_game':'OFF','current_game':'idle'}, 13)
+
+
+def test_disconnect_during_snapshot_requires_fresh_scan():
+    b = connected_bridge()
+    ack = b.client.publish.return_value
+    def disconnect():
+        b.on_disconnect(b.client, None, None, None, None)
+    def deliver(topic, *args, **kwargs):
+        if topic.endswith('/state/current_game'):
+            disconnect()
+        return ack
+    b.client.publish.side_effect = deliver
+    assert not b.publish({'in_game':'ON','current_game':'Roblox'}, 12)
+    assert b.synced_generation is None
+    b.on_connect(b.client,None,None,SimpleNamespace(is_failure=False),None)
+    b.client.publish.side_effect = None
+    b.client.publish.reset_mock()
+    assert b.publish({'in_game':'OFF','current_game':'idle'},13)
+    assert any(c.args[:2] == (b.root+'/state/current_game','idle')
+               for c in b.client.publish.call_args_list)
+    assert not any(c.args[:2] == (b.root+'/state/current_game','Roblox')
+                   for c in b.client.publish.call_args_list)
+
+
+def test_failed_game_transition_invalidates_and_retries_complete_snapshot():
+    b = connected_bridge()
+    assert b.publish({'in_game':'ON','current_game':'Roblox'}, 12)
+    ack = b.client.publish.return_value
+    lost = Mock(rc=mqtt.MQTT_ERR_SUCCESS)
+    lost.is_published.return_value = False
+    b.client.publish.side_effect = lambda topic,*a,**k: lost if topic.endswith('/state/current_game') else ack
+    assert not b.publish({'in_game':'OFF','current_game':'idle'},13)
+    assert b.synced_generation is None
+    assert b.client.publish.call_args.args[:2] == (b.root+'/availability','offline')
+    b.client.publish.side_effect = None
+    assert b.publish({'in_game':'OFF','current_game':'idle'},14)
+    assert b.last['current_game'] == 'idle'
+    assert b.last['in_game'] == 'OFF'

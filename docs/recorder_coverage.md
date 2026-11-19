@@ -1,0 +1,15 @@
+# Recorder coverage semantics
+
+Gaming time is counted only between consecutive, observed, consistent uptime samples. The expected publication interval is 60 seconds; gaps over 90 seconds, unknown/ unavailable uptime, repeated or decreasing uptime, or clock/uptime drift over 15 seconds break coverage. Game changes and unknown/unavailable game values are respected within coverage. The last unconfirmed interval is NOT counted: quotas may trigger up to roughly one normal heartbeat later than actual gaming (plus polling), and losing a heartbeat may omit play time. Schedules remain independent. No added Windows sensors or persistence. This is deliberately conservative: do not guess play during outages. Both current_game and uptime must be recorded, with retention of at least 8 days. Short outages within the heartbeat tolerance cannot be distinguished from normal MQTT jitter; uptime does not establish that gaming state was delivered throughout. Verify actual HA Recorder restart, broker disconnect and week boundary with real HA and Windows before production. Derived stats can undercount when telemetry is lost. Existing integration history containing only current_game is insufficient for confirmed totals.
+
+## Downtime semantics (single mechanism)
+This document is the only source of truth for Recorder downtime accounting; `docs/ha_integration.md` only links here. There is deliberately no second mechanism: Home Assistant's `recorder_runs` table is not read, because any HA, Recorder or broker outage stops the `uptime` heartbeats and is therefore already unobserved here. Unknown time is never counted as play, so quotas can only under-count because of downtime, never over-count.
+
+- Graceful stop, crash or power loss: the last observed heartbeat ends coverage; the time until heartbeats resume is not counted, even if the game really ran. The game state from before the gap is not carried over it.
+- Cold start, empty Recorder, absent/`unknown`/`unavailable` source or uptime, or a single heartbeat: 0.
+- After a restart, counting resumes between the first two consecutive heartbeats; the game state is the one observed by HA (a retained MQTT value is stamped with the restart time).
+- A gap spanning midnight or the Monday 00:00 boundary is split by the normal window arithmetic; DST days use real elapsed time.
+- Tolerance: an outage of at most 90 s between two consistent heartbeats keeps the last game state and is counted. It cannot be told apart from MQTT jitter; at 91 s it is unobserved.
+- Residual risk: if HA wrote no state row for the source at all after a restart, the pre-gap game state would be carried into the first covered interval until the next row arrives. HA normally writes an initial `unknown`/`unavailable` row at startup; this is covered by tests but not verified on a real HA/MQTT setup.
+
+Tests: `tests/home_assistant/test_coverage.py` (pure) and `tests/home_assistant/test_recorder_runtime.py` (real in-memory Recorder via `recorder_mock`; cold start, graceful/crash gap, unavailable, restart, week boundary, DST, Recorder lag, tolerance boundary).
