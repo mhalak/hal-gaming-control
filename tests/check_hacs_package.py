@@ -1,5 +1,6 @@
 """Offline checks for HACS packaging; official validation is separate."""
 import json
+import re
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
@@ -20,4 +21,26 @@ assert hacs.get("render_readme") is True or (root / "info.md").is_file()
 assert (root / "LICENSE").is_file()
 assert (root / "docs/windows_deployment.md").is_file()
 assert json.loads((integration / "strings.json").read_text()) == json.loads((integration / "translations/en.json").read_text())
+# Prevent regressions caught by the official hassfest validator.
+expected_manifest_keys = ["domain", "name"] + sorted(set(manifest) - {"domain", "name"})
+assert list(manifest) == expected_manifest_keys, "Manifest keys must start with domain, name, then alphabetical order"
+
+
+def translation_html_paths(value, path=""):
+    """Find HTML-like tags in translation values, including angle-bracket placeholders."""
+    if isinstance(value, dict):
+        for key, child in value.items():
+            yield from translation_html_paths(child, f"{path}.{key}" if path else key)
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            yield from translation_html_paths(child, f"{path}[{index}]")
+    elif isinstance(value, str) and re.search(r"</?[A-Za-z][^<>]*>", value):
+        yield path
+
+
+for relative_path in ("strings.json", "translations/en.json"):
+    translations = json.loads((integration / relative_path).read_text())
+    invalid_paths = list(translation_html_paths(translations))
+    assert not invalid_paths, f"{relative_path}: HTML-like tags in {invalid_paths}"
+
 print("HACS package structural checks passed")
