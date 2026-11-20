@@ -15,7 +15,7 @@ import subprocess
 import sys
 import time
 
-from .foreground import classify, sample_window, IDLE, UNKNOWN, MAX_SAMPLE_AGE
+from .foreground import classify, candidate_from_sample, sample_window, IDLE, UNKNOWN, MAX_SAMPLE_AGE
 from .windows import process_session_id
 
 LOG = logging.getLogger(__name__)
@@ -253,6 +253,7 @@ class FocusProbe:
         return latest
 
     def read(self, rules):
+        self.candidate = None  # never carry identity over a failed or stale probe
         try:
             session, status = selected_session()
             if status != "unlocked":
@@ -286,6 +287,9 @@ class FocusProbe:
                 return dict(IDLE if state in ("idle", "locked") else UNKNOWN)
             if isinstance(sample, dict) and isinstance(sample.get("time"), (int, float)) and now - sample["time"] <= MAX_SAMPLE_AGE:
                 self.started = now
+                if result != UNKNOWN:
+                    self.candidate = candidate_from_sample(
+                        sample, session, now, session_lookup=process_session_id)
             return result
         except Exception as err:
             # A failed open/write can close the pipe just before the child
