@@ -118,18 +118,7 @@ class GamingCoordinator(DataUpdateCoordinator):
         self.coverage_start = start
         self.loaded = True
 
-    async def _async_update_data(self):
-        now = dt_util.now()
-        source = self.entity_id("sensor", "current_game")
-        uptime_id = self.entity_id("sensor", "uptime")
-        if not source or not uptime_id:
-            self.liveness.reset()
-            self.last_signature = None
-            return {"ready": False, "online": False}
-        try:
-            await self._prepare_source(source, uptime_id, now)
-        except Exception as err:
-            raise UpdateFailed("Cannot load Recorder history") from err
+    def _apply_pending_events(self):
         if self.pending:
             # Stable chronological order; preserve the anchor state before the week.
             self.transitions.extend(self.pending)
@@ -138,23 +127,8 @@ class GamingCoordinator(DataUpdateCoordinator):
         if self.pending_heartbeats:
             self.heartbeats = sorted(dict(self.heartbeats + self.pending_heartbeats).items())
             self.pending_heartbeats.clear()
-        now = dt_util.now()
-        current = self.hass.states.get(source)
-        in_game_id = self.entity_id("binary_sensor", "in_game")
-        in_game = self.hass.states.get(in_game_id) if in_game_id else None
-        online = bool(current and current.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE)
-                      and in_game and in_game.state in ("on", "off"))
-        active = games_from_state(current.state) if online else frozenset()
-        uptime = self.hass.states.get(uptime_id)
-        # A retained first observation is not evidence of a live PC. Require
-        # a changed uptime value after startup or an unavailable observation.
-        fresh = self.liveness.observe(uptime.state if uptime and online else None, monotonic())
-        if online and (bool(active) != (in_game.state == "on")):
-            # During two separate MQTT state publications, do not enforce inconsistent data.
-            online = False
-        intervals = heartbeat_intervals(self.heartbeats)
-        totals = calculate(covered_transitions(self.transitions, intervals), now, set(self.games) | active)
-        reason = violations(self.options, totals, now, active)
+
+    async def _async_enforce(self, online, fresh, active, reason, totals, now):
         actions = selected_actions(self.advertised, self.options["actions"])
         signature = (tuple(sorted(active)), tuple(reason), tuple(actions))
         if online and fresh and active and reason and actions:
@@ -177,6 +151,38 @@ class GamingCoordinator(DataUpdateCoordinator):
                         _LOGGER.exception("Action %s failed for %s", key, self.device_id)
         else:
             self.last_signature = None
+
+    async def _async_update_data(self):
+        now = dt_util.now()
+        source = self.entity_id("sensor", "current_game")
+        uptime_id = self.entity_id("sensor", "uptime")
+        if not source or not uptime_id:
+            self.liveness.reset()
+            self.last_signature = None
+            return {"ready": False, "online": False}
+        try:
+            await self._prepare_source(source, uptime_id, now)
+        except Exception as err:
+            raise UpdateFailed("Cannot load Recorder history") from err
+        self._apply_pending_events()
+        now = dt_util.now()
+        current = self.hass.states.get(source)
+        in_game_id = self.entity_id("binary_sensor", "in_game")
+        in_game = self.hass.states.get(in_game_id) if in_game_id else None
+        online = bool(current and current.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE)
+                      and in_game and in_game.state in ("on", "off"))
+        active = games_from_state(current.state) if online else frozenset()
+        uptime = self.hass.states.get(uptime_id)
+        # A retained first observation is not evidence of a live PC. Require
+        # a changed uptime value after startup or an unavailable observation.
+        fresh = self.liveness.observe(uptime.state if uptime and online else None, monotonic())
+        if online and (bool(active) != (in_game.state == "on")):
+            # During two separate MQTT state publications, do not enforce inconsistent data.
+            online = False
+        intervals = heartbeat_intervals(self.heartbeats)
+        totals = calculate(covered_transitions(self.transitions, intervals), now, set(self.games) | active)
+        reason = violations(self.options, totals, now, active)
+        await self._async_enforce(online, fresh, active, reason, totals, now)
         return {"ready": True, "online": online and fresh, "totals": totals, "reasons": reason,
                 "active": sorted(active)}
 
