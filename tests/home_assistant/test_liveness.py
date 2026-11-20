@@ -145,3 +145,68 @@ def test_foreground_snapshot_malformed_payload_is_unknown(payload):
     assert observe(gate)
     assert not observe(gate, payload, wall=1001, mono=101)
     assert gate.current(101) is None
+
+
+def test_foreground_snapshot_retired_epoch_cannot_retake_control():
+    gate = foreground_gate()
+    assert observe(gate)
+    assert observe(gate, packet(epoch="b" * 32, observed_at=1001), wall=1001, mono=101)
+    assert not observe(gate, packet(sequence=99, observed_at=1002), wall=1002, mono=102)
+    assert gate.current(102) == "Roblox"
+
+
+def test_foreground_snapshot_same_epoch_clock_regression_does_not_renew():
+    gate = foreground_gate()
+    assert observe(gate)
+    assert not observe(gate, packet(sequence=2, observed_at=999), wall=1001, mono=101)
+    assert gate.current(109) == "Roblox"
+    assert gate.current(110) is None
+
+
+def test_foreground_snapshot_future_skew_cannot_extend_lifetime():
+    gate = foreground_gate()
+    assert observe(gate, packet(observed_at=1002))
+    assert gate.current(109.99) == "Roblox"
+    assert gate.current(110) is None
+
+
+@pytest.mark.parametrize("changes", [
+    {"sequence": 1 << 63}, {"epoch": None}, {"active_game": []},
+    {"gaming_active": []}, {"observed_at": 10 ** 300}, {"extra": 1},
+])
+def test_foreground_snapshot_strict_schema(changes):
+    gate = foreground_gate()
+    assert not observe(gate, packet(**changes))
+    assert gate.current(100) is None
+
+
+def test_foreground_snapshot_rejects_duplicate_fields_and_invalid_utf8():
+    gate = foreground_gate()
+    assert not observe(gate, packet()[:-1] + ', "sequence": 2}')
+    assert not observe(gate, b"\xff")
+    assert gate.current(100) is None
+
+
+def test_foreground_snapshot_invalid_clocks_fail_closed():
+    gate = foreground_gate()
+    assert observe(gate)
+    assert not observe(gate, packet(sequence=2), wall=float("nan"))
+    assert gate.current(100) is None
+    assert observe(gate, packet(sequence=2))
+    assert not observe(gate, packet(sequence=3), mono=99)
+    assert gate.current(100) is None
+
+
+def test_foreground_snapshot_monotonic_regression_on_read_invalidates():
+    gate = foreground_gate()
+    assert observe(gate)
+    assert gate.current(99) is None
+    assert gate.current(100) is None
+
+
+def test_foreground_snapshot_reserved_or_ambiguous_enrolled_names_rejected():
+    from custom_components.smarthouse_gaming.foreground_snapshot import ForegroundLiveness
+    gate = ForegroundLiveness("pc1", {"idle", "unknown", "unavailable", "", "A | B"})
+    for name in ("idle", "unknown", "unavailable", "", "A | B"):
+        assert not observe(gate, packet(active_game=name))
+    assert gate.current(100) is None
