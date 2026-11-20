@@ -644,7 +644,8 @@ async def test_integration_version_reads_only_local_staged_provenance(hass, tmp_
     coordinator.entry.data = DATA
     entity = IntegrationVersionSensor(coordinator, root=tmp_path)
     entity.hass = hass
-    with patch.object(GamingEntity, "async_added_to_hass", new_callable=AsyncMock):
+    with patch.object(GamingEntity, "async_added_to_hass", new_callable=AsyncMock), \
+            patch.object(entity, "async_write_ha_state"):
         await entity.async_added_to_hass()
     assert entity.native_value == "0.4.3"
     assert entity.extra_state_attributes["build_sha"] == expected
