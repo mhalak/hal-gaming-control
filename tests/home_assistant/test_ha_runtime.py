@@ -488,3 +488,62 @@ def test_per_game_editor_translations_removed():
     for rel in ("strings.json","translations/en.json"):
         steps = json.loads((parent / rel).read_text())["options"]["step"]
         assert not {"game_limits","choose_game","game_limit"} & steps.keys()
+
+
+@pytest.mark.parametrize("key, platform", [("current_game", "sensor"), ("lock_pc", "button"),
+                                          ("update", "update")])
+async def test_cross_domain_registry_transfer_and_reverse(hass, key, platform):
+    """Capability test against the real HA registries, not a mock migration implementation."""
+    from homeassistant.helpers import device_registry as dr, entity_registry as er
+
+    options = {"daily": 60, "weekly": 300, "weekend_daily": 120, "unlimited": True,
+               "bonus_minutes": 30, "bonus_date": "2026-11-20", "actions": ["lock_pc"]}
+    old = MockConfigEntry(domain=DOMAIN, title=DATA["name"], data=DATA,
+                          options=options, unique_id="pc1")
+    new = MockConfigEntry(domain="parental", title=old.title, data=dict(old.data),
+                          options=dict(old.options), unique_id=old.unique_id)
+    old.add_to_hass(hass)
+    new.add_to_hass(hass)
+    devices, entities = dr.async_get(hass), er.async_get(hass)
+    identifiers = {("mqtt", "smarthouse_gaming_pc1")}
+    device = devices.async_get_or_create(config_entry_id=old.entry_id, identifiers=identifiers,
+                                         name="Test PC")
+    devices.async_update_device(device.id, name_by_user="Custom PC")
+    entity = entities.async_get_or_create(platform, DOMAIN, "pc1_" + key,
+                                           config_entry=old, device_id=device.id)
+    entity = entities.async_update_entity(entity.entity_id, name="Custom entity",
+                                          disabled_by=er.RegistryEntryDisabler.USER)
+    await hass.async_block_till_done()
+
+    # The entity and device must move in one synchronous registry operation group.
+    # Both entries are unloaded in this test. Never move live entities.
+    entities.async_update_entity_platform(entity.entity_id, "parental",
+                                          new_config_entry_id=new.entry_id)
+    devices.async_update_device(device.id, new_config_entry_id=new.entry_id)
+    await hass.async_block_till_done()
+
+    moved = entities.async_get(entity.entity_id)
+    assert moved is not None
+    assert moved.id == entity.id and moved.unique_id == entity.unique_id
+    assert moved.entity_id == entity.entity_id and moved.device_id == device.id
+    assert moved.platform == "parental" and moved.config_entry_id == new.entry_id
+    assert moved.name == "Custom entity" and moved.disabled_by == er.RegistryEntryDisabler.USER
+    assert entities.async_get_entity_id(platform, DOMAIN, entity.unique_id) is None
+    assert entities.async_get_entity_id(platform, "parental", entity.unique_id) == entity.entity_id
+    target_device = devices.async_get(device.id)
+    assert target_device.config_entry_id == new.entry_id
+    assert target_device.identifiers == identifiers and target_device.name_by_user == "Custom PC"
+    assert dict(new.options) == dict(old.options) == options
+    assert dict(new.data) == dict(old.data) == DATA
+
+    # Prove the registry operations can be reversed before retiring the old entry.
+    entities.async_update_entity_platform(entity.entity_id, DOMAIN,
+                                          new_config_entry_id=old.entry_id)
+    devices.async_update_device(device.id, new_config_entry_id=old.entry_id)
+    await hass.async_block_till_done()
+    restored = entities.async_get(entity.entity_id)
+    assert restored is not None and restored.id == entity.id
+    assert restored.platform == DOMAIN and restored.config_entry_id == old.entry_id
+    assert restored.device_id == device.id and restored.disabled_by == entity.disabled_by
+    assert devices.async_get(device.id).config_entry_id == old.entry_id
+    assert entities.async_get_entity_id(platform, "parental", entity.unique_id) is None
