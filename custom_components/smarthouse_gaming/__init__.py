@@ -17,7 +17,7 @@ async def async_setup_entry(hass, entry):
     # Policy/accounting must run even when the administrative update entity is disabled.
     entry.async_on_unload(coordinator.async_add_listener(lambda: None))
     entry.async_on_unload(entry.add_update_listener(_reload))
-    await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "binary_sensor", "button", "switch", "number", "select", "update"])
+    await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "binary_sensor", "button", "switch", "number", "update"])
     _remove_legacy_statistics(hass, entry)
     return True
 
@@ -27,7 +27,6 @@ async def _reload(hass, entry):
     if (coordinator.policy_snapshot(entry.options) == coordinator.policy_options
             and dict(entry.data) == coordinator.policy_data):
         # Live gaming setting changes must not interrupt accounting or MQTT subscriptions.
-        coordinator.last_signature = None
         coordinator.async_update_listeners()
         await coordinator.async_request_refresh()
         return
@@ -58,5 +57,6 @@ def _remove_legacy_statistics(hass, entry):
         domain = entity.entity_id.split(".", 1)[0]
         if ((domain == "sensor" and
              (key in old_sensors or re.fullmatch(r"played_game_[0-9a-f]{16}", key)))
-                or (domain == "binary_sensor" and key == "allowed")):
+                or (domain == "binary_sensor" and key == "allowed")
+                or (domain == "select" and key in {"add_action", "remove_action"})):
             registry.async_remove(entity.entity_id)
