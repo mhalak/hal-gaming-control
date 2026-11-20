@@ -137,3 +137,91 @@ async def test_corrupt_or_unsupported_storage_remains_byte_identical(hass, sourc
         assert "update_state_invalid" in await preflight(hass, source)
     assert path.read_text(encoding="utf-8") == raw
     assert list(tmp_path.iterdir()) == [path]
+
+
+async def test_preflight_accepts_one_owned_device_and_independent_native_mqtt(hass, source):
+    from homeassistant.helpers import device_registry as dr
+
+    devices = dr.async_get(hass)
+    registry = er.async_get(hass)
+    mqtt_entry = MockConfigEntry(domain="mqtt", unique_id="broker", data={})
+    mqtt_entry.add_to_hass(hass)
+    identifiers = {("mqtt", "smarthouse_gaming_pc1")}
+    owned = devices.async_get_or_create(config_entry_id=source.entry_id,
+                                        identifiers=identifiers, name="PC")
+    raw = devices.async_get_or_create(config_entry_id=mqtt_entry.entry_id,
+                                      identifiers=identifiers, name="PC")
+    entity = registry.async_get_or_create("sensor", DOMAIN, "pc1_current_game",
+                                          config_entry=source, device_id=owned.id)
+    native = registry.async_get_or_create("sensor", "mqtt", "smarthouse_gaming_pc1_current_game",
+                                          config_entry=mqtt_entry, device_id=raw.id)
+    assert await preflight(hass, source) == ()
+    assert devices.async_get(owned.id).config_entry_id == source.entry_id
+    assert devices.async_get(raw.id).config_entry_id == mqtt_entry.entry_id
+    assert registry.async_get(entity.entity_id) == entity
+    assert registry.async_get(native.entity_id) == native
+
+
+@pytest.mark.parametrize("identifiers", [
+    {("mqtt", "smarthouse_gaming_pc2")},
+    {("mqtt", "smarthouse_gaming_pc1"), ("unrelated", "unknown")},
+])
+async def test_preflight_rejects_unexpected_owned_device_identity(hass, source, identifiers):
+    from homeassistant.helpers import device_registry as dr
+
+    devices = dr.async_get(hass)
+    device = devices.async_get_or_create(config_entry_id=source.entry_id,
+                                         identifiers=identifiers, name="Unexpected")
+    assert "device_ownership_conflict" in await preflight(hass, source)
+    assert devices.async_get(device.id) == device
+
+
+async def test_preflight_rejects_multiple_owned_devices(hass, source):
+    from homeassistant.helpers import device_registry as dr
+
+    devices = dr.async_get(hass)
+    first = devices.async_get_or_create(config_entry_id=source.entry_id,
+                                        identifiers={("mqtt", "smarthouse_gaming_pc1")})
+    second = devices.async_get_or_create(config_entry_id=source.entry_id,
+                                         identifiers={("mqtt", "smarthouse_gaming_unexpected")})
+    assert "device_ownership_conflict" in await preflight(hass, source)
+    assert devices.async_get(first.id) == first
+    assert devices.async_get(second.id) == second
+
+
+async def test_preflight_rejects_other_pc_entity_in_legacy_entry(hass, source):
+    registry = er.async_get(hass)
+    entity = registry.async_get_or_create("sensor", DOMAIN, "pc2_current_game",
+                                          config_entry=source)
+    assert "entity_ownership_conflict" in await preflight(hass, source)
+    assert registry.async_get(entity.entity_id) == entity
+
+
+async def test_preflight_rejects_unsupported_minor_version(hass):
+    entry = MockConfigEntry(domain=DOMAIN, unique_id="pc1", data=DATA, minor_version=2)
+    entry.add_to_hass(hass)
+    assert "unsupported_entry" in await preflight(hass, entry)
+
+
+async def test_preflight_rejects_entity_link_to_native_mqtt_device(hass, source):
+    from homeassistant.helpers import device_registry as dr
+
+    # HA permits a foreign device reference for an existing registry record.
+    # Such a link cannot be safely transferred as an owned device.
+    mqtt_entry = MockConfigEntry(domain="mqtt", unique_id="broker", data={})
+    mqtt_entry.add_to_hass(hass)
+    devices = dr.async_get(hass)
+    native = devices.async_get_or_create(config_entry_id=mqtt_entry.entry_id,
+                                          identifiers={("mqtt", "smarthouse_gaming_pc1")})
+    registry = er.async_get(hass)
+    # Test the fail-closed inventory check even on HA versions which prevent
+    # constructing a foreign device link via their registry writer.
+    entity = registry.async_get_or_create("sensor", DOMAIN, "pc1_current_game", config_entry=source)
+    from types import SimpleNamespace
+    foreign = SimpleNamespace(platform=DOMAIN, unique_id=entity.unique_id,
+                              config_subentry_id=None, device_id=native.id,
+                              domain=entity.domain)
+    with patch.object(er, "async_entries_for_config_entry", return_value=[foreign]):
+        assert "entity_ownership_conflict" in await preflight(hass, source)
+    assert registry.async_get(entity.entity_id) == entity
+    assert devices.async_get(native.id) == native

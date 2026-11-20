@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN, ROOT
@@ -40,6 +40,28 @@ def _entity_conflict(hass, entry):
         and registry.async_get_entity_id(entity.domain, DESTINATION, entity.unique_id) is not None
         for entity in er.async_entries_for_config_entry(registry, entry.entry_id)
     )
+
+
+def _owned_device_problem(hass, entry):
+    registry = dr.async_get(hass)
+    devices = dr.async_entries_for_config_entry(registry, entry.entry_id)
+    if len(devices) > 1 or dr.async_child_entries_for_config_entry(registry, entry.entry_id):
+        return True
+    expected = {("mqtt", f"smarthouse_gaming_{entry.data['device_id']}")}
+    return any(device.identifiers != expected or device.connections
+               or device.via_device_id or device.config_subentry_id
+               for device in devices)
+
+
+def _owned_entity_problem(hass, entry):
+    registry = er.async_get(hass)
+    devices = dr.async_get(hass)
+    owned_ids = {device.id for device in dr.async_entries_for_config_entry(devices, entry.entry_id)}
+    prefix = entry.data["device_id"] + "_"
+    return any(entity.platform != DOMAIN or not entity.unique_id.startswith(prefix)
+               or entity.config_subentry_id is not None
+               or (entity.device_id is not None and entity.device_id not in owned_ids)
+               for entity in er.async_entries_for_config_entry(registry, entry.entry_id))
 
 
 def _update_path(hass, entry):
@@ -80,7 +102,7 @@ async def async_preflight(hass, entry):
     An empty tuple is only a preliminary result; ownership, HA compatibility
     and transactional recovery must be validated before any migration.
     """
-    if (entry.domain != DOMAIN or entry.version != 1
+    if (entry.domain != DOMAIN or entry.version != 1 or entry.minor_version != 1
             or hass.config_entries.async_get_entry(entry.entry_id) is not entry):
         return ("unsupported_entry",)
     if entry.state is not ConfigEntryState.NOT_LOADED:
@@ -92,6 +114,10 @@ async def async_preflight(hass, entry):
         problems.append("duplicate_device")
     if _entity_conflict(hass, entry):
         problems.append("entity_conflict")
+    if _owned_device_problem(hass, entry):
+        problems.append("device_ownership_conflict")
+    if _owned_entity_problem(hass, entry):
+        problems.append("entity_ownership_conflict")
     if problem := await _update_problem(hass, entry):
         problems.append(problem)
     return tuple(problems)
