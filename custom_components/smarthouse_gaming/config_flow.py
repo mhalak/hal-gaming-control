@@ -1,6 +1,7 @@
 """Native Config / Options Flow with manual-action ownership."""
 import asyncio
 import logging
+import re
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.components import mqtt
@@ -101,6 +102,27 @@ class GamingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return GamingOptionsFlow()
 
 
+def _mqtt_broker_details(hass):
+    """Read only the broker address and port from HA's shared MQTT entry.
+
+    Never return credentials, connection URLs, or arbitrary untrusted strings.
+    HA's native MQTT reconfigure flow owns all edits and TLS configuration.
+    """
+    entries = hass.config_entries.async_entries("mqtt")
+    if not entries:
+        return "Not configured", "Unknown"
+    if len(entries) != 1:
+        return "Not available", "Unknown"
+    data = entries[0].data
+    raw = data.get("broker")
+    broker = (raw if isinstance(raw, str)
+              and re.fullmatch(r"[A-Za-z0-9_.:\\[\\]-]{1,255}", raw)
+              else "Not available")
+    port = data.get("port")
+    port_label = str(port) if type(port) is int and 1 <= port <= 65535 else "Unknown"
+    return broker, port_label
+
+
 class GamingOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         self.values = DEFAULTS | dict(self.config_entry.options)
@@ -143,10 +165,13 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             return await self.async_step_menu()
         root = f"{ROOT}/{self.config_entry.data['device_id']}"
+        broker, port = _mqtt_broker_details(self.hass)
         return self.async_show_form(step_id="mqtt_settings",
             data_schema=vol.Schema({}),
             description_placeholders={
                 "connection": "Connected" if mqtt.is_connected(self.hass) else "Disconnected",
+                "broker": broker,
+                "port": port,
                 "device_id": self.config_entry.data["device_id"],
                 "root": root,
                 "mode": "Scoped discovery" if direct_mode(self.hass) else "Native MQTT discovery",
