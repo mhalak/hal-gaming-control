@@ -52,7 +52,7 @@
       },
       "tracked_apps": {
         "title": "Tracked applications",
-        "description": "Read-only applications reported for {device} ({count}):\\n\\n{apps}\\n\\nAdding, renaming or removing tracked applications from live detection is not available yet (tracked in issue #7)."
+        "description": "Read-only tracked applications for {device} ({count}):\\n\\n{apps}\\n\\nCurrently focused executable: {candidate}\\n\\nThis is a live, advisory process name only. Adding, renaming and removing applications requires a verified Windows acknowledgement and is still being implemented in issue #7. No configuration is changed on this screen."
       }
     },
     "error": {
