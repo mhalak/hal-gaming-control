@@ -362,8 +362,9 @@ async def test_scoped_foreground_is_device_scoped_and_resets_on_disconnect(
     def states(pc):
         return tuple(hass.states.get(eid).state for eid in ids[pc])
 
+    # Advertise the configured identity, avoiding an unrelated metadata-triggered reload.
     for pc, game, flag in [("pc1", "Roblox", "ON"), ("pc2", "idle", "OFF")]:
-        await emit(pc, ("discovery", json.dumps(DATA | {"device_id": pc, "focus_protocol": 1})),
+        await emit(pc, ("discovery", json.dumps(DATA | {"device_id": pc, "name": "PC " + pc, "focus_protocol": 1})),
                    ("availability", "online"), ("state/gaming_active", flag),
                    ("state/active_game", game), ("state/focus_availability", "online"))
     assert states("pc1") == ("Roblox", "on")
