@@ -330,3 +330,90 @@ async def test_migration_journal_requires_record_before_advancing_or_clearing(ha
     with pytest.raises(ValueError):
         await j.async_clear()
     assert await j.async_load() is None
+
+
+async def test_migration_journal_corruption_is_not_treated_as_absence(hass):
+    from pathlib import Path
+
+    j = journal(hass)
+    await j.async_prepare(transfer_plan())
+    path = Path(j.store.path)
+    raw = b"{broken journal"
+    await hass.async_add_executor_job(path.write_bytes, raw)
+    with pytest.raises(ValueError):
+        await j.async_load()
+    with pytest.raises(ValueError):
+        await j.async_prepare(transfer_plan())
+    assert await hass.async_add_executor_job(path.read_bytes) == raw
+
+
+async def test_migration_journal_rejects_unconfirmed_write(hass):
+    from unittest.mock import AsyncMock
+
+    j = journal(hass)
+    with patch.object(j.store, "async_save", new_callable=AsyncMock):
+        with pytest.raises(OSError, match="write not confirmed"):
+            await j.async_prepare(transfer_plan())
+    assert await journal(hass).async_load() is None
+
+
+async def test_migration_journal_shared_lock_prevents_concurrent_prepare(hass):
+    import asyncio
+
+    first = transfer_plan()
+    second = {**transfer_plan(), "device_id": "pc2"}
+    results = await asyncio.gather(journal(hass).async_prepare(first),
+                                   journal(hass).async_prepare(second),
+                                   return_exceptions=True)
+    assert sum(isinstance(result, ValueError) for result in results) == 1
+    assert sum(result is None for result in results) == 1
+    assert (await journal(hass).async_load())["plan"] in (first, second)
+
+
+async def test_migration_journal_rejects_unconfirmed_removal(hass):
+    from unittest.mock import AsyncMock
+
+    j = journal(hass)
+    await j.async_prepare(transfer_plan())
+    await j.async_advance("prepared", "rollback_required")
+    await j.async_advance("rollback_required", "rolled_back")
+    with patch.object(j.store, "async_remove", new_callable=AsyncMock):
+        with pytest.raises(OSError, match="removal not confirmed"):
+            await j.async_clear()
+    assert (await journal(hass).async_load())["stage"] == "rolled_back"
+
+
+@pytest.mark.parametrize("change", [
+    {"version": 2},
+    {"minor_version": 2},
+    {"key": "foreign"},
+    {"data": {"stage": "unknown", "plan": transfer_plan()}},
+    {"data": {"stage": [], "plan": transfer_plan()}},
+    {"data": {"stage": "prepared", "plan": {}}},
+])
+async def test_migration_journal_invalid_envelope_fails_closed(hass, change):
+    import json
+    from pathlib import Path
+    from custom_components.smarthouse_gaming.migration_journal import KEY
+
+    j = journal(hass)
+    await j.async_prepare(transfer_plan())
+    path = Path(j.store.path)
+    payload = json.dumps({"version": 1, "minor_version": 1, "key": KEY,
+                          "data": {"stage": "prepared", "plan": transfer_plan()}} | change)
+    await hass.async_add_executor_job(path.write_text, payload, "utf-8")
+    with pytest.raises(ValueError):
+        await j.async_load()
+    assert await hass.async_add_executor_job(path.read_text, "utf-8") == payload
+
+
+async def test_migration_journal_excessive_size_is_rejected(hass):
+    from pathlib import Path
+    from custom_components.smarthouse_gaming.migration_journal import MAX_BYTES
+
+    j = journal(hass)
+    await j.async_prepare(transfer_plan())
+    path = Path(j.store.path)
+    await hass.async_add_executor_job(path.write_bytes, b" " * (MAX_BYTES + 1))
+    with pytest.raises(ValueError, match="size limit"):
+        await j.async_load()
