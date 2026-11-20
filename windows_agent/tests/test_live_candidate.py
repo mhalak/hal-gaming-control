@@ -57,9 +57,9 @@ def bridge():
     client.publish.return_value = SimpleNamespace(rc=0)
     config = {"device": {"id": "pc1", "name": "Synthetic PC"},
               "mqtt": {"host": "broker.invalid"}, "games": [{"name": "Roblox"}]}
-    with patch.object(M.mqtt, "Client", return_value=client), \\
-            patch.object(M, "installed_version", return_value="0.2.4"), \\
-            patch.object(M.time, "time", side_effect=lambda: clock.wall), \\
+    with patch.object(M.mqtt, "Client", return_value=client), \
+            patch.object(M, "installed_version", return_value="0.2.4"), \
+            patch.object(M.time, "time", side_effect=lambda: clock.wall), \
             patch.object(M.time, "monotonic", side_effect=lambda: clock.mono):
         b = M.Bridge(config)
         b.on_connect(client, None, None, SimpleNamespace(is_failure=False), None)
