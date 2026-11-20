@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from homeassistant import data_entry_flow
@@ -35,7 +35,11 @@ def add_device(hass, data, options=None):
 async def open_step(hass, entry, step):
     manager = hass.config_entries.options
     result = await manager.async_init(entry.entry_id)
-    result = await manager.async_configure(result["flow_id"], {"next_step_id": step})
+    if step == "tracked_apps":
+        with patch.object(cf, "_discover_foreground_candidate", new=AsyncMock(return_value=None)):
+            result = await manager.async_configure(result["flow_id"], {"next_step_id": step})
+    else:
+        result = await manager.async_configure(result["flow_id"], {"next_step_id": step})
     return manager, result
 
 
@@ -53,7 +57,8 @@ async def test_tracked_apps_are_isolated_per_device(hass, enable_custom_integrat
     assert one["description_placeholders"] == {
         "device": "Gaming PC 1", "count": "2", "apps": "• Minecraft\n• Roblox"}
     assert two["description_placeholders"] == {
-        "device": "Gaming PC 2", "count": "1", "apps": "• Fortnite"}
+        "device": "Gaming PC 2", "count": "1", "apps": "• Fortnite",
+        "candidate": "No fresh foreground application detected"}
     assert "Fortnite" not in json.dumps(one, default=str)
     assert "Minecraft" not in json.dumps(two, default=str)
     assert not one["data_schema"].schema and not two["data_schema"].schema
