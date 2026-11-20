@@ -229,7 +229,7 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
             description_placeholders={
                 "device": self.config_entry.data.get("name") or self.config_entry.data["device_id"],
                 "count": str(len(games)),
-                "apps": "\\n".join(f"• {name}" for name in games)
+                "apps": "\n".join(f"• {name}" for name in games)
                         or "No applications are tracked for this computer yet.",
                 "candidate": process,
             })
