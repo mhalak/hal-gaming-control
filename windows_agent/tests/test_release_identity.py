@@ -119,3 +119,41 @@ def test_build_rejects_invalid_commit(checkout, sha):
 def test_build_rejects_unknown_component(checkout):
     with pytest.raises(ValueError):
         release_tool().build_identity(checkout, "other")
+
+
+def test_sync_ha_only_updates_version_and_is_idempotent(checkout):
+    tool = release_tool()
+    manifest = checkout / "custom_components/smarthouse_gaming/manifest.json"
+    content = {"domain": "smarthouse_gaming", "version": "0.4.2", "name": "Example"}
+    manifest.write_text(json.dumps(content), encoding="utf-8")
+    tool.sync_ha_manifest(checkout)
+    assert json.loads(manifest.read_text(encoding="utf-8")) == content | {"version": "0.4.3"}
+    previous = manifest.read_bytes()
+    tool.sync_ha_manifest(checkout)
+    assert manifest.read_bytes() == previous
+    assert tool.read_release(checkout) == RELEASE
+
+
+def test_sync_ha_rejects_wrong_domain(checkout):
+    manifest = checkout / "custom_components/smarthouse_gaming/manifest.json"
+    manifest.write_text('{"domain":"other","version":"0.4.2"}', encoding="utf-8")
+    previous = manifest.read_bytes()
+    with pytest.raises(ValueError):
+        release_tool().sync_ha_manifest(checkout)
+    assert manifest.read_bytes() == previous
+
+
+def test_real_git_identity_and_dirty_guard(checkout):
+    import subprocess
+    def git(*args):
+        return subprocess.run(["git", "-C", str(checkout), *args], check=True,
+                              capture_output=True, text=True).stdout.strip()
+    git("init")
+    git("add", ".")
+    git("-c", "user.name=Release test", "-c", "user.email=test@example.invalid",
+        "-c", "commit.gpgsign=false", "commit", "-m", "test")
+    tool = release_tool()
+    assert tool.build_identity(checkout, "windows_agent")["commit"] == git("rev-parse", "HEAD")
+    (checkout / "release.json").write_text(json.dumps(RELEASE) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="clean"):
+        tool.build_identity(checkout, "windows_agent")
