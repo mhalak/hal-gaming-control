@@ -14,10 +14,10 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements-quality.txt pytest
       - run: python -m pytest -q tests/test_quality_gate.py
-      - name: Measure function and method complexity (target C)
+      - name: Enforce function and method complexity (maximum C)
         run: |
           set -o pipefail
-          python tools/quality_gate.py complexity --baseline | tee -a "$GITHUB_STEP_SUMMARY"
+          python tools/quality_gate.py complexity | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: success() || failure()
         with:
@@ -47,10 +47,10 @@ jobs:
           python -m coverage report --rcfile=.coveragerc-ha | tee -a "$GITHUB_STEP_SUMMARY"
           python -m coverage json --rcfile=.coveragerc-ha -o coverage-ha.json
           python -m coverage xml --rcfile=.coveragerc-ha -o coverage-ha.xml
-      - name: Measure HA line coverage (target 90%)
+      - name: Enforce HA line coverage (minimum 90%)
         run: |
           set -o pipefail
-          python tools/quality_gate.py coverage coverage-ha.json --baseline | tee -a "$GITHUB_STEP_SUMMARY"
+          python tools/quality_gate.py coverage coverage-ha.json | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: success() || failure()
         with:
