@@ -32,7 +32,7 @@ def _valid_version(value):
     return isinstance(value, str) and VERSION.fullmatch(value) is not None
 
 
-def read_release(root):
+def _release_metadata(root):
     release = _read_json(root / "release.json")
     if not isinstance(release, dict) or set(release) != {"release", *COMPONENTS}:
         raise ValueError("Invalid release schema")
@@ -41,10 +41,28 @@ def read_release(root):
         raise ValueError("Invalid release label")
     if not all(_valid_version(release[key]) for key in COMPONENTS):
         raise ValueError("Invalid component version")
+    return release
+
+
+def read_release(root):
+    release = _release_metadata(root)
     manifest = _read_json(root / HA_MANIFEST)
     if not isinstance(manifest, dict) or manifest.get("version") != release["home_assistant"]:
         raise ValueError("HA manifest version differs from release.json")
     return release
+
+
+def sync_ha_manifest(root):
+    """Explicit developer operation; never called automatically by a build."""
+    release = _release_metadata(root)
+    path = root / HA_MANIFEST
+    manifest = _read_json(path)
+    if not isinstance(manifest, dict) or manifest.get("domain") != "smarthouse_gaming":
+        raise ValueError("Unexpected HA manifest")
+    if manifest.get("version") != release["home_assistant"]:
+        manifest["version"] = release["home_assistant"]
+        path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+                        encoding="utf-8")
 
 
 def _git(root, *args):
@@ -75,14 +93,16 @@ def build_identity(root, component, requested_version=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("check", "identity"))
+    parser.add_argument("command", choices=("check", "identity", "sync-ha"))
     parser.add_argument("--component", choices=COMPONENTS)
     parser.add_argument("--version")
     args = parser.parse_args()
     try:
-        if args.command == "check":
+        if args.command in ("check", "sync-ha"):
             if args.component is not None or args.version is not None:
-                raise ValueError("check accepts no component or version")
+                raise ValueError("check/sync-ha accepts no component or version")
+            if args.command == "sync-ha":
+                sync_ha_manifest(ROOT)
             read_release(ROOT)
             print("Release metadata consistent")
         else:
