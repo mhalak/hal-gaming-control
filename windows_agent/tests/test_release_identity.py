@@ -83,7 +83,7 @@ def test_build_identity_is_bound_to_clean_revision(checkout, component, version)
                         "version": version, "commit": SHA}
 
 
-@pytest.mark.parametrize("override", ["0.2.1", "0.2.2", "0.2.4", "garbage"])
+@pytest.mark.parametrize("override", ["0.2.1", "0.2.2", "0.2.3", "0.2.5", "garbage"])
 def test_build_rejects_explicit_version_mismatch(checkout, override):
     tool = release_tool()
     with patch.object(tool, "_git", side_effect=lambda root, *args:
