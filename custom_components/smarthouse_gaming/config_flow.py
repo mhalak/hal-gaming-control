@@ -7,7 +7,9 @@ from homeassistant import config_entries
 from homeassistant.components import mqtt
 from homeassistant.core import callback
 from homeassistant.helpers import selector
+from homeassistant.util import dt as dt_util
 from .const import DEFAULTS, DOMAIN, ROOT
+from .candidate_protocol import parse_candidate
 from .direct_mqtt import direct_mode
 from .protocol import parse_discovery
 from .update_protocol import catalog_url
@@ -55,6 +57,35 @@ async def _discover_devices(hass):
         if unsubscribe is not None:
             unsubscribe()
     return found
+
+
+
+async def _discover_foreground_candidate(hass, device_id):
+    """Briefly listen for a fresh, non-retained candidate from this PC only."""
+    topic = f"{ROOT}/{device_id}/state/foreground_candidate"
+    found = {}
+    unsubscribe = None
+
+    def collect(message):
+        try:
+            candidate = parse_candidate(
+                message.topic, message.payload, device_id,
+                retained=message.retain, now=dt_util.utcnow().timestamp())
+        except (ValueError, TypeError):
+            return
+        found["candidate"] = candidate
+
+    try:
+        unsubscribe = await mqtt.async_subscribe(hass, topic, collect, qos=0)
+        await _listen_window()
+    except asyncio.CancelledError:
+        raise
+    except Exception as err:  # noqa: BLE001 - no candidate is a safe outcome
+        _LOGGER.debug("Foreground candidate unavailable (%s)", type(err).__name__)
+    finally:
+        if unsubscribe is not None:
+            unsubscribe()
+    return found.get("candidate")
 
 
 class GamingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -182,17 +213,25 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
             })
 
     async def async_step_tracked_apps(self, user_input=None):
-        """Show this device's discovery applications without changing configuration."""
+        """Show live focused executable and configured app list read-only."""
         if user_input is not None:
             return await self.async_step_menu()
         games = list(self.config_entry.data.get("games") or [])
+        candidate = await _discover_foreground_candidate(
+            self.hass, self.config_entry.data["device_id"])
+        # An advisory token is not permission to enroll or modify a device.
+        self._candidate_token = candidate["token"] if candidate else None
+        process = candidate["process"] if candidate else "No fresh foreground application detected"
+        if candidate and process.casefold() in ("java.exe", "javaw.exe", "python.exe", "pythonw.exe"):
+            process += " (additional app identity required)"
         return self.async_show_form(step_id="tracked_apps",
             data_schema=vol.Schema({}),
             description_placeholders={
                 "device": self.config_entry.data.get("name") or self.config_entry.data["device_id"],
                 "count": str(len(games)),
-                "apps": "\n".join(f"• {name}" for name in games)
+                "apps": "\\n".join(f"• {name}" for name in games)
                         or "No applications are tracked for this computer yet.",
+                "candidate": process,
             })
 
     async def async_step_update_settings(self, user_input=None):
