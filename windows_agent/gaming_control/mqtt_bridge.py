@@ -338,7 +338,7 @@ class Bridge:
             if (not isinstance(candidate, tuple) or len(candidate) != 4
                     or not isinstance(candidate[0], str)
                     or len(candidate[0]) > 128
-                    or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _.'()+-]*\\.exe",
+                    or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _.'()+-]*\.exe",
                                         candidate[0], re.IGNORECASE)):
                 self._candidate_key = self._candidate_token = None
                 return False
