@@ -50,3 +50,11 @@ def test_foreground_module_stays_within_complexity_limit():
     assert units
     violations = [(name, score) for _, name, score, _ in units if score > gate.MAX_COMPLEXITY]
     assert not violations, violations
+
+
+def test_mqtt_bridge_module_stays_within_complexity_limit():
+    path = Path(__file__).resolve().parents[1] / "windows_agent/gaming_control/mqtt_bridge.py"
+    units = list(gate.complexity_units(ast.parse(path.read_text(encoding="utf-8"))))
+    assert units
+    violations = [(name, score) for _, name, score, _ in units if score > gate.MAX_COMPLEXITY]
+    assert not violations, violations
