@@ -38,7 +38,7 @@ async def test_options_menu_preserves_legacy_actions_but_no_action_editor(hass, 
     result = await manager.async_init(entry.entry_id)
     assert result["type"] == data_entry_flow.FlowResultType.MENU
     assert set(result["menu_options"]) == {
-        "limits", "mqtt_settings", "update_settings", "save"}
+        "limits", "mqtt_settings", "tracked_apps", "update_settings", "save"}
     result = await manager.async_configure(result["flow_id"], {"next_step_id": "save"})
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
     # Do not destroy legacy action options; they can no longer cause automatic commands.
@@ -447,6 +447,8 @@ async def test_mqtt_configuration_info_is_scoped_and_read_only(hass, enable_cust
         "mode": "Scoped discovery" if direct else "Native MQTT discovery",
         "broker": "Not configured",
         "port": "Unknown",
+        "tls": "Unknown",
+        "connection_help": result["description_placeholders"]["connection_help"],
     }
     assert not result["data_schema"].schema
     result = await manager.async_configure(result["flow_id"], {})
@@ -657,7 +659,7 @@ async def test_mqtt_info_shows_shared_broker_without_credentials(
     manager = hass.config_entries.options
     result = await manager.async_init(device_entry.entry_id)
     with patch.object(cf.mqtt, "is_connected", return_value=True), \
-            patch.object(cf, "_mqtt_broker_details", return_value=(broker, str(port)), create=True):
+            patch.object(cf, "_mqtt_broker_details", return_value=(broker, str(port), "No"), create=True):
         result = await manager.async_configure(result["flow_id"],
                                               {"next_step_id": "mqtt_settings"})
     assert result["step_id"] == "mqtt_settings"
@@ -675,7 +677,7 @@ async def test_mqtt_info_shows_shared_broker_without_credentials(
         "password": "DO_NOT_DISPLAY_PASSWORD"})
     fake_hass = SimpleNamespace(config_entries=SimpleNamespace(
         async_entries=lambda domain: [configured] if domain == "mqtt" else []))
-    assert cf._mqtt_broker_details(fake_hass) == (broker, str(port))
+    assert cf._mqtt_broker_details(fake_hass) == (broker, str(port), "No")
 
 
 @pytest.mark.parametrize("value", ["user:password@broker.example", "broker.example/path", "", "x" * 260])
@@ -685,4 +687,4 @@ async def test_mqtt_info_does_not_echo_unexpected_broker_values(value):
         "broker": value, "port": 1883, "password": "SECRET"})
     fake_hass = SimpleNamespace(config_entries=SimpleNamespace(
         async_entries=lambda domain: [configured] if domain == "mqtt" else []))
-    assert cf._mqtt_broker_details(fake_hass) == ("Not available", "1883")
+    assert cf._mqtt_broker_details(fake_hass) == ("Not available", "1883", "No")
