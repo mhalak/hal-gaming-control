@@ -28,6 +28,8 @@ class GamingCoordinator(DataUpdateCoordinator):
         self.device_id = entry.data["device_id"]
         self.direct = direct_mode(hass)
         self.games = entry.data["games"]
+        # Manual buttons use the advertised action capabilities; no auto-enforcement.
+        self.advertised = entry.data["actions"]
         self.source = None
         self.uptime_source = None
         self.heartbeats = []
