@@ -40,7 +40,7 @@ def parse_candidate(topic, payload, device_id, *, retained, now):
         raise ValueError("Invalid candidate identity")
     process = data["process"]
     if (not isinstance(process, str) or len(process) > 128
-            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _.'()+-]*\\.exe", process, re.IGNORECASE)):
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _.'()+-]*\.exe", process, re.IGNORECASE)):
         raise ValueError("Unsafe candidate executable")
     token = data["token"]
     if not isinstance(token, str) or not re.fullmatch(r"[0-9a-f]{32}", token):
