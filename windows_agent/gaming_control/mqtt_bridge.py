@@ -149,6 +149,46 @@ class Bridge:
         self._retained(self.root + '/availability', 'offline', generation)
         LOG.warning('MQTT telemetry sync incomplete; retrying full snapshot')
 
+    def _refresh_discovery(self):
+        self.last.clear()
+        self.last_full = float('-inf')
+        for topic in obsolete_discovery_topics(self.id, self.prefix):
+            self.client.publish(topic, b'', qos=1, retain=True)
+        self.client.publish(self.root + '/discovery', json.dumps(self.metadata), qos=1, retain=True)
+        for topic, data in self.configs.items():
+            self.client.publish(topic, json.dumps(data), qos=1, retain=True)
+
+    @staticmethod
+    def _snapshot_values(game_values, uptime, full):
+        values = dict(game_values)
+        if full:
+            values['uptime'] = str(uptime)
+        # Publish the pair together on a game change, even if one field is
+        # unchanged. Partial delivery triggers an offline/full-snapshot retry.
+        if 'gaming_active' in values:
+            values['focus_availability'] = 'online' if values['gaming_active'] in ('ON', 'OFF') else 'offline'
+            if values['focus_availability'] == 'offline':
+                # Hide a previously ON native binary sensor before unknown data.
+                values = {'focus_availability': 'offline'} | values
+        return values
+
+    def _publish_snapshot(self, values, generation, full, now):
+        for key, value in values.items():
+            if not self._retained(self.root + '/state/' + key, value, generation):
+                self._invalidate(generation)
+                return False
+        if full and not self._retained(self.root + '/availability', 'online', generation):
+            self._invalidate(generation)
+            return False
+        with self.lock:
+            if not self.connected or self.generation != generation:
+                return False
+            self.last.update(values)
+            if full:
+                self.synced_generation = generation
+                self.last_full = now
+        return True
+
     def publish(self, game_values, uptime):
         """Return True only while current telemetry is synchronized.
 
@@ -168,41 +208,14 @@ class Bridge:
                 self._invalidate(generation)
                 return False
         if refresh or initial:
-            self.last.clear()
-            self.last_full = float('-inf')
-            for topic in obsolete_discovery_topics(self.id, self.prefix):
-                self.client.publish(topic, b'', qos=1, retain=True)
-            self.client.publish(self.root + '/discovery', json.dumps(self.metadata), qos=1, retain=True)
-            for topic, data in self.configs.items():
-                self.client.publish(topic, json.dumps(data), qos=1, retain=True)
+            self._refresh_discovery()
         now = time.monotonic()
         full = now - self.last_full >= UPTIME_PERIOD
-        values = dict(game_values)
-        if full:
-            values['uptime'] = str(uptime)
-        # Publish the pair together on a game change, even if one field is
-        # unchanged. Partial delivery triggers an offline/full-snapshot retry.
-        if 'gaming_active' in values:
-            values['focus_availability'] = 'online' if values['gaming_active'] in ('ON', 'OFF') else 'offline'
-            if values['focus_availability'] == 'offline':
-                # Hide a previously ON native binary sensor before unknown data.
-                values = {'focus_availability': 'offline'} | values
+        values = self._snapshot_values(game_values, uptime, full)
         changed = any(self.last.get(k) != v for k, v in values.items())
         if full or changed:
-            for key, value in values.items():
-                if not self._retained(self.root + '/state/' + key, value, generation):
-                    self._invalidate(generation)
-                    return False
-            if full and not self._retained(self.root + '/availability', 'online', generation):
-                self._invalidate(generation)
+            if not self._publish_snapshot(values, generation, full, now):
                 return False
-            with self.lock:
-                if not self.connected or self.generation != generation:
-                    return False
-                self.last.update(values)
-                if full:
-                    self.synced_generation = generation
-                    self.last_full = now
             if initial:
                 LOG.info('MQTT initial snapshot acknowledged: game=%s in_game=%s uptime=%s',
                          game_values.get('current_game'), game_values.get('in_game'), uptime)
