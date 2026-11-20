@@ -118,10 +118,10 @@ jobs:
           python -m coverage json --rcfile=../.coveragerc-windows -o coverage-windows.json
           python -m coverage xml --rcfile=../.coveragerc-windows -o coverage-windows.xml
         shell: bash
-      - name: Measure Windows line coverage (target 90%)
+      - name: Enforce Windows line coverage (minimum 90%)
         run: |
           set -o pipefail
-          python ../tools/quality_gate.py coverage coverage-windows.json --baseline | tee -a "$GITHUB_STEP_SUMMARY"
+          python ../tools/quality_gate.py coverage coverage-windows.json | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: success() || failure()
         with:
