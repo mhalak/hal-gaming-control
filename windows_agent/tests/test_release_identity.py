@@ -157,3 +157,30 @@ def test_real_git_identity_and_dirty_guard(checkout):
     (checkout / "release.json").write_text(json.dumps(RELEASE) + "\n", encoding="utf-8")
     with pytest.raises(ValueError, match="clean"):
         tool.build_identity(checkout, "windows_agent")
+
+
+def test_stage_ha_from_reviewed_git_checkout(checkout):
+    import subprocess
+    def git(*args):
+        return subprocess.run(["git", "-C", str(checkout), *args], check=True,
+                              capture_output=True, text=True).stdout.strip()
+    component = checkout / "custom_components" / "smarthouse_gaming"
+    (component / "sensor.py").write_text("EXAMPLE = True\n", encoding="utf-8")
+    git("init")
+    git("add", ".")
+    git("-c", "user.name=Release test", "-c", "user.email=test@example.invalid",
+        "-c", "commit.gpgsign=false", "commit", "-m", "test")
+    sha = git("rev-parse", "HEAD")
+    destination = checkout.parent / (checkout.name + "-ha-staged")
+    tool = release_tool()
+    assert tool.stage_ha(checkout, destination) == {
+        "release": RELEASE["release"], "component": "home_assistant",
+        "version": "0.4.3", "commit": sha}
+    assert (destination / "sensor.py").read_text(encoding="utf-8") == "EXAMPLE = True\n"
+    assert json.loads((destination / "build-info.json").read_text())["commit"] == sha
+    assert not (component / "build-info.json").exists()
+    with pytest.raises(ValueError):
+        tool.stage_ha(checkout, destination)
+    (component / "sensor.py").write_text("CHANGED\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="clean"):
+        tool.stage_ha(checkout, checkout.parent / (checkout.name + "-other-staged"))
