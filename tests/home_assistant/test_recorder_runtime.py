@@ -430,3 +430,121 @@ async def test_registry_domain_transfer_preserves_recorded_entity_history(rig):
                                           new_config_entry_id=rig.entry.entry_id)
     await async_wait_recording_done(rig.hass)
     assert await read() == before
+
+
+# Durable foreground accounting epoch. This increment is intentionally not
+# connected to either coordinator or migration activation.
+async def test_foreground_cutover_requires_explicit_activation(hass, freezer):
+    from custom_components.smarthouse_gaming.foreground_cutover import (
+        async_read_cutover, async_activate_cutover)
+    freezer.move_to(NOW)
+    assert await async_read_cutover(hass, "synthetic-entry-a", "pc1") is None
+    assert await async_activate_cutover(hass, "synthetic-entry-a", "pc1") == NOW.timestamp()
+    assert await async_read_cutover(hass, "synthetic-entry-a", "pc1") == NOW.timestamp()
+
+
+async def test_foreground_cutover_is_immutable_across_reload_and_rollover(hass, freezer):
+    from custom_components.smarthouse_gaming.foreground_cutover import (
+        async_read_cutover, async_activate_cutover)
+    freezer.move_to(NOW)
+    first = await async_activate_cutover(hass, "synthetic-entry-a", "pc1")
+    freezer.move_to(at(11, 23, 12))
+    assert await async_read_cutover(hass, "synthetic-entry-a", "pc1") == first
+    assert await async_activate_cutover(hass, "synthetic-entry-a", "pc1") == first
+
+
+async def test_foreground_cutover_isolated_between_entries(hass, freezer):
+    from custom_components.smarthouse_gaming.foreground_cutover import (
+        async_read_cutover, async_activate_cutover)
+    freezer.move_to(NOW)
+    first = await async_activate_cutover(hass, "synthetic-entry-a", "pc1")
+    assert await async_read_cutover(hass, "synthetic-entry-b", "pc2") is None
+    freezer.move_to(at(11, 16, 13))
+    second = await async_activate_cutover(hass, "synthetic-entry-b", "pc2")
+    assert first != second
+    assert await async_read_cutover(hass, "synthetic-entry-a", "pc1") == first
+    assert await async_read_cutover(hass, "synthetic-entry-b", "pc2") == second
+
+
+async def test_foreground_cutover_rejects_device_identity_mismatch(hass, freezer):
+    from custom_components.smarthouse_gaming.foreground_cutover import (
+        CutoverError, async_read_cutover, async_activate_cutover)
+    freezer.move_to(NOW)
+    first = await async_activate_cutover(hass, "synthetic-entry-a", "pc1")
+    with pytest.raises(CutoverError):
+        await async_read_cutover(hass, "synthetic-entry-a", "pc2")
+    with pytest.raises(CutoverError):
+        await async_activate_cutover(hass, "synthetic-entry-a", "pc2")
+    assert await async_read_cutover(hass, "synthetic-entry-a", "pc1") == first
+
+
+async def test_foreground_cutover_concurrent_activation_is_idempotent(hass, freezer):
+    import asyncio
+    from custom_components.smarthouse_gaming.foreground_cutover import (
+        async_read_cutover, async_activate_cutover)
+    freezer.move_to(NOW)
+    first, second = await asyncio.gather(
+        async_activate_cutover(hass, "synthetic-entry-a", "pc1"),
+        async_activate_cutover(hass, "synthetic-entry-a", "pc1"))
+    assert first == second == NOW.timestamp()
+    assert await async_read_cutover(hass, "synthetic-entry-a", "pc1") == first
+
+
+@pytest.mark.parametrize("invalid", [None, True, "123", -1, float("nan"), float("inf")])
+async def test_foreground_cutover_invalid_persisted_data_fails_closed(hass, freezer, invalid):
+    from homeassistant.helpers.storage import Store
+    from custom_components.smarthouse_gaming.foreground_cutover import (
+        CutoverError, async_read_cutover, async_activate_cutover)
+    freezer.move_to(NOW)
+    payload = {"device_id": "pc1", "since": invalid}
+    with patch.object(Store, "async_load", new=AsyncMock(return_value=payload)), \
+            patch.object(Store, "async_save", new=AsyncMock()) as save:
+        with pytest.raises(CutoverError):
+            await async_read_cutover(hass, "synthetic-entry-a", "pc1")
+        with pytest.raises(CutoverError):
+            await async_activate_cutover(hass, "synthetic-entry-a", "pc1")
+        save.assert_not_awaited()
+
+
+async def test_foreground_cutover_save_failure_does_not_return_success(hass, freezer):
+    from homeassistant.helpers.storage import Store
+    from custom_components.smarthouse_gaming.foreground_cutover import (
+        CutoverError, async_activate_cutover)
+    freezer.move_to(NOW)
+    with patch.object(Store, "async_load", new=AsyncMock(return_value=None)), \
+            patch.object(Store, "async_save", new=AsyncMock(side_effect=OSError("synthetic"))):
+        with pytest.raises(CutoverError):
+            await async_activate_cutover(hass, "synthetic-entry-a", "pc1")
+
+
+@pytest.mark.parametrize("raw", ["{broken", "null", '{"version": 2, "data": {}}'])
+async def test_foreground_cutover_corrupt_file_is_never_replaced(hass, raw):
+    from homeassistant.helpers.storage import Store
+    from custom_components.smarthouse_gaming.foreground_cutover import (
+        CutoverError, async_read_cutover, async_activate_cutover)
+    path = Path(Store(hass, 1, f"{DOMAIN}.foreground_cutover.synthetic-entry-a").path)
+    await hass.async_add_executor_job(path.parent.mkdir, 0o700, True, True)
+    await hass.async_add_executor_job(path.write_text, raw, "utf-8")
+    with pytest.raises(CutoverError):
+        await async_read_cutover(hass, "synthetic-entry-a", "pc1")
+    with pytest.raises(CutoverError):
+        await async_activate_cutover(hass, "synthetic-entry-a", "pc1")
+    assert await hass.async_add_executor_job(path.read_text, "utf-8") == raw
+
+
+async def test_foreground_cutover_silent_save_failure_is_rejected(hass, freezer):
+    from homeassistant.helpers.storage import Store
+    from custom_components.smarthouse_gaming.foreground_cutover import (
+        CutoverError, async_activate_cutover)
+    freezer.move_to(NOW)
+    with patch.object(Store, "async_load", new=AsyncMock(return_value=None)), \
+            patch.object(Store, "async_save", new=AsyncMock()):
+        with pytest.raises(CutoverError):
+            await async_activate_cutover(hass, "synthetic-entry-a", "pc1")
+
+
+async def test_foreground_cutover_invalid_identifier_rejected(hass):
+    from custom_components.smarthouse_gaming.foreground_cutover import (
+        CutoverError, async_read_cutover)
+    with pytest.raises(CutoverError):
+        await async_read_cutover(hass, "../outside", "pc1")
