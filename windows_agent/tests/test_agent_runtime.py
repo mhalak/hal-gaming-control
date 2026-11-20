@@ -222,3 +222,23 @@ def test_invalid_interval_rejected_before_bridge_setup(runtime, interval):
         A.run(path, Stop())
     A.Bridge.assert_not_called()
     A.FocusProbe.assert_not_called()
+
+
+@pytest.mark.parametrize("synchronized", [True, False])
+def test_run_captures_foreground_before_probe_and_publishes_only_when_synced(runtime, synchronized):
+    path, bridge, focus = runtime
+    bridge.updates_enabled = False
+    bridge.publish.return_value = synchronized
+    calls = []
+    context = object()
+    values = {"gaming_active": "OFF", "active_game": "idle"}
+    bridge.capture_foreground_context.side_effect = lambda: calls.append("capture") or context
+    focus.read.side_effect = lambda rules: calls.append("probe") or values
+    bridge.publish.side_effect = lambda *args: calls.append("legacy") or synchronized
+    bridge.publish_foreground.side_effect = lambda *args: calls.append("foreground")
+    A.run(path, Stop())
+    assert calls == ["capture", "probe", "legacy"] + (["foreground"] if synchronized else [])
+    if synchronized:
+        bridge.publish_foreground.assert_called_once_with(values, context)
+    else:
+        bridge.publish_foreground.assert_not_called()
