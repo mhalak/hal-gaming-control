@@ -84,7 +84,7 @@ def test_candidate_publisher_does_not_leak_identity_or_retain(bridge):
     assert call.kwargs["retain"] is False
     assert call.kwargs["qos"] == 0
     assert call.kwargs["properties"].MessageExpiryInterval == M.CANDIDATE_EXPIRY
-    assert "42" not in call.args[1] and "123" not in call.args[1]
+    assert "pid" not in value and "created" not in value and "session" not in value
     assert not b.publish_candidate(("chrome.exe", 42, 123, 2))
     clock.wall += 2
     clock.mono += 2
