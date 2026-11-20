@@ -118,20 +118,24 @@ def _canonical(name):
     return unicodedata.normalize('NFC', name).casefold()
 
 
+def _unsafe_member_metadata(info, is_dir):
+    """Reject encrypted, unsupported or special members and inconsistent file types."""
+    mode = stat.S_IFMT(info.external_attr >> 16)
+    return (info.flag_bits & 0x1                                   # encrypted
+            or info.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED)
+            or mode not in (0, stat.S_IFREG, stat.S_IFDIR)          # symlink, device, fifo ...
+            or info.external_attr & 0x400                           # FILE_ATTRIBUTE_REPARSE_POINT
+            or bool(info.external_attr & 0x10) != is_dir            # DOS directory flag vs name
+            or (is_dir and mode == stat.S_IFREG) or (not is_dir and mode == stat.S_IFDIR))
+
+
 def _check_member(info, seen_files, seen_dirs):
     """Validate one ZIP member; raises ValueError. Returns (is_dir, path parts)."""
     name = info.orig_filename  # ZipInfo.filename normalizes backslashes on Windows; validate the original
     is_dir = name.endswith('/')
     parts = name.rstrip('/').split('/')
-    mode = stat.S_IFMT(info.external_attr >> 16)
-    unsafe = (not name or len(name) > MAX_NAME or not all(safe_segment(p) for p in parts)
-              or info.flag_bits & 0x1                                   # encrypted
-              or info.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED)
-              or mode not in (0, stat.S_IFREG, stat.S_IFDIR)            # symlink, device, fifo ...
-              or info.external_attr & 0x400                             # FILE_ATTRIBUTE_REPARSE_POINT
-              or bool(info.external_attr & 0x10) != is_dir              # DOS directory flag vs name
-              or (is_dir and mode == stat.S_IFREG) or (not is_dir and mode == stat.S_IFDIR))
-    if unsafe:
+    if (not name or len(name) > MAX_NAME or not all(safe_segment(p) for p in parts)
+            or _unsafe_member_metadata(info, is_dir)):
         raise ValueError('Unsafe archive member')
     canonical = tuple(_canonical(p) for p in parts)
     if any(canonical[:depth] in seen_files for depth in range(1, len(canonical))):

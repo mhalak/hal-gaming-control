@@ -280,3 +280,68 @@ def test_service_runs_only_fixed_scripts(monkeypatch, tmp_path):
     with pytest.raises(ValueError):
         U.service('stop; calc')
     assert len(calls) == 3
+
+
+@pytest.mark.parametrize('name, attr', [
+    ('directory/', stat.S_IFREG << 16 | 0x10),
+    ('file.bin', stat.S_IFDIR << 16),
+    ('directory/', stat.S_IFDIR << 16),
+    ('file.bin', stat.S_IFBLK << 16),
+    ('file.bin', stat.S_IFSOCK << 16),
+    ('file.bin', 0x400),
+])
+def test_member_type_and_directory_flags_rejected_without_mutating_index(name, attr):
+    info = zipfile.ZipInfo(name)
+    info.external_attr = attr
+    files, dirs = {('previous.bin',)}, {('existing',)}
+    with pytest.raises(ValueError, match='Unsafe archive member'):
+        U._check_member(info, files, dirs)
+    assert files == {('previous.bin',)}
+    assert dirs == {('existing',)}
+
+
+@pytest.mark.parametrize('name, attr, expected_dir', [
+    ('item.bin', 0, False),
+    ('item.bin', stat.S_IFREG << 16, False),
+    ('folder/', 0x10, True),
+    ('folder/', stat.S_IFDIR << 16 | 0x10, True),
+])
+@pytest.mark.parametrize('compression', [zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED])
+def test_member_supported_types_and_compression(name, attr, expected_dir, compression):
+    info = zipfile.ZipInfo(name)
+    info.external_attr = attr
+    info.compress_type = compression
+    files, dirs = set(), set()
+    assert U._check_member(info, files, dirs) == (expected_dir, [name.rstrip('/')])
+    assert files == (set() if expected_dir else {(name,)})
+    assert dirs == ({('folder',)} if expected_dir else set())
+
+
+def test_member_length_boundary_and_original_name():
+    files, dirs = set(), set()
+    name = 'x' * U.MAX_NAME
+    assert U._check_member(zipfile.ZipInfo(name), files, dirs) == (False, [name])
+    for invalid in ('x' * (U.MAX_NAME + 1), 'dir\\file.bin'):
+        info = zipfile.ZipInfo(invalid)
+        # The normalized filename must not replace the original during validation.
+        if '\\' in invalid:
+            info.filename = 'dir/file.bin'
+        with pytest.raises(ValueError, match='Unsafe archive member'):
+            U._check_member(info, files, dirs)
+    assert files == {(name,)}
+    assert not dirs
+
+
+def test_member_canonical_index_preserves_implicit_directory_and_rejects_conflict():
+    files, dirs = set(), set()
+    info = zipfile.ZipInfo('Folder/Child.bin')
+    assert U._check_member(info, files, dirs) == (False, ['Folder', 'Child.bin'])
+    explicit = zipfile.ZipInfo('FOLDER/')
+    explicit.external_attr = stat.S_IFDIR << 16 | 0x10
+    assert U._check_member(explicit, files, dirs) == (True, ['FOLDER'])
+    with pytest.raises(ValueError, match='Duplicate archive member'):
+        U._check_member(zipfile.ZipInfo('folder'), files, dirs)
+    with pytest.raises(ValueError, match='Archive member below a file'):
+        U._check_member(zipfile.ZipInfo('folder/CHILD.BIN/extra'), files, dirs)
+    assert files == {('folder', 'child.bin')}
+    assert dirs == {('folder',)}
