@@ -21,6 +21,35 @@ DISCOVERY_FILTER = "SmartHouse/Gaming/+/discovery"
 MAX_DISCOVERY_PAYLOAD = 65536
 
 
+NOT_AVAILABLE = "not available"
+MAX_HOST_LENGTH = 253
+CONNECTION_HELP = {
+    True: "No action needed: Home Assistant is connected to its MQTT broker.",
+    False: ("Check that the MQTT broker is running and reachable from Home Assistant: open "
+            "Settings → Devices & services → MQTT and review the connection status, then check the Home Assistant log."),
+}
+
+
+def broker_summary(hass):
+    """Non-secret facts about the shared HA MQTT broker; "not available" when they cannot be read safely.
+
+    Only host, port and a TLS yes/no flag are read. User name, password, certificates and keys are never
+    copied, shown or logged. More than one MQTT entry is not guessed at.
+    """
+    unavailable = {"broker_host": NOT_AVAILABLE, "broker_port": NOT_AVAILABLE, "broker_tls": NOT_AVAILABLE}
+    entries = hass.config_entries.async_entries(mqtt.DOMAIN)
+    if len(entries) != 1:
+        return unavailable
+    data = entries[0].data
+    host, port = data.get("broker"), data.get("port")
+    if not (isinstance(host, str) and host.strip() and len(host) <= MAX_HOST_LENGTH and host.isprintable()):
+        return unavailable
+    if type(port) is not int or not 0 < port < 65536:
+        return unavailable
+    return {"broker_host": host.strip(), "broker_port": str(port),
+            "broker_tls": "Yes" if data.get("certificate") else "No"}
+
+
 async def _listen_window():
     await asyncio.sleep(DISCOVERY_WINDOW)
 
@@ -122,6 +151,7 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
         if len(actions) > 1:
             menu["move_action"] = "Move action to first position"
         menu["mqtt_settings"] = "MQTT configuration"
+        menu["tracked_apps"] = "Tracked applications"
         menu["update_settings"] = "Windows update settings"
         menu["save"] = "Save"
         return self.async_show_menu(step_id="menu", menu_options=menu,
@@ -185,17 +215,33 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(step_id="move_action", data_schema=self._action_schema(actions))
 
     async def async_step_mqtt_settings(self, user_input=None):
-        """Show the shared connection and per-device topics without exposing secrets."""
+        """Show the shared broker and this PC's topics without exposing secrets (read-only)."""
         if user_input is not None:
             return await self.async_step_menu()
         root = f"{ROOT}/{self.config_entry.data['device_id']}"
+        connected = mqtt.is_connected(self.hass)
         return self.async_show_form(step_id="mqtt_settings",
             data_schema=vol.Schema({}),
             description_placeholders={
-                "connection": "Connected" if mqtt.is_connected(self.hass) else "Disconnected",
+                "connection": "Connected" if connected else "Disconnected",
+                "connection_help": CONNECTION_HELP[connected],
                 "device_id": self.config_entry.data["device_id"],
                 "root": root,
                 "mode": "Scoped discovery" if direct_mode(self.hass) else "Native MQTT discovery",
+                **broker_summary(self.hass),
+            })
+
+    async def async_step_tracked_apps(self, user_input=None):
+        """Read-only list of the applications this PC currently tracks; editing belongs to issue #7."""
+        if user_input is not None:
+            return await self.async_step_menu()
+        games = list(self.config_entry.data.get("games") or [])
+        return self.async_show_form(step_id="tracked_apps",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "device": self.config_entry.data.get("name") or self.config_entry.data["device_id"],
+                "count": str(len(games)),
+                "apps": "\n".join(f"• {name}" for name in games) or "No applications are tracked for this computer yet.",
             })
 
     async def async_step_update_settings(self, user_input=None):

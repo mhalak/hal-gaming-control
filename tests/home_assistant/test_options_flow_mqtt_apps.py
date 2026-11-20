@@ -151,17 +151,23 @@ async def test_missing_or_ambiguous_mqtt_entries_are_not_guessed(hass, enable_cu
     assert result["description_placeholders"]["broker_port"] == NOT_AVAILABLE
 
 
+@pytest.fixture
+def mqtt_config_entry_data():
+    return broker(**SECRETS) | {"broker": "real-broker.lan", "port": 1884}
+
+
 async def test_real_mqtt_config_entry_is_read(hass, enable_custom_integrations, mqtt_mock):
-    """Against the real HA MQTT entry created by the HA test harness (default broker/port)."""
+    """Against the real HA MQTT config entry created by the HA test harness, secrets included."""
     entry = add_device(hass)
-    mqtt_entry = hass.config_entries.async_entries("mqtt")[0]
+    assert hass.config_entries.async_entries("mqtt")[0].data["password"] == SECRETS["password"]
     manager = hass.config_entries.options
     result = await manager.async_init(entry.entry_id)
     result = await manager.async_configure(result["flow_id"], {"next_step_id": "mqtt_settings"})
     placeholders = result["description_placeholders"]
-    assert placeholders["broker_host"] == mqtt_entry.data["broker"]
-    assert placeholders["broker_port"] == str(mqtt_entry.data["port"])
-    assert placeholders["broker_tls"] in ("Yes", "No")
+    assert (placeholders["broker_host"], placeholders["broker_port"], placeholders["broker_tls"]) == (
+        "real-broker.lan", "1884", "Yes")
+    for secret in SECRETS.values():
+        assert secret not in flat(result)
 
 
 async def test_disconnected_branch_gives_one_actionable_hint_without_secrets(hass, enable_custom_integrations):

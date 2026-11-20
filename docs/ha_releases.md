@@ -9,6 +9,10 @@ The HA integration version is the `version` in `custom_components/smarthouse_gam
 - Remove action selectors and internal MQTT enforcement. Use the fresh Gaming restriction active binary sensor with native Home Assistant automations and the existing manual buttons.
 - Existing process-presence accounting continues; foreground accounting remains a separate migration. Windows agent version unchanged.
 
+## 0.4.4 (Options Flow MQTT information and read-only Tracked applications)
+- MQTT configuration shows the shared broker host, port and TLS yes/no (never credentials or certificates), an actionable hint when disconnected, and separates the HA broker from each Windows agent's own connection. Broker editing stays in HA's built-in MQTT integration.
+- New read-only Tracked applications screen per PC. No application editing, no new MQTT topics, no Windows agent change (issue #7). Stored options and Save behavior are unchanged. Part of #52, stage 1.
+
 ## 0.4.3 (scoped foreground telemetry candidate)
 - Add Active game and Gaming active entities when HA MQTT discovery is disabled. Preserve native discovery entities, legacy process-presence telemetry and commands.
 - Gate scoped foreground display on supported metadata, agent/focus availability and a consistent enrolled game/active pair; clear cached values on offline/disconnect. No inference from legacy process presence.

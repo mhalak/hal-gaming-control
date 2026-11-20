@@ -66,7 +66,11 @@
       },
       "mqtt_settings": {
         "title": "MQTT configuration",
-        "description": "Connection: {connection}\n\nDevice: {device_id}\n\nMode: {mode}\n\nTopic root: {root}\n\nDiscovery: {root}/discovery\n\nThis integration uses Home Assistant's shared MQTT connection. To edit broker address, port, credentials or TLS, open Settings → Devices & services → MQTT → Configure. Configure the Windows agent separately using its protected config.yaml. No credentials are shown here."
+        "description": "This is the shared Home Assistant MQTT broker connection, used by every integration and every enrolled PC. Status: {connection}. {connection_help}\n\nBroker: {broker_host}, port {broker_port}, TLS: {broker_tls}. User name, password and certificates are never shown.\n\nTo change the broker, open Settings → Devices & services → MQTT and use Configure or Reconfigure there. This changes shared infrastructure that other integrations use too.\n\nThis PC: {device_id}. Mode: {mode}. Topic root: {root}. Discovery: {root}/discovery.\n\nThe Windows agent connects separately, using its own protected config.yaml on the PC. Changing the Home Assistant broker does not change the other connection, and the reverse. Update both when the broker moves."
+      },
+      "tracked_apps": {
+        "title": "Tracked applications",
+        "description": "Read-only. Applications currently tracked for {device} ({count}):\n\n{apps}\n\nAdding, renaming or removing tracked applications from live detection is not available yet (tracked in issue #7)."
       }
     },
     "error": {
