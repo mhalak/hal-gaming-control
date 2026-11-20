@@ -12,6 +12,8 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
+from unittest.mock import AsyncMock, patch
+from homeassistant.helpers.update_coordinator import UpdateFailed
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.components.recorder.common import (
@@ -294,3 +296,95 @@ def test_single_mechanism_no_recorder_runs_reconciliation():
     """Recorder downtime is handled only by coverage.py; no second masking layer."""
     assert not (RUNTIME_PKG / "downtime.py").exists()
     assert "RecorderRuns" not in (RUNTIME_PKG / "coordinator.py").read_text()
+
+
+async def test_coordinator_missing_source_resets_enforcement(rig):
+    c = rig.coordinator()
+    c.last_signature = ("previous",)
+    with patch.object(c, "entity_id", return_value=None), patch.object(c.liveness, "reset") as reset:
+        assert await c._async_update_data() == {"ready": False, "online": False}
+    reset.assert_called_once()
+    assert c.last_signature is None
+
+
+async def test_coordinator_recorder_failure_is_reported_without_actions(rig):
+    c = rig.coordinator()
+    failure = OSError("synthetic recorder failure")
+    with patch.object(c, "_prepare_source", new_callable=AsyncMock, side_effect=failure), \
+            patch("custom_components.smarthouse_gaming.coordinator.mqtt.async_publish", new_callable=AsyncMock) as publish:
+        with pytest.raises(UpdateFailed, match="Cannot load Recorder history") as error:
+            await c._async_update_data()
+    assert error.value.__cause__ is failure
+    publish.assert_not_awaited()
+
+
+async def prepare_restricted_coordinator(rig, in_game="on"):
+    rig.freezer.move_to(NOW)
+    rig.hass.config_entries.async_update_entry(
+        rig.entry, options={"enabled": True, "daily": 0, "actions": ["terminate_game", "lock_pc"]})
+    await rig.game("Roblox", NOW.timestamp())
+    await rig.state(rig.in_game, in_game, NOW.timestamp())
+    await rig.state(rig.uptime, "100", NOW.timestamp())
+    return rig.coordinator()
+
+
+async def test_coordinator_never_enforces_inconsistent_telemetry(rig):
+    c = await prepare_restricted_coordinator(rig, in_game="off")
+    c.last_signature = ("previous",)
+    with patch.object(c.liveness, "observe", return_value=True), \
+            patch("custom_components.smarthouse_gaming.coordinator.mqtt.async_publish", new_callable=AsyncMock) as publish:
+        data = await c._async_update_data()
+    assert data["ready"] and not data["online"]
+    assert data["active"] == ["Roblox"]
+    assert "daily" in data["reasons"]
+    assert c.last_signature is None
+    publish.assert_not_awaited()
+
+
+async def test_coordinator_action_retry_boundary(rig):
+    c = await prepare_restricted_coordinator(rig)
+    from custom_components.smarthouse_gaming.const import RETRY_SECONDS
+    with patch.object(c.liveness, "observe", return_value=True), \
+            patch("custom_components.smarthouse_gaming.coordinator.monotonic", return_value=100) as clock, \
+            patch("custom_components.smarthouse_gaming.coordinator.mqtt.async_publish", new_callable=AsyncMock) as publish:
+        data = await c._async_update_data()
+        assert data["online"] and data["reasons"] == ["daily"]
+        assert [call.args[1] for call in publish.await_args_list] == [
+            "SmartHouse/Gaming/pc1/command/terminate_game",
+            "SmartHouse/Gaming/pc1/command/lock_pc"]
+        assert all(call.args[2] == "PRESS" and call.kwargs == {"qos": 0, "retain": False}
+                   for call in publish.await_args_list)
+        clock.return_value = 100 + RETRY_SECONDS - 0.01
+        await c._async_update_data()
+        assert publish.await_count == 2
+        clock.return_value = 100 + RETRY_SECONDS
+        await c._async_update_data()
+        assert publish.await_count == 4
+
+
+@pytest.mark.parametrize("change", [{"unlimited": True}, {"actions": ["terminate_game"]}])
+async def test_coordinator_rechecks_live_settings_between_actions(rig, change):
+    c = await prepare_restricted_coordinator(rig)
+
+    async def change_options(*args, **kwargs):
+        rig.hass.config_entries.async_update_entry(rig.entry, options=dict(rig.entry.options) | change)
+
+    with patch.object(c.liveness, "observe", return_value=True), \
+            patch("custom_components.smarthouse_gaming.coordinator.mqtt.async_publish", new_callable=AsyncMock,
+                  side_effect=change_options) as publish:
+        await c._async_update_data()
+    publish.assert_awaited_once_with(rig.hass, "SmartHouse/Gaming/pc1/command/terminate_game",
+                                     "PRESS", qos=0, retain=False)
+    assert c.last_signature is None
+
+
+async def test_coordinator_action_failure_does_not_skip_next_action(rig):
+    c = await prepare_restricted_coordinator(rig)
+    with patch.object(c.liveness, "observe", return_value=True), \
+            patch("custom_components.smarthouse_gaming.coordinator.mqtt.async_publish", new_callable=AsyncMock,
+                  side_effect=[OSError("synthetic publish failure"), None]) as publish:
+        data = await c._async_update_data()
+    assert data["online"]
+    assert [call.args[1] for call in publish.await_args_list] == [
+        "SmartHouse/Gaming/pc1/command/terminate_game",
+        "SmartHouse/Gaming/pc1/command/lock_pc"]
