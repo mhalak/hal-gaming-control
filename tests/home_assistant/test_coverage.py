@@ -110,3 +110,11 @@ def test_foreground_heartbeat_gap_remains_unobserved():
                             [(0, "on"), (180, "off"), (200, "on")])
     uptime = [(0, "100"), (60, "160"), (180, "280"), (240, "340")]
     assert seconds(normalized, uptime, 300) == 100
+
+
+def test_reserved_foreground_names_cannot_be_confirmed_even_if_enrolled():
+    names = ["", "idle", "unknown", "unavailable", "Roblox | Minecraft"]
+    assert foreground(list(enumerate(names)), [(0, "on")], enrolled=names) == [
+        (0, "unavailable")]
+    assert foreground([(0, None), (1, "Roblox")], [(0, "on")]) == [
+        (0, "unavailable"), (1, "Roblox")]

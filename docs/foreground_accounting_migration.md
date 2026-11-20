@@ -20,3 +20,8 @@ This opt-in test requires a real non-elevated interactive user and SYSTEM runner
 ## Current integration follow-up
 
 The foreground migration tracks the missing HA foreground entities in scoped MQTT mode and migration of daily/weekly totals and restriction evaluation. The planned HA 0.5.0 budget update changes the budget model to Daily limit + applicable Weekend bonus + same-day bonus, with an independent Weekly limit, and moves action execution to HA automations. It does not change the accounting source. Preserve these interfaces during migration. Application enrollment will subsequently allow enrollment of arbitrary monitored foreground applications. See [product direction](product_direction.md).
+
+
+## Paired history normalization increment
+
+The isolated normalization helper combines the two HA state-transition histories from an explicit cutover timestamp. A confirmed idle requires both idle and off; confirmed play requires on and one enrolled non-reserved application name. Inconsistent, missing or invalid states are unavailable. Apply simultaneous transitions together, with last observation winning at the same timestamp. Do not import pre-cutover state anchors. Existing uptime coverage can mask unobserved intervals, but neither paired values nor heartbeat coverage alone proves retained-message freshness or a safe post-reconnect state. This helper remains unused by production accounting until the durable boundary, freshness, real Recorder and migration behavior are validated.
