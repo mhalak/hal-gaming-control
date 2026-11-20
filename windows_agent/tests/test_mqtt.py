@@ -159,3 +159,91 @@ def test_failed_game_transition_invalidates_and_retries_complete_snapshot():
     assert b.publish({'in_game':'OFF','current_game':'idle'},14)
     assert b.last['current_game'] == 'idle'
     assert b.last['in_game'] == 'OFF'
+
+
+def test_disconnected_publish_never_sends_telemetry():
+    b = connected_bridge()
+    b.on_disconnect(b.client, None, None, None, None)
+    b.client.publish.reset_mock()
+    assert not b.publish({'gaming_active': 'ON', 'active_game': 'Roblox'}, 12)
+    b.client.publish.assert_not_called()
+    assert b.synced_generation is None
+    assert b.refresh_requested
+
+
+def test_unknown_focus_hides_previous_state_before_publishing_pair():
+    b = connected_bridge()
+    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=10):
+        assert b.publish({'gaming_active': 'ON', 'active_game': 'Roblox'}, 12)
+    b.client.publish.reset_mock()
+    values = {'gaming_active': 'UNKNOWN', 'active_game': 'unknown'}
+    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=11):
+        assert b.publish(values, 13)
+    assert [(c.args[0], c.args[1]) for c in b.client.publish.call_args_list] == [
+        (b.root + '/state/focus_availability', 'offline'),
+        (b.root + '/state/gaming_active', 'UNKNOWN'),
+        (b.root + '/state/active_game', 'unknown'),
+    ]
+    assert values == {'gaming_active': 'UNKNOWN', 'active_game': 'unknown'}
+
+
+def test_unchanged_sample_does_not_republish_before_uptime_deadline():
+    b = connected_bridge()
+    values = {'gaming_active': 'OFF', 'active_game': 'idle'}
+    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=10):
+        assert b.publish(values, 12)
+    b.client.publish.reset_mock()
+    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=69.99):
+        assert b.publish(values, 71)
+    b.client.publish.assert_not_called()
+    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=70):
+        assert b.publish(values, 72)
+    assert any(c.args[:2] == (b.root + '/state/uptime', '72')
+               for c in b.client.publish.call_args_list)
+
+
+def test_home_assistant_restart_forces_discovery_and_full_snapshot():
+    b = connected_bridge()
+    values = {'gaming_active': 'OFF', 'active_game': 'idle'}
+    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=10):
+        assert b.publish(values, 12)
+    b.on_message(b.client, None, SimpleNamespace(topic=b.prefix + '/status', payload=b'online'))
+    b.client.publish.reset_mock()
+    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=11):
+        assert b.publish(values, 13)
+    calls = b.client.publish.call_args_list
+    assert any(c.args[0] == b.root + '/discovery' for c in calls)
+    assert any(c.args[:2] == (b.root + '/state/uptime', '13') for c in calls)
+    assert calls[-1].args[:2] == (b.root + '/availability', 'online')
+    assert b.synced_generation == b.generation
+
+
+def test_failed_online_ack_does_not_commit_snapshot():
+    b = connected_bridge()
+    ack = b.client.publish.return_value
+    lost = Mock(rc=mqtt.MQTT_ERR_SUCCESS)
+    lost.is_published.return_value = False
+    b.client.publish.side_effect = (
+        lambda topic, value, **kwargs: lost
+        if (topic, value) == (b.root + '/availability', 'online') else ack
+    )
+    assert not b.publish({'gaming_active': 'ON', 'active_game': 'Roblox'}, 12)
+    assert b.synced_generation is None
+    assert not b.last
+    assert b.refresh_requested
+    assert b.client.publish.call_args.args[:2] == (b.root + '/availability', 'offline')
+    b.client.publish.side_effect = None
+    assert b.publish({'gaming_active': 'OFF', 'active_game': 'idle'}, 13)
+    assert b.last['active_game'] == 'idle'
+
+
+def test_failed_initial_offline_ack_stops_before_discovery():
+    b = connected_bridge()
+    b.client.publish.return_value.is_published.return_value = False
+    assert not b.publish({'gaming_active': 'ON', 'active_game': 'Roblox'}, 12)
+    assert [c.args[:2] for c in b.client.publish.call_args_list] == [
+        (b.root + '/availability', 'offline'),
+        (b.root + '/availability', 'offline'),
+    ]
+    assert b.synced_generation is None
+    assert b.refresh_requested
