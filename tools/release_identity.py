@@ -3,6 +3,7 @@ import argparse
 import json
 from pathlib import Path
 import re
+import shutil
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -91,21 +92,68 @@ def build_identity(root, component, requested_version=None):
             "version": version, "commit": commit}
 
 
+
+def stage_ha(root, output):
+    """Stage tracked HA files, with reviewed source identity, outside the checkout."""
+    root = Path(root).resolve()
+    destination = Path(output).expanduser().resolve()
+    if destination == root or root in destination.parents:
+        raise ValueError("HA staging must stay outside the source checkout")
+    identity = build_identity(root, "home_assistant")
+    if destination.exists():
+        raise ValueError("Staging destination already exists")
+    prefix = HA_MANIFEST.parent.as_posix() + "/"
+    files = _git(root, "ls-files", "-z", "--", prefix).split("\0")
+    files = [name for name in files if name]
+    if HA_MANIFEST.as_posix() not in files:
+        raise ValueError("Missing tracked HA manifest")
+    # Create a new destination, never merge over a previous installation.
+    destination.mkdir(parents=True)
+    try:
+        for name in files:
+            if not name.startswith(prefix):
+                raise ValueError("Invalid component path")
+            relative = Path(name[len(prefix):])
+            if not relative.parts or ".." in relative.parts or relative.is_absolute():
+                raise ValueError("Invalid tracked source path")
+            source = root / name
+            if source.is_symlink() or not source.is_file():
+                raise ValueError("Untrusted HA source file")
+            target = destination / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, target)
+        if build_identity(root, "home_assistant") != identity:
+            raise ValueError("Source changed during staging")
+        (destination / "build-info.json").write_text(
+            json.dumps(identity, sort_keys=True) + "\n", encoding="utf-8")
+    except BaseException:
+        shutil.rmtree(destination)
+        raise
+    return identity
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("check", "identity", "sync-ha"))
+    parser.add_argument("command", choices=("check", "identity", "sync-ha", "stage-ha"))
+    parser.add_argument("--output")
     parser.add_argument("--component", choices=COMPONENTS)
     parser.add_argument("--version")
     args = parser.parse_args()
     try:
         if args.command in ("check", "sync-ha"):
-            if args.component is not None or args.version is not None:
-                raise ValueError("check/sync-ha accepts no component or version")
+            if args.component is not None or args.version is not None or args.output is not None:
+                raise ValueError("check/sync-ha accepts no component, version or output")
             if args.command == "sync-ha":
                 sync_ha_manifest(ROOT)
             read_release(ROOT)
             print("Release metadata consistent")
+        elif args.command == "stage-ha":
+            if args.component is not None or args.version is not None or not args.output:
+                raise ValueError("stage-ha requires only --output")
+            print(json.dumps(stage_ha(ROOT, args.output)))
         else:
+            if args.output is not None or args.component is None:
+                raise ValueError("identity requires --component and no --output")
             print(json.dumps(build_identity(ROOT, args.component, args.version)))
     except ValueError as error:
         parser.exit(1, f"{error}\n")
