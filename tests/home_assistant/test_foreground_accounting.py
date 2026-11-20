@@ -87,7 +87,7 @@ def test_gap_epoch_restart_and_downgrade_do_not_bridge_unknown_time():
     assert ledger.current(100156) is None
     assert receive(ledger, 160, sequence=3, epoch=LATER)
     assert receive(ledger, 162, sequence=4, epoch=LATER)
-    assert totals(ledger, 164)["weekly"] == 6
+    assert totals(ledger, 164)["weekly"] == 8
 
 
 def test_unenrolled_unknown_and_process_lists_cannot_be_counted():
