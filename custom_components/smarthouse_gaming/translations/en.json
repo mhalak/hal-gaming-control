@@ -24,7 +24,7 @@
     "step": {
       "menu": {
         "title": "Parental control",
-        "description": "Configured actions (in order): {actions}"
+        "description": "Configure monitoring and connection settings for this PC."
       },
       "limits": {
         "title": "Restrictions and schedule",
@@ -37,24 +37,6 @@
           "reset_daily": "Disable daily limit",
           "reset_weekly": "Disable weekly limit",
           "reset_weekend_daily": "Use weekday limit on weekends"
-        }
-      },
-      "add_action": {
-        "title": "Add action",
-        "data": {
-          "action": "Action"
-        }
-      },
-      "remove_action": {
-        "title": "Remove action",
-        "data": {
-          "action": "Action"
-        }
-      },
-      "move_action": {
-        "title": "Move action to first position",
-        "data": {
-          "action": "Action"
         }
       },
       "update_settings": {

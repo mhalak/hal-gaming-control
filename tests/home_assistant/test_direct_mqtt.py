@@ -161,9 +161,9 @@ async def test_live_budget_controls_and_action_configuration(hass, enable_custom
     weekly = entity("number","weekly_limit")
     weekend = entity("number","weekend_daily_limit")
     bonus = entity("button","add_daily_budget")
-    add = entity("select","add_action")
-    remove = entity("select","remove_action")
-    assert all((daily, weekly, weekend, bonus, add, remove))
+    assert all((daily, weekly, weekend, bonus))
+    assert entity("select", "add_action") is None
+    assert entity("select", "remove_action") is None
     state = hass.states.get(daily)
     assert float(state.state) == 60
     assert state.attributes["min"] == -10
@@ -204,16 +204,6 @@ async def test_live_budget_controls_and_action_configuration(hass, enable_custom
             await hass.services.async_call("button","press",{"entity_id":bonus},blocking=True)
             await hass.async_block_till_done()
             assert entry.options["bonus_minutes"] == 30
-        assert "Lock PC" in hass.states.get(add).attributes["options"]
-        for label in ["Lock PC","Terminate game"]:
-            await hass.services.async_call("select","select_option",{"entity_id":add,"option":label},blocking=True)
-            await hass.async_block_till_done()
-        assert entry.options["actions"] == ["lock_pc","terminate_game"]
-        assert hass.states.get(add).attributes["options"] == ["Select action"]
-        await hass.services.async_call("select","select_option",{"entity_id":remove,"option":"Lock PC"},blocking=True)
-        await hass.async_block_till_done()
-        assert entry.options["actions"] == ["terminate_game"]
-        assert "Lock PC" in hass.states.get(add).attributes["options"]
         assert entry.runtime_data is c
         assert not publish.called
     assert await hass.config_entries.async_unload(entry.entry_id)
