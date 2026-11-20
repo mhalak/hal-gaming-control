@@ -38,3 +38,5 @@ Public release gate: produce reviewed, signed, versioned artifacts, verify those
 ## Development versus production
 
 Development exceptions must not become product instructions or be treated as release acceptance. Document exact versions and observed outcomes, keep configuration and logs private, and never publish personal identifiers, local paths or raw personal telemetry. See [Windows deployment](windows_deployment.md), [foreground migration](foreground_accounting_migration.md), and [HACS release checklist](hacs_release.md).
+
+| HA 0.5.1 / Windows 0.2.4 candidate | A fresh untracked foreground executable can be displayed read-only in HA Options Flow. Actual Add/Rename/Remove, acknowledged agent configuration, shared-runtime disambiguation and full foreground accounting are **not implemented**. | Keep legacy rules intact; do not treat discovery token as authority. #7/#52 and #4 remain open. |
