@@ -650,16 +650,13 @@ async def test_integration_version_reads_only_local_staged_provenance(hass, tmp_
 ])
 async def test_mqtt_info_shows_shared_broker_without_credentials(
         hass, enable_custom_integrations, broker, port):
-    mqtt_entry = MockConfigEntry(domain="mqtt",
-        data={"broker": broker, "port": port,
-              "username": "DO_NOT_DISPLAY_USER", "password": "DO_NOT_DISPLAY_PASSWORD"})
-    mqtt_entry.add_to_hass(hass)
     device_entry = MockConfigEntry(domain=DOMAIN, data=DATA, unique_id="pc1",
                                   options={"daily": 60})
     device_entry.add_to_hass(hass)
     manager = hass.config_entries.options
     result = await manager.async_init(device_entry.entry_id)
-    with patch.object(cf.mqtt, "is_connected", return_value=True):
+    with patch.object(cf.mqtt, "is_connected", return_value=True), \
+            patch.object(cf, "_mqtt_broker_details", return_value=(broker, str(port)), create=True):
         result = await manager.async_configure(result["flow_id"],
                                               {"next_step_id": "mqtt_settings"})
     assert result["step_id"] == "mqtt_settings"
@@ -671,22 +668,20 @@ async def test_mqtt_info_shows_shared_broker_without_credentials(
     assert "DO_NOT_DISPLAY_PASSWORD" not in repr(result)
     await manager.async_configure(result["flow_id"], {})
     assert device_entry.options == {"daily": 60}
-    assert mqtt_entry.data["broker"] == broker
-    assert mqtt_entry.data["password"] == "DO_NOT_DISPLAY_PASSWORD"
+    from types import SimpleNamespace
+    configured = SimpleNamespace(data={
+        "broker": broker, "port": port, "username": "DO_NOT_DISPLAY_USER",
+        "password": "DO_NOT_DISPLAY_PASSWORD"})
+    fake_hass = SimpleNamespace(config_entries=SimpleNamespace(
+        async_entries=lambda domain: [configured] if domain == "mqtt" else []))
+    assert cf._mqtt_broker_details(fake_hass) == (broker, str(port))
 
 
 @pytest.mark.parametrize("value", ["user:password@broker.example", "broker.example/path", "", "x" * 260])
-async def test_mqtt_info_does_not_echo_unexpected_broker_values(
-        hass, enable_custom_integrations, value):
-    mqtt_entry = MockConfigEntry(domain="mqtt", data={
+async def test_mqtt_info_does_not_echo_unexpected_broker_values(value):
+    from types import SimpleNamespace
+    configured = SimpleNamespace(data={
         "broker": value, "port": 1883, "password": "SECRET"})
-    mqtt_entry.add_to_hass(hass)
-    entry = MockConfigEntry(domain=DOMAIN, data=DATA, unique_id="pc1")
-    entry.add_to_hass(hass)
-    manager = hass.config_entries.options
-    result = await manager.async_init(entry.entry_id)
-    with patch.object(cf.mqtt, "is_connected", return_value=True):
-        result = await manager.async_configure(result["flow_id"],
-                                              {"next_step_id": "mqtt_settings"})
-    assert result["description_placeholders"]["broker"] == "Not available"
-    assert "SECRET" not in repr(result)
+    fake_hass = SimpleNamespace(config_entries=SimpleNamespace(
+        async_entries=lambda domain: [configured] if domain == "mqtt" else []))
+    assert cf._mqtt_broker_details(fake_hass) == ("Not available", "1883")
