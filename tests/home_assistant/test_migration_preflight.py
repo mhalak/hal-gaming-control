@@ -1,4 +1,6 @@
 """Read-only migration preflight against real HA entries and registry."""
+import json
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -107,12 +109,31 @@ async def test_destination_entity_identity_collision(hass, source):
 ])
 async def test_saved_update_state_is_read_only(hass, source, saved, expected):
     store = Store(hass, 1, f"smarthouse_gaming.update.{source.entry_id}")
-    await store.async_save(saved)
+    path = Path(store.path)
+    await hass.async_add_executor_job(path.parent.mkdir, 0o700, True, True)
+    raw = json.dumps({"version": 1, "minor_version": 1, "key": store.key, "data": saved})
+    await hass.async_add_executor_job(path.write_text, raw, "utf-8")
     result = await preflight(hass, source)
     assert result == () if expected is None else expected in result
-    assert await store.async_load() == saved
+    assert await hass.async_add_executor_job(path.read_text, "utf-8") == raw
 
 
 async def test_update_storage_failure_blocks_migration(hass, source):
-    with patch("homeassistant.helpers.storage.Store.async_load", side_effect=OSError("synthetic")):
+    with patch("custom_components.smarthouse_gaming.migration_preflight._read_update_state",
+               side_effect=OSError("synthetic")):
         assert "update_state_unavailable" in await preflight(hass, source)
+
+
+@pytest.mark.parametrize("raw", [
+    "{broken json", "null", "{}", '{"version": 2, "data": {"pending": null}}',
+    '{"version": 1, "minor_version": 2, "data": {"pending": null}}',
+    '{"version": 1, "data": {}}',
+])
+async def test_corrupt_or_unsupported_storage_remains_byte_identical(hass, source, raw, tmp_path):
+    path = tmp_path / "update-state.json"
+    path.write_text(raw, encoding="utf-8")
+    with patch("custom_components.smarthouse_gaming.migration_preflight._update_path",
+               return_value=path):
+        assert "update_state_invalid" in await preflight(hass, source)
+    assert path.read_text(encoding="utf-8") == raw
+    assert list(tmp_path.iterdir()) == [path]

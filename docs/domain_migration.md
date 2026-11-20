@@ -25,3 +25,7 @@ The first increment exercises these registry APIs on unloaded test entries with 
 If the API contract cannot preserve device identity (including composite or MQTT-owned devices) or a safe supported rollback, stop migration rather than deleting entries or recreating users' entities. Entry IDs may necessarily change when creating a replacement entry; inventory dependencies on the original config entry ID and resolve before release. No manual storage-file surgery or private Core APIs as a production mechanism.
 
 The actual rename and migration remain pending. No HA version bump is needed for this test/documentation-only increment.
+
+## Read-only preflight increment
+
+The preliminary helper checks unloaded legacy entry identity, duplicate device identities, destination registry collisions and persisted remote-update state. It is not linked to any runtime or UI path. The updater Store file is inspected read-only on an executor: Core Store.async_load may rename corrupt files or migrate older envelopes. Missing storage is distinct from malformed/unreadable storage; non-null pending data blocks migration. No HA registry .storage files are read or edited. A clean preflight is not migration authorization: device ownership, version support, concurrent changes, durable update-state transfer and transaction recovery remain mandatory.
