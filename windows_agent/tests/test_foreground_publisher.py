@@ -179,3 +179,62 @@ def test_foreground_publisher_distinct_bridge_epochs(rig):
     assert send(other, GAME)
     first, second = packets(client)
     assert first["epoch"] != second["epoch"]
+
+
+def test_foreground_publisher_capture_is_single_use_even_when_throttled(rig):
+    bridge, client, clock = rig
+    context = bridge.capture_foreground_context()
+    assert bridge.publish_foreground(GAME, context)
+    assert not bridge.publish_foreground(IDLE, context)
+    advance(clock, 1)
+    throttled = bridge.capture_foreground_context()
+    assert not bridge.publish_foreground(GAME, throttled)
+    advance(clock, 1)
+    assert not bridge.publish_foreground(IDLE, throttled)
+    assert len(packets(client)) == 1
+
+
+def test_foreground_publisher_clock_jump_and_subsecond_remaining_rejected(rig):
+    bridge, client, clock = rig
+    context = bridge.capture_foreground_context()
+    clock.wall += 3
+    assert not bridge.publish_foreground(GAME, context)
+    context = bridge.capture_foreground_context()
+    advance(clock, 9.5)
+    assert not bridge.publish_foreground(GAME, context)
+    assert packets(client) == []
+
+
+def test_foreground_publisher_transport_exception_does_not_kill_polling(rig):
+    bridge, client, clock = rig
+    client.publish.side_effect = OSError("synthetic")
+    assert not send(bridge, GAME)
+    client.publish.side_effect = None
+    advance(clock, 1)
+    assert send(bridge, IDLE)
+    assert packets(client)[-1]["sequence"] == 2
+
+
+def test_foreground_publisher_connection_changes_during_send(rig):
+    bridge, client, clock = rig
+
+    def race(*args, **kwargs):
+        disconnect(bridge)
+        reconnect(bridge)
+        return SimpleNamespace(rc=0)
+
+    client.publish.side_effect = race
+    assert not send(bridge, GAME)
+    client.publish.side_effect = None
+    advance(clock, 1)
+    assert send(bridge, IDLE)
+    first, second = packets(client)
+    assert first["epoch"] != second["epoch"]
+    assert second["sequence"] == 1
+
+
+def test_foreground_publisher_never_sends_after_connection_check_fails(rig):
+    bridge, client, _ = rig
+    with patch.object(bridge, "_same_connection", return_value=False):
+        assert not send(bridge, GAME)
+    assert packets(client) == []
