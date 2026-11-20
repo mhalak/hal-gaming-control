@@ -29,6 +29,37 @@ def installed_version():
         return '0.0.0'
 
 
+
+def installed_build_sha(version=None):
+    """Verified descriptive source SHA bundled beside the installed agent.
+
+    Missing, malformed or mismatched metadata means unknown, never source HEAD.
+    """
+    root = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent.parent
+    try:
+        path = root / 'build-info.json'
+        if path.stat().st_size > 8192:
+            return None
+        def unique(pairs):
+            result = {}
+            for key, item in pairs:
+                if key in result:
+                    raise ValueError('Duplicate metadata key')
+                result[key] = item
+            return result
+        data = json.loads(path.read_text(encoding='utf-8'), object_pairs_hook=unique)
+        if not isinstance(data, dict) or set(data) != {'release', 'component', 'version', 'commit'}:
+            return None
+        if data['component'] != 'windows_agent' or data['version'] != (version or installed_version()):
+            return None
+        if not isinstance(data['release'], str) or not data['release'].strip():
+            return None
+        sha = data['commit']
+        return sha if isinstance(sha, str) and re.fullmatch(r'[0-9a-f]{40}', sha) else None
+    except (OSError, ValueError, TypeError, UnicodeError):
+        return None
+
+
 def parse_request(payload, now=None):
     if len(payload) > 512:
         raise ValueError('Request too large')

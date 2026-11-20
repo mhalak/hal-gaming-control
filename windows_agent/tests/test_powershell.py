@@ -57,7 +57,14 @@ def test_build_script_has_no_duplicated_body():
     text = (ROOT / 'build.ps1').read_text()
     assert text.count("param(") == 1
     assert text.count('PyInstaller --noconfirm --clean --onedir --name SmartHouseGamingControl ') == 1
-    assert text.count('Invalid version') == 1
+    assert text.count('PyInstaller --noconfirm --clean --onedir --name SmartHouseGamingUpdater ') == 1
+    assert text.splitlines()[0] == 'param([string]$Version)'
+    assert text.count('Invalid source release identity') == 1
+    assert text.count('release_identity.py') == 1
+    assert text.count('--component') == 1
+    assert text.index('Invalid source release identity') < text.index('-m venv')
+    assert text.index('Source identity changed during build') < text.index("'version.txt'")
+    assert text.count("'build-info.json'") == 1
 
 
 def test_ci_workflows_lint_powershell_before_build():

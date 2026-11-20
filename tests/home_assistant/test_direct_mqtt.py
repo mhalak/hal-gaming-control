@@ -50,7 +50,7 @@ async def test_scoped_entities_and_safe_controls(hass, enable_custom_integration
     assert all(ids.values())
     assert all(registry.async_get(eid) is None for eid in legacy)
     owned = er.async_entries_for_config_entry(registry, entry.entry_id)
-    assert {e.unique_id for e in owned if e.entity_id.split(".")[0] in ("sensor","binary_sensor")} == {"pc1_uptime","pc1_in_game","pc1_current_game","pc1_budget_daily","pc1_budget_weekly","pc1_agent_version","pc1_active_game","pc1_gaming_active"}
+    assert {e.unique_id for e in owned if e.entity_id.split(".")[0] in ("sensor","binary_sensor")} == {"pc1_uptime","pc1_in_game","pc1_current_game","pc1_budget_daily","pc1_budget_weekly","pc1_agent_version","pc1_integration_version","pc1_active_game","pc1_gaming_active"}
     assert all(registry.async_get_entity_id(platform, "mqtt", "smarthouse_gaming_pc1_"+key) is None for key,platform in keys.items())
     assert len({registry.async_get(eid).device_id for eid in ids.values()}) == 1
     assert entry.runtime_data.entity_id("sensor","uptime") == ids["uptime"]

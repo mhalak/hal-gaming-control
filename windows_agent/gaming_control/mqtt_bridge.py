@@ -12,7 +12,7 @@ import paho.mqtt.client as mqtt
 from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.properties import Properties
 from .core import COMMANDS
-from .update_control import parse_request, installed_version
+from .update_control import parse_request, installed_version, installed_build_sha
 from .discovery import discovery, obsolete_discovery_topics
 
 LOG = logging.getLogger(__name__)
@@ -67,6 +67,7 @@ class Bridge:
         self.command_topics = {self.root + '/command/' + key: key for key in COMMANDS}
         self.updates_enabled = config.get('update', {}).get('enabled') is True
         self.metadata['agent_version'] = installed_version()
+        self.metadata['agent_build_sha'] = installed_build_sha(self.metadata['agent_version'])
         self.metadata['remote_update'] = self.updates_enabled
         self.metadata['focus_protocol'] = 1
         if self.updates_enabled:
