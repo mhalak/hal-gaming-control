@@ -1,20 +1,27 @@
 """MQTT transport. No decisions about permission, time or schedules."""
 import json
 import logging
+import math
 import os
 import queue
 import re
 import threading
 import time
+from uuid import uuid4
 import paho.mqtt.client as mqtt
+from paho.mqtt.packettypes import PacketTypes
+from paho.mqtt.properties import Properties
 from .core import COMMANDS
-from .update_control import parse_request, installed_version
+from .update_control import parse_request, installed_version, installed_build_sha
 from .discovery import discovery, obsolete_discovery_topics
 
 LOG = logging.getLogger(__name__)
 UPTIME_PERIOD = 60
 COMMAND_MAX_AGE = 10
 STATE_ACK_TIMEOUT = 2
+FOREGROUND_PERIOD = 2
+FOREGROUND_MAX_AGE = 10
+FOREGROUND_CLOCK_SKEW = 2
 
 class Bridge:
     def __init__(self, config):
@@ -33,6 +40,11 @@ class Bridge:
         self.refresh_requested = True
         self.last = {}
         self.last_full = float('-inf')
+        self._foreground_epoch = None
+        self._foreground_sequence = 0
+        self._foreground_context = None
+        self._foreground_last = None
+        self._foreground_sent = float('-inf')
         # MQTT 5 preserves the retain flag even on live deliveries.
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f'gaming-{self.id}',
                                   protocol=mqtt.MQTTv5)
@@ -55,6 +67,7 @@ class Bridge:
         self.command_topics = {self.root + '/command/' + key: key for key in COMMANDS}
         self.updates_enabled = config.get('update', {}).get('enabled') is True
         self.metadata['agent_version'] = installed_version()
+        self.metadata['agent_build_sha'] = installed_build_sha(self.metadata['agent_version'])
         self.metadata['remote_update'] = self.updates_enabled
         self.metadata['focus_protocol'] = 1
         if self.updates_enabled:
@@ -75,6 +88,11 @@ class Bridge:
             self.connected = True
             self.synced_generation = None
             self.refresh_requested = True
+            self._foreground_epoch = uuid4().hex
+            self._foreground_sequence = 0
+            self._foreground_context = None
+            self._foreground_last = None
+            self._foreground_sent = float('-inf')
         # Do not receive stored retained actions; reject any live retained action as well.
         options = mqtt.SubscribeOptions(qos=0, retainAsPublished=True, retainHandling=2)
         for topic in self.command_topics:
@@ -87,6 +105,7 @@ class Bridge:
             self.synced_generation = None
             self.generation += 1
             self.refresh_requested = True
+            self._foreground_context = None
 
     def on_message(self, client, userdata, msg):
         with self.lock:
@@ -220,6 +239,82 @@ class Bridge:
                 LOG.info('MQTT initial snapshot acknowledged: game=%s in_game=%s uptime=%s',
                          game_values.get('current_game'), game_values.get('in_game'), uptime)
         return self._same_connection(generation)
+
+
+    def capture_foreground_context(self):
+        """Capture connection identity and clocks before examining foreground."""
+        with self.lock:
+            if not self.connected:
+                return None
+            self._foreground_context = (self.generation, time.time(), time.monotonic())
+            return self._foreground_context
+
+    def _foreground_pair(self, values):
+        game, active = values.get("active_game"), values.get("gaming_active")
+        if (game, active) == ("idle", "OFF"):
+            return "idle", "OFF"
+        if (active == "ON" and isinstance(game, str)
+                and game not in ("", "idle", "unknown", "unavailable")
+                and " | " not in game and game in self.metadata["games"]):
+            return game, "ON"
+        return "unknown", "UNKNOWN"
+
+    def _prepare_foreground(self, values, context):
+        # Caller holds the bridge lock. A capture is single-use even on failure.
+        if context is None or context is not self._foreground_context:
+            return None
+        self._foreground_context = None
+        generation, observed, captured = context
+        if not self.connected or generation != self.generation or self.synced_generation != generation:
+            return None
+        now, wall = time.monotonic(), time.time()
+        age = now - captured
+        if not (0 <= age < FOREGROUND_MAX_AGE and math.isfinite(observed)
+                and abs((wall - observed) - age) <= FOREGROUND_CLOCK_SKEW):
+            return None
+        expiry = math.floor(FOREGROUND_MAX_AGE - max(age, wall - observed))
+        if expiry < 1:
+            return None
+        pair = self._foreground_pair(values)
+        if pair == self._foreground_last and now - self._foreground_sent < FOREGROUND_PERIOD:
+            return None
+        self._foreground_sequence += 1
+        packet = {"version": 1, "device_id": self.id, "epoch": self._foreground_epoch,
+                  "sequence": self._foreground_sequence, "observed_at": observed,
+                  "active_game": pair[0], "gaming_active": pair[1]}
+        return packet, expiry, now
+
+    def _send_foreground(self, packet, expiry, generation):
+        if not self._same_connection(generation):
+            return False
+        try:
+            properties = Properties(PacketTypes.PUBLISH)
+            properties.MessageExpiryInterval = expiry
+            info = self.client.publish(self.root + "/state/foreground_snapshot",
+                                       json.dumps(packet), qos=0, retain=False,
+                                       properties=properties)
+            return info.rc == mqtt.MQTT_ERR_SUCCESS
+        except (RuntimeError, ValueError, OSError):
+            return False
+
+    def publish_foreground(self, values, context):
+        """Offer live QoS 0 evidence, never retry an old sample or claim delivery."""
+        with self.lock:
+            prepared = self._prepare_foreground(values, context)
+        if prepared is None:
+            return False
+        packet, expiry, now = prepared
+        sent = self._send_foreground(packet, expiry, context[0])
+        with self.lock:
+            if not self.connected or self.generation != context[0]:
+                return False
+            if not sent:
+                # The next polling iteration can offer a new observation immediately.
+                self._foreground_last = None
+                return False
+            self._foreground_last = (packet["active_game"], packet["gaming_active"])
+            self._foreground_sent = now
+        return True
 
     def stop(self):
         try:

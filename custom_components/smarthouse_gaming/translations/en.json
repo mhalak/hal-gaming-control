@@ -24,7 +24,7 @@
     "step": {
       "menu": {
         "title": "Parental control",
-        "description": "Configured actions (in order): {actions}"
+        "description": "Configure monitoring and connection settings for this PC."
       },
       "limits": {
         "title": "Restrictions and schedule",
@@ -39,24 +39,6 @@
           "reset_weekend_daily": "Use weekday limit on weekends"
         }
       },
-      "add_action": {
-        "title": "Add action",
-        "data": {
-          "action": "Action"
-        }
-      },
-      "remove_action": {
-        "title": "Remove action",
-        "data": {
-          "action": "Action"
-        }
-      },
-      "move_action": {
-        "title": "Move action to first position",
-        "data": {
-          "action": "Action"
-        }
-      },
       "update_settings": {
         "title": "Windows update settings",
         "description": "Set a trusted HTTPS URL to an approved version catalog, or leave blank to disable remote update controls.",
@@ -66,7 +48,11 @@
       },
       "mqtt_settings": {
         "title": "MQTT configuration",
-        "description": "Connection: {connection}\n\nDevice: {device_id}\n\nMode: {mode}\n\nTopic root: {root}\n\nDiscovery: {root}/discovery\n\nThis integration uses Home Assistant's shared MQTT connection. To edit broker address, port, credentials or TLS, open Settings → Devices & services → MQTT → Configure. Configure the Windows agent separately using its protected config.yaml. No credentials are shown here."
+        "description": "Connection: {connection}. {connection_help}\\n\\nBroker: {broker}\\n\\nPort: {port}\\n\\nTLS: {tls}\\n\\nDevice: {device_id}\\n\\nMode: {mode}\\n\\nTopic root: {root}\\n\\nDiscovery: {root}/discovery\\n\\nThis information is read-only. Home Assistant uses ONE shared MQTT connection for all integrations. To change broker address, port, credentials or TLS, open Settings → Devices & services → MQTT → Reconfigure. The Windows agent connection is separate in its protected config.yaml; changing one does not change the other. No usernames, passwords, certificates, keys or private connection URLs are displayed."
+      },
+      "tracked_apps": {
+        "title": "Tracked applications",
+        "description": "Read-only applications reported for {device} ({count}):\\n\\n{apps}\\n\\nAdding, renaming or removing tracked applications from live detection is not available yet (tracked in issue #7)."
       }
     },
     "error": {

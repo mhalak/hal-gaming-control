@@ -2,12 +2,14 @@
 
 The HA integration version is the `version` in `custom_components/smarthouse_gaming/manifest.json`, displayed by Home Assistant. Increment this version for every deployable HA change: minor for features, patch for fixes, major for breaking changes as appropriate. Record changes here, deploy latest main and record the deployed commit for rollback. Windows agent releases have separate versioning; do not bump Windows for HA-only changes. A manifest version is not a published GitHub Release.
 
-## Planned 0.5.0 (not included in this source snapshot)
-- Validation/deployment is not yet confirmed. Foreground accounting, application enrollment and Windows warning popup are separate follow-ups; see [product direction](product_direction.md).
-- Display Daily gaming time and Weekly gaming time in minutes, using the existing Recorder-based accounting totals independently of limits and Unlimited gaming.
-- Replace the weekend daily override with a bonus added on each Saturday and Sunday. Preserve equivalent legacy settings, require explicit migration for incompatible policies.
-- Remove action selectors and internal MQTT enforcement. Use the fresh Gaming restriction active binary sensor with native Home Assistant automations and the existing manual buttons.
-- Existing process-presence accounting continues; foreground accounting remains a separate migration. Windows agent version unchanged.
+## 0.5.0 — Parental Control Preview 2 (candidate, not yet verified as deployed)
+- #50: installed HA integration version diagnostic and optionally staged source SHA.
+- #51: remove legacy Add/Remove action selectors and the coordinator's automatic MQTT termination/locking path. Preserve explicit manual buttons and stored legacy options for rollback; no replacement default automation.
+- #54: opt-in additive Weekend bonus **calculation kernel** and exact non-destructive legacy migration preview. The existing Weekend daily limit control remains; no bonus slider or automatic migration yet.
+- #55: read-only shared HA MQTT connection diagnostics with validated broker/port, never displaying secrets or writing to broker settings.
+- This is a preview **source/package version**, not a report of a completed deployment. Do not claim a functional 0.5.0 gaming-time sensor, restriction binary sensor, foreground-only time accounting, tracked app enrollment or Windows countdown popup: those remain open (#3/#4/#7/#52).
+- This integration change is a minor increment from 0.4.3 because the UI/enforcement contract changes. Windows version is independently allocated to 0.2.3 for reviewed packaging/provenance, not because HA features run on Windows.
+- Deployment requires #56 TrueNAS-hosted HA validation, previous-state backup, safe restart, no automatic destructive actions and post-deploy reporting.
 
 ## 0.4.3 (scoped foreground telemetry candidate)
 - Add Active game and Gaming active entities when HA MQTT discovery is disabled. Preserve native discovery entities, legacy process-presence telemetry and commands.

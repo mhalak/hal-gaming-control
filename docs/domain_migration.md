@@ -34,7 +34,6 @@ The preliminary helper checks unloaded legacy entry identity, duplicate device i
 
 Preflight now rejects unknown/multiple owned main devices, child devices, extra identifiers/connections, via-device relationships, subentries, foreign entity platform or device references, and unexpected legacy entity unique-ID prefixes. An independent native MQTT record with the same identifier is not moved. Config entry version/minor version must both be 1. This conservative inventory is specific to the tested HA Core device-ownership model; version compatibility, journal, race prevention and transaction recovery remain pending.
 
-
 ## Durable journal increment
 
 The isolated journal uses HA Store with private atomic writes, a shared per-HA-instance lock, and read-back verification before reporting success. It records one outstanding plan (source and destination entry IDs, device identity and registry IDs). The legal forward stages are prepared, registry_moved, verified, completed; nonterminal forward stages can transition to rollback_required then rolled_back. Only terminal records may be cleared. A malformed/unsupported journal blocks progress without automatic repair or replacement. No coordinator, UI or registry mutation is connected to the journal. Stage persistence does not make cross-registry writes atomic: actual ownership reconciliation, cancellation/interruption handling, snapshot revalidation and update-state migration are still required. No request or credentials are stored in this record.

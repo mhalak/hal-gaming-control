@@ -20,3 +20,17 @@ This opt-in test requires a real non-elevated interactive user and SYSTEM runner
 ## Current integration follow-up
 
 The foreground migration tracks the missing HA foreground entities in scoped MQTT mode and migration of daily/weekly totals and restriction evaluation. The planned HA 0.5.0 budget update changes the budget model to Daily limit + applicable Weekend bonus + same-day bonus, with an independent Weekly limit, and moves action execution to HA automations. It does not change the accounting source. Preserve these interfaces during migration. Application enrollment will subsequently allow enrollment of arbitrary monitored foreground applications. See [product direction](product_direction.md).
+
+
+## Paired history normalization increment
+
+The isolated normalization helper combines the two HA state-transition histories from an explicit cutover timestamp. A confirmed idle requires both idle and off; confirmed play requires on and one enrolled non-reserved application name. Inconsistent, missing or invalid states are unavailable. Apply simultaneous transitions together, with last observation winning at the same timestamp. Do not import pre-cutover state anchors. Existing uptime coverage can mask unobserved intervals, but neither paired values nor heartbeat coverage alone proves retained-message freshness or a safe post-reconnect state. This helper remains unused by production accounting until the durable boundary, freshness, real Recorder and migration behavior are validated.
+
+
+## Atomic foreground snapshot — proposed transport contract
+
+Legacy retained active_game/gaming_active/focus_availability values remain diagnostic, not evidence of a fresh sample. A new device-scoped topic `SmartHouse/Gaming/<device_id>/state/foreground_snapshot` will carry one non-retained JSON packet: version (integer 1), device_id, epoch (32 lowercase hexadecimal digits identifying a new connection generation), sequence (positive increasing integer), observed_at (UTC Unix seconds for the observation, not the delivery), active_game and gaming_active. The pair is either a single enrolled application and ON, idle and OFF, or unknown and UNKNOWN. No process paths, PIDs, window titles or command lines belong in a packet.
+
+The pure HA consumer rejects non-live, malformed, stale, inconsistent, wrong-device and out-of-order packets; duplicate packets do not prolong a sample. The freshness window is 10 seconds from observation, with up to 2 seconds future clock skew (no additional lifetime). A monotonic deadline accounts for already elapsed sample age. Disconnect invalidation preserves in-memory ordering watermarks, including recent retired epochs; HA restart recreates them. Synchronized Windows/HA clocks, authorized device-topic ACLs and reliable live publication are prerequisites. This is not cryptographic publisher authentication or durable replay protection across HA restarts.
+
+Publisher and MQTT subscriber integration remain future increments. Periodic observations must be emitted even when the game is unchanged, without replaying a previous sample on reconnect. Unknown, disconnect and expiry must produce explicit coverage gaps before the accounting coordinator can consume this stream. Native and scoped modes must share the same validated accounting source. The new gate is isolated and does not yet alter runtime sensors, budgets or commands.

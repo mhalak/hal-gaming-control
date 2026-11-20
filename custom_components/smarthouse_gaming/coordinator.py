@@ -1,7 +1,6 @@
 """HA-side enforcement and Recorder-based historical accounting."""
 import logging
 from time import monotonic
-from homeassistant.components import mqtt
 from homeassistant.components.recorder import get_instance, history
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_state_change_event
@@ -10,8 +9,7 @@ from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import callback
 from homeassistant.util import dt as dt_util
 from datetime import timedelta
-from .const import DEFAULTS, DOMAIN, ROOT, SCAN_SECONDS, RETRY_SECONDS
-from .action_registry import ACTION_REGISTRY, selected_actions
+from .const import DEFAULTS, DOMAIN, SCAN_SECONDS
 from .protocol import games_from_state
 from .liveness import UptimeLiveness, MAX_HEARTBEAT_AGE
 from .coverage import heartbeat_intervals, covered_transitions
@@ -30,6 +28,7 @@ class GamingCoordinator(DataUpdateCoordinator):
         self.device_id = entry.data["device_id"]
         self.direct = direct_mode(hass)
         self.games = entry.data["games"]
+        # Manual buttons use the advertised action capabilities; no auto-enforcement.
         self.advertised = entry.data["actions"]
         self.source = None
         self.uptime_source = None
@@ -40,8 +39,6 @@ class GamingCoordinator(DataUpdateCoordinator):
         self.pending = []
         self.loaded = False
         self.coverage_start = None
-        self.last_action = float("-inf")
-        self.last_signature = None
         self.liveness = UptimeLiveness()
 
     @staticmethod
@@ -128,37 +125,12 @@ class GamingCoordinator(DataUpdateCoordinator):
             self.heartbeats = sorted(dict(self.heartbeats + self.pending_heartbeats).items())
             self.pending_heartbeats.clear()
 
-    async def _async_enforce(self, online, fresh, active, reason, totals, now):
-        actions = selected_actions(self.advertised, self.options["actions"])
-        signature = (tuple(sorted(active)), tuple(reason), tuple(actions))
-        if online and fresh and active and reason and actions:
-            timestamp = monotonic()
-            if signature != self.last_signature or timestamp - self.last_action >= RETRY_SECONDS:
-                self.last_signature, self.last_action = signature, timestamp
-                for key in actions:
-                    # Re-evaluate live settings before each publish; a bonus, slider
-                    # or action change may have arrived while awaiting the last publish.
-                    latest = self.options
-                    if (not violations(latest, totals, now, active)
-                            or selected_actions(self.advertised, latest["actions"]) != actions):
-                        self.last_signature = None
-                        break
-                    try:
-                        await mqtt.async_publish(self.hass,
-                            f"{ROOT}/{self.device_id}/command/{ACTION_REGISTRY[key].topic}",
-                            "PRESS", qos=0, retain=False)
-                    except Exception:
-                        _LOGGER.exception("Action %s failed for %s", key, self.device_id)
-        else:
-            self.last_signature = None
-
     async def _async_update_data(self):
         now = dt_util.now()
         source = self.entity_id("sensor", "current_game")
         uptime_id = self.entity_id("sensor", "uptime")
         if not source or not uptime_id:
             self.liveness.reset()
-            self.last_signature = None
             return {"ready": False, "online": False}
         try:
             await self._prepare_source(source, uptime_id, now)
@@ -182,7 +154,6 @@ class GamingCoordinator(DataUpdateCoordinator):
         intervals = heartbeat_intervals(self.heartbeats)
         totals = calculate(covered_transitions(self.transitions, intervals), now, set(self.games) | active)
         reason = violations(self.options, totals, now, active)
-        await self._async_enforce(online, fresh, active, reason, totals, now)
         return {"ready": True, "online": online and fresh, "totals": totals, "reasons": reason,
                 "active": sorted(active)}
 
