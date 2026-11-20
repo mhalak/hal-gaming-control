@@ -633,7 +633,8 @@ async def test_agent_version_includes_validated_build_sha(hass, reported, expect
     (None, None),
 ])
 async def test_integration_version_reads_only_local_staged_provenance(hass, tmp_path, info, expected):
-    from unittest.mock import Mock
+    from unittest.mock import AsyncMock, Mock
+    from custom_components.smarthouse_gaming.entity import GamingEntity
     from custom_components.smarthouse_gaming.agent_version import IntegrationVersionSensor
     (tmp_path / "manifest.json").write_text(json.dumps({"version": "0.4.3"}), encoding="utf-8")
     if info is not None:
@@ -643,7 +644,7 @@ async def test_integration_version_reads_only_local_staged_provenance(hass, tmp_
     coordinator.entry.data = DATA
     entity = IntegrationVersionSensor(coordinator, root=tmp_path)
     entity.hass = hass
-    with patch.object(AgentVersionSensor.__bases__[0], "async_added_to_hass", new_callable=__import__("unittest.mock", fromlist=["AsyncMock"]).AsyncMock):
+    with patch.object(GamingEntity, "async_added_to_hass", new_callable=AsyncMock):
         await entity.async_added_to_hass()
     assert entity.native_value == "0.4.3"
     assert entity.extra_state_attributes["build_sha"] == expected
