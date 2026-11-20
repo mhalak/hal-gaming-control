@@ -116,7 +116,7 @@ def _mqtt_broker_details(hass):
     data = entries[0].data
     raw = data.get("broker")
     broker = (raw if isinstance(raw, str)
-              and re.fullmatch(r"[A-Za-z0-9_.:\\[\\]-]{1,255}", raw)
+              and re.fullmatch(r"[A-Za-z0-9_.:\-\[\]]{1,255}", raw)
               else "Not available")
     port = data.get("port")
     port_label = str(port) if type(port) is int and 1 <= port <= 65535 else "Unknown"
