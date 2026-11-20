@@ -145,6 +145,7 @@ def run(config_path, stop_event):
             synchronized = bridge.publish(values, system_uptime())
             if synchronized:
                 bridge.publish_foreground(active, foreground_context)
+                bridge.publish_candidate(getattr(focus, "candidate", None))
             if bridge.updates_enabled and synchronized and bridge.client.is_connected():
                 if time.monotonic() - last_health >= 10:
                     if confirm_health(bridge, Path(config_path).parent):
