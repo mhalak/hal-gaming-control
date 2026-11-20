@@ -87,7 +87,7 @@ def candidate_from_sample(sample, session, now, process_factory=psutil.Process,
             return None
         name = proc.name()
         if (not isinstance(name, str) or len(name) > 128
-                or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _.'()+-]*\\.exe", name, re.IGNORECASE)):
+                or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _.'()+-]*\.exe", name, re.IGNORECASE)):
             return None
         if not proc.is_running() or proc.create_time() != created:
             return None
