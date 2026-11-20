@@ -2,7 +2,7 @@
 
 ## Version status
 
-The 0.5.0 behavior described below is planned and not included in this source snapshot. The 0.4.2 main baseline still uses a legacy weekend daily override and configurable internal actions; do not mistake the new controls for existing 0.4.2 entities. See [release history](ha_releases.md) and [product direction](product_direction.md).
+The 0.5.0 behavior described below is planned and not included in this source snapshot. The current preview still exposes a legacy weekend daily override, not the new Weekend bonus slider. The opt-in additive calculation and pure migration preview may be present in source before the corresponding UI is released; do not treat that helper as a migration or activated policy. See [release history](ha_releases.md) and [product direction](product_direction.md).
 
 Install custom_components/smarthouse_gaming through manual installation or HACS where available. Restart HA. MQTT and Recorder must be enabled. Add one config entry per PC using scoped or native MQTT discovery. Restrictions are disabled by default.
 
@@ -22,7 +22,7 @@ For example, in HA create an automation triggered when the restriction sensor be
 
 ## Upgrading from 0.4.x
 
-Back up integration and config entry options before deployment. Retire any legacy action selections; recreate desired behavior as a native automation before relying on restrictions. Legacy weekend override -1 becomes bonus 0; otherwise a finite daily limit with weekend override greater than or equal to daily converts to their difference. A lower weekend limit or a finite weekend override with unlimited daily requires an explicit owner policy decision before deployment. The integration refuses incompatible migration rather than silently loosening the quota. Out-of-slider-range/step legacy bonuses retain exact values; their number entity is unknown until explicitly adjusted. Existing daily/weekly entities and source history are preserved; retired weekend/action entities are removed.
+Back up integration and config entry options before deployment. Retire any legacy action selections; recreate desired behavior as a native automation before relying on restrictions. Legacy weekend override -1 becomes bonus 0; otherwise a finite daily limit with weekend override greater than or equal to daily converts to their difference. A lower weekend limit or a finite weekend override with unlimited daily requires an explicit owner policy decision before deployment. The integration refuses incompatible migration rather than silently loosening the quota. Existing values requiring a negative bonus, values above 600 minutes, or a bonus not divisible by 10 cannot be represented exactly and require an explicit owner decision; no approximate or silent adjustment is allowed. The migration preview does not change persisted options. Existing daily/weekly entity identities and source history must be preserved as part of a separately tested migration; the legacy weekend number control cannot be retired before its safe replacement is available.
 
 Verify both devices, minute sensor consistency, policy/bonus boundaries, manual commands, automation triggers, offline and reconnect behavior. Do not change existing automation or enable restrictions without owner approval.
 
@@ -34,4 +34,8 @@ The foreground follow-up migrates accounting to foreground-only telemetry in bot
 
 ## Legacy 0.4.2 reference
 
-The legacy weekend daily override is not additive: -10 on the slider (stored -1) falls back to the daily allowance on weekends. The legacy Add/Remove/Move action controls configure internal command execution when a live game violates policy. Keep restrictions disabled during testing and avoid duplicate enforcement by external automation. Manual buttons and agent version reporting are already present. Daily and weekly budget sensors show remaining percentages and used_minutes attributes. Do not retrospectively interpret historical process-presence data as foreground play.
+The legacy weekend daily override is not additive: -10 on the slider (stored -1) falls back to the daily allowance on weekends. Older deployments may still expose legacy Add/Remove/Move action controls and internal enforcement. In source revisions containing the action-cleanup PR, those controls and the implicit execution path are removed; existing options remain for rollback. Keep restrictions disabled during testing and avoid duplicate enforcement by external automation. Manual buttons and agent version reporting are already present. Daily and weekly budget sensors show remaining percentages and used_minutes attributes. Do not retrospectively interpret historical process-presence data as foreground play.
+
+## Incremental weekend bonus kernel (pre-UI)
+
+When and only when the config contains an explicit valid `weekend_bonus` key (integer 0–600, step 10), the daily allowance is `daily + weekend_bonus` on local Saturday and Sunday, plus any date-scoped one-off bonus. A `daily` value of -1 remains unlimited; weekly allowance stays independent. Without the new key, legacy `weekend_daily` behavior remains unchanged. `preview_weekend_bonus_migration()` computes an exactly equivalent candidate bonus or reports that manual resolution is needed; it never writes config. This incremental helper is not an owner-facing setting, automatic migration or authorization to deploy a new policy.
