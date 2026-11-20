@@ -9,6 +9,11 @@ The HA integration version is the `version` in `custom_components/smarthouse_gam
 - Remove action selectors and internal MQTT enforcement. Use the fresh Gaming restriction active binary sensor with native Home Assistant automations and the existing manual buttons.
 - Existing process-presence accounting continues; foreground accounting remains a separate migration. Windows agent version unchanged.
 
+## 0.4.3 (scoped foreground telemetry candidate)
+- Add Active game and Gaming active entities when HA MQTT discovery is disabled. Preserve native discovery entities, legacy process-presence telemetry and commands.
+- Gate scoped foreground display on supported metadata, agent/focus availability and a consistent enrolled game/active pair; clear cached values on offline/disconnect. No inference from legacy process presence.
+- This is telemetry support only. Current accounting/enforcement remains unchanged; freshness, Recorder migration boundary and full foreground-only accounting remain issue #4. No release or deployment authorization.
+
 ## 0.4.2 (publication preparation)
 - Rename the public-facing integration to SmartHouse Parental Control while keeping its domain and device identities.
 - Add MQTT configuration information to the Options Flow; broker editing remains in HA's built-in MQTT integration.

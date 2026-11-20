@@ -10,7 +10,7 @@ Broker ACL: per-agent write to own state, availability, discovery and native MQT
 
 ## Foreground extension (agent 0.2.x)
 
-Retained `state/active_game` reports one configured game name, `idle`, or `unknown`. Retained `state/gaming_active` reports ON/OFF/UNKNOWN. `state/focus_availability` reports online/offline independently of agent availability. Native discovery advertises both foreground entities, gated by agent and focus availability. Scoped HA foreground support and foreground-only accounting are pending the foreground migration. The planned 0.5.0 budget changes do not replace process-presence accounting.
+Retained `state/active_game` reports one configured game name, `idle`, or `unknown`. Retained `state/gaming_active` reports ON/OFF/UNKNOWN. `state/focus_availability` reports online/offline independently of agent availability. Native discovery advertises both foreground entities, gated by agent and focus availability. HA 0.4.3 adds scoped foreground display using the same topics and coherent pair validation. Retained messages alone do not establish freshness; foreground-only accounting, migration boundary and live validation remain pending. The planned 0.5.0 budget changes do not replace process-presence accounting.
 
 ## Planned extensions
 
