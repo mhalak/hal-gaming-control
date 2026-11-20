@@ -26,4 +26,4 @@ jobs:
         with:
           python-version: '3.14'
       - run: pip install pytest-homeassistant-custom-component==0.13.373
-      - run: python -m pytest -q -o asyncio_mode=auto tests/home_assistant/test_ha_runtime.py tests/home_assistant/test_recorder_runtime.py tests/home_assistant/test_migration_preflight.py
+      - run: python -m pytest -q -o asyncio_mode=auto tests/home_assistant/test_ha_runtime.py tests/home_assistant/test_options_flow_mqtt_apps.py tests/home_assistant/test_recorder_runtime.py tests/home_assistant/test_migration_preflight.py

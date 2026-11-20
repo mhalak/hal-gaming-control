@@ -456,6 +456,8 @@ async def test_mqtt_configuration_info_is_scoped_and_read_only(hass, enable_cust
         "device_id": "pc1",
         "root": "SmartHouse/Gaming/pc1",
         "mode": "Scoped discovery" if direct else "Native MQTT discovery",
+        "broker_host": "not available", "broker_port": "not available", "broker_tls": "not available",
+        "connection_help": result["description_placeholders"]["connection_help"],
     }
     assert not result["data_schema"].schema
     result = await manager.async_configure(result["flow_id"], {})
