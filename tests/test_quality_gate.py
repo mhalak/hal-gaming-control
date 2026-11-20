@@ -42,3 +42,11 @@ def test_complexity_boundary_and_nested_async_method():
     assert units["outer"] == (1, "A")
     assert units["nested"] == (21, "D")
     assert units["at_limit"] == (20, "C")
+
+
+def test_foreground_module_stays_within_complexity_limit():
+    path = Path(__file__).resolve().parents[1] / "windows_agent/gaming_control/foreground.py"
+    units = list(gate.complexity_units(ast.parse(path.read_text(encoding="utf-8"))))
+    assert units
+    violations = [(name, score) for _, name, score, _ in units if score > gate.MAX_COMPLEXITY]
+    assert not violations, violations
