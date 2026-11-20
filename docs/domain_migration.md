@@ -29,3 +29,7 @@ The actual rename and migration remain pending. No HA version bump is needed for
 ## Read-only preflight increment
 
 The preliminary helper checks unloaded legacy entry identity, duplicate device identities, destination registry collisions and persisted remote-update state. It is not linked to any runtime or UI path. The updater Store file is inspected read-only on an executor: Core Store.async_load may rename corrupt files or migrate older envelopes. Missing storage is distinct from malformed/unreadable storage; non-null pending data blocks migration. No HA registry .storage files are read or edited. A clean preflight is not migration authorization: device ownership, version support, concurrent changes, durable update-state transfer and transaction recovery remain mandatory.
+
+## Ownership validation increment
+
+Preflight now rejects unknown/multiple owned main devices, child devices, extra identifiers/connections, via-device relationships, subentries, foreign entity platform or device references, and unexpected legacy entity unique-ID prefixes. An independent native MQTT record with the same identifier is not moved. Config entry version/minor version must both be 1. This conservative inventory is specific to the tested HA Core device-ownership model; version compatibility, journal, race prevention and transaction recovery remain pending.
