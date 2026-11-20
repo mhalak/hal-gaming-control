@@ -146,3 +146,46 @@ async def test_strings_describe_read_only_apps_and_separate_connections():
         assert "shared" in mqtt_text.lower() and "Windows agent" in mqtt_text
         assert "does not change" in mqtt_text
         assert "{tls}" in mqtt_text and "{connection_help}" in mqtt_text
+
+
+async def test_live_foreground_candidate_is_scoped_and_advisory(
+        hass, enable_custom_integrations):
+    entry = add_device(hass, DATA1)
+    manager = hass.config_entries.options
+    result = await manager.async_init(entry.entry_id)
+    topic = "SmartHouse/Gaming/pc1/state/foreground_candidate"
+    current = cf.dt_util.utcnow().timestamp()
+    value = {"version": 1, "device_id": "pc1", "process": "chrome.exe",
+             "token": "a" * 32, "observed_at": current}
+    calls = []
+
+    async def subscribe(_hass, requested, callback, qos=0):
+        calls.append((requested, qos))
+        callback(SimpleNamespace(topic=topic, payload=json.dumps(value | {"device_id": "pc2"}),
+                                 retain=False))
+        callback(SimpleNamespace(topic=topic, payload=json.dumps(value), retain=True))
+        callback(SimpleNamespace(topic=topic, payload=json.dumps(value), retain=False))
+        return lambda: calls.append(("unsubscribed", 0))
+
+    with patch.object(cf.mqtt, "async_subscribe", side_effect=subscribe), \
+            patch.object(cf, "_listen_window", new=AsyncMock()):
+        result = await manager.async_configure(result["flow_id"], {"next_step_id": "tracked_apps"})
+
+    assert result["description_placeholders"]["candidate"] == "chrome.exe"
+    assert "chrome.exe" not in result["description_placeholders"]["apps"]
+    assert calls == [(topic, 0), ("unsubscribed", 0)]
+    assert not result["data_schema"].schema
+    assert entry.data["games"] == DATA1["games"]
+
+
+async def test_generic_runtime_detected_but_marked_not_enrollable(
+        hass, enable_custom_integrations):
+    entry = add_device(hass, DATA1)
+    with patch.object(cf, "_discover_foreground_candidate",
+                      new=AsyncMock(return_value={"process": "javaw.exe",
+                                                   "token": "b" * 32,
+                                                   "observed_at": 100})):
+        manager = hass.config_entries.options
+        result = await manager.async_init(entry.entry_id)
+        result = await manager.async_configure(result["flow_id"], {"next_step_id": "tracked_apps"})
+    assert "additional app identity required" in result["description_placeholders"]["candidate"]
