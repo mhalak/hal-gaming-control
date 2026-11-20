@@ -647,6 +647,7 @@ async def test_integration_version_reads_only_local_staged_provenance(hass, tmp_
 @pytest.mark.parametrize("broker,port", [
     ("broker.example.invalid", 1883),
     ("mqtt.example.invalid", 8883),
+    ("[::1]", 1883),
 ])
 async def test_mqtt_info_shows_shared_broker_without_credentials(
         hass, enable_custom_integrations, broker, port):
