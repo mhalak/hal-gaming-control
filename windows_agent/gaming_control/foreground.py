@@ -14,19 +14,40 @@ UNKNOWN = {"gaming_active": "UNKNOWN", "active_game": "unknown"}
 IDLE = {"gaming_active": "OFF", "active_game": "idle"}
 
 
+def _valid_sample(sample, session, now):
+    if not isinstance(sample, dict) or type(session) is not int or session <= 0:
+        return False
+    tick = sample.get("time")
+    return (type(tick) in (int, float) and math.isfinite(tick)
+            and 0 <= now - tick <= MAX_SAMPLE_AGE)
+
+
+def _valid_process_identity(pid, created):
+    return (type(pid) is int and pid > 0
+            and type(created) in (int, float) and math.isfinite(created))
+
+
+def _match_process(proc, rules):
+    name = proc.name()
+    candidates = [r for r in rules if r["process"].casefold() == name.casefold()]
+    info = {"name": name}
+    if any("path_contains" in r for r in candidates):
+        info["exe"] = proc.exe()
+    if any("command_line_arg" in r for r in candidates):
+        info["cmdline"] = proc.cmdline()
+    return match_game(info, candidates)
+
+
 def classify(sample, session, now, rules, process_factory=psutil.Process, session_lookup=None):
     """Untrusted samples must be recent and belong to the selected session."""
-    if not isinstance(sample, dict) or type(session) is not int or session <= 0:
-        return dict(UNKNOWN)
-    tick = sample.get("time")
-    if type(tick) not in (int, float) or not math.isfinite(tick) or not 0 <= now - tick <= MAX_SAMPLE_AGE:
+    if not _valid_sample(sample, session, now):
         return dict(UNKNOWN)
     if sample.get("status") == "idle":
         return dict(IDLE)
     if sample.get("status") != "window":
         return dict(UNKNOWN)
     pid, created = sample.get("pid"), sample.get("created")
-    if type(pid) is not int or pid <= 0 or type(created) not in (int, float) or not math.isfinite(created):
+    if not _valid_process_identity(pid, created):
         return dict(UNKNOWN)
     try:
         proc = process_factory(pid)
@@ -34,14 +55,7 @@ def classify(sample, session, now, rules, process_factory=psutil.Process, sessio
             return dict(UNKNOWN)
         if session_lookup is None or session_lookup(pid) != session:
             return dict(UNKNOWN)
-        name = proc.name()
-        candidates = [r for r in rules if r["process"].casefold() == name.casefold()]
-        info = {"name": name}
-        if any("path_contains" in r for r in candidates):
-            info["exe"] = proc.exe()
-        if any("command_line_arg" in r for r in candidates):
-            info["cmdline"] = proc.cmdline()
-        game = match_game(info, candidates)
+        game = _match_process(proc, rules)
         if not proc.is_running() or proc.create_time() != created:
             return dict(UNKNOWN)
     except (psutil.Error, OSError, ValueError):
