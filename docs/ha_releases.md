@@ -2,6 +2,11 @@
 
 The HA integration version is the `version` in `custom_components/smarthouse_gaming/manifest.json`, displayed by Home Assistant. Increment this version for every deployable HA change: minor for features, patch for fixes, major for breaking changes as appropriate. Record changes here, deploy latest main and record the deployed commit for rollback. Windows agent releases have separate versioning; do not bump Windows for HA-only changes. A manifest version is not a published GitHub Release.
 
+## 0.5.1 — Parental Control Preview 3 (candidate, not yet verified as deployed)
+- #7 / #52 incremental read-only foreground candidate detection. The Windows 0.2.4 agent publishes only a bounded executable basename and short-lived opaque token on a non-retained MQTT 5 topic. HA displays a recent candidate in the selected PC's Tracked applications menu, including apps not already monitored. It rejects retained/stale, foreign-device and malformed messages. Neither side transmits command line, window title, PID or executable path.
+- Existing monitored list remains **read-only** in this preview. Add/Rename/Remove, safe application identity for shared runtimes, acknowledged rule sync and live migration are still required under #7. No automatic enforcement, rule change or remote update is activated. Earlier Windows agents simply show no candidate.
+- HA 0.5.1 and Windows 0.2.4 are **independent source/package candidates**, not proof of installation; validate each host build SHA, checks and Windows trust restrictions before deploying via #56.
+
 ## 0.5.0 — Parental Control Preview 2 (candidate, not yet verified as deployed)
 - #50: installed HA integration version diagnostic and optionally staged source SHA.
 - #51: remove legacy Add/Remove action selectors and the coordinator's automatic MQTT termination/locking path. Preserve explicit manual buttons and stored legacy options for rollback; no replacement default automation.
