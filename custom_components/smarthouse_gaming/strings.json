@@ -48,7 +48,7 @@
       },
       "mqtt_settings": {
         "title": "MQTT configuration",
-        "description": "Connection: {connection}\n\nDevice: {device_id}\n\nMode: {mode}\n\nTopic root: {root}\n\nDiscovery: {root}/discovery\n\nThis integration uses Home Assistant's shared MQTT connection. To edit broker address, port, credentials or TLS, open Settings → Devices & services → MQTT → Configure. Configure the Windows agent separately using its protected config.yaml. No credentials are shown here."
+        "description": "Connection: {connection}\\n\\nBroker: {broker}\\n\\nPort: {port}\\n\\nDevice: {device_id}\\n\\nMode: {mode}\\n\\nTopic root: {root}\\n\\nDiscovery: {root}/discovery\\n\\nThis information is read-only. Home Assistant uses ONE shared MQTT connection for all integrations. To change broker address, port, credentials or TLS, open Settings → Devices & services → MQTT → Reconfigure. Windows agent connection settings are separate (protected config.yaml). No usernames, passwords or private connection URLs are displayed."
       }
     },
     "error": {
