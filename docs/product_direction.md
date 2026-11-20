@@ -8,7 +8,7 @@ This document records agreed product behavior, not a claim that each feature is 
 
 | Feature | Scope | Status |
 | --- | --- | --- |
-| Budget model | Daily and weekly time sensors, Weekend bonus, automation-owned enforcement | Planned 0.5.0; not included in this snapshot |
+| Budget model | Daily and weekly time sensors, Weekend bonus, automation-owned enforcement | Partial kernel and action cleanup in 0.5.0 preview; duration sensors/bonus UI/restriction trigger still planned |
 | Foreground accounting | Foreground telemetry and foreground-only accounting | Priority follow-up; required before accurate active application accounting |
 | Application list | Application list and enrollment from live foreground identity | Backlog improvement |
 | Countdown popup | Child-facing Windows countdown and warning popup | Backlog improvement; visual behavior agreed |
@@ -16,7 +16,7 @@ This document records agreed product behavior, not a claim that each feature is 
 
 Keep restrictions disabled during development smoke tests; stable releases and trusted binary distribution require validation.
 
-## Budget model (HA 0.5.0 candidate)
+## Target budget model (partially implemented in HA 0.5.0 preview)
 
 Only two independent quotas: **Daily limit** and **Weekly limit**. **Weekend bonus** is an additive allowance, not a third quota or a replacement daily budget. The bonus applies separately on Saturday and Sunday, using HA's local calendar. Unused bonus does not roll over.
 
@@ -24,9 +24,9 @@ Effective finite daily allowance = Daily limit + applicable Weekend bonus + toda
 
 Example: daily 60 min, weekend bonus 120 min, weekly 600 min. Weekdays allow 60 min; Saturday and Sunday each allow 180 min, subject to the weekly cap. Add 30 minutes on Saturday grants 210 min that day only, still subject to weekly cap.
 
-Daily gaming time and Weekly gaming time display the same accounted minutes used for policy, independently of enabled restrictions or Unlimited gaming. Daily budget and Weekly budget display remaining percentage. HA 0.5.0 still counts process presence; The foreground accounting follow-up will replace the accounting source.
+Daily gaming time and Weekly gaming time display the same accounted minutes used for policy, independently of enabled restrictions or Unlimited gaming. Daily budget and Weekly budget display remaining percentage. HA 0.5.0 preview still counts process presence; the foreground accounting follow-up will replace the accounting source.
 
-HA calculates restriction status, and the parent defines actions using ordinary HA automations. Existing Terminate game and Lock PC buttons remain available. The integration no longer selects or executes automated actions itself in the 0.5.0 candidate.
+HA calculates restriction status, and the parent defines actions using ordinary HA automations. Existing Terminate game and Lock PC buttons remain available. The integration no longer selects or executes automated actions itself in the 0.5.0 preview; the verified HA restriction trigger remains a follow-up.
 
 ## Foreground accounting
 
