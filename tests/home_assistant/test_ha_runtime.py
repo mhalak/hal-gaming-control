@@ -447,6 +447,8 @@ async def test_mqtt_configuration_info_is_scoped_and_read_only(hass, enable_cust
         "mode": "Scoped discovery" if direct else "Native MQTT discovery",
         "broker": "Not configured",
         "port": "Unknown",
+        "tls": "Unknown",
+        "connection_help": result["description_placeholders"]["connection_help"],
     }
     assert not result["data_schema"].schema
     result = await manager.async_configure(result["flow_id"], {})
