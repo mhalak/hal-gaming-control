@@ -7,7 +7,15 @@ on-disk bytes after each write, and confirming corrupt bytes fail closed.
 from unittest.mock import patch
 import pytest
 
+from custom_components.smarthouse_gaming.const import DOMAIN
+
 pytestmark = pytest.mark.asyncio
+
+
+@pytest.fixture
+def hass_config_dir(tmp_path):
+    """Use an isolated configuration directory for every on-disk journal test."""
+    return str(tmp_path)
 
 
 @pytest.fixture
