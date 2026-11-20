@@ -547,3 +547,57 @@ async def test_cross_domain_registry_transfer_and_reverse(hass, key, platform):
     assert restored.device_id == device.id and restored.disabled_by == entity.disabled_by
     assert devices.async_get(device.id).config_entry_id == old.entry_id
     assert entities.async_get_entity_id(platform, "parental", entity.unique_id) is None
+
+
+async def test_cross_domain_transfer_preserves_native_mqtt_and_other_pc(hass):
+    """HA 2026.10 device ownership is scoped to the config entry, not the identifier alone."""
+    from homeassistant.helpers import device_registry as dr, entity_registry as er
+
+    legacy = MockConfigEntry(domain=DOMAIN, unique_id="pc1", data=DATA)
+    target = MockConfigEntry(domain="parental", unique_id="pc1", data=DATA)
+    other = MockConfigEntry(domain=DOMAIN, unique_id="pc2", data={**DATA, "device_id": "pc2"})
+    mqtt_entry = MockConfigEntry(domain="mqtt", unique_id="broker", data={})
+    for entry in (legacy, target, other, mqtt_entry):
+        entry.add_to_hass(hass)
+
+    devices, entities = dr.async_get(hass), er.async_get(hass)
+    pc1_identifiers = {("mqtt", "smarthouse_gaming_pc1")}
+    old_device = devices.async_get_or_create(config_entry_id=legacy.entry_id,
+                                             identifiers=pc1_identifiers, name="Test PC 1")
+    raw_device = devices.async_get_or_create(config_entry_id=mqtt_entry.entry_id,
+                                             identifiers=pc1_identifiers, name="Test PC 1")
+    other_device = devices.async_get_or_create(config_entry_id=other.entry_id,
+                                               identifiers={("mqtt", "smarthouse_gaming_pc2")},
+                                               name="Test PC 2")
+    old_entity = entities.async_get_or_create("switch", DOMAIN, "pc1_unlimited",
+                                              config_entry=legacy, device_id=old_device.id)
+    raw_entity = entities.async_get_or_create("sensor", "mqtt", "smarthouse_gaming_pc1_current_game",
+                                              config_entry=mqtt_entry, device_id=raw_device.id)
+    other_entity = entities.async_get_or_create("switch", DOMAIN, "pc2_unlimited",
+                                                config_entry=other, device_id=other_device.id)
+    assert len({old_device.id, raw_device.id, other_device.id}) == 3
+    await hass.async_block_till_done()
+
+    entities.async_update_entity_platform(old_entity.entity_id, "parental",
+                                          new_config_entry_id=target.entry_id)
+    devices.async_update_device(old_device.id, new_config_entry_id=target.entry_id)
+    await hass.async_block_till_done()
+    moved = entities.async_get(old_entity.entity_id)
+    assert moved.id == old_entity.id and moved.device_id == old_device.id
+    assert moved.config_entry_id == target.entry_id and moved.platform == "parental"
+    assert devices.async_get(old_device.id).config_entry_id == target.entry_id
+    assert entities.async_get(raw_entity.entity_id) == raw_entity
+    assert devices.async_get(raw_device.id) == raw_device
+    assert entities.async_get(other_entity.entity_id) == other_entity
+    assert devices.async_get(other_device.id) == other_device
+    assert entities.async_get_entity_id("sensor", "mqtt", raw_entity.unique_id) == raw_entity.entity_id
+    assert entities.async_get_entity_id("switch", DOMAIN, other_entity.unique_id) == other_entity.entity_id
+
+    entities.async_update_entity_platform(old_entity.entity_id, DOMAIN,
+                                          new_config_entry_id=legacy.entry_id)
+    devices.async_update_device(old_device.id, new_config_entry_id=legacy.entry_id)
+    await hass.async_block_till_done()
+    assert entities.async_get(old_entity.entity_id).config_entry_id == legacy.entry_id
+    assert devices.async_get(old_device.id).config_entry_id == legacy.entry_id
+    assert entities.async_get(raw_entity.entity_id) == raw_entity
+    assert entities.async_get(other_entity.entity_id) == other_entity
