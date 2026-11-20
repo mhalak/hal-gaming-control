@@ -103,16 +103,12 @@ class GamingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 def _mqtt_broker_details(hass):
-    """Read only the broker address and port from HA's shared MQTT entry.
-
-    Never return credentials, connection URLs, or arbitrary untrusted strings.
-    HA's native MQTT reconfigure flow owns all edits and TLS configuration.
-    """
+    """Read non-secret facts from HA's single shared MQTT config entry."""
     entries = hass.config_entries.async_entries("mqtt")
     if not entries:
-        return "Not configured", "Unknown"
+        return "Not configured", "Unknown", "Unknown"
     if len(entries) != 1:
-        return "Not available", "Unknown"
+        return "Not available", "Unknown", "Unknown"
     data = entries[0].data
     raw = data.get("broker")
     broker = (raw if isinstance(raw, str)
@@ -120,7 +116,8 @@ def _mqtt_broker_details(hass):
               else "Not available")
     port = data.get("port")
     port_label = str(port) if type(port) is int and 1 <= port <= 65535 else "Unknown"
-    return broker, port_label
+    tls_label = "Yes" if data.get("certificate") else "No"
+    return broker, port_label, tls_label
 
 
 class GamingOptionsFlow(config_entries.OptionsFlow):
@@ -135,6 +132,7 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
         # Legacy automatic actions are preserved for reversible migration, never edited here.
         menu = {"limits": "Restrictions and schedule",
                 "mqtt_settings": "MQTT configuration",
+                "tracked_apps": "Tracked applications",
                 "update_settings": "Windows update settings",
                 "save": "Save"}
         return self.async_show_menu(step_id="menu", menu_options=menu)
@@ -165,16 +163,36 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             return await self.async_step_menu()
         root = f"{ROOT}/{self.config_entry.data['device_id']}"
-        broker, port = _mqtt_broker_details(self.hass)
+        broker, port, tls = _mqtt_broker_details(self.hass)
+        connected = mqtt.is_connected(self.hass)
+        help_text = ("No action needed: Home Assistant is connected to its MQTT broker."
+                     if connected else
+                     "Open Settings → Devices & services → MQTT to check the connection, then review the Home Assistant log.")
         return self.async_show_form(step_id="mqtt_settings",
             data_schema=vol.Schema({}),
             description_placeholders={
-                "connection": "Connected" if mqtt.is_connected(self.hass) else "Disconnected",
+                "connection": "Connected" if connected else "Disconnected",
+                "connection_help": help_text,
                 "broker": broker,
                 "port": port,
+                "tls": tls,
                 "device_id": self.config_entry.data["device_id"],
                 "root": root,
                 "mode": "Scoped discovery" if direct_mode(self.hass) else "Native MQTT discovery",
+            })
+
+    async def async_step_tracked_apps(self, user_input=None):
+        """Show this device's discovery applications without changing configuration."""
+        if user_input is not None:
+            return await self.async_step_menu()
+        games = list(self.config_entry.data.get("games") or [])
+        return self.async_show_form(step_id="tracked_apps",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "device": self.config_entry.data.get("name") or self.config_entry.data["device_id"],
+                "count": str(len(games)),
+                "apps": "\n".join(f"• {name}" for name in games)
+                        or "No applications are tracked for this computer yet.",
             })
 
     async def async_step_update_settings(self, user_input=None):

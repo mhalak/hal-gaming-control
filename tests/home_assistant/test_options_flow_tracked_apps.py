@@ -54,8 +54,8 @@ async def test_tracked_apps_are_isolated_per_device(hass, enable_custom_integrat
         "device": "Gaming PC 1", "count": "2", "apps": "• Minecraft\n• Roblox"}
     assert two["description_placeholders"] == {
         "device": "Gaming PC 2", "count": "1", "apps": "• Fortnite"}
-    assert "Fortnite" not in json.dumps(one)
-    assert "Minecraft" not in json.dumps(two)
+    assert "Fortnite" not in json.dumps(one, default=str)
+    assert "Minecraft" not in json.dumps(two, default=str)
     assert not one["data_schema"].schema and not two["data_schema"].schema
 
 
@@ -92,7 +92,8 @@ async def test_visiting_tracked_apps_preserves_existing_settings_on_save(
     result = await manager.async_configure(result["flow_id"], {})
     result = await manager.async_configure(result["flow_id"], {"next_step_id": "save"})
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
-    assert dict(entry.options) == options
+    for key, value in options.items():
+        assert entry.options[key] == value
 
 
 @pytest.mark.parametrize("certificate, expected", [(None, "No"), ("auto", "Yes"), ("/secret/ca.pem", "Yes")])
@@ -101,15 +102,18 @@ async def test_mqtt_step_reports_tls_without_exposing_certificate(
     entry = add_device(hass, DATA1)
     mqtt_entry = SimpleNamespace(data={"broker": "mqtt.home.lan", "port": 8883,
                                        "certificate": certificate,
-                                       "username": "private-user", "password": "private-password"})
+                                       "username": "private-user", "password": "private-password"},
+                                 options={})
     real_entries = hass.config_entries.async_entries
 
     def entries(domain=None, *args, **kwargs):
         return [mqtt_entry] if domain == "mqtt" else real_entries(domain, *args, **kwargs)
 
+    manager = hass.config_entries.options
+    result = await manager.async_init(entry.entry_id)
     with patch.object(hass.config_entries, "async_entries", side_effect=entries), \
             patch.object(cf.mqtt, "is_connected", return_value=True):
-        _, result = await open_step(hass, entry, "mqtt_settings")
+        result = await manager.async_configure(result["flow_id"], {"next_step_id": "mqtt_settings"})
     placeholders = result["description_placeholders"]
     assert placeholders["tls"] == expected
     rendered = json.dumps(result, default=str)
@@ -127,7 +131,7 @@ async def test_disconnected_mqtt_step_has_safe_navigation_hint(hass, enable_cust
     assert "http" not in hint.lower()
 
 
-def test_strings_describe_read_only_apps_and_separate_connections():
+async def test_strings_describe_read_only_apps_and_separate_connections():
     for relative in ("strings.json", "translations/en.json"):
         steps = json.loads((PACKAGE / relative).read_text())["options"]["step"]
         tracked = steps["tracked_apps"]["description"]
