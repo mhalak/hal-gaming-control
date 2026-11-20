@@ -48,3 +48,36 @@ def covered_transitions(transitions, intervals):
             i += 1
         output[end] = "unavailable"
     return sorted(output.items())
+
+
+def _foreground_value(game, active, enrolled):
+    if active == "off" and game == "idle":
+        return "idle"
+    if (active == "on" and isinstance(game, str)
+            and game not in ("", "idle", "unknown", "unavailable")
+            and " | " not in game and game in enrolled):
+        return game
+    return "unavailable"
+
+
+def confirmed_foreground_transitions(game_states, active_states, enrolled, boundary):
+    """Normalize paired HA state histories after a supplied cutover timestamp.
+
+    This only validates reported state consistency; heartbeat coverage, live
+    freshness and a durable cutover must be established by the caller.
+    Never carry a pre-cutover observation into the new accounting epoch.
+    """
+    games = {ts: value for ts, value in game_states if ts >= boundary}
+    flags = {ts: value for ts, value in active_states if ts >= boundary}
+    enrolled = set(enrolled)
+    game = flag = None
+    output = []
+    for ts in sorted(games.keys() | flags.keys() | {boundary}):
+        if ts in games:
+            game = games[ts]
+        if ts in flags:
+            flag = flags[ts]
+        value = _foreground_value(game, flag, enrolled)
+        if not output or output[-1][1] != value:
+            output.append((ts, value))
+    return output
