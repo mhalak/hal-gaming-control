@@ -1,5 +1,5 @@
 paho-mqtt>=2.2.0,<3
-psutil>=6,<8
+psutil>=7.2.2,<8
 PyYAML>=6,<7
 cryptography>=50.0.2,<51
 pywin32>=312; sys_platform == 'win32'
