@@ -515,3 +515,36 @@ async def test_foreground_cutover_save_failure_does_not_return_success(hass, fre
             patch.object(Store, "async_save", new=AsyncMock(side_effect=OSError("synthetic"))):
         with pytest.raises(CutoverError):
             await async_activate_cutover(hass, "synthetic-entry-a", "pc1")
+
+
+@pytest.mark.parametrize("raw", ["{broken", "null", '{"version": 2, "data": {}}'])
+async def test_foreground_cutover_corrupt_file_is_never_replaced(hass, raw):
+    from homeassistant.helpers.storage import Store
+    from custom_components.smarthouse_gaming.foreground_cutover import (
+        CutoverError, async_read_cutover, async_activate_cutover)
+    path = Path(Store(hass, 1, f"{DOMAIN}.foreground_cutover.synthetic-entry-a").path)
+    await hass.async_add_executor_job(path.parent.mkdir, 0o700, True, True)
+    await hass.async_add_executor_job(path.write_text, raw, "utf-8")
+    with pytest.raises(CutoverError):
+        await async_read_cutover(hass, "synthetic-entry-a", "pc1")
+    with pytest.raises(CutoverError):
+        await async_activate_cutover(hass, "synthetic-entry-a", "pc1")
+    assert await hass.async_add_executor_job(path.read_text, "utf-8") == raw
+
+
+async def test_foreground_cutover_silent_save_failure_is_rejected(hass, freezer):
+    from homeassistant.helpers.storage import Store
+    from custom_components.smarthouse_gaming.foreground_cutover import (
+        CutoverError, async_activate_cutover)
+    freezer.move_to(NOW)
+    with patch.object(Store, "async_load", new=AsyncMock(return_value=None)), \
+            patch.object(Store, "async_save", new=AsyncMock()):
+        with pytest.raises(CutoverError):
+            await async_activate_cutover(hass, "synthetic-entry-a", "pc1")
+
+
+async def test_foreground_cutover_invalid_identifier_rejected(hass):
+    from custom_components.smarthouse_gaming.foreground_cutover import (
+        CutoverError, async_read_cutover)
+    with pytest.raises(CutoverError):
+        await async_read_cutover(hass, "../outside", "pc1")
