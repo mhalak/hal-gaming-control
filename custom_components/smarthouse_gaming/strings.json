@@ -48,7 +48,11 @@
       },
       "mqtt_settings": {
         "title": "MQTT configuration",
-        "description": "Connection: {connection}\\n\\nBroker: {broker}\\n\\nPort: {port}\\n\\nDevice: {device_id}\\n\\nMode: {mode}\\n\\nTopic root: {root}\\n\\nDiscovery: {root}/discovery\\n\\nThis information is read-only. Home Assistant uses ONE shared MQTT connection for all integrations. To change broker address, port, credentials or TLS, open Settings → Devices & services → MQTT → Reconfigure. Windows agent connection settings are separate (protected config.yaml). No usernames, passwords or private connection URLs are displayed."
+        "description": "Connection: {connection}. {connection_help}\\n\\nBroker: {broker}\\n\\nPort: {port}\\n\\nTLS: {tls}\\n\\nDevice: {device_id}\\n\\nMode: {mode}\\n\\nTopic root: {root}\\n\\nDiscovery: {root}/discovery\\n\\nThis information is read-only. Home Assistant uses ONE shared MQTT connection for all integrations. To change broker address, port, credentials or TLS, open Settings → Devices & services → MQTT → Reconfigure. The Windows agent connection is separate in its protected config.yaml; changing one does not change the other. No usernames, passwords, certificates, keys or private connection URLs are displayed."
+      },
+      "tracked_apps": {
+        "title": "Tracked applications",
+        "description": "Read-only applications reported for {device} ({count}):\\n\\n{apps}\\n\\nAdding, renaming or removing tracked applications from live detection is not available yet (tracked in issue #7)."
       }
     },
     "error": {
