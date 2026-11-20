@@ -30,31 +30,20 @@ async def test_invalid_discovery(hass, enable_custom_integrations):
     assert result["type"] == data_entry_flow.FlowResultType.ABORT
     assert result["reason"] == "invalid_discovery"
 
-async def test_action_builder_flow(hass, enable_custom_integrations):
-    entry = MockConfigEntry(domain=DOMAIN, title=DATA["name"], data=DATA, unique_id="pc1")
+async def test_options_menu_preserves_legacy_actions_but_no_action_editor(hass, enable_custom_integrations):
+    entry = MockConfigEntry(domain=DOMAIN, title=DATA["name"], data=DATA,
+                            unique_id="pc1", options={"actions": ["terminate_game"]})
     entry.add_to_hass(hass)
     manager = hass.config_entries.options
     result = await manager.async_init(entry.entry_id)
     assert result["type"] == data_entry_flow.FlowResultType.MENU
-    assert "add_action" in result["menu_options"]
-    result = await manager.async_configure(result["flow_id"], {"next_step_id":"add_action"})
-    assert result["step_id"] == "add_action"
-    result = await manager.async_configure(result["flow_id"], {"action":"terminate_game"})
-    assert "add_action" in result["menu_options"]
-    result = await manager.async_configure(result["flow_id"], {"next_step_id":"add_action"})
-    result = await manager.async_configure(result["flow_id"], {"action":"lock_pc"})
-    assert "add_action" not in result["menu_options"]
-    assert "remove_action" in result["menu_options"]
-    assert "move_action" in result["menu_options"]
-    result = await manager.async_configure(result["flow_id"], {"next_step_id":"move_action"})
-    result = await manager.async_configure(result["flow_id"], {"action":"lock_pc"})
-    assert result["description_placeholders"]["actions"] == "Lock PC → Terminate game"
-    result = await manager.async_configure(result["flow_id"], {"next_step_id":"remove_action"})
-    result = await manager.async_configure(result["flow_id"], {"action":"lock_pc"})
-    assert "add_action" in result["menu_options"]
-    result = await manager.async_configure(result["flow_id"], {"next_step_id":"save"})
+    assert set(result["menu_options"]) == {
+        "limits", "mqtt_settings", "update_settings", "save"}
+    result = await manager.async_configure(result["flow_id"], {"next_step_id": "save"})
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    # Do not destroy legacy action options; they can no longer cause automatic commands.
     assert entry.options["actions"] == ["terminate_game"]
+
 
 async def test_remote_update_entity_request_and_completion(hass):
     from unittest.mock import AsyncMock, Mock
@@ -456,6 +445,8 @@ async def test_mqtt_configuration_info_is_scoped_and_read_only(hass, enable_cust
         "device_id": "pc1",
         "root": "SmartHouse/Gaming/pc1",
         "mode": "Scoped discovery" if direct else "Native MQTT discovery",
+        "broker": "Not configured",
+        "port": "Unknown",
     }
     assert not result["data_schema"].schema
     result = await manager.async_configure(result["flow_id"], {})
@@ -601,3 +592,97 @@ async def test_cross_domain_transfer_preserves_native_mqtt_and_other_pc(hass):
     assert devices.async_get(old_device.id).config_entry_id == legacy.entry_id
     assert entities.async_get(raw_entity.entity_id) == raw_entity
     assert entities.async_get(other_entity.entity_id) == other_entity
+
+
+@pytest.mark.parametrize("reported,expected", [
+    ("a" * 40, "a" * 40), ("abc", None), ("A" * 40, None), (True, None), (None, None),
+])
+async def test_agent_version_includes_validated_build_sha(hass, reported, expected):
+    from unittest.mock import Mock
+    from custom_components.smarthouse_gaming.agent_version import AgentVersionSensor
+    coordinator = Mock()
+    coordinator.device_id = "pc1"
+    coordinator.entry.data = DATA
+    entity = AgentVersionSensor(coordinator)
+    entity.hass = hass
+    with patch.object(entity, "async_write_ha_state"):
+        entity._metadata(SimpleNamespace(topic="SmartHouse/Gaming/pc1/discovery",
+            payload=json.dumps(DATA | {"agent_version": "0.2.2", "agent_build_sha": reported})))
+        assert entity.native_value == "0.2.2"
+        assert entity.extra_state_attributes["build_sha"] == expected
+        entity._metadata(SimpleNamespace(topic="SmartHouse/Gaming/pc1/discovery",
+            payload=json.dumps(DATA | {"agent_version": "0.2.1"})))
+        assert entity.native_value == "0.2.1"
+        assert entity.extra_state_attributes["build_sha"] is None
+
+
+@pytest.mark.parametrize("info,expected", [
+    ({"release":"Preview","component":"home_assistant","version":"0.5.0","commit":"b"*40}, "b"*40),
+    ({"release":"Preview","component":"windows_agent","version":"0.5.0","commit":"b"*40}, None),
+    ({"release":"Preview","component":"home_assistant","version":"0.4.3","commit":"b"*40}, None),
+    ({"release":"Preview","component":"home_assistant","version":"0.5.0","commit":"bad"}, None),
+    (None, None),
+])
+async def test_integration_version_reads_only_local_staged_provenance(hass, tmp_path, info, expected):
+    from unittest.mock import AsyncMock, Mock
+    from custom_components.smarthouse_gaming.entity import GamingEntity
+    from custom_components.smarthouse_gaming.agent_version import IntegrationVersionSensor
+    (tmp_path / "manifest.json").write_text(json.dumps({"version": "0.5.0"}), encoding="utf-8")
+    if info is not None:
+        (tmp_path / "build-info.json").write_text(json.dumps(info), encoding="utf-8")
+    coordinator = Mock()
+    coordinator.device_id = "pc1"
+    coordinator.entry.data = DATA
+    entity = IntegrationVersionSensor(coordinator, root=tmp_path)
+    entity.hass = hass
+    with patch.object(GamingEntity, "async_added_to_hass", new_callable=AsyncMock), \
+            patch.object(entity, "async_write_ha_state"):
+        await entity.async_added_to_hass()
+    assert entity.native_value == "0.5.0"
+    assert entity.extra_state_attributes["build_sha"] == expected
+    assert entity.available
+
+
+
+@pytest.mark.parametrize("broker,port", [
+    ("broker.example.invalid", 1883),
+    ("mqtt.example.invalid", 8883),
+    ("[::1]", 1883),
+])
+async def test_mqtt_info_shows_shared_broker_without_credentials(
+        hass, enable_custom_integrations, broker, port):
+    device_entry = MockConfigEntry(domain=DOMAIN, data=DATA, unique_id="pc1",
+                                  options={"daily": 60})
+    device_entry.add_to_hass(hass)
+    manager = hass.config_entries.options
+    result = await manager.async_init(device_entry.entry_id)
+    with patch.object(cf.mqtt, "is_connected", return_value=True), \
+            patch.object(cf, "_mqtt_broker_details", return_value=(broker, str(port)), create=True):
+        result = await manager.async_configure(result["flow_id"],
+                                              {"next_step_id": "mqtt_settings"})
+    assert result["step_id"] == "mqtt_settings"
+    assert result["description_placeholders"]["broker"] == broker
+    assert result["description_placeholders"]["port"] == str(port)
+    assert result["description_placeholders"]["root"] == "SmartHouse/Gaming/pc1"
+    assert not result["data_schema"].schema
+    assert "DO_NOT_DISPLAY_USER" not in repr(result)
+    assert "DO_NOT_DISPLAY_PASSWORD" not in repr(result)
+    await manager.async_configure(result["flow_id"], {})
+    assert device_entry.options == {"daily": 60}
+    from types import SimpleNamespace
+    configured = SimpleNamespace(data={
+        "broker": broker, "port": port, "username": "DO_NOT_DISPLAY_USER",
+        "password": "DO_NOT_DISPLAY_PASSWORD"})
+    fake_hass = SimpleNamespace(config_entries=SimpleNamespace(
+        async_entries=lambda domain: [configured] if domain == "mqtt" else []))
+    assert cf._mqtt_broker_details(fake_hass) == (broker, str(port))
+
+
+@pytest.mark.parametrize("value", ["user:password@broker.example", "broker.example/path", "", "x" * 260])
+async def test_mqtt_info_does_not_echo_unexpected_broker_values(value):
+    from types import SimpleNamespace
+    configured = SimpleNamespace(data={
+        "broker": value, "port": 1883, "password": "SECRET"})
+    fake_hass = SimpleNamespace(config_entries=SimpleNamespace(
+        async_entries=lambda domain: [configured] if domain == "mqtt" else []))
+    assert cf._mqtt_broker_details(fake_hass) == ("Not available", "1883")

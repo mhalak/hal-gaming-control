@@ -1,6 +1,7 @@
-"""Native Config / Options Flow with a dynamic action menu."""
+"""Native Config / Options Flow with manual-action ownership."""
 import asyncio
 import logging
+import re
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.components import mqtt
@@ -10,7 +11,6 @@ from .const import DEFAULTS, DOMAIN, ROOT
 from .direct_mqtt import direct_mode
 from .protocol import parse_discovery
 from .update_protocol import catalog_url
-from .action_registry import ACTION_REGISTRY, available_actions, selected_actions
 from datetime import time
 
 _LOGGER = logging.getLogger(__name__)
@@ -102,30 +102,42 @@ class GamingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return GamingOptionsFlow()
 
 
+def _mqtt_broker_details(hass):
+    """Read only the broker address and port from HA's shared MQTT entry.
+
+    Never return credentials, connection URLs, or arbitrary untrusted strings.
+    HA's native MQTT reconfigure flow owns all edits and TLS configuration.
+    """
+    entries = hass.config_entries.async_entries("mqtt")
+    if not entries:
+        return "Not configured", "Unknown"
+    if len(entries) != 1:
+        return "Not available", "Unknown"
+    data = entries[0].data
+    raw = data.get("broker")
+    broker = (raw if isinstance(raw, str)
+              and re.fullmatch(r"[A-Za-z0-9_.:\-\[\]]{1,255}", raw)
+              else "Not available")
+    port = data.get("port")
+    port_label = str(port) if type(port) is int and 1 <= port <= 65535 else "Unknown"
+    return broker, port_label
+
+
 class GamingOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         self.values = DEFAULTS | dict(self.config_entry.options)
         self.values.pop("unlimited", None)
         self.values.pop("weekend_total", None)
-        self.values["actions"] = selected_actions(self.config_entry.data["actions"], self.values["actions"])
-        self.initial_actions = list(self.values["actions"])
         self.reset_limits = set()
         return await self.async_step_menu()
 
     async def async_step_menu(self, user_input=None):
-        actions = self.values["actions"]
-        menu = {"limits": "Restrictions and schedule"}
-        if available_actions(self.config_entry.data["actions"], actions):
-            menu["add_action"] = "+ Add action"
-        if actions:
-            menu["remove_action"] = "Remove action"
-        if len(actions) > 1:
-            menu["move_action"] = "Move action to first position"
-        menu["mqtt_settings"] = "MQTT configuration"
-        menu["update_settings"] = "Windows update settings"
-        menu["save"] = "Save"
-        return self.async_show_menu(step_id="menu", menu_options=menu,
-            description_placeholders={"actions": " → ".join(ACTION_REGISTRY[a].label for a in actions) or "None"})
+        # Legacy automatic actions are preserved for reversible migration, never edited here.
+        menu = {"limits": "Restrictions and schedule",
+                "mqtt_settings": "MQTT configuration",
+                "update_settings": "Windows update settings",
+                "save": "Save"}
+        return self.async_show_menu(step_id="menu", menu_options=menu)
 
     async def async_step_limits(self, user_input=None):
         errors = {}
@@ -148,51 +160,18 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
             schema[vol.Required(key, default=self.values[key])] = str
         return self.async_show_form(step_id="limits", data_schema=vol.Schema(schema), errors=errors)
 
-    def _action_schema(self, choices):
-        options = [{"value": a, "label": ACTION_REGISTRY[a].label} for a in choices]
-        return vol.Schema({vol.Required("action"): selector.SelectSelector(selector.SelectSelectorConfig(options=options))})
-
-    async def async_step_add_action(self, user_input=None):
-        choices = available_actions(self.config_entry.data["actions"], self.values["actions"])
-        if not choices:
-            return await self.async_step_menu()
-        if user_input is not None:
-            if user_input["action"] in choices:
-                self.values["actions"].append(user_input["action"])
-            return await self.async_step_menu()
-        return self.async_show_form(step_id="add_action", data_schema=self._action_schema(choices))
-
-    async def async_step_remove_action(self, user_input=None):
-        actions = self.values["actions"]
-        if not actions:
-            return await self.async_step_menu()
-        if user_input is not None:
-            if user_input["action"] in actions:
-                actions.remove(user_input["action"])
-            return await self.async_step_menu()
-        return self.async_show_form(step_id="remove_action", data_schema=self._action_schema(actions))
-
-    async def async_step_move_action(self, user_input=None):
-        actions = self.values["actions"]
-        if len(actions) < 2:
-            return await self.async_step_menu()
-        if user_input is not None:
-            action = user_input["action"]
-            if action in actions:
-                actions.remove(action)
-                actions.insert(0, action)
-            return await self.async_step_menu()
-        return self.async_show_form(step_id="move_action", data_schema=self._action_schema(actions))
-
     async def async_step_mqtt_settings(self, user_input=None):
         """Show the shared connection and per-device topics without exposing secrets."""
         if user_input is not None:
             return await self.async_step_menu()
         root = f"{ROOT}/{self.config_entry.data['device_id']}"
+        broker, port = _mqtt_broker_details(self.hass)
         return self.async_show_form(step_id="mqtt_settings",
             data_schema=vol.Schema({}),
             description_placeholders={
                 "connection": "Connected" if mqtt.is_connected(self.hass) else "Disconnected",
+                "broker": broker,
+                "port": port,
                 "device_id": self.config_entry.data["device_id"],
                 "root": root,
                 "mode": "Scoped discovery" if direct_mode(self.hass) else "Native MQTT discovery",
@@ -214,7 +193,6 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
         }), errors=errors)
 
     async def async_step_save(self, user_input=None):
-        self.values["actions"] = selected_actions(self.config_entry.data["actions"], self.values["actions"])
         # Preserve live device controls changed while the options UI was open.
         latest = DEFAULTS | dict(self.config_entry.options)
         for key in ("daily", "weekly", "weekend_daily"):
@@ -227,6 +205,5 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
             self.values.pop(key, None)
             if key in latest:
                 self.values[key] = latest[key]
-        if self.values["actions"] == self.initial_actions:
-            self.values["actions"] = selected_actions(self.config_entry.data["actions"], latest["actions"])
+        self.values["actions"] = list(latest["actions"])
         return self.async_create_entry(title="", data=self.values)

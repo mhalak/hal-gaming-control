@@ -131,3 +131,61 @@ def test_bonus_can_extend_zero_daily_limit_but_not_weekly_or_schedule():
     totals = {"daily":0,"weekly":0,"per_game":{}}
     assert remaining_budget_percent(opts, totals, dt(18), "daily") == 100
     assert violations(opts, totals, dt(18), []) == ["weekly","schedule"]
+
+# Proposed additive weekend bonus contract. These tests intentionally go RED before
+# production code changes. No migration or active policy switch occurs in this PR.
+@pytest.mark.parametrize("day,expected", [(20,60),(21,100),(22,100),(23,60)])
+def test_opt_in_weekend_bonus_adds_to_weekday_base(day, expected):
+    from custom_components.smarthouse_gaming.rule_engine import effective_budget_limit
+    opts = DEFAULTS | {"daily": 60, "weekend_daily": 10, "weekend_bonus": 40}
+    assert effective_budget_limit(opts, dt(day), "daily") == expected
+
+
+def test_opt_in_bonus_preserves_unlimited_zero_bonus_and_weekly_independence():
+    options = DEFAULTS | {"enabled": True, "daily": 0, "weekly": 90,
+                          "weekend_bonus": 30, "bonus_date": "2026-11-21",
+                          "bonus_minutes": 20}
+    assert effective_budget_limit(options, dt(21), "daily") == 50
+    assert effective_budget_limit(options, dt(20), "daily") == 0
+    assert effective_budget_limit(options, dt(22), "daily") == 30
+    assert effective_budget_limit(options, dt(21), "weekly") == 90
+    assert effective_budget_limit(options | {"daily": -1}, dt(21), "daily") == -1
+    options["daily"] = 0
+    options["weekend_bonus"] = 0
+    assert effective_budget_limit(options, dt(21), "daily") == 20
+
+
+@pytest.mark.parametrize("value", [-1, 5, 601, True, None, "20", 3.5])
+def test_opt_in_weekend_bonus_rejects_malformed_config(value):
+    options = DEFAULTS | {"daily": 60, "weekend_bonus": value}
+    with pytest.raises(ValueError, match="weekend bonus"):
+        effective_budget_limit(options, dt(21), "daily")
+
+
+@pytest.mark.parametrize("daily,legacy,bonus", [
+    (60, -1, 0), (60, 60, 0), (60, 120, 60),
+    (0, 20, 20), (0, -1, 0), (-1, -1, 0),
+])
+def test_legacy_override_preview_only_when_exactly_representable(daily, legacy, bonus):
+    from custom_components.smarthouse_gaming.rule_engine import preview_weekend_bonus_migration
+    options = DEFAULTS | {"daily": daily, "weekend_daily": legacy}
+    assert preview_weekend_bonus_migration(options) == bonus
+    # Preview is pure. In particular, it must not silently change persisted settings.
+    assert options["weekend_daily"] == legacy and "weekend_bonus" not in options
+
+
+@pytest.mark.parametrize("daily,legacy", [
+    (60, 30), (-1, 60), (10, 620), (60, 75),
+])
+def test_legacy_override_requires_manual_resolution_if_not_equivalent(daily, legacy):
+    from custom_components.smarthouse_gaming.rule_engine import preview_weekend_bonus_migration
+    with pytest.raises(ValueError, match="manual resolution"):
+        preview_weekend_bonus_migration(DEFAULTS | {"daily": daily, "weekend_daily": legacy})
+
+
+def test_no_explicit_migration_preserves_existing_weekend_override():
+    options = DEFAULTS | {"enabled": True, "daily": 60, "weekly": 300,
+                          "weekend_daily": 120}
+    assert effective_budget_limit(options, dt(20), "daily") == 60
+    assert effective_budget_limit(options, dt(21), "daily") == 120
+    assert "weekend_bonus" not in options

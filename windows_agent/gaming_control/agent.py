@@ -139,9 +139,12 @@ def run(config_path, stop_event):
                 break
             games = scan(rules)
             previous_games = log_game_changes(games, previous_games)
+            foreground_context = bridge.capture_foreground_context()
             active = focus.read(rules)
             values = game_state(name for _, name, _ in games) | active
             synchronized = bridge.publish(values, system_uptime())
+            if synchronized:
+                bridge.publish_foreground(active, foreground_context)
             if bridge.updates_enabled and synchronized and bridge.client.is_connected():
                 if time.monotonic() - last_health >= 10:
                     if confirm_health(bridge, Path(config_path).parent):

@@ -16,15 +16,14 @@ For this source preview, build from a reviewed revision. A production installati
 
 ```powershell
 git clone https://github.com/mhalak/smarthouse-parental-control.git
-Set-Location smarthouse-gaming-control
-git switch main
-git pull --ff-only
+Set-Location smarthouse-parental-control
+git checkout --detach REVIEWED_COMMIT_SHA
 git rev-parse HEAD
 Set-Location windows_agent
 .\build.ps1
 ```
 
-The script creates a virtual environment, installs dependencies, runs tests and creates the agent and updater PyInstaller onedir builds. Check build success and dist/SmartHouseGamingControl/version.txt. Record the exact source revision and version. Do not relabel older code as a new version.
+The script creates a virtual environment, installs dependencies, runs tests and creates the agent and updater PyInstaller onedir builds. Check build success and `dist/SmartHouseGamingControl/version.txt` and `build-info.json`. The central root `release.json` supplies the version; an optional `-Version` argument must match it. A clean Git checkout is required, with the same identity before and after a successful build. Use a fresh trusted checkout without local ignored source overrides, verify the intended commit and record the package hash separately. Never deploy output of a failed build or relabel older code. See [release identity](release_identity.md).
 
 Copy the complete dist/SmartHouseGamingControl directory, install.ps1, uninstall.ps1 and config.example.yaml to a trusted local staging directory on the target PC, retaining the same layout. The target PC needs neither Python nor Git credentials. Never copy only the executable. The optional updater additionally requires dist/SmartHouseGamingUpdater.
 

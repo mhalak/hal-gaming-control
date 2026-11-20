@@ -50,7 +50,7 @@ async def test_scoped_entities_and_safe_controls(hass, enable_custom_integration
     assert all(ids.values())
     assert all(registry.async_get(eid) is None for eid in legacy)
     owned = er.async_entries_for_config_entry(registry, entry.entry_id)
-    assert {e.unique_id for e in owned if e.entity_id.split(".")[0] in ("sensor","binary_sensor")} == {"pc1_uptime","pc1_in_game","pc1_current_game","pc1_budget_daily","pc1_budget_weekly","pc1_agent_version","pc1_active_game","pc1_gaming_active"}
+    assert {e.unique_id for e in owned if e.entity_id.split(".")[0] in ("sensor","binary_sensor")} == {"pc1_uptime","pc1_in_game","pc1_current_game","pc1_budget_daily","pc1_budget_weekly","pc1_agent_version","pc1_integration_version","pc1_active_game","pc1_gaming_active"}
     assert all(registry.async_get_entity_id(platform, "mqtt", "smarthouse_gaming_pc1_"+key) is None for key,platform in keys.items())
     assert len({registry.async_get(eid).device_id for eid in ids.values()}) == 1
     assert entry.runtime_data.entity_id("sensor","uptime") == ids["uptime"]
@@ -161,9 +161,9 @@ async def test_live_budget_controls_and_action_configuration(hass, enable_custom
     weekly = entity("number","weekly_limit")
     weekend = entity("number","weekend_daily_limit")
     bonus = entity("button","add_daily_budget")
-    add = entity("select","add_action")
-    remove = entity("select","remove_action")
-    assert all((daily, weekly, weekend, bonus, add, remove))
+    assert all((daily, weekly, weekend, bonus))
+    assert entity("select", "add_action") is None
+    assert entity("select", "remove_action") is None
     state = hass.states.get(daily)
     assert float(state.state) == 60
     assert state.attributes["min"] == -10
@@ -204,16 +204,6 @@ async def test_live_budget_controls_and_action_configuration(hass, enable_custom
             await hass.services.async_call("button","press",{"entity_id":bonus},blocking=True)
             await hass.async_block_till_done()
             assert entry.options["bonus_minutes"] == 30
-        assert "Lock PC" in hass.states.get(add).attributes["options"]
-        for label in ["Lock PC","Terminate game"]:
-            await hass.services.async_call("select","select_option",{"entity_id":add,"option":label},blocking=True)
-            await hass.async_block_till_done()
-        assert entry.options["actions"] == ["lock_pc","terminate_game"]
-        assert hass.states.get(add).attributes["options"] == ["Select action"]
-        await hass.services.async_call("select","select_option",{"entity_id":remove,"option":"Lock PC"},blocking=True)
-        await hass.async_block_till_done()
-        assert entry.options["actions"] == ["terminate_game"]
-        assert "Lock PC" in hass.states.get(add).attributes["options"]
         assert entry.runtime_data is c
         assert not publish.called
     assert await hass.config_entries.async_unload(entry.entry_id)
