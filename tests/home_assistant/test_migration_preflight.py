@@ -225,3 +225,108 @@ async def test_preflight_rejects_entity_link_to_native_mqtt_device(hass, source)
         assert "entity_ownership_conflict" in await preflight(hass, source)
     assert registry.async_get(entity.entity_id) == entity
     assert devices.async_get(native.id) == native
+
+
+# Journal state is independent of live registry mutation. A prepared record
+# survives object recreation, and is never overwritten by another migration.
+def journal(hass):
+    from custom_components.smarthouse_gaming.migration_journal import MigrationJournal
+    return MigrationJournal(hass)
+
+
+def transfer_plan():
+    return {
+        "device_id": "pc1",
+        "source_entry_id": "synthetic-source",
+        "target_entry_id": "synthetic-target",
+        "entity_ids": ["sensor.pc1_current_game", "switch.pc1_unlimited"],
+        "device_ids": ["synthetic-device"],
+    }
+
+
+async def test_migration_journal_persists_prepare_before_registry_mutation(hass):
+    plan = transfer_plan()
+    j = journal(hass)
+    assert await j.async_load() is None
+    await j.async_prepare(plan)
+    plan["entity_ids"].clear()
+    restored = await journal(hass).async_load()
+    assert restored == {"stage": "prepared", "plan": transfer_plan()}
+    # Preparation cannot create an entry or change registry ownership.
+    assert hass.config_entries.async_entries("parental") == []
+    assert hass.config_entries.async_entries(DOMAIN) == []
+
+
+async def test_migration_journal_refuses_second_transaction(hass):
+    j = journal(hass)
+    await j.async_prepare(transfer_plan())
+    other = {**transfer_plan(), "device_id": "pc2"}
+    with pytest.raises(ValueError):
+        await journal(hass).async_prepare(other)
+    assert await j.async_load() == {"stage": "prepared", "plan": transfer_plan()}
+
+
+async def test_migration_journal_legal_forward_transitions_survive_recreation(hass):
+    await journal(hass).async_prepare(transfer_plan())
+    for before, after in [("prepared", "registry_moved"), ("registry_moved", "verified"),
+                          ("verified", "completed")]:
+        j = journal(hass)
+        await j.async_advance(before, after)
+        assert await journal(hass).async_load() == {"stage": after, "plan": transfer_plan()}
+    await journal(hass).async_clear()
+    assert await journal(hass).async_load() is None
+
+
+@pytest.mark.parametrize("expected,next_stage", [
+    ("registry_moved", "verified"), ("prepared", "completed"),
+    ("prepared", "prepared"), ("prepared", "unknown"),
+])
+async def test_migration_journal_rejects_wrong_or_skipped_transition(hass, expected, next_stage):
+    await journal(hass).async_prepare(transfer_plan())
+    with pytest.raises(ValueError):
+        await journal(hass).async_advance(expected, next_stage)
+    assert await journal(hass).async_load() == {"stage": "prepared", "plan": transfer_plan()}
+
+
+@pytest.mark.parametrize("current", ["prepared", "registry_moved", "verified"])
+async def test_migration_journal_supports_explicit_recovery_without_losing_plan(hass, current):
+    j = journal(hass)
+    await j.async_prepare(transfer_plan())
+    if current in ("registry_moved", "verified"):
+        await j.async_advance("prepared", "registry_moved")
+    if current == "verified":
+        await j.async_advance("registry_moved", "verified")
+    with pytest.raises(ValueError):
+        await journal(hass).async_clear()
+    await journal(hass).async_advance(current, "rollback_required")
+    assert await journal(hass).async_load() == {"stage": "rollback_required", "plan": transfer_plan()}
+    with pytest.raises(ValueError):
+        await journal(hass).async_clear()
+    await journal(hass).async_advance("rollback_required", "rolled_back")
+    await journal(hass).async_clear()
+    assert await journal(hass).async_load() is None
+
+
+@pytest.mark.parametrize("changes", [
+    {"device_id": "bad/id"},
+    {"source_entry_id": ""},
+    {"target_entry_id": "synthetic-source"},
+    {"entity_ids": ["sensor.pc1_current_game", "sensor.pc1_current_game"]},
+    {"device_ids": ["same", "same"]},
+    {"entity_ids": ["not-an-entity-id"]},
+    {"unexpected": "not part of the schema"},
+])
+async def test_migration_journal_rejects_invalid_plan(hass, changes):
+    j = journal(hass)
+    with pytest.raises(ValueError):
+        await j.async_prepare(transfer_plan() | changes)
+    assert await j.async_load() is None
+
+
+async def test_migration_journal_requires_record_before_advancing_or_clearing(hass):
+    j = journal(hass)
+    with pytest.raises(ValueError):
+        await j.async_advance("prepared", "registry_moved")
+    with pytest.raises(ValueError):
+        await j.async_clear()
+    assert await j.async_load() is None
