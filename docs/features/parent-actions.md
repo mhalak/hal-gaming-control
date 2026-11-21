@@ -12,7 +12,6 @@
     <td valign="middle">
       <h3>Automation Rules!</h3>
       <p>Every family needs a scapegoat. Ours runs on Home Assistant. No feelings, no parental guilt, and zero weakness for puppy eyes.</p>
-      <p>By the seventh “just five more minutes,” Dad sends the robot to announce: <strong>“Time's up!”</strong></p>
     </td>
   </tr>
 </table>
