@@ -277,7 +277,8 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
     async def async_step_add_app(self, user_input=None):
         """Bind an alias to the unchanged live candidate, never stored on PC."""
         errors = {}
-        if user_input is None:
+        # Empty forms are a retry, not a request to enroll an unnamed app.
+        if user_input is None or "name" not in user_input:
             self._selected_app = await _discover_foreground_candidate(
                 self.hass, self.config_entry.data["device_id"])
             self._app_baseline = self._apps()

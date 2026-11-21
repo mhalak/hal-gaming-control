@@ -347,3 +347,26 @@ async def test_unrelated_options_save_preserves_app_mapping_added_concurrently(
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
     assert result["data"]["tracked_apps"] == latest["tracked_apps"]
     assert result["data"]["daily"] == 90
+
+
+@pytest.mark.parametrize("initial", [None, CANDIDATE | {"signature": None}])
+async def test_empty_candidate_form_can_retry_without_enrolling(
+        hass, enable_custom_integrations, initial):
+    entry = add_device(hass, DATA1)
+    with patch.object(cf, "_discover_foreground_candidate",
+                      new=AsyncMock(side_effect=[initial, initial, initial, CANDIDATE, CANDIDATE])):
+        manager = hass.config_entries.options
+        view = await manager.async_init(entry.entry_id)
+        view = await manager.async_configure(view["flow_id"], {"next_step_id": "tracked_apps"})
+        view = await manager.async_configure(view["flow_id"], {"next_step_id": "add_app"})
+        assert view["errors"]["base"] == "no_live_candidate"
+        view = await manager.async_configure(view["flow_id"], {})
+        assert view["errors"]["base"] == "no_live_candidate"
+        assert "tracked_apps" not in entry.options
+        view = await manager.async_configure(view["flow_id"], {})
+        assert view["type"] == data_entry_flow.FlowResultType.FORM
+        assert "net.minecraft.client.main.Main" in view["description_placeholders"]["candidate"]
+        assert "tracked_apps" not in entry.options
+        result = await manager.async_configure(view["flow_id"], {"name": "Minecraft"})
+    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert result["data"]["tracked_apps"][0]["name"] == "Minecraft"
