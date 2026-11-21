@@ -154,7 +154,8 @@ async def test_rename_or_delete_existing_works_without_live_game(
     manager, view = await open_step(hass, entry2, "tracked_apps")
     result = await manager.async_configure(view["flow_id"], {"applications": []})
     assert result["data"]["tracked_apps"] == []
-    assert entry.options["tracked_apps"] == old
+    assert entry.options["tracked_apps"][0]["name"] == "Roblox New"
+    assert entry2.options["tracked_apps"] == []
 
 
 @pytest.mark.parametrize("changed", [
@@ -237,11 +238,14 @@ async def test_foreground_candidate_rejects_foreign_and_retained_mqtt(
         cb(SimpleNamespace(topic=topic, payload=json.dumps(sample), retain=False))
         return lambda: calls.append(("unsubscribed", 0))
 
+    manager = hass.config_entries.options
+    view = await manager.async_init(entry.entry_id)
     with patch.object(cf.mqtt, "async_subscribe", side_effect=subscribe), \
             patch.object(cf, "_listen_window", new=AsyncMock()):
-        _, view = await open_step(hass, entry, "tracked_apps", sample)
+        view = await manager.async_configure(
+            view["flow_id"], {"next_step_id": "tracked_apps"})
     assert view["description_placeholders"]["candidate"] == "chrome.exe"
-    assert calls == []  # mocked discovery is intentionally bypassed by open_step
+    assert calls == [(topic, 0), ("unsubscribed", 0)]
 
 
 @pytest.mark.parametrize("certificate, expected", [
