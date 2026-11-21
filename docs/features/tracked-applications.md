@@ -11,7 +11,7 @@
     </td>
     <td valign="middle">
       <h3>The family app detective</h3>
-      <p>Roblox claims it’s homework. Minecraft insists it’s architecture class. Our family detective checks which app is actually on screen. Case closed. The suspects would like to appeal.</p>
+      <p>Roblox claims it's homework. Minecraft says it's an architecture lesson. Our family detective checks which app is actually on screen. Case closed. The suspects would like to appeal.</p>
     </td>
   </tr>
 </table>
