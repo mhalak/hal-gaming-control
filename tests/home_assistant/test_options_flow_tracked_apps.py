@@ -55,10 +55,14 @@ async def test_tracked_apps_are_isolated_per_device(hass, enable_custom_integrat
     _, one = await open_step(hass, first, "tracked_apps")
     _, two = await open_step(hass, second, "tracked_apps")
     assert one["description_placeholders"] == {
-        "device": "Gaming PC 1", "count": "2", "apps": "• Minecraft\n• Roblox",
+        "device": "Gaming PC 1", "count": "0",
+        "apps": "No HA-managed applications configured yet.",
+        "legacy_apps": "• Minecraft\\n• Roblox",
         "candidate": "No fresh foreground application detected"}
     assert two["description_placeholders"] == {
-        "device": "Gaming PC 2", "count": "1", "apps": "• Fortnite",
+        "device": "Gaming PC 2", "count": "0",
+        "apps": "No HA-managed applications configured yet.",
+        "legacy_apps": "• Fortnite",
         "candidate": "No fresh foreground application detected"}
     assert "Fortnite" not in json.dumps(one, default=str)
     assert "Minecraft" not in json.dumps(two, default=str)
