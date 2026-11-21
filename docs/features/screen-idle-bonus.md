@@ -4,6 +4,20 @@
 
 **Status: planned; not implemented.** See [design issue #92](https://github.com/mhalak/smarthouse-parental-control/issues/92). There is currently no Screen idle bonus setting to turn on, no automatic award on deployed PCs, and no released screen-off telemetry guarantee.
 
+<table>
+  <tr>
+    <td width="132" valign="middle">
+      <img src="../assets/illustrations/screen-idle-bonus.webp" width="120" alt="Smiling blond boy asleep while a game grinds in the background and a robot waves its finger at dad checking his watch">
+    </td>
+    <td valign="middle">
+      <h3>The loot won't mine itself</h3>
+      <p>Kid asleep, computer grinding, robot explaining why the clock should not keep charging playtime. A future idea, not an available switch.</p>
+    </td>
+  </tr>
+</table>
+
+*Conceptual illustration only — not a screenshot of Home Assistant or proof of released behavior.*
+
 > **As responsible parents, we want our children to succeed in the world.** And the loot isn't going to mine itself. So while the family sleeps, a digital employee can put in the night shift. We support the grind; we just don't think the gaming budget needs to pull overtime.
 
 ## What problem does it solve?

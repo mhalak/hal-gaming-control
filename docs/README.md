@@ -29,7 +29,7 @@ The guides describe both the *parent-facing behavior* and any important implemen
 
 ## Screenshots
 
-Each feature guide may open with a playful HAL Systems illustration; the actual setup steps must use real sanitized Home Assistant screenshots. Illustrations express concepts, **not proof of a shipped UI**. Screenshots belong next to the procedure they explain, not on the landing page. See the [screenshot capture checklist](assets/screenshots/README.md). Capture images from a validated preview deployment, strip children's names, PC names, MQTT addresses, tokens and other personal data, and keep filenames stable. Until a real image is captured, the guides show a clearly labeled screenshot placeholder **in text only**.
+Each feature guide opens with its approved HAL Systems illustration — see the [illustration inventory](assets/illustrations/README.md). Actual setup steps must use real sanitized Home Assistant screenshots. Illustrations express concepts, **not proof of a shipped UI**. Screenshots belong next to the procedure they explain, not on the landing page. See the [screenshot capture checklist](assets/screenshots/README.md). Capture images from a validated preview deployment, strip children's names, PC names, MQTT addresses, tokens and other personal data, and keep filenames stable. Until a real image is captured, the guides show a clearly labeled screenshot placeholder **in text only**.
 
 ## Under the hood
 

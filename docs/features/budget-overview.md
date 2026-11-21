@@ -4,6 +4,20 @@
 
 **Status: planned; not implemented.** See [design issue #93](https://github.com/mhalak/smarthouse-parental-control/issues/93). The existing daily/weekly entities are not yet an itemized Budget overview.
 
+<table>
+  <tr>
+    <td width="132" valign="middle">
+      <img src="../assets/illustrations/budget-overview.webp" width="120" alt="Dad reviewing a detailed HAL gaming budget with mum watching unimpressed beside a Do Not Disturb desk sign">
+    </td>
+    <td valign="middle">
+      <h3>Budget Review — DO NOT DISTURB</h3>
+      <p>The family gaming-time auditor has receipts. Mum is distinctly unimpressed. The breakdown below is an illustration of a planned feature, not live data.</p>
+    </td>
+  </tr>
+</table>
+
+*Conceptual illustration only — not a screenshot of Home Assistant or proof of released behavior.*
+
 > When a child asks, "Where did all my time go?", you should be able to show a receipt without opening twelve sensors or doing arithmetic on the fridge.
 
 ## Proposed per-PC display

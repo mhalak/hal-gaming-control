@@ -4,6 +4,20 @@
 
 **Status:** Home Assistant Tracked applications editor is in the current development preview (HA source 0.5.10). Full cross-device, foreground accounting and deployment acceptance remain separate work. This isn't a Windows-side game list.
 
+<table>
+  <tr>
+    <td width="132" valign="middle">
+      <img src="../assets/illustrations/tracked-applications.webp" width="120" alt="Dad tapping a conceptual Roblox control tablet while daughter plays Roblox, with the friendly HAL robot">
+    </td>
+    <td valign="middle">
+      <h3>The family app detective</h3>
+      <p>The computer reports the active app; Home Assistant decides which name appears on the scoreboard. Even <code>javaw.exe</code> deserves an identity check.</p>
+    </td>
+  </tr>
+</table>
+
+*Conceptual illustration only — not a screenshot of Home Assistant or proof of released behavior.*
+
 > Roblox gets screen time. Minecraft gets screen time. If you want your child's spreadsheet skills to count as gaming, well, you're the parent.
 
 ## What you can track
