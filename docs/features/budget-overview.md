@@ -11,8 +11,8 @@
     </td>
     <td valign="middle">
       <h3>Budget Review — DO NOT DISTURB</h3>
-      <p>Every minute played, every bonus granted, every minute left — Dad has the receipts.</p>
-      <p>Mum has questions. The budget balances. <strong>Dad's parenting score remains under evaluation.</strong></p>
+      <p>Dad brought spreadsheets.</p>
+      <p>Mum: “When I said fix the kids' screen time, I didn't mean <strong>this!</strong>”</p>
     </td>
   </tr>
 </table>
