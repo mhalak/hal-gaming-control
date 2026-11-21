@@ -268,6 +268,9 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
                 "device": self.config_entry.data.get("name") or self.config_entry.data["device_id"],
                 "count": str(len(tracked)),
                 "apps": display,
+                "legacy_apps": "\\n".join(
+                    f"• {name}" for name in self.config_entry.data.get("games", []))
+                    or "None reported by legacy agent",
                 "candidate": raw,
             },
         )
