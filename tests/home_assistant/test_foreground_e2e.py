@@ -12,7 +12,7 @@ from homeassistant import data_entry_flow
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.smarthouse_gaming import config_flow as cf
-from custom_components.smarthouse_gaming.app_registry import identity_key
+from custom_components.smarthouse_gaming.app_editor import raw_label
 from custom_components.smarthouse_gaming.const import DOMAIN
 from custom_components.smarthouse_gaming.foreground_store import ForegroundStore
 from custom_components.smarthouse_gaming.raw_foreground import HAOwnedForeground
@@ -46,9 +46,11 @@ async def enroll(hass, obj, identity, name, token):
         view = await manager.async_init(obj.entry_id)
         view = await manager.async_configure(
             view["flow_id"], {"next_step_id": "tracked_apps"})
-        view = await manager.async_configure(
-            view["flow_id"], {"next_step_id": "add_app"})
-        result = await manager.async_configure(view["flow_id"], {"name": name})
+        existing = [{"name": row["name"], "detected": raw_label(row)}
+                    for row in obj.options.get("tracked_apps", [])]
+        result = await manager.async_configure(view["flow_id"], {
+            "applications": existing + [
+                {"name": name, "detected": raw_label(candidate)}]})
         publish.assert_not_called()
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
     hass.config_entries.async_update_entry(obj, options=result["data"])
@@ -128,11 +130,9 @@ async def test_rename_and_remove_keep_confirmed_old_usage(
         view = await manager.async_init(obj.entry_id)
         view = await manager.async_configure(
             view["flow_id"], {"next_step_id": "tracked_apps"})
-        view = await manager.async_configure(
-            view["flow_id"], {"next_step_id": "rename_app"})
-    result = await manager.async_configure(
-        view["flow_id"], {"target": identity_key("javaw.exe", JAVA["signature"]),
-                          "name": "Minecraft Java"})
+    result = await manager.async_configure(view["flow_id"], {
+        "applications": [{"name": "Minecraft Java",
+                          "detected": raw_label(JAVA)}]})
     hass.config_entries.async_update_entry(obj, options=result["data"])
     renamed = HAOwnedForeground("pc1", obj.options["tracked_apps"],
                                 intervals=segments)
