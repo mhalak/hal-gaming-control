@@ -6,7 +6,7 @@ from custom_components.smarthouse_gaming.candidate_protocol import parse_candida
 
 
 TOPIC = "SmartHouse/Gaming/pc1/state/foreground_candidate"
-VALID = {"version": 1, "device_id": "pc1", "process": "Chrome.exe",
+VALID = {"version": 1, "device_id": "pc1", "process": "Chrome.exe", "signature": None,
          "token": "a" * 32, "observed_at": 100}
 
 
@@ -16,7 +16,7 @@ def decode(value=VALID, *, topic=TOPIC, retained=False, now=102):
 
 
 def test_live_minimal_candidate_is_accepted():
-    assert decode() == {"process": "Chrome.exe", "token": "a" * 32,
+    assert decode() == {"process": "Chrome.exe", "signature": None, "token": "a" * 32,
                         "observed_at": 100}
 
 
