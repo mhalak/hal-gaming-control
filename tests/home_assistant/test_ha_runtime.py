@@ -619,17 +619,17 @@ async def test_agent_version_includes_validated_build_sha(hass, reported, expect
 
 
 @pytest.mark.parametrize("info,expected", [
-    ({"release":"Preview","component":"home_assistant","version":"0.5.4","commit":"b"*40}, "b"*40),
-    ({"release":"Preview","component":"windows_agent","version":"0.5.4","commit":"b"*40}, None),
+    ({"release":"Preview","component":"home_assistant","version":"0.5.5","commit":"b"*40}, "b"*40),
+    ({"release":"Preview","component":"windows_agent","version":"0.5.5","commit":"b"*40}, None),
     ({"release":"Preview","component":"home_assistant","version":"0.4.3","commit":"b"*40}, None),
-    ({"release":"Preview","component":"home_assistant","version":"0.5.4","commit":"bad"}, None),
+    ({"release":"Preview","component":"home_assistant","version":"0.5.5","commit":"bad"}, None),
     (None, None),
 ])
 async def test_integration_version_reads_only_local_staged_provenance(hass, tmp_path, info, expected):
     from unittest.mock import AsyncMock, Mock
     from custom_components.smarthouse_gaming.entity import GamingEntity
     from custom_components.smarthouse_gaming.agent_version import IntegrationVersionSensor
-    (tmp_path / "manifest.json").write_text(json.dumps({"version": "0.5.4"}), encoding="utf-8")
+    (tmp_path / "manifest.json").write_text(json.dumps({"version": "0.5.5"}), encoding="utf-8")
     if info is not None:
         (tmp_path / "build-info.json").write_text(json.dumps(info), encoding="utf-8")
     coordinator = Mock()
@@ -640,7 +640,7 @@ async def test_integration_version_reads_only_local_staged_provenance(hass, tmp_
     with patch.object(GamingEntity, "async_added_to_hass", new_callable=AsyncMock), \
             patch.object(entity, "async_write_ha_state"):
         await entity.async_added_to_hass()
-    assert entity.native_value == "0.5.4"
+    assert entity.native_value == "0.5.5"
     assert entity.extra_state_attributes["build_sha"] == expected
     assert entity.available
 

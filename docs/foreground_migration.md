@@ -57,7 +57,7 @@ upgrade, restart or reading this document.
    selected device to the explicit list. Check Recorder has completed
    the queued purge. Do **not** call global `recorder.purge`, delete the
    shared database file, use `domains: [sensor]`, or broad globs.
-6. Install the reviewed compatible **HA 0.5.4 + Windows agent 0.2.6**
+6. Install the reviewed compatible **HA 0.5.5 + Windows agent 0.2.6**
    source/build on the authorized pilot only. Windows sends non-retained
    raw `foreground_identity` v2 and retires its exact legacy native MQTT
    activity discovery topics. Verify old MQTT registry entries disappear

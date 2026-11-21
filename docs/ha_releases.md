@@ -1,3 +1,11 @@
+## 0.5.5 — single-page Tracked applications editor
+
+- Replace the three Add/Rename/Remove submenus with a single native HA multiple-object editor. Current HA-owned mappings are prepopulated as removable/editable rows. Each row displays its **actual, safe Windows executable basename** plus a vetted Java main-class/JAR/module signature where available. New-row default selects the last fresh foreground candidate; user supplies a friendly name.
+- Never enroll an arbitrary process typed by the browser: backend validates every row against current HA mappings or the unchanged, fresh, per-device non-retained candidate token. Duplicate/forged/ambiguous Java identities and concurrent app-list edits fail closed; other options and historic stable accounting identities are preserved. No Windows config writes.
+- Native HA Object Selector supports structured multi-item Add/Remove controls without any HACS/custom frontend. Reopen Configure to refresh foreground detection. This is a HA-only UI update: Windows agent remains 0.2.6.
+- New candidate UI is not auto-discovery of all games and does not auto-add an application just because its process is in foreground. Observed unconfigured Roblox correctly reports idle.
+- Requires 8/8 CI and controlled HA deployment after reviewed build SHA. Clean-start migration remains an optional, one-time action, not repeated on updates.
+
 ## 0.5.4 — clean-start gaming history (test-only owner migration decision)
 
 - Owner explicitly opted to discard past Gaming/Parental Control Recorder history. There is **no need to preserve old native Active game entity IDs**. Removed the unused explicit native-ID capture/adoption module and its tests.
