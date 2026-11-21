@@ -1,5 +1,9 @@
 # Product direction — SmartHouse Parental Control
 
+[← Documentation hub](README.md) · [← Project home](../README.md)
+
+*Parent-facing guides:* [Track applications](features/tracked-applications.md) · [Budgets and bonuses](features/gaming-budgets.md) · [Screen idle bonus (planned)](features/screen-idle-bonus.md) · [Budget overview (planned)](features/budget-overview.md)
+
 Powered by HAL Systems.
 
 This document records agreed product behavior, not a claim that each feature is already released. See the [release history](ha_releases.md) and [HA guide](ha_integration.md) for version-specific behavior.
