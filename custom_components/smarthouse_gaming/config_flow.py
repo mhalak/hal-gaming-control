@@ -8,15 +8,13 @@ from homeassistant.components import mqtt
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 from homeassistant.util import dt as dt_util
-from .const import DEFAULTS, DOMAIN, ROOT
+from .const import DOMAIN, ROOT
 from .candidate_protocol import parse_candidate
 from .app_registry import load_apps
 from .app_editor import (CandidateChanged, apply_app_editor,
                          editor_choices, editor_rows, raw_label)
 from .direct_mqtt import direct_mode
 from .protocol import parse_discovery
-from .update_protocol import catalog_url
-from datetime import time
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -168,41 +166,15 @@ def _new_candidate_label(candidate, baseline):
 
 class GamingOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
-        self.values = DEFAULTS | dict(self.config_entry.options)
-        self.values.pop("unlimited", None)
-        self.values.pop("weekend_total", None)
-        self.reset_limits = set()
         return await self.async_step_menu()
 
     async def async_step_menu(self, user_input=None):
-        # Legacy automatic actions are preserved for reversible migration, never edited here.
-        menu = {"limits": "Restrictions and schedule",
-                "mqtt_settings": "MQTT configuration",
-                "tracked_apps": "Tracked applications",
-                "update_settings": "Windows update settings",
-                "save": "Save"}
-        return self.async_show_menu(step_id="menu", menu_options=menu)
-
-    async def async_step_limits(self, user_input=None):
-        errors = {}
-        if user_input is not None:
-            try:
-                for key in ("schedule_start", "schedule_end"):
-                    value = time.fromisoformat(user_input[key])
-                    if value.tzinfo is not None:
-                        raise ValueError
-                self.reset_limits = {key for key in ("daily", "weekly", "weekend_daily")
-                                     if user_input.get("reset_" + key, False)}
-                self.values.update({k: v for k, v in user_input.items() if not k.startswith("reset_")})
-                return await self.async_step_menu()
-            except ValueError:
-                errors["base"] = "invalid_time"
-        schema = {vol.Required(key, default=self.values[key]): bool for key in ("enabled", "schedule_enabled")}
-        for key in ("daily", "weekly", "weekend_daily"):
-            schema[vol.Optional("reset_" + key, default=key in self.reset_limits)] = bool
-        for key in ("schedule_start", "schedule_end"):
-            schema[vol.Required(key, default=self.values[key])] = str
-        return self.async_show_form(step_id="limits", data_schema=vol.Schema(schema), errors=errors)
+        # Legacy policy and updater values stay persisted, but are no longer
+        # edited through Configure. Tracked applications commit on their own.
+        return self.async_show_menu(
+            step_id="menu",
+            menu_options=["mqtt_settings", "tracked_apps"],
+        )
 
     async def async_step_mqtt_settings(self, user_input=None):
         """Show the shared connection and per-device topics without exposing secrets."""
@@ -326,40 +298,3 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
             },
             errors=errors,
         )
-
-    async def async_step_update_settings(self, user_input=None):
-        errors = {}
-        if user_input is not None:
-            value = user_input["update_catalog_url"].strip()
-            try:
-                if value:
-                    catalog_url(value)
-                self.values["update_catalog_url"] = value
-                return await self.async_step_menu()
-            except ValueError:
-                errors["base"] = "invalid_catalog"
-        return self.async_show_form(step_id="update_settings", data_schema=vol.Schema({
-            vol.Required("update_catalog_url", default=self.values.get("update_catalog_url", "")): str
-        }), errors=errors)
-
-    async def async_step_save(self, user_input=None):
-        # Preserve live device controls changed while the options UI was open.
-        latest = DEFAULTS | dict(self.config_entry.options)
-        for key in ("daily", "weekly", "weekend_daily"):
-            self.values[key] = -1 if key in self.reset_limits else latest[key]
-        self.values["unlimited"] = latest["unlimited"]
-        # The per-game editor is temporarily withdrawn. Do not overwrite legacy
-        # data or concurrent changes when saving unrelated settings.
-        self.values["per_game"] = dict(latest["per_game"])
-        # A separate HA-only CRUD flow may have saved app aliases meanwhile.
-        # Never let an unrelated Limits/Save flow overwrite those mappings.
-        if "tracked_apps" in latest:
-            self.values["tracked_apps"] = latest["tracked_apps"]
-        else:
-            self.values.pop("tracked_apps", None)
-        for key in ("bonus_date", "bonus_minutes"):
-            self.values.pop(key, None)
-            if key in latest:
-                self.values[key] = latest[key]
-        self.values["actions"] = list(latest["actions"])
-        return self.async_create_entry(title="", data=self.values)
