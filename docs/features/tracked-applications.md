@@ -11,9 +11,8 @@
     </td>
     <td valign="middle">
       <h3>The family app detective</h3>
-      <p>Only apps chosen by parents make the watchlist. The rest stay untracked.</p>
-      <p>If a little mastermind switches to a new game to dodge the clock, our detective spots it on screen so you can add it in a few taps.</p>
-      <p><strong>Nice try. Case reopened.</strong></p>
+      <p>Parents choose which apps to track. Everything else stays untracked.</p>
+      <p>A new game sneaks in? Our detective spots it on screen. Add it in a few taps. <strong>Case reopened.</strong></p>
     </td>
   </tr>
 </table>
