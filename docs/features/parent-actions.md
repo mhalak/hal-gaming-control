@@ -11,17 +11,17 @@
     </td>
     <td valign="middle">
       <h3>Automation Rules!</h3>
-      <p>Every family needs a scapegoat. Ours happens to run on Home Assistant.</p>
-      <p>Unlike Dad, our smart home has no feelings, no parental guilt, and absolutely no weakness for puppy eyes. When “just five more minutes” turns into the seventh negotiation of the evening, the house simply announces: <strong>“Time's up!”</strong></p>
-      <p>Naturally, Dad lets the robot deliver the bad news.</p>
-      <p>There's just one tiny problem: our server has never passed its <strong>Flying Objects Resistance Test</strong>. Game controllers, cushions, and the occasional airborne slipper remain dangerously outside its warranty coverage.</p>
-      <p>The beauty of <strong>Home Assistant automations</strong>? Parents make the rules, choose the reminders, and decide how generous the grace periods should be. The house handles the countdown, the robot handles the complaints, and Dad can finally say:</p>
-      <p><strong>“Don't look at me. I just live here, same as you.”</strong></p>
+      <p>Every family needs a scapegoat. Ours runs on Home Assistant. No feelings, no parental guilt, and zero weakness for puppy eyes.</p>
+      <p>By the seventh “just five more minutes,” Dad sends the robot to announce: <strong>“Time's up!”</strong></p>
     </td>
   </tr>
 </table>
 
-The point isn't to take parents out of the loop. Let Home Assistant handle the repeated reminders while you decide what happens next.
+There's just one tiny problem: our server has never passed its **Flying Objects Resistance Test**. Game controllers, cushions, and the occasional airborne slipper remain dangerously outside its warranty coverage.
+
+The beauty of **Home Assistant automations**? Parents make the rules, choose the reminders, and decide how generous the grace periods should be. The house handles the countdown, the robot handles the complaints, and Dad can finally say:
+
+**“Don't look at me. I just live here, same as you.”**
 
 **Development preview:** **Lock PC** and **Terminate game** worked in limited real-PC tests. **Automatic enforcement is not yet validated or enabled by default.**
 
