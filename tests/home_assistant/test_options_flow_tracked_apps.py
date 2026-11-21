@@ -194,7 +194,7 @@ async def test_generic_runtime_detected_but_marked_not_enrollable(
         manager = hass.config_entries.options
         result = await manager.async_init(entry.entry_id)
         result = await manager.async_configure(result["flow_id"], {"next_step_id": "tracked_apps"})
-    assert "ambiguous runtime" in result["description_placeholders"]["candidate"]
+    assert "ambiguous Java runtime" in result["description_placeholders"]["candidate"]
 
 
 CANDIDATE = {
