@@ -117,3 +117,68 @@ def test_unknown_and_unsynchronized_candidate_never_publish(bridge):
     b.synced_generation = b.generation
     assert not b.publish_candidate(None)
     assert not candidates(client)
+
+
+def test_minecraft_java_main_class_distinguishes_other_java_apps():
+    process_minecraft = process("javaw.exe")
+    process_minecraft.cmdline.return_value = [
+        r"C:\\Program Files\\Java\\javaw.exe", "-Xmx3G",
+        "-cp", r"C:\\Users\\private\\libs\\hidden.jar",
+        "net.minecraft.client.main.Main",
+        "--accessToken", "SECRET_AUTH_TOKEN",
+        "--username", "PrivateChild",
+    ]
+    result = candidate_from_sample(
+        SAMPLE, 2, 10.5, process_factory=lambda _: process_minecraft,
+        session_lookup=lambda _: 2)
+    assert result[4] == {"kind": "java_class",
+                         "value": "net.minecraft.client.main.Main"}
+
+    process_other = process("javaw.exe")
+    process_other.cmdline.return_value = [
+        "javaw.exe", "-cp", r"C:\\private\\libs", "org.example.other.Main",
+        "--password", "SECRET_PASSWORD",
+    ]
+    other = candidate_from_sample(
+        SAMPLE, 2, 10.5, process_factory=lambda _: process_other,
+        session_lookup=lambda _: 2)
+    assert other[4] == {"kind": "java_class", "value": "org.example.other.Main"}
+    assert other[4] != result[4]
+
+
+def test_java_jar_identity_is_only_basename():
+    target = process("java.exe")
+    target.cmdline.return_value = [
+        "java.exe", "-Xms1G", "-jar", r"C:\\Sensitive\\Example-App.jar",
+        "--token", "SECRET",
+    ]
+    candidate = candidate_from_sample(
+        SAMPLE, 2, 10.5, process_factory=lambda _: target,
+        session_lookup=lambda _: 2)
+    assert candidate[4] == {"kind": "java_jar", "value": "Example-App.jar"}
+
+
+@pytest.mark.parametrize("argv", [
+    ["javaw.exe", "--accessToken", "SECRET"],
+    ["javaw.exe", "-cp", r"C:\\private\\classpath"],
+    ["javaw.exe", "-jar", r"C:\\private\\user name.jar"],
+    ["javaw.exe", "--username", "PrivateChild"],
+])
+def test_ambiguous_java_does_not_publish_private_arguments(argv):
+    target = process("javaw.exe")
+    target.cmdline.return_value = argv
+    candidate = candidate_from_sample(
+        SAMPLE, 2, 10.5, process_factory=lambda _: target,
+        session_lookup=lambda _: 2)
+    assert candidate[4] is None
+
+
+def test_mqtt_emits_sanitized_java_signature_without_raw_args(bridge):
+    b, client, _ = bridge
+    signature = {"kind": "java_class", "value": "net.minecraft.client.main.Main"}
+    assert b.publish_candidate(("javaw.exe", 42, 123, 2, signature))
+    raw = candidates(client)[0].args[1]
+    data = json.loads(raw)
+    assert data["signature"] == signature
+    assert "accessToken" not in raw and "SECRET" not in raw
+    assert "private" not in raw and "cmdline" not in raw
