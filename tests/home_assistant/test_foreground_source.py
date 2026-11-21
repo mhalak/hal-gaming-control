@@ -36,7 +36,7 @@ def message(device, topic, payload, retain=False):
         payload=payload, retain=retain)
 
 
-async def watcher(hass, device, apps):
+async def make_source(hass, device, apps):
     callbacks, unsubscribed = {}, []
     async def subscribe(_hass, topic, callback, qos=0):
         callbacks[topic] = (callback, qos)
@@ -64,7 +64,7 @@ def total(watcher, ts=110):
 
 
 async def test_live_foreground_aliases_without_legacy_rules(hass):
-    watcher, cb, changed, unsub = await watcher(hass, "pc1", [MINECRAFT, ROBLOX])
+    watcher, cb, changed, unsub = await make_source(hass, "pc1", [MINECRAFT, ROBLOX])
     assert cb["SmartHouse/Gaming/pc1/state/foreground_identity"][1] == 0
     assert cb["SmartHouse/Gaming/pc1/availability"][1] == 1
     deliver(cb, "pc1", "availability", b"online")
@@ -85,7 +85,7 @@ async def test_live_foreground_aliases_without_legacy_rules(hass):
 
 
 async def test_retained_foreign_stale_and_disconnect_never_count(hass):
-    watcher, cb, changed, _ = await watcher(hass, "pc1", [MINECRAFT])
+    watcher, cb, changed, _ = await make_source(hass, "pc1", [MINECRAFT])
     deliver(cb, "pc1", "state/foreground_identity", packet("pc1", 100, 1))
     assert watcher.current(10100) is None
     deliver(cb, "pc1", "availability", "online")
@@ -108,8 +108,8 @@ async def test_retained_foreign_stale_and_disconnect_never_count(hass):
 
 
 async def test_two_devices_have_independent_connection_and_alias(hass):
-    one, callbacks1, _, _ = await watcher(hass, "pc1", [MINECRAFT])
-    two, callbacks2, _, _ = await watcher(hass, "pc2", [ROBLOX])
+    one, callbacks1, _, _ = await make_source(hass, "pc1", [MINECRAFT])
+    two, callbacks2, _, _ = await make_source(hass, "pc2", [ROBLOX])
     deliver(callbacks1, "pc1", "availability", "online")
     deliver(callbacks2, "pc2", "availability", "online")
     deliver(callbacks1, "pc1", "state/foreground_identity", packet("pc1", 100, 1))
