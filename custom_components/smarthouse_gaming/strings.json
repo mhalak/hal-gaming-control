@@ -32,7 +32,7 @@
       },
       "tracked_apps": {
         "title": "Tracked applications",
-        "description": "**Currently detected application**\n\nRaw sensor value: `{raw_value}`\n\nDisplayed as: **{displayed_as}**\n\n**Snapshot only:** Captured when you open Tracked applications. The detected application does not need to stay focused while you edit; you can Add it later in this same form even if the child switches apps or exits.\n\nTo capture a different application, close this dialog (X), then reopen Configure → Tracked applications. Merely opening Configure does not start detection. There is no live update or Refresh in the native form.\n\nUse Add to enroll the captured application, then Submit. Only this session's confirmed identity or previously saved applications are accepted. Only HA mappings change; nothing is written to Windows.",
+        "description": "**Currently detected application**\n\nRaw sensor value: `{raw_value}`\n\nDisplayed as: **{displayed_as}**\n\n**Snapshot — not live.** Detection starts when you open Tracked applications, not the main Configure menu. The app does not need to stay focused: you can Add it after the child switches apps or exits.\n\nTo detect a different app, close and reopen this dialog: **X → Configure → Tracked applications**.\n\nUse Add to enroll the captured identity, then Submit. Only HA mappings change; nothing is written to Windows.",
         "data": {
           "applications": "Application List"
         }
