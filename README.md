@@ -20,7 +20,7 @@ It tracks gaming budgets on Windows PCs, lets parents grant bonus minutes, and p
 
 **🔒 Manual controls — parental authority, now with buttons.** **Lock PC** and **Terminate game** are available as explicit parent actions, not a surprise automatic punishment. Both have passed limited real-device smoke tests. [What the controls do](docs/features/parent-actions.md).
 
-**🌙 AFK grind support — because the loot won't farm itself.** *Planned.* Your kid has gone to bed; Roblox is still working the night shift. A future **Screen idle bonus** can let generous parents reward eligible idle minutes before the display went off. Strict parents can leave the bill as-is. The game can keep grinding with the screen off; the child doesn't get to appoint their avatar as the family accountant. [How Screen idle bonuses will work](docs/features/screen-idle-bonus.md).
+**🌙 AFK grind support — because the loot won't mine itself.** *Planned.* As responsible parents, we want our children to succeed in the world. And let's be fair: **that loot isn't going to mine itself.** When your kid goes to bed and the game clocks in for the night shift, a future **Screen idle bonus** can reward eligible idle minutes *before* the display went off. Once the screen is confirmed off, the game can keep grinding without charging new gaming time. Generous parents may grant the bonus; strict parents may leave the earlier minutes charged. The future of the pixel economy is bright — the feature is still planned. [How Screen idle bonuses will work](docs/features/screen-idle-bonus.md).
 
 **🧾 Budget overview — show your work.** *Planned.* A simple receipt: daily budget + weekend bonus + parent bonus + Screen idle bonus − measured gaming time = remaining time. [See the proposed Budget overview](docs/features/budget-overview.md).
 
@@ -34,8 +34,18 @@ It tracks gaming budgets on Windows PCs, lets parents grant bonus minutes, and p
 
 This is a family convenience tool, **not** tamper-proof security software or a substitute for parenting. A local administrator can stop it; missing telemetry can make measurements incomplete; terminating a game can lose unsaved progress. Keep MQTT private and restrict credentials. Do not disable Windows Smart App Control or Defender to install an unsigned development build. [Read the limitations](docs/known_limitations.md) and [privacy and protocol notes](docs/mqtt_protocol.md).
 
-We automated the parenting negotiations, then wondered whether we could automate some of the programming too. So OpenAI's ChatGPT and Codex help design, implement, review, test and document the project.
+### Development disclosure: even the developer has been automated
 
-The human developer still decides what ships and tests it on real hardware. **Someone has to be responsible around here, and the AI refuses to sign school permission slips.** AI assistance doesn't guarantee correctness, and **no AI subscription or OpenAI API key is required** to run the integration.
+Our reluctance to perform repetitive parenting duties apparently extends to software development, too.
+
+After deciding to delegate gaming-time negotiations to Home Assistant, we thought: why stop there? So we recruited OpenAI's ChatGPT (including GPT-6) and Codex to help design, implement, review, test and document this project.
+
+The human developer still makes the architectural decisions, defines the requirements and oversees testing on real hardware. Someone has to be responsible around here, and the AI refuses to sign school permission slips.
+
+We follow trunk-based development, use automated tests and CI, and validate Windows service behavior on actual PCs. AI-assisted code is not a guarantee of correctness; bugs are still possible. Please report them.
+
+**No AI subscription required:** AI is a development tool here, not a runtime dependency. The integration and Windows agent do not require ChatGPT, an OpenAI API key or an AI service to operate. Gaming telemetry stays within the configured MQTT and Home Assistant setup during normal operation.
+
+In short: we automated the parenting, then automated part of the programming. Writing this disclaimer was, naturally, also AI-assisted.
 
 Not affiliated with Home Assistant, HACS, Microsoft, Roblox or Minecraft. [Development and contribution details](docs/README.md#for-contributors).
