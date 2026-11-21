@@ -36,7 +36,7 @@
       },
       "tracked_apps": {
         "title": "Tracked applications",
-        "description": "**Currently detected application**\n\n> ### {preview_name}\n>\n> `{raw_value}`\n\n**Note**\n\nSnapshot only — not live. Use Add to enroll this application even after the child switches apps or exits.\n\nTo detect a different app, close and reopen: **X → Configure → Tracked applications**.\n\nApplication List edits are saved only when you press **Save changes**. Nothing is written to Windows.\n\n---",
+        "description": "**Currently detected application**\n\n> ### {preview_name}\n>\n> `{raw_value}`\n\n**Note**\n\nSnapshot only — not live. Use Add to enroll this application even after the child switches apps or exits.\n\nTo detect a different app, close and reopen: **X → Configure → Tracked applications**.\n\nApplication List edits are saved only when you press **Save changes**; nothing is written to Windows.\n\n---",
         "data": {
           "applications": "Application List"
         },
