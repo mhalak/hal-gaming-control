@@ -1,6 +1,6 @@
 """Expose raw telemetry and the two owner-requested budget indicators."""
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
-from homeassistant.const import PERCENTAGE
+from homeassistant.const import PERCENTAGE, UnitOfTime
 from homeassistant.util import dt as dt_util
 from .direct_mqtt import DirectUptime
 from .agent_version import AgentVersionSensor, IntegrationVersionSensor
@@ -74,7 +74,10 @@ class GamingTimeSensor(GamingEntity, SensorEntity):
     """Confirmed-only elapsed time; offline history is marked incomplete."""
 
     _attr_device_class = SensorDeviceClass.DURATION
-    _attr_native_unit_of_measurement = "min"
+    # Frontend formats fractional hours as h/m/s, avoiding 711m 3s.
+    # Keep the numeric duration entity and its stable unique ID for history.
+    _attr_native_unit_of_measurement = UnitOfTime.HOURS
+    _attr_suggested_display_precision = 6
     _attr_icon = "mdi:timer-outline"
 
     def __init__(self, coordinator, period, name):
@@ -97,7 +100,9 @@ class GamingTimeSensor(GamingEntity, SensorEntity):
         if raw is None:
             return None
         elapsed = raw.get(self.period)
-        return round(elapsed / 60, 2) if elapsed is not None else None
+        # Hours as a fractional value preserve sub-minute precision while
+        # letting HA display e.g. 11h 51m 3s rather than 711m 3s.
+        return round(elapsed / 3600, 6) if elapsed is not None else None
 
     @property
     def extra_state_attributes(self):
