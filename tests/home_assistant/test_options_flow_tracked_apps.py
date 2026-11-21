@@ -327,3 +327,21 @@ async def test_ambiguous_java_cannot_be_enrolled(
     assert view["type"] == data_entry_flow.FlowResultType.FORM
     assert view["errors"]["base"] == "no_live_candidate"
     assert not view["data_schema"].schema
+
+
+async def test_unrelated_options_save_preserves_app_mapping_added_concurrently(
+        hass, enable_custom_integrations):
+    entry = add_device(hass, DATA1, {"daily": 100})
+    manager = hass.config_entries.options
+    view = await manager.async_init(entry.entry_id)
+    latest = {
+        "daily": 90,
+        "tracked_apps": [
+            {"process": "javaw.exe", "signature": CANDIDATE["signature"],
+             "name": "Minecraft Java"}],
+    }
+    hass.config_entries.async_update_entry(entry, options=latest)
+    result = await manager.async_configure(view["flow_id"], {"next_step_id": "save"})
+    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert result["data"]["tracked_apps"] == latest["tracked_apps"]
+    assert result["data"]["daily"] == 90
