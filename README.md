@@ -99,9 +99,21 @@ The additive Weekend bonus and automation-owned enforcement with a restriction s
 
 - Daily and weekly accounted time sensors, additive Weekend bonus and automation-owned enforcement (candidate, pending validation).
 - Count only the monitored application in foreground. Background/minimized apps do not consume time; unknown is distinct from idle.
+- **AFK grind support / Screen idle bonus (planned, #92):** let the game keep grinding when the display sleeps, without charging gaming time while the screen is confirmed off. Parents may choose to give back the eligible minutes spent idle *before* the screen switched off as a separate daily bonus; measured playtime stays measured, and the weekly cap stays put.
 - Application list in HA Options Flow: enroll the live foreground application with a readable name, including non-game applications, without a mandatory game catalog.
 - Windows warning popup with a large remaining-time countdown and a bar that drains from full to empty; green/yellow/red thresholds, 60/10/1/0 minute alerts and **Powered by HAL Systems** footer.
 - Later — Optional parent-controlled request for five more minutes.
+
+### AFK grind support: because the loot won't farm itself (planned)
+
+Your kid has gone to bed. Roblox is still clocked in. Somewhere, a virtual tycoon is putting in the night shift.
+
+Future **Screen idle bonus** support aims to let the game keep running when Windows confirms the display is off, without draining gaming time during that confirmed screen-off period. As for the minutes spent staring at an unattended game *before* the screen turned off? That's a parenting decision, not a measurement bug:
+
+- **Generous mode:** "Nice grind. Here's a Screen idle bonus for the eligible idle minutes."
+- **Strict mode:** "You left the game running. Your budget noticed."
+
+Both are valid. The parent decides; the child doesn't get to appoint their Roblox character as the family accountant. A granted Screen idle bonus increases **today's daily allowance** (separately from the parent-granted bonus), while the recorded game time and independent weekly limit remain unchanged. No bonus is awarded from guesses or missing telemetry. This feature is **planned, not available in the current preview** — see [#92](https://github.com/mhalak/smarthouse-parental-control/issues/92) and the [product design](docs/product_direction.md#planned-screen-idle-bonus-and-afk-grind-support).
 
 See [agreed product direction](docs/product_direction.md) for details and implementation boundaries.
 
