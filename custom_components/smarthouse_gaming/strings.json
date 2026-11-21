@@ -39,8 +39,6 @@
       }
     },
     "error": {
-      "invalid_time": "Enter a valid local time (HH:MM).",
-      "invalid_catalog": "Enter an HTTPS URL without credentials, query or fragment.",
       "no_live_candidate": "No fresh uniquely identified application detected. Start it on the selected PC and reopen Configure.",
       "candidate_changed": "The foreground process changed or its sample expired. Reopen Configure with the correct application focused.",
       "configuration_changed": "The HA application list changed while this form was open. Reopen the flow before editing.",
