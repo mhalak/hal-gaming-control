@@ -4,6 +4,8 @@
 
 **0.5.0 is a deployment candidate, not a verified installation.** It includes removal of implicit actions/selectors, safe MQTT configuration diagnostics, local version diagnostics, and the opt-in weekend bonus calculation kernel. The expanded feature set described below (duration sensors, full Weekend bonus UI, fresh restriction sensor) is still planned and **not included** in this 0.5.0 build. Existing installations retain the legacy Weekend daily limit UI until a separate safe migration. See [release history](ha_releases.md) and [product direction](product_direction.md).
 
+In current HA 0.5.6, Configure contains only **MQTT configuration** (read-only) and **Tracked applications** (saves directly). The older Restrictions and schedule, Windows update settings and Save steps were removed without changing existing stored policy, schedule, catalog URL or legacy action options; existing enabled controls still operate according to their saved values. Limit sliders and manual device controls remain on the device page.
+
 Install custom_components/smarthouse_gaming through manual installation or HACS where available. Restart HA. MQTT and Recorder must be enabled. Add one config entry per PC using scoped or native MQTT discovery. Restrictions are disabled by default.
 
 ## Planned device controls — after the 0.5.0 preview
