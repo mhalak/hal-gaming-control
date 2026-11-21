@@ -408,6 +408,12 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
         # The per-game editor is temporarily withdrawn. Do not overwrite legacy
         # data or concurrent changes when saving unrelated settings.
         self.values["per_game"] = dict(latest["per_game"])
+        # A separate HA-only CRUD flow may have saved app aliases meanwhile.
+        # Never let an unrelated Limits/Save flow overwrite those mappings.
+        if "tracked_apps" in latest:
+            self.values["tracked_apps"] = latest["tracked_apps"]
+        else:
+            self.values.pop("tracked_apps", None)
         for key in ("bonus_date", "bonus_minutes"):
             self.values.pop(key, None)
             if key in latest:
