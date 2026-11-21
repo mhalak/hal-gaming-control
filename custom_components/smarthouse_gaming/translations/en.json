@@ -52,7 +52,7 @@
       },
       "tracked_apps": {
         "title": "Tracked applications",
-        "description": "HA-managed applications on {device} ({count}):\\n\\n{apps}\\n\\nCurrent foreground identity: {candidate}\\n\\nAdd, rename or remove a mapping here; nothing is written to Windows. For Java use the verified main class/JAR/module identity. Newly added apps do not change the existing Windows process rules or activate enforcement."
+        "description": "HA-managed applications for {device} ({count}):\\n\\n{apps}\\n\\nLegacy agent-reported games (not editable here):\\n{legacy_apps}\\n\\nCurrent foreground identity: {candidate}\\n\\nAdd, rename or remove HA mappings here; nothing is written to Windows. Minecraft Java is identified by a vetted main class/JAR/module rather than a bare javaw.exe. The existing Active game entity will switch to these aliases during foreground cutover (#4)."
       },
       "add_app": {
         "title": "Add detected application",
