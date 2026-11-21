@@ -24,13 +24,13 @@ Keep restrictions disabled during development smoke tests; stable releases and t
 
 ## Target budget model (partially implemented in HA 0.5.0 preview)
 
-Only two independent quotas: **Daily limit** and **Weekly limit**. **Weekend bonus** is an additive allowance, not a third quota or a replacement daily budget. The bonus applies separately on Saturday and Sunday, using HA's local calendar. Unused bonus does not roll over.
+Only two independent quotas: **Daily budget** and **Weekly budget**. **Weekend bonus** is an additive allowance, not a third quota or a replacement daily budget. The bonus applies separately on Saturday and Sunday, using HA's local calendar. Unused bonus does not roll over.
 
-Effective finite daily allowance = Daily limit + applicable Weekend bonus + today's one-off bonus (Add 30 minutes). The weekly cap is independent and neither bonus increases it. The daily limit remains unlimited when disabled; zero allows only applicable bonuses. Unlimited gaming bypasses restrictions without erasing usage.
+Effective finite daily allowance = Daily budget + applicable Weekend bonus + today's one-off bonus (Add 30 minutes). The weekly budget cap is independent and neither bonus increases it. The daily budget remains unlimited when disabled; zero allows only applicable bonuses. Unlimited gaming bypasses restrictions without erasing usage.
 
 Example: daily 60 min, weekend bonus 120 min, weekly 600 min. Weekdays allow 60 min; Saturday and Sunday each allow 180 min, subject to the weekly cap. Add 30 minutes on Saturday grants 210 min that day only, still subject to weekly cap.
 
-Daily gaming time and Weekly gaming time display the same accounted minutes used for policy, independently of enabled restrictions or Unlimited gaming. Daily budget and Weekly budget display remaining percentage. HA 0.5.0 preview still counts process presence; the foreground accounting follow-up will replace the accounting source.
+Daily gaming time and Weekly gaming time display the same accounted minutes used for policy, independently of enabled restrictions or Unlimited gaming. Daily budget remaining and Weekly budget remaining display unused percentages, while Daily budget and Weekly budget configure allowed minutes. HA 0.5.0 preview still counts process presence; the foreground accounting follow-up will replace the accounting source.
 
 HA calculates restriction status, and the parent defines actions using ordinary HA automations. Existing Terminate game and Lock PC buttons remain available. The integration no longer selects or executes automated actions itself in the 0.5.0 preview; the verified HA restriction trigger remains a follow-up.
 
