@@ -52,7 +52,7 @@
       },
       "tracked_apps": {
         "title": "Tracked applications",
-        "description": "Read-only tracked applications for {device} ({count}):\\n\\n{apps}\\n\\nCurrently focused executable: {candidate}\\n\\nThis is a live, advisory process name only. Adding, renaming and removing applications requires a verified Windows acknowledgement and is still being implemented in issue #7. No configuration is changed on this screen."
+        "description": "Read-only tracked applications for {device} ({count}):\\n\\n{apps}\\n\\nCurrent focused identity: {candidate}\\n\\nFor Java apps this is the executable plus a safe main-class/JAR/module identifier. A bare Java runtime is ambiguous. Windows sends no private command lines, access tokens, paths or titles; HA will own the configured aliases. Add/Rename/Remove is still in development (#7)."
       }
     },
     "error": {
