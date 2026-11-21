@@ -50,8 +50,6 @@ Some Java apps need more information to tell Minecraft from other apps using `ja
 
 **For developers:** [Original technical notes](../reference/features/tracked-applications-preview-notes.md).
 
-[Gaming budgets](gaming-budgets.md) · [Controls & automations](parent-actions.md)
-
 ---
 
 **Explore more features:** [← Gaming budgets](gaming-budgets.md) · [Controls & automations →](parent-actions.md)

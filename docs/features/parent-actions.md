@@ -43,7 +43,7 @@ The robot insists on a trial run before meeting angry children.
 
 **For developers:** [Original technical notes](../reference/features/parent-actions-preview-notes.md).
 
-[Gaming budgets](gaming-budgets.md) · [Known limitations](../known_limitations.md)
+More: [Gaming budgets](gaming-budgets.md) · [Known limitations](../known_limitations.md)
 
 ---
 

@@ -45,7 +45,7 @@ Until then, this is a plan, not a promise. Even the robot knows better than to g
 
 **For developers:** [Original design notes](../reference/features/screen-idle-bonus-preview-notes.md).
 
-[Gaming budgets](gaming-budgets.md) · [Budget Overview](budget-overview.md)
+More: [Gaming budgets](gaming-budgets.md)
 
 ---
 

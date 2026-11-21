@@ -47,7 +47,7 @@ Dad may now close the spreadsheet. Mum has been waiting.
 
 **For developers:** [Original design notes](../reference/features/budget-overview-preview-notes.md).
 
-[Gaming budgets](gaming-budgets.md) · [AFK grind](screen-idle-bonus.md)
+More: [Gaming budgets](gaming-budgets.md)
 
 ---
 
