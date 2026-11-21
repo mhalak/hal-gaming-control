@@ -32,7 +32,7 @@
       },
       "tracked_apps": {
         "title": "Tracked applications",
-        "description": "**Currently detected application**\n\nRaw sensor value: `{raw_value}`\n\nDisplayed as: **{displayed_as}**\n\n*Snapshot when opened. Switch apps and reopen this screen to refresh.*\n\nUse Add to enroll a detected application; its identity is rechecked on Submit. Only HA mappings change; nothing is written to Windows.",
+        "description": "**Currently detected application**\n\nRaw sensor value: `{raw_value}`\n\nDisplayed as: **{displayed_as}**\n\n**Snapshot only:** Captured when you open Tracked applications. The detected application does not need to stay focused while you edit; you can Add it later in this same form even if the child switches apps or exits.\n\nTo capture a different application, close this dialog (X), then reopen Configure → Tracked applications. Merely opening Configure does not start detection. There is no live update or Refresh in the native form.\n\nUse Add to enroll the captured application, then Submit. Only this session's confirmed identity or previously saved applications are accepted. Only HA mappings change; nothing is written to Windows.",
         "data": {
           "applications": "Application List"
         }
@@ -40,7 +40,6 @@
     },
     "error": {
       "no_live_candidate": "No fresh uniquely identified application detected. Start it on the selected PC and reopen Configure.",
-      "candidate_changed": "The foreground process changed or its sample expired. Reopen Configure with the correct application focused.",
       "configuration_changed": "The HA application list changed while this form was open. Reopen the flow before editing.",
       "invalid_application": "Invalid application row, duplicate process, or invalid name. Only the verified foreground process can be added.",
       "no_tracked_apps": "No HA-managed applications to modify yet."
