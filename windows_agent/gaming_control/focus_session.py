@@ -252,6 +252,17 @@ class FocusProbe:
             latest = json.loads(raw)
         return latest
 
+    def _observe_raw(self, sample, result, session, now):
+        """Separate verified raw identity from legacy game-rule classification."""
+        if result == UNKNOWN:
+            return
+        self.candidate = candidate_from_sample(
+            sample, session, now, session_lookup=process_session_id)
+        if self.candidate is not None:
+            self.foreground_state = "foreground"
+        elif sample.get("status") == "idle":
+            self.foreground_state = "idle"
+
     def read(self, rules):
         self.candidate = None  # never carry identity over a failed or stale probe
         self.foreground_state = "unknown"
@@ -290,13 +301,7 @@ class FocusProbe:
                 return dict(IDLE if state in ("idle", "locked") else UNKNOWN)
             if isinstance(sample, dict) and isinstance(sample.get("time"), (int, float)) and now - sample["time"] <= MAX_SAMPLE_AGE:
                 self.started = now
-                if result != UNKNOWN:
-                    self.candidate = candidate_from_sample(
-                        sample, session, now, session_lookup=process_session_id)
-                    if self.candidate is not None:
-                        self.foreground_state = "foreground"
-                    elif sample.get("status") == "idle":
-                        self.foreground_state = "idle"
+                self._observe_raw(sample, result, session, now)
             return result
         except Exception as err:
             # A failed open/write can close the pipe just before the child
