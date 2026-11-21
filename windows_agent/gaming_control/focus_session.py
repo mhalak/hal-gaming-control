@@ -254,9 +254,11 @@ class FocusProbe:
 
     def read(self, rules):
         self.candidate = None  # never carry identity over a failed or stale probe
+        self.foreground_state = "unknown"
         try:
             session, status = selected_session()
             if status != "unlocked":
+                self.foreground_state = "idle" if status in ("idle", "locked") else "unknown"
                 self.close()
                 return dict(IDLE if status in ("idle", "locked") else UNKNOWN)
             if session != self.session:
@@ -283,6 +285,7 @@ class FocusProbe:
             # A lock or session switch while reading invalidates the sample.
             current, state = selected_session()
             if current != session or state != "unlocked":
+                self.foreground_state = "idle" if state in ("idle", "locked") else "unknown"
                 self.close()
                 return dict(IDLE if state in ("idle", "locked") else UNKNOWN)
             if isinstance(sample, dict) and isinstance(sample.get("time"), (int, float)) and now - sample["time"] <= MAX_SAMPLE_AGE:
@@ -290,6 +293,10 @@ class FocusProbe:
                 if result != UNKNOWN:
                     self.candidate = candidate_from_sample(
                         sample, session, now, session_lookup=process_session_id)
+                    if self.candidate is not None:
+                        self.foreground_state = "foreground"
+                    elif sample.get("status") == "idle":
+                        self.foreground_state = "idle"
             return result
         except Exception as err:
             # A failed open/write can close the pipe just before the child

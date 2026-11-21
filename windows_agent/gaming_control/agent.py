@@ -144,6 +144,11 @@ def run(config_path, stop_event):
             values = game_state(name for _, name, _ in games) | active
             synchronized = bridge.publish(values, system_uptime())
             if synchronized:
+                # Raw v2 identity is independent of legacy Windows game rules.
+                # The old snapshot remains available during a safe HA cutover.
+                bridge.publish_raw_foreground(
+                    getattr(focus, "foreground_state", "unknown"),
+                    getattr(focus, "candidate", None), foreground_context)
                 bridge.publish_foreground(active, foreground_context)
                 bridge.publish_candidate(getattr(focus, "candidate", None))
             if bridge.updates_enabled and synchronized and bridge.client.is_connected():

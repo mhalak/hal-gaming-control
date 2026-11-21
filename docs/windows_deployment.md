@@ -1,5 +1,12 @@
 # Windows deployment guide
 
+## Windows 0.2.5 Preview 4 — additive HA-owned foreground identity transport
+
+A new **non-retained, expiring MQTT v2** message on `SmartHouse/Gaming/<device_id>/state/foreground_identity` carries `{version:2, device_id, epoch, sequence, observed_at, state, process, signature}`. `state` is `foreground`, `idle`, or `unknown`. A verified foreground application sends only a safe executable basename and optional vetted Java main-class/JAR/module signature; PID, process path, full argv, credentials, window title and user names remain local. This stream does **not** consult the Windows `games` rules.
+
+This update is **transport preparation**, not a completed HA cutover. The legacy `foreground_snapshot`, legacy rules and explicit manual commands coexist temporarily for compatibility. HA source normalization, durable accounting, old entity cleanup and the one-time re-enrollment of applications in HA still require reviewed follow-up work (#4/#7); do not deploy v2 alone as a completed feature. The HA config-entry `options.tracked_apps` persists aliases across upgrades and is not sent to Windows. Preserve OS protections, verify the exact source/build SHA, roll out one approved gaming PC at a time and keep restrictions disabled until validated (#56).
+
+
 Home Assistant (HA) and HACS run independently of the Windows companion. HACS installs only the HA integration; install one Windows service on each managed PC.
 
 ## Prerequisites

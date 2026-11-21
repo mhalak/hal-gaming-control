@@ -25,6 +25,7 @@ FOREGROUND_MAX_AGE = 10
 FOREGROUND_CLOCK_SKEW = 2
 CANDIDATE_PERIOD = 2
 CANDIDATE_EXPIRY = 6
+RAW_FOREGROUND_PERIOD = 2
 
 def _candidate_process(candidate):
     return (isinstance(candidate, tuple) and len(candidate) == 5
@@ -77,6 +78,9 @@ class Bridge:
         self._foreground_sent = float('-inf')
         self._candidate_key = self._candidate_token = None
         self._candidate_sent = float('-inf')
+        self._raw_sequence = 0
+        self._raw_last = None
+        self._raw_sent = float('-inf')
         # MQTT 5 preserves the retain flag even on live deliveries.
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f'gaming-{self.id}',
                                   protocol=mqtt.MQTTv5)
@@ -127,6 +131,9 @@ class Bridge:
             self._foreground_sent = float('-inf')
             self._candidate_key = self._candidate_token = None
             self._candidate_sent = float('-inf')
+            self._raw_sequence = 0
+            self._raw_last = None
+            self._raw_sent = float('-inf')
         # Do not receive stored retained actions; reject any live retained action as well.
         options = mqtt.SubscribeOptions(qos=0, retainAsPublished=True, retainHandling=2)
         for topic in self.command_topics:
@@ -141,6 +148,8 @@ class Bridge:
             self.refresh_requested = True
             self._foreground_context = None
             self._candidate_key = self._candidate_token = None
+            self._raw_last = None
+            self._raw_sent = float('-inf')
         
     def on_message(self, client, userdata, msg):
         with self.lock:
@@ -351,6 +360,66 @@ class Bridge:
             self._foreground_sent = now
         return True
 
+
+
+    def publish_raw_foreground(self, state, candidate, context):
+        """New HA-owned identity transport; never expose PID or full argv.
+
+        Source v2 intentionally coexists with legacy v1 until HA safely
+        migrates its accounting and entities. No Windows game list is used.
+        """
+        with self.lock:
+            if context is None or context is not self._foreground_context:
+                return False
+            generation, observed, captured = context
+            if (not self.connected or self.synced_generation != generation
+                    or generation != self.generation):
+                return False
+            now, wall = time.monotonic(), time.time()
+            age = now - captured
+            if not (0 <= age < FOREGROUND_MAX_AGE and math.isfinite(observed)
+                    and abs((wall - observed) - age) <= FOREGROUND_CLOCK_SKEW):
+                return False
+            if state == "foreground":
+                if not _candidate_process(candidate) or not _candidate_signature(
+                        candidate[0], candidate[4]):
+                    return False
+                process, signature = candidate[0], candidate[4]
+            elif state in ("idle", "unknown") and candidate is None:
+                process = signature = None
+            else:
+                return False
+            identity = (state, process, json.dumps(signature, sort_keys=True))
+            if identity == self._raw_last and now - self._raw_sent < RAW_FOREGROUND_PERIOD:
+                return False
+            expiry = math.floor(FOREGROUND_MAX_AGE - max(age, wall - observed))
+            if expiry < 1:
+                return False
+            self._raw_sequence += 1
+            payload = json.dumps({
+                "version": 2, "device_id": self.id,
+                "epoch": self._foreground_epoch, "sequence": self._raw_sequence,
+                "observed_at": observed, "state": state,
+                "process": process, "signature": signature,
+            })
+        if not self._same_connection(generation):
+            return False
+        try:
+            properties = Properties(PacketTypes.PUBLISH)
+            properties.MessageExpiryInterval = expiry
+            info = self.client.publish(
+                self.root + "/state/foreground_identity", payload,
+                qos=0, retain=False, properties=properties)
+        except (RuntimeError, ValueError, OSError):
+            return False
+        if info.rc != mqtt.MQTT_ERR_SUCCESS:
+            return False
+        with self.lock:
+            if not self.connected or self.generation != generation:
+                return False
+            self._raw_last = identity
+            self._raw_sent = now
+        return True
 
     def publish_candidate(self, candidate):
         """Publish basename, safe signature and opaque token, never PID/path.
