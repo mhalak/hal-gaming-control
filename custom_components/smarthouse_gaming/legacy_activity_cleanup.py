@@ -2,7 +2,7 @@
 
 This module has no startup side effects. A coordinator migration must verify
 a complete v2 source, de-advertised old Windows topics and rollback safety
-before calling async_retire. Recorder history is NEVER deleted.
+before calling async_retire. Shared Recorder history is not touched here.
 """
 import re
 
@@ -14,6 +14,9 @@ from .const import DOMAIN
 _RETIRED = (("sensor", "current_game"),
             ("binary_sensor", "in_game"),
             ("binary_sensor", "gaming_active"))
+# MQTT previously owned an additional Active game discovery entry. The new HA
+# integration owns that sensor; NEVER include it in scoped registry removals.
+_NATIVE_RETIRED = _RETIRED + (("sensor", "active_game"),)
 
 
 class RetirementBlocked(RuntimeError):
@@ -30,7 +33,7 @@ def exact_legacy_topics(device_id, discovery_prefix="homeassistant"):
         raise RetirementBlocked("Untrusted discovery scope")
     return tuple(
         f"{discovery_prefix}/{component}/smarthouse_gaming_{device_id}_{key}/config"
-        for component, key in _RETIRED)
+        for component, key in _NATIVE_RETIRED)
 
 
 def owned_direct_entities(entries, entry_id, device_id):
