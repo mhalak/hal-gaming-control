@@ -191,3 +191,135 @@ async def test_generic_runtime_detected_but_marked_not_enrollable(
         result = await manager.async_init(entry.entry_id)
         result = await manager.async_configure(result["flow_id"], {"next_step_id": "tracked_apps"})
     assert "ambiguous runtime" in result["description_placeholders"]["candidate"]
+
+
+CANDIDATE = {
+    "process": "javaw.exe",
+    "signature": {"kind": "java_class", "value": "net.minecraft.client.main.Main"},
+    "token": "a" * 32,
+    "observed_at": 100,
+}
+
+
+async def test_ha_only_add_app_persists_mapping_and_preserves_budgets(
+        hass, enable_custom_integrations):
+    entry = add_device(hass, DATA1, {"daily": 90, "per_game": {"Roblox": 40},
+                                    "unlimited": True, "bonus_minutes": 20})
+    with patch.object(cf, "_discover_foreground_candidate",
+                      new=AsyncMock(return_value=CANDIDATE)) as observe, \
+            patch.object(cf.mqtt, "async_publish", new=AsyncMock()) as publish:
+        manager = hass.config_entries.options
+        view = await manager.async_init(entry.entry_id)
+        view = await manager.async_configure(view["flow_id"], {"next_step_id": "tracked_apps"})
+        view = await manager.async_configure(view["flow_id"], {"next_step_id": "add_app"})
+        assert view["step_id"] == "add_app"
+        assert "net.minecraft.client.main.Main" in view["description_placeholders"]["candidate"]
+        result = await manager.async_configure(view["flow_id"], {"name": "Minecraft Java"})
+    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert result["data"]["tracked_apps"] == [
+        {"process": "javaw.exe", "signature": CANDIDATE["signature"],
+         "name": "Minecraft Java"}]
+    for key in ("daily", "per_game", "unlimited", "bonus_minutes"):
+        assert result["data"][key] == entry.options[key]
+    assert observe.await_count == 3
+    publish.assert_not_called()
+    assert entry.data == DATA1
+
+
+async def test_stale_or_changed_foreground_does_not_enroll(
+        hass, enable_custom_integrations):
+    entry = add_device(hass, DATA1)
+    stale = CANDIDATE | {"token": "b" * 32}
+    with patch.object(cf, "_discover_foreground_candidate",
+                      new=AsyncMock(side_effect=[CANDIDATE, CANDIDATE, stale])):
+        manager = hass.config_entries.options
+        view = await manager.async_init(entry.entry_id)
+        view = await manager.async_configure(view["flow_id"], {"next_step_id": "tracked_apps"})
+        view = await manager.async_configure(view["flow_id"], {"next_step_id": "add_app"})
+        result = await manager.async_configure(view["flow_id"], {"name": "Minecraft"})
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert result["errors"]["base"] == "candidate_changed"
+    assert "tracked_apps" not in entry.options
+
+
+async def test_duplicate_app_is_rejected_without_overwriting(
+        hass, enable_custom_integrations):
+    existing = [{"process": "javaw.exe", "signature": CANDIDATE["signature"],
+                 "name": "Original"}]
+    entry = add_device(hass, DATA1, {"tracked_apps": existing})
+    with patch.object(cf, "_discover_foreground_candidate",
+                      new=AsyncMock(return_value=CANDIDATE)):
+        manager = hass.config_entries.options
+        view = await manager.async_init(entry.entry_id)
+        view = await manager.async_configure(view["flow_id"], {"next_step_id": "tracked_apps"})
+        view = await manager.async_configure(view["flow_id"], {"next_step_id": "add_app"})
+        result = await manager.async_configure(view["flow_id"], {"name": "Duplicated"})
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert result["errors"]["base"] == "invalid_application"
+    assert entry.options["tracked_apps"] == existing
+
+
+async def test_rename_app_keeps_identity_and_other_options(
+        hass, enable_custom_integrations):
+    existing = [{"process": "javaw.exe", "signature": CANDIDATE["signature"],
+                 "name": "Minecraft"}]
+    entry = add_device(hass, DATA1, {"tracked_apps": existing, "weekly": 240})
+    from custom_components.smarthouse_gaming.app_registry import identity_key
+    key = identity_key("javaw.exe", CANDIDATE["signature"])
+    manager = hass.config_entries.options
+    view = await manager.async_init(entry.entry_id)
+    view = await manager.async_configure(view["flow_id"], {"next_step_id": "rename_app"})
+    result = await manager.async_configure(
+        view["flow_id"], {"target": key, "name": "Minecraft Java"})
+    assert result["data"]["tracked_apps"] == [
+        existing[0] | {"name": "Minecraft Java"}]
+    assert result["data"]["weekly"] == 240
+    assert entry.data == DATA1
+
+
+async def test_remove_app_only_affects_selected_device(
+        hass, enable_custom_integrations):
+    existing = [{"process": "javaw.exe", "signature": CANDIDATE["signature"],
+                 "name": "Minecraft"}]
+    first = add_device(hass, DATA1, {"tracked_apps": existing, "daily": 20})
+    second = add_device(hass, DATA2, {"tracked_apps": existing, "daily": 40})
+    from custom_components.smarthouse_gaming.app_registry import identity_key
+    key = identity_key("javaw.exe", CANDIDATE["signature"])
+    manager = hass.config_entries.options
+    view = await manager.async_init(first.entry_id)
+    view = await manager.async_configure(view["flow_id"], {"next_step_id": "remove_app"})
+    result = await manager.async_configure(view["flow_id"], {"target": key})
+    assert result["data"]["tracked_apps"] == []
+    assert result["data"]["daily"] == 20
+    assert second.options == {"tracked_apps": existing, "daily": 40}
+
+
+async def test_concurrent_app_changes_not_overwritten_but_other_options_preserved(
+        hass, enable_custom_integrations):
+    entry = add_device(hass, DATA1, {"weekly": 120})
+    with patch.object(cf, "_discover_foreground_candidate",
+                      new=AsyncMock(return_value=CANDIDATE)):
+        manager = hass.config_entries.options
+        view = await manager.async_init(entry.entry_id)
+        view = await manager.async_configure(view["flow_id"], {"next_step_id": "add_app"})
+        hass.config_entries.async_update_entry(entry, options={
+            "weekly": 240, "tracked_apps": [{"process": "chrome.exe",
+                                               "signature": None, "name": "Chrome"}]})
+        result = await manager.async_configure(view["flow_id"], {"name": "Minecraft"})
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert result["errors"]["base"] == "configuration_changed"
+    assert entry.options["weekly"] == 240
+
+
+async def test_ambiguous_java_cannot_be_enrolled(
+        hass, enable_custom_integrations):
+    vague = CANDIDATE | {"signature": None}
+    entry = add_device(hass, DATA1)
+    with patch.object(cf, "_discover_foreground_candidate",
+                      new=AsyncMock(return_value=vague)):
+        manager = hass.config_entries.options
+        view = await manager.async_init(entry.entry_id)
+        view = await manager.async_configure(view["flow_id"], {"next_step_id": "add_app"})
+    assert view["type"] == data_entry_flow.FlowResultType.FORM
+    assert view["errors"]["base"] == "no_live_candidate"
+    assert not view["data_schema"].schema
