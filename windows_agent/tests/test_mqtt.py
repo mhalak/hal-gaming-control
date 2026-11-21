@@ -247,3 +247,28 @@ def test_failed_initial_offline_ack_stops_before_discovery():
     ]
     assert b.synced_generation is None
     assert b.refresh_requested
+
+
+def test_v2_agent_retired_activity_discovery_is_exact_and_never_readvertised():
+    b = connected_bridge()
+    b._refresh_discovery()
+    calls = b.client.publish.call_args_list
+    tombstones = {c.args[0] for c in calls if len(c.args) > 1 and c.args[1] == b''}
+    keep = {c.args[0] for c in calls if c.args[0] in b.configs}
+    assert len(b.configs) == 3
+    assert keep == set(b.configs)
+    expected = {
+        f'{b.prefix}/sensor/smarthouse_gaming_pc1_current_game/config',
+        f'{b.prefix}/sensor/smarthouse_gaming_pc1_active_game/config',
+        f'{b.prefix}/binary_sensor/smarthouse_gaming_pc1_in_game/config',
+        f'{b.prefix}/binary_sensor/smarthouse_gaming_pc1_gaming_active/config',
+    }
+    assert expected <= tombstones
+    assert tombstones.isdisjoint(keep)
+    assert all('pc2' not in topic and '#' not in topic and '+' not in topic
+               for topic in tombstones)
+    assert all(c.kwargs == {'qos': 1, 'retain': True}
+               for c in calls if c.args[0] in expected)
+    assert any(topic.endswith('_terminate_game/config') for topic in keep)
+    assert any(topic.endswith('_lock_pc/config') for topic in keep)
+    assert any(topic.endswith('_uptime/config') for topic in keep)

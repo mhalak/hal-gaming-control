@@ -1,5 +1,26 @@
 # Windows deployment guide
 
+## Windows 0.2.6 Preview 5 — retire native agent-derived activity discovery
+
+This source prepares the native MQTT discovery side of issue #67: new Windows agents
+stop advertising the legacy `Current game`, `In game`, `Gaming active`, and
+agent-derived `Active game` entities. On a verified full discovery resync,
+their **exact agent-owned retained discovery config topics** receive empty
+tombstone payloads. The agent still advertises Uptime, Lock PC and Terminate
+game, and it still sends raw v2 foreground identity data to the HA-owned
+`Active game` entity. Legacy wire telemetry and local rule handling may
+temporarily remain for rollback and manual termination; neither is used by
+the HA foreground budget accounting.
+
+**Staged-update dependency:** HA 0.5.2, exact source SHA, app enrollment and
+existing native entity identity migration must be reviewed before the agent
+tombstones old native entities. Deploy HA integration on the confirmed TrueNAS
+project stack and update only ONE authorized Windows PC first; confirm there
+is no duplicate `Active game` entity, and preserve its existing Recorder
+history. If continuity/registry adoption cannot be verified, STOP and do
+not update the second PC. No automatic enforcement or remote updater.
+
+
 ## Windows 0.2.5 Preview 4 — additive HA-owned foreground identity transport
 
 A new **non-retained, expiring MQTT v2** message on `SmartHouse/Gaming/<device_id>/state/foreground_identity` carries `{version:2, device_id, epoch, sequence, observed_at, state, process, signature}`. `state` is `foreground`, `idle`, or `unknown`. A verified foreground application sends only a safe executable basename and optional vetted Java main-class/JAR/module signature; PID, process path, full argv, credentials, window title and user names remain local. This stream does **not** consult the Windows `games` rules.
