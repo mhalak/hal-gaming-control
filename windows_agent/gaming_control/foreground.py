@@ -6,6 +6,58 @@ rules, validates the identity, and classifies the result. No local policy.
 import math
 import time
 import psutil
+import ntpath
+import re
+
+
+_JAVA_RUNTIMES = frozenset(("java.exe", "javaw.exe"))
+# Public Java entry-point identifiers only; no arbitrary switches or values.
+_CLASS = re.compile(r"[a-zA-Z_$][\w$]*(?:\.[a-zA-Z_$][\w$]*)+", re.ASCII)
+_MODULE = re.compile(r"[a-zA-Z_][a-zA-Z_0-9.]*(?:/[a-zA-Z_$][\w$]*(?:\.[a-zA-Z_$][\w$]*)*)?", re.ASCII)
+_JAR = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_.+-]{0,95}\.jar", re.IGNORECASE | re.ASCII)
+_CLASS_PATH = frozenset(("-cp", "-classpath", "--class-path", "-p", "--module-path"))
+_JVM_VALUE_OPTIONS = frozenset(("--add-opens", "--add-exports", "--add-modules",
+                                "--limit-modules", "--patch-module",
+                                "--add-reads", "--enable-native-access"))
+
+
+def _java_identity(argv):
+    """Extract only stable Java entry point; never forward full argv.
+
+    Minecraft launch arguments often contain --accessToken and --username.
+    These are intentionally ignored. Unknown/ambiguous entry points are None.
+    """
+    if not isinstance(argv, (list, tuple)) or len(argv) > 256:
+        return None
+    args = argv[1:] if argv and isinstance(argv[0], str) else argv
+    i = 0
+    while i < len(args):
+        value = args[i]
+        if not isinstance(value, str) or len(value) > 4096:
+            return None
+        if value == "-jar":
+            if i + 1 >= len(args) or not isinstance(args[i + 1], str):
+                return None
+            jar = ntpath.basename(args[i + 1].replace("/", "\\"))
+            return {"kind": "java_jar", "value": jar} if _JAR.fullmatch(jar) else None
+        if value in ("-m", "--module"):
+            if i + 1 >= len(args) or not isinstance(args[i + 1], str):
+                return None
+            module = args[i + 1]
+            return {"kind": "java_module", "value": module} if _MODULE.fullmatch(module) and len(module) <= 128 else None
+        if value in _CLASS_PATH or value in _JVM_VALUE_OPTIONS:
+            i += 2
+            continue
+        if value.startswith("-"):
+            i += 1
+            continue
+        if len(value) <= 128 and _CLASS.fullmatch(value):
+            return {"kind": "java_class", "value": value}
+        # Unknown positional value could be a user file or access token.
+        return None
+    return None
+
+
 
 from .core import match_game
 
@@ -89,9 +141,12 @@ def candidate_from_sample(sample, session, now, process_factory=psutil.Process,
         if (not isinstance(name, str) or len(name) > 128
                 or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _.'()+-]*\.exe", name, re.IGNORECASE)):
             return None
+        signature = None
+        if name.casefold() in _JAVA_RUNTIMES:
+            signature = _java_identity(proc.cmdline())
         if not proc.is_running() or proc.create_time() != created:
             return None
-        return (name, pid, created, session)
+        return (name, pid, created, session, signature)
     except (psutil.Error, OSError, ValueError, TypeError):
         return None
 
