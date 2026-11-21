@@ -13,7 +13,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install pytest
-      - run: python -m pytest -q tests/home_assistant/test_rules.py tests/home_assistant/test_liveness.py tests/home_assistant/test_update_protocol.py tests/home_assistant/test_candidate_protocol.py tests/home_assistant/test_foreground_accounting.py
+      - run: python -m pytest -q tests/home_assistant/test_rules.py tests/home_assistant/test_liveness.py tests/home_assistant/test_update_protocol.py tests/home_assistant/test_candidate_protocol.py tests/home_assistant/test_app_registry.py tests/home_assistant/test_foreground_accounting.py
       - run: python -m compileall -q custom_components
       - run: python -m json.tool custom_components/smarthouse_gaming/manifest.json
   runtime:
