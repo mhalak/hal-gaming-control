@@ -32,9 +32,9 @@
       },
       "tracked_apps": {
         "title": "Tracked applications",
-        "description": "HA-managed applications for {device} ({count}).\\n\\nDetected foreground process: {candidate}\\n\\nEdit the display name of an existing row, remove a row, or use Add item to enroll the currently detected process. Each row shows the actual executable and, for Java, its verified launch signature. The new row preselects the detected process; verify it and enter a friendly name. Keep the app in the foreground until you save.\\n\\nMappings stay in Home Assistant across updates; nothing is written to Windows. Reopen Configure to refresh the detected process.",
+        "description": "**Currently detected application**\\n\\nRaw sensor value: `{raw_value}`\\n\\nDisplayed as: **{displayed_as}**\\n\\nThis is a snapshot from a fresh, device-scoped foreground identity message when you opened this form, not a live feed. To detect a different application, close and reopen Configure → Tracked applications after switching focus on the PC. A recognized application shows its saved display name; an untracked executable displays idle, and missing/ambiguous data is unavailable.\\n\\nEdit an existing application, remove it, or use Add to enroll the last verified foreground candidate. The new item only allows a currently verified executable and, for Java, its safe launch signature. Keep that application focused until submitting; the candidate is rechecked and changed or expired samples are rejected.\\n\\nMappings stay in Home Assistant across updates; nothing is written to Windows.",
         "data": {
-          "applications": "Tracked applications"
+          "applications": "Application List"
         }
       }
     },
