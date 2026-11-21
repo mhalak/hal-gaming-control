@@ -1,50 +1,43 @@
-# Parent controls and Home Assistant automations
+# Controls & automations
 
-[← Documentation](../README.md) · [← Project home](../../README.md)
+[← Back to features](../../README.md#what-can-it-do) · [All guides](../README.md)
 
-**Status:** **Lock PC** and **Terminate game** have passed limited live smoke testing as explicit actions in the development preview. That is not a guarantee for every PC, game or installation.
+<p align="center">
+  <img src="../assets/illustrations/parent-actions.webp" width="300" alt="Dad pushing a reluctant HAL robot toward two angry kids while mum looks worried under an Automation Rules sign">
+</p>
 
-<table>
-  <tr>
-    <td width="132" valign="middle">
-      <img src="../assets/illustrations/parent-actions.webp" width="120" alt="Dad pushing a resisting HAL robot toward angry children while mum watches, under an Automation Rules sign">
-    </td>
-    <td valign="middle">
-      <h3>Automation Rules!</h3>
-      <p>The house can help enforce rules; the robot would rather not negotiate with the kids. Manual buttons work in preview, while safe automatic enforcement still requires validation.</p>
-    </td>
-  </tr>
-</table>
+**Available in development preview:** **Lock PC** and **Terminate game** have passed limited real-PC smoke tests. **Automatic restriction enforcement is not yet validated or enabled by default.**
 
-*Conceptual illustration only — not a screenshot of Home Assistant or proof of released behavior.*
+**Automation Rules!** Let Home Assistant handle the reminders so you can stop personally negotiating the seventh “five more minutes.”
 
-> Manual buttons settle the occasional dispute. Home Assistant automations are the magic that could save your nerves before the next "five more minutes" debate. The robot can referee; the parents still make the rules.
+## Use a manual control
 
-## Before you press anything
+1. Open the **correct child's PC** in Home Assistant.
+2. Check that the Windows agent is connected and reporting fresh information.
+3. Choose the action you need:
 
-Confirm that you've selected the **correct child's PC** in Home Assistant, that its Windows agent is healthy, and that you're not about to interrupt unsaved progress.
+   - **Lock PC:** Locks the Windows session. The child can unlock it normally; a running game may stay open.
+   - **Terminate game:** Closes configured matching game processes. **Unsaved progress can be lost.**
 
-## Lock PC
+These are explicit actions. Simply adding an application to the tracked list does **not** close it.
 
-Use **Lock PC** on the device page to request a Windows workstation lock. It is not a permanent ban; the Windows user can unlock normally. A locked screen is not proof that a running process has terminated.
+## Why use Home Assistant automations?
 
-## Terminate game
+The real benefit is choosing your own rules: a notification, a short grace period, another reminder, or a parent-approved consequence. Home Assistant already has tools for building these workflows.
 
-Use **Terminate game** to request termination of configured matching game processes. This can immediately close the game and **lose unsaved progress**. Do not use it as a casual test while someone is building something important.
+**Do not enable automatic locking or game termination yet.** The device-specific restriction trigger and its safe end-to-end behavior still need real-world validation.
 
-Tracked application enrollment and remote termination are distinct operations. Adding a safe display name in HA must never, on its own, cause a Windows action.
+<details>
+<summary>Advanced automation safety notes</summary>
 
-## The real magic: native Home Assistant automations
+- A future workflow could check a **fresh, device-specific Gaming restriction active** signal, send a warning, wait, check again, and only then act.
+- A daily or weekly budget sensor **by itself is not permission to close a game**. Missing, stale or unavailable data is **not** a confirmed restriction.
+- Test any future destructive automation with disposable game sessions first; verify the exact versions and PC selection.
+- For current technical details, see [automation-only command execution in the HA integration reference](../ha_integration.md#automation-only-command-execution--050-preview).
+- A real screenshot of the manual controls is still pending a sanitized capture.
 
-The two buttons are the manual fallback. The **biggest advantage of a Home Assistant integration** is that parents can define their own automations instead of trusting a hidden, one-size-fits-all punishment engine. Want a notification first? A grace period? A gentle warning before the dramatic finale? Home Assistant already knows how to orchestrate those steps. That is the kind of magic that saves parental nerves — and removes the need to personally negotiate "just five more minutes" for the seventh time.
+</details>
 
-**Example of the intended workflow (not yet a verified end-to-end feature):** once a fresh, device-scoped **Gaming restriction active** signal is available and validated, a native HA automation could notify the family, wait briefly, confirm the restriction is *still active*, then optionally invoke **Terminate game** or **Lock PC**. Or it could simply notify a parent and leave the decision to them. The parent owns the rule, timing and consequence.
+*The frightened robot is conceptual artwork, not a screenshot or evidence that automatic enforcement is already running.*
 
-**Important implementation boundary:** The integration does not silently publish automatic termination or lock commands. The dedicated restriction trigger and automatic enforcement flow still need release/real-device acceptance. Ordinary budget sensors alone are **not** reliable authorization to terminate a game; unknown or unavailable telemetry is **not** a confirmed restriction. Keep destructive automations **disabled** until the exact version, trigger freshness and behavior have been tested with disposable sessions. [See the version-specific HA integration reference](../ha_integration.md#automation-only-command-execution--050-preview).
-
-## Screenshots
-
-**Screenshot pending:** sanitized HA device page showing the two manual buttons and a simple confirmation of which PC is selected. Avoid user/PC names or local network details.
-
-### Related
 [Gaming budgets](gaming-budgets.md) · [Windows deployment](../windows_deployment.md) · [Known limitations](../known_limitations.md)

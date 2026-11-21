@@ -1,62 +1,44 @@
-# Track any application
+# Track applications
 
-[← Documentation](../README.md) · [← Project home](../../README.md)
+[← Back to features](../../README.md#what-can-it-do) · [All guides](../README.md)
 
-**Status:** Home Assistant Tracked applications editor is in the current development preview (HA source 0.5.10). Full cross-device, foreground accounting and deployment acceptance remain separate work. This isn't a Windows-side game list.
+<p align="center">
+  <img src="../assets/illustrations/tracked-applications.webp" width="300" alt="Dad with a Home Assistant tablet while his daughter plays Roblox at a PC, with the little HAL robot nearby">
+</p>
 
-<table>
-  <tr>
-    <td width="132" valign="middle">
-      <img src="../assets/illustrations/tracked-applications.webp" width="120" alt="Dad tapping a conceptual Roblox control tablet while daughter plays Roblox, with the friendly HAL robot">
-    </td>
-    <td valign="middle">
-      <h3>The family app detective</h3>
-      <p>The computer reports the active app; Home Assistant decides which name appears on the scoreboard. Even <code>javaw.exe</code> deserves an identity check.</p>
-    </td>
-  </tr>
-</table>
+**Available in development preview:** The Home Assistant application editor is included in the HA 0.5.10 preview source. Full end-to-end tracking still needs validation on each PC.
 
-*Conceptual illustration only — not a screenshot of Home Assistant or proof of released behavior.*
-
-> Roblox gets screen time. Minecraft gets screen time. If you want your child's spreadsheet skills to count as gaming, well, you're the parent.
-
-## What you can track
-
-Any detectable foreground executable can be placed on the per-PC tracked application list, including non-games. Home Assistant assigns a friendly name you choose. For example, `RobloxPlayerBeta.exe` can display as **Roblox**.
-
-Java applications need more care: `java.exe` or `javaw.exe` alone is ambiguous, so the Windows companion provides a minimal *safe* Java class/JAR/module signature when it can. This distinguishes Minecraft from another Java application without exporting command lines or private paths. Some apps cannot be safely identified and shouldn't be guessed.
-
-The PC only observes and reports. **Names and tracked-app settings live in Home Assistant**, not in the child's Windows configuration.
+Track Roblox, Minecraft, or any other application you choose. Windows reports what is in the foreground; **Home Assistant gives it a friendly name**. The family detective knows who is hiding behind that process name.
 
 ## Add an application
 
-1. Confirm the Windows companion and Home Assistant integration are installed and sending fresh telemetry. Start the application on the child's PC and bring it to the foreground.
-2. In Home Assistant, open **Settings → Devices & services → SmartHouse Parental Control**. Choose the correct PC's integration entry, then **Configure → Tracked applications**.
-3. Review **Currently detected application**. It should show the safe raw executable identity (and Java signature where applicable). The editor captures a *snapshot when you open this step*. If the wrong app appears, close the dialog with **X**, focus the right app on Windows, and reopen **Configure → Tracked applications**.
-4. In **Application List**, choose **Add**, supply your friendly name and confirm the inner **Add** dialog. You can similarly edit or remove existing entries.
-5. **Important: press the outer Save changes button as well.** The inner Add/Edit/Delete dialog only changes the draft list displayed on screen. Closing without **Save changes** discards these edits.
-6. Reopen Tracked applications to confirm the persisted mapping. The final user-facing Active game behavior depends on the separately validated foreground cutover; do not treat adding a name as proof that all accounting is correct.
+1. Start the application on the child's PC and bring it to the front.
+2. In Home Assistant, open **Settings → Devices & services → SmartHouse Parental Control** and select the correct PC.
+3. Open **Configure → Tracked applications**. Check **Currently detected application** to make sure it is the right one.
+4. Under **Application List**, choose **Add**, enter a friendly name such as **Roblox**, and press **Add** in that dialog.
+5. **Important: press Save changes in the main window too.** Otherwise, your new entry is not saved.
+6. Reopen **Tracked applications** to check that it is on the list.
 
-**Mobile note:** the on-screen keyboard's Enter action cannot submit the inner Add dialog through the native Home Assistant selector. Tap the actual **Add** button, dismiss the keyboard if needed, then tap the outer **Save changes** button. A single-step editor is deferred to [future custom frontend work](https://github.com/mhalak/smarthouse-parental-control/issues/89).
+**Using a phone?** The keyboard's Enter key does not submit the inner **Add** dialog in the current native HA editor. Tap **Add**, then **Save changes**.
 
-## What should the screen look like?
+## What is actually tracked?
 
-**Screenshot pending — current HA preview, to be captured on a sanitized test setup:**
+A Windows process such as **RobloxPlayerBeta.exe** can appear as **Roblox**. Java apps need a safe extra identifier to tell Minecraft apart from other programs using **javaw.exe**.
 
-1. **Currently detected application** showing a public executable basename and friendly name.
-2. **Application List** showing Add/Edit/Delete for two sample entries.
-3. **Save changes** visible on a mobile screen, including the double-confirmation behavior.
+The Windows companion **reports application identity**; the friendly names and tracked-app list stay in **Home Assistant**, not on the child's PC.
 
-See the [capture checklist](../assets/screenshots/README.md). Do not substitute screenshots from a different version; the form changed between HA 0.5.8, 0.5.9 and 0.5.10.
+<details>
+<summary>Troubleshooting & technical notes</summary>
 
-## Troubleshooting
+- **Wrong app shown?** Detection is a snapshot taken when you open the editor. Close it, focus the correct Windows app, then reopen the editor.
+- **My entry disappeared?** Make sure you pressed the outer **Save changes** button.
+- **Not tracked** means the detected app is not in this PC's list. **Idle** and **Unavailable** mean different things; do not treat them as the same state.
+- Java matching uses a limited safe class/JAR/module identifier where available, **not** private file paths or full command lines. If an app cannot be safely identified, do not guess.
+- Adding an application does not automatically authorize **Terminate game**. End-to-end foreground time accounting still needs device-specific testing.
+- The editor's detailed UI may vary across preview versions. Real sanitized screenshots are pending. See the [screenshot checklist](../assets/screenshots/README.md).
 
-- **The wrong app appears:** focus the desired Windows app, close the HA Options Flow completely and reopen Tracked applications. The preview does not live-refresh.
-- **It says Not tracked:** the detected app has not been enrolled in this PC's list. An explicit Idle means no tracked application is active; Unavailable means insufficient reliable telemetry. These states are not interchangeable.
-- **Bare Java cannot be added as Minecraft:** a stable, safe distinguishing Java signature is required. Never paste the entire launch command containing auth tokens.
-- **My new entry disappeared:** check whether the outer **Save changes** was pressed.
+</details>
 
-This feature is independent of **Terminate game**: adding an application for tracking does not itself authorize a remote game-closing action.
+*The tablet and slider in the illustration are fictional, not a released Roblox control screen.*
 
-### Related
-[Gaming budgets](gaming-budgets.md) · [Screen idle bonus — planned](screen-idle-bonus.md) · [HA integration guide](../ha_integration.md) · [Product direction](../product_direction.md)
+[Gaming budgets](gaming-budgets.md) · [Controls & automations](parent-actions.md) · [HA integration guide](../ha_integration.md)

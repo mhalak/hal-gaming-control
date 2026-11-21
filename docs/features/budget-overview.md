@@ -1,73 +1,50 @@
-# Budget overview — the gaming-time receipt
+# Budget Overview
 
-[← Documentation](../README.md) · [← Project home](../../README.md)
+[← Back to features](../../README.md#what-can-it-do) · [All guides](../README.md)
 
-**Status: planned; not implemented.** See [design issue #93](https://github.com/mhalak/smarthouse-parental-control/issues/93). The existing daily/weekly entities are not yet an itemized Budget overview.
+<p align="center">
+  <img src="../assets/illustrations/budget-overview.webp" width="300" alt="Dad carefully checking the HAL Systems gaming-time budget while mum looks unimpressed next to a Budget Review Do Not Disturb sign">
+</p>
 
-<table>
-  <tr>
-    <td width="132" valign="middle">
-      <img src="../assets/illustrations/budget-overview.webp" width="120" alt="Dad reviewing a detailed HAL gaming budget with mum watching unimpressed beside a Do Not Disturb desk sign">
-    </td>
-    <td valign="middle">
-      <h3>Budget Review — DO NOT DISTURB</h3>
-      <p>The family gaming-time auditor has receipts. Mum is distinctly unimpressed. The breakdown below is an illustration of a planned feature, not live data.</p>
-    </td>
-  </tr>
-</table>
+**Planned — not implemented.** The itemized Budget Overview does not exist in the released Home Assistant interface yet. See [design issue #93](https://github.com/mhalak/smarthouse-parental-control/issues/93).
 
-*Conceptual illustration only — not a screenshot of Home Assistant or proof of released behavior.*
+**Budget Review — DO NOT DISTURB.** When someone asks “Where did my gaming time go?”, the family accountant should be able to show a simple receipt.
 
-> When a child asks, "Where did all my time go?", you should be able to show a receipt without opening twelve sensors or doing arithmetic on the fridge.
+## What it would show
 
-## Proposed per-PC display
+A clear breakdown for **one child's PC**, using example values:
 
-Example only — **not live Home Assistant data**:
+| Item | Minutes |
+| --- | ---: |
+| Daily allowance | 180 |
+| Weekend bonus | +30 |
+| Parent bonus | +30 |
+| Screen idle bonus | +10 |
+| Gaming time used | −200 |
+| **Time left today** | **50** |
 
-```text
-Gaming budget — Today
+**This is an example, not live Home Assistant data.** Some bonuses shown here are themselves planned.
 
-+180 min   Daily budget
- +10 min   Screen idle bonus
- +30 min   Parent bonus
------------------------------
- 220 min   Total daily budget
--210 min   Measured gaming time
------------------------------
-  10 min   Remaining today
+Each bonus would appear on its own line. **Measured gaming time would stay unchanged** even when a bonus adds more daily allowance.
 
-Weekly remaining: shown separately
-```
+## Where would it appear?
 
-On weekends, the **Weekend bonus** appears as a separate positive line. Each press of **Add 30 minutes** increases the Parent bonus line for the current day.
+The first version is planned as a **native Home Assistant Markdown dashboard card**. No extra frontend card should be required.
 
-The **Screen idle bonus is a true, parent-approved daily bonus**, **not** a correction to measured usage. In this example, daily and weekly **measured** gaming time remain 210 minutes. The daily allowance is 220; daily remaining is 10. A weekly cap is *not* raised by any of these daily bonuses, so the weekly restriction may still be binding.
+**Weekly limits remain independent.** An extra 30 minutes today does not grant 30 extra minutes for the week.
 
-## Where will it live?
+<details>
+<summary>Technical design & data quality</summary>
 
-The first implementation target is a **native Home Assistant Markdown dashboard card** reading a structured, per-PC breakdown from the integration. This requires no extra HACS card or custom JavaScript.
+- A standard Home Assistant **device info page cannot be extended with arbitrary Markdown** by a Python integration; a custom frontend is a later idea.
+- The integration would need one consistent per-PC snapshot of daily allowance, separate bonus types, measured usage, daily remaining and weekly remaining.
+- Missing or incomplete Recorder history must be reported as **unknown or incomplete**, not as fake zero.
+- A bonus event ledger would prevent duplicate awards after MQTT reconnects, restarts or repeated display events.
+- The proposed Screen idle bonus increases today's allowance; it must **never subtract recorded daily, weekly or per-app gaming time**.
+- Real Home Assistant screenshots can only be added after the feature is implemented and tested.
 
-**Important limitation:** the standard Home Assistant **Settings → Devices & services → Device info** page does not allow a Python integration to insert arbitrary Markdown into the middle of its default entity list. A custom frontend for that page is deferred; the Markdown dashboard card is the near-term plan.
+</details>
 
-## Where will the data come from?
+*The clipboard and “50 min” total are fictional example art, not a screenshot of an existing feature.*
 
-The integration should expose a consistent structured snapshot (not a string of independently rounded guesses) with these fields:
-
-- Daily base allowance and, when applicable, separate Weekend, Parent and Screen idle bonus minutes.
-- Effective daily total and current measured gaming time.
-- Daily remaining and **weekly remaining** / weekly availability.
-- Source freshness and incomplete Recorder coverage, without reporting missing values as fake zero.
-
-Bonus grants need an event ledger to avoid duplicates on reconnect, restart or repeat display-off messages. A Screen idle bonus increases **daily allowance**; measured per-app/daily/weekly time remains recorded. Parent-granted bonuses remain separate from Screen idle awards.
-
-## Screenshot plan
-
-**Screenshot pending — cannot capture until this feature exists and is deployed:**
-1. The itemized Markdown dashboard card with sanitized example PC label and the five ledger rows.
-2. A Screen idle bonus being added after a verified display-off event.
-3. Daily budget remaining alongside the **independent weekly remaining** state, including an exhausted-weekly example.
-
-No mocked screenshot should be presented as proof of a shipped feature. See [screenshot checklist](../assets/screenshots/README.md).
-
-### Related
-[Gaming budgets](gaming-budgets.md) · [Screen idle bonus](screen-idle-bonus.md) · [Issue #93](https://github.com/mhalak/smarthouse-parental-control/issues/93)
+[Gaming budgets](gaming-budgets.md) · [AFK / Screen idle bonus](screen-idle-bonus.md) · [Known limitations](../known_limitations.md)

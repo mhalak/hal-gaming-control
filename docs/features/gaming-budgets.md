@@ -1,68 +1,48 @@
-# Gaming budgets and bonus minutes
+# Gaming budgets & bonuses
 
-[← Documentation](../README.md) · [← Project home](../../README.md)
+[← Back to features](../../README.md#what-can-it-do) · [All guides](../README.md)
 
-**Status:** Daily and weekly limits and the **Add 30 minutes** action exist in preview source; verify your installed HA version before using them. The additive Weekend bonus UI and Screen idle bonus have separate release/acceptance boundaries; do not assume every feature below is installed.
+<p align="center">
+  <img src="../assets/illustrations/gaming-budgets-portrait.webp" width="300" alt="King-dad giving golden bonus-minute coins to his two unimpressed children and the HAL robot">
+</p>
 
-<table>
-  <tr>
-    <td width="42%" valign="middle">
-      <img src="../assets/illustrations/gaming-budgets.webp" width="320" alt="Caricature of the king-dad granting plus-ten and plus-thirty golden gaming coins to his unimpressed kids, watched by a small friendly robot">
-    </td>
-    <td valign="middle">
-      <h3>By royal decree: bonus minutes!</h3>
-      <p>A daily budget is a rule. A parent bonus is a negotiation. A weekly cap is what happens when someone tries to negotiate seven times.</p>
-      <p>With great power comes the ability to press <strong>Add 30 minutes</strong>. Use it wisely, Your Majesty.</p>
-    </td>
-  </tr>
-</table>
+**Available in development preview:** Daily and weekly limits and the **Add 30 minutes** button. Check your installed Home Assistant version before following these steps.
 
-*Illustration only — not a screenshot of Home Assistant. Coin denominations are visual storytelling, not additional released bonus buttons.*
+Set the rules, then enjoy not hearing “five more minutes” quite so often. Feeling generous? You can still play king for a day.
 
-## Set the basic limits
+## Set a gaming limit
 
-1. In Home Assistant, go to **Settings → Devices & services → SmartHouse Parental Control** and open the **device page for the desired PC**.
-2. Locate **Daily limit** and **Weekly limit**. They are separate quotas; setting a daily allowance doesn't remove a stricter weekly limit.
-3. Set the allowances and check the current **Daily gaming time**, **Weekly gaming time**, **Daily budget**, and **Weekly budget** entities where available in your installed preview.
-4. Confirm the behavior with a short real-device test before enabling any restrictions or external automation. **No automatic enforcement should be enabled just because a budget sensor exists.**
+1. Open **Home Assistant → Settings → Devices & services → SmartHouse Parental Control**.
+2. Open the **device page for the child's PC**.
+3. Set **Daily limit** and **Weekly limit**.
+4. Check the available gaming-time and budget sensors. Try a short test on the PC to confirm the readings.
 
-The older **Weekend daily limit** option *replaces* the daily allowance and is not the same as the newer *additive* **Weekend bonus**. Upgrading between versions requires a safe migration. See [HA integration details](../ha_integration.md) and [product direction](../product_direction.md).
+**Daily and weekly limits are separate.** A child can have time left today but still reach the weekly limit.
 
-## Give a parent bonus
+## Give extra time
 
-Select **Add 30 minutes** on the child's PC. Each confirmed press grants another 30 minutes to **that day's daily allowance**; it resets on the Home Assistant local calendar's next midnight.
+Press **Add 30 minutes** on the child's PC to grant 30 more minutes **today**.
 
-It **does not add 30 minutes to the weekly limit**, and it does not erase already measured gaming time. For example, a 180-minute daily limit plus one 30-minute parent bonus means 210 daily minutes available, subject to the remaining weekly allowance.
+For example, a 180-minute daily allowance becomes **210 minutes** after one bonus. The bonus does **not** increase the weekly limit or erase time already played. It expires at the next Home Assistant local midnight.
 
-**Unlimited gaming** is a separate override: it bypasses applicable restrictions without erasing tracked usage. Use it deliberately; it isn't the same as resetting the clock.
+## What about other bonuses?
 
-## Understand the numbers
+- **Weekend bonus:** Extra daily minutes for weekends are part of the target design. Do not assume the additive bonus is available in your installed version.
+- **Screen idle bonus:** A [planned feature](screen-idle-bonus.md) for eligible inactive time before the monitor turns off. It does not remove recorded gaming time.
+- **Unlimited gaming:** A separate override that bypasses applicable limits without deleting usage history.
 
-- **Measured gaming time**: how much tracked, confirmed time has been accounted for the period (subject to coverage limitations).
-- **Daily budget**: today's allowance, including applicable bonuses.
-- **Weekly budget**: an independent cap on usage during the week.
-- **Weekend bonus (target model)**: extra daily minutes on each weekend day; no rollover to Monday.
-- **Screen idle bonus (planned)**: additional *daily* allowance from eligible inactivity before Windows turned the display off. It is **not** a reduction of recorded gaming time. [Explanation](screen-idle-bonus.md).
+The [itemized Budget Overview](budget-overview.md) is also **planned**, not a released screen.
 
-An itemized textual [Budget overview](budget-overview.md) is planned. Until released, use the actual preview entities, their attributes and the release-specific guide rather than assuming the proposed display exists.
+<details>
+<summary>Technical notes & troubleshooting</summary>
 
-## Screenshots
+- The older **Weekend daily limit** *replaces* the normal daily allowance; it is not the planned additive **Weekend bonus**. See the [HA integration reference](../ha_integration.md) for version-specific behavior.
+- If the PC is offline or telemetry is missing, recorded time may be incomplete. **Unknown is not zero.**
+- Budget sensors alone must not trigger automatic game termination. Do not enable automatic enforcement before validating the exact installation.
+- Real, privacy-safe screenshots are still pending. See the [screenshot checklist](../assets/screenshots/README.md) and [release history](../ha_releases.md).
 
-**Screenshot pending — capture on a version-verified, sanitized test installation:**
+</details>
 
-1. PC device page showing Daily limit, Weekly limit and gaming-time/budget entities.
-2. Parent pressing **Add 30 minutes**, then the reflected daily allowance.
-3. Weekend bonus controls **only after** the additive UI is actually released.
+*The illustration is a cartoon, not a Home Assistant screenshot. Its +10 coins do not represent an extra released button.*
 
-[How to capture screenshots safely](../assets/screenshots/README.md)
-
-## Common questions
-
-**Why is there time left today but the child still cannot play?** The weekly limit or another active restriction can independently prevent gaming.
-
-**Why did the number not change while the PC was offline?** Missing telemetry may mean incomplete coverage. Don't interpret unknown as zero and don't invent historical gaming time.
-
-**Did the Screen idle bonus rewrite the activity history?** No. It is a policy bonus granted by the parent, not a measurement correction.
-
-### Related
-[Manual actions](parent-actions.md) · [Budget overview — planned](budget-overview.md) · [Screen idle bonus — planned](screen-idle-bonus.md) · [Release history](../ha_releases.md)
+[Track applications](tracked-applications.md) · [Controls & automations](parent-actions.md) · [Known limitations](../known_limitations.md)
