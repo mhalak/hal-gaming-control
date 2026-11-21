@@ -12,13 +12,15 @@ game, and it still sends raw v2 foreground identity data to the HA-owned
 temporarily remain for rollback and manual termination; neither is used by
 the HA foreground budget accounting.
 
-**Staged-update dependency:** HA 0.5.3, exact source SHA, app enrollment and
-existing native entity identity migration must be reviewed before the agent
-tombstones old native entities. Deploy HA integration on the confirmed TrueNAS
-project stack and update only ONE authorized Windows PC first; confirm there
-is no duplicate `Active game` entity, and preserve its existing Recorder
-history. If continuity/registry adoption cannot be verified, STOP and do
-not update the second PC. No automatic enforcement or remote updater.
+**Clean-start dependency (owner-approved):** use reviewed HA 0.5.4
+and Windows 0.2.6, and follow `docs/foreground_migration.md`. Old gaming
+Recorder history and original native `Active game` entity ID **do not need
+preservation**. Capture the exact old PC entity IDs before deletion and
+purge only their history with HA's `recorder.purge_entities`, never the
+shared HA database. The HA-owned new Active game may receive a new entity
+ID; prevent duplicates by verifying native tombstones and scoped cleanup.
+Keep the one-PC TrueNAS pilot and safe rollback gates. No automatic
+enforcement or remote updater activation.
 
 
 ## Windows 0.2.5 Preview 4 — additive HA-owned foreground identity transport

@@ -37,6 +37,7 @@ async def test_exact_topics_have_no_wildcards_or_other_device():
         "homeassistant/sensor/smarthouse_gaming_pc1_current_game/config",
         "homeassistant/binary_sensor/smarthouse_gaming_pc1_in_game/config",
         "homeassistant/binary_sensor/smarthouse_gaming_pc1_gaming_active/config",
+        "homeassistant/sensor/smarthouse_gaming_pc1_active_game/config",
     )
     assert exact_legacy_topics("pc1") == expected
     assert exact_legacy_topics("pc2") != expected
@@ -87,7 +88,7 @@ async def test_exact_scoped_registry_cleanup_preserves_unrelated_entries(hass):
             patch.object(mqtt, "async_publish", new_callable=AsyncMock) as pub:
         done = await async_retire(hass, entry1, v2_cutover_verified=True,
                                   legacy_discovery_stopped=True)
-    assert pub.await_count == 3
+    assert pub.await_count == 4
     assert set(done["retired_scoped"]) == {e.entity_id for e in one}
     for old in one:
         assert registry.async_get(old.entity_id) is None

@@ -1,93 +1,94 @@
-# Issue #4 — first enrollment, migration and one-PC acceptance
+# Parental Control — clean-start migration (issue #4 / #67)
 
-The HA 0.5.3 source removes legacy direct MQTT activity entities from
-new registrations. Old scoped entity registry entries are not automatically
-deleted: the operator must use the exact-owner guarded cleanup after the full
-foreground cutover and native discovery retirement. Preserve Recorder.
+**Owner decision (2026-11-21):** Test-only Parental Control usage history
+does **not** need preserving. For the first coordinated v2 deployment,
+start again with new HA-owned activity entities and verified usage intervals.
+This supersedes the historical entity-ID adoption procedure.
 
-The production source cutover is gated on all required PRs and real device
-acceptance; **do not deploy unfinished core libraries as a feature**.
+**Scope:** Only the two **explicitly selected Parental Control gaming PCs**
+and their verified historical Gaming/Parental Control entity IDs. **Never**
+wipe HA's complete Recorder database or purge unrelated lights, climate,
+energy, other PCs or house services. No deletion happens automatically on
+upgrade, restart or reading this document.
 
-## Owner-facing behavior at the next integrated deploy
+## One-time maintenance plan
 
-1. After installing the compatible Windows v2 agent + HA integration, open
-   **Settings → Devices & services → Parental Control → Configure → Tracked applications**
-   for each associated gaming PC. The new HA-owned list intentionally starts
-   empty if the PC has never used this configuration. Legacy Windows rules
-   MUST NOT be automatically imported.
-2. Start one desired game, observe the fresh raw executable + safe argument
-   signature on the right PC, click **Add application**, choose a readable
-   name such as Minecraft or Roblox, and save. Java must include a verified
-   class/JAR/module discriminator; bare java.exe/javaw.exe is not enough.
-3. Add any other games the same way. Rename/Remove stays entirely within
-   the HA config entry; no Windows config changes, service restarts, or
-   automatic terminate/lock are side effects of enrollment.
-4. HA persists the mapped raw identity and display name in the selected
-   config entry's `options.tracked_apps`. From the **second** version update
-   onward, reopening Configure is optional: previously saved applications
-   remain installed and retain their names. Back up HA config entries/options
-   during each upgrade and verify a restart/update roundtrip.
-5. An unconfigured valid focused process is not charged as tracked gaming.
-   Offline, unsupported, stale or ambiguously identified runtime is
-   **unavailable/unknown**, never a confirmed idle sample.
-6. Account only current-day and current-week verified foreground intervals;
-   old Recorder rows must remain untouched. Unknown previous periods cannot
-   be silently backfilled or counted as idle. Manual Lock PC / Terminate game
-   buttons remain available where originally advertised.
+1. Identify the actual TrueNAS-associated HA and authorized Windows
+   gaming PC. Record installed SHA/version, MQTT discovery mode and device
+   ID. Keep restrictions/auto lock and termination **disabled**. Stop the
+   selected Windows gaming agent during the reset. Do not deploy to the
+   second PC until the first pilot passes.
+2. Capture a *rollback* backup of HA config-entry options (limits,
+   `tracked_apps`, MQTT setup), Recorder, existing registry and the Windows
+   agent version/config. These backups are optional for *retention* but
+   useful if the reset/deployment fails. No secrets in public issues.
+3. **Before removing registry entries**, make an explicit per-device list
+   of *all* old Parental Control entity IDs, including native MQTT, direct
+   MQTT, budgets, duration/usage sensors, switches and any previously
+   renamed or removed gaming IDs known from Recorder. Confirm every
+   entity belongs to the selected PC. Avoid guesses and wildcard patterns.
+4. Unload the specific Parental Control HA config entry. If an earlier v2
+   preview had already stored confirmed intervals, invoke the explicitly
+   guarded maintenance function
+   `fresh_start.async_reset_confirmed_intervals(hass, entry,
+   confirm_device_id="<verified device ID>")` in an authorized HA
+   maintenance context. It rejects a loaded entry, wrong PC and corrupt
+   data; it clears only that entry's **v2 confirmed-interval checkpoint**,
+   not options or other PCs. A first-time installation with no cutover
+   already has an empty ledger and needs no reset. Do this **once**, not
+   on normal updates.
+5. While old sources are stopped, in HA **Developer Tools → Actions** use
+   the official `recorder.purge_entities` action with `keep_days: 0`
+   and only the **exact, reviewed** entity IDs from step 3. Example YAML
+   (replace with the real selected gaming entity IDs; *not* a copy-paste
+   action for arbitrary devices):
 
-## Staged GO/NO-GO test matrix (source + installed evidence)
+   ```yaml
+   action: recorder.purge_entities
+   data:
+     keep_days: 0
+     entity_id:
+       - sensor.example_gaming_pc_old_active_game
+       - sensor.example_gaming_pc_old_current_game
+       - binary_sensor.example_gaming_pc_old_in_game
+   ```
 
-| Gate | Required demonstration | Failure action |
-| --- | --- | --- |
-| Source | Exact reviewed SHA, versions, 8/8 CI, 90% coverage | NO-GO |
-| Backup | TrueNAS-associated HA config entries/options, entity IDs, Recorder and agent rollback | NO-GO |
-| Setup | First HA enrollment Minecraft Java + Roblox on chosen PC | NO-GO if mixed with legacy names |
-| Persistence | HA reload, restart, new component version retain apps and aliases | Roll back HA |
-| Live state | Alt+Tab/game→browser/lock/offline, stale/replay protection | No cutover |
-| Timing | Current day/week, DST/week boundary, crash and unknown gaps | Disable restrictions, no automatic commands |
-| Isolation | Second PC cannot claim first PC's raw topics, mappings or history | Roll back |
-| Discovery | Only verified redundant entities retired, Active game identity retained | Block cleanup |
-| Safety | No autonomous terminate/lock MQTT; explicit buttons still function in safe mock | NO-GO |
-| Pilot | TrueNAS project + one authorized Windows PC (not other HA sites) | Stop and report |
+   Add all confirmed Gaming/Parental Control history entities for that
+   selected device to the explicit list. Check Recorder has completed
+   the queued purge. Do **not** call global `recorder.purge`, delete the
+   shared database file, use `domains: [sensor]`, or broad globs.
+6. Install the reviewed compatible **HA 0.5.4 + Windows agent 0.2.6**
+   source/build on the authorized pilot only. Windows sends non-retained
+   raw `foreground_identity` v2 and retires its exact legacy native MQTT
+   activity discovery topics. Verify old MQTT registry entries disappear
+   and cannot be re-advertised. For previous scoped HA legacy entries,
+   the gated exact-owner `legacy_activity_cleanup.async_retire` helper
+   can retire them only after source/old-agent verification. This cleanup
+   preserves the **new** HA-owned `Active game` sensor.
+7. **Do not capture or adopt any old `Active game` entity ID.** The new
+   HA-owned sensor gets a fresh unique ID (`<device>_active_game`) and
+   may receive a different entity ID if HA has collisions. Once old
+   entities are gone, verify and optionally rename the new entity in HA
+   to the desired friendly ID. No old Recorder continuity is required.
+8. For each PC's first new setup, open **Settings → Devices & services →
+   SmartHouse Parental Control → Configure → Tracked applications**.
+   Remove obsolete test aliases if any. Run Minecraft/Roblox (or any
+   desired game), select its **fresh** raw executable + vetted Java
+   class/JAR/module discriminator, then add a friendly HA name. **Never**
+   auto-import old Windows `games` rules. This list lives only in that
+   PC's HA `options.tracked_apps` and **persists across later upgrades**;
+   do not repeat enrollment on the second and later updates.
+9. Validate live foreground Alt+Tab/game→browser/minimize, `idle` vs
+   `unknown`, reconnect, HA restart, two-PC isolation, current day/week,
+   one-time initialization, historical checkpoint starting at zero,
+   stable alias names, manual buttons and no duplicate entities. Unknown
+   periods remain incomplete, not false idle. Do not enable automatic
+   enforcement on incomplete coverage.
+10. Record actual installed SHAs and pilot PASS/FAIL for #56. If anything
+    fails, stop and roll back; do not touch the second PC or unrelated HA
+    services. This document does not claim the live cleanup/deploy ran.
 
-Actual host inventory, signing, service recovery and the second PC require
-the separate controlled deployment process in #56 and explicit owner approval.
-Keep private infrastructure, credentials and child identifiers out of public
-CI fixtures and PR comments. A synthetic test harness is not proof of a
-successful live installation.
-
-Current synthetic tests: `tests/home_assistant/test_foreground_e2e.py`.
-
-## Native MQTT Active game entity ID preservation — manual guarded steps
-
-This procedure must be carried out only by the authorized deployment
-operator. Code support is in `active_game_identity.py`; the helper is
-**never invoked on HA startup or background discovery**.
-
-1. While the **old MQTT Active game entity still exists**, call
-   `async_capture_native_active_game(hass, entry)` for the exact device.
-   This durably captures its existing `sensor.*` entity ID under that
-   entry's HA storage. It refuses missing or ambiguous ownership.
-2. Upgrade the verified TrueNAS-associated HA integration to the reviewed
-   HA v2 foreground source. Deploy the compatible Windows native discovery
-   retirement build to **one PC only** after the agent has passed security
-   and rollback checks. Confirm exact tombstones for old agent-owned
-   activity sensors and no re-advertisement by legacy agents.
-3. Wait until the old native `sensor.*_active_game` MQTT registry entry is
-   actually unregistered. Verify the new HA-owned entity is registered,
-   belongs to the expected config entry, and no unrelated entity occupies
-   the historic entity ID.
-4. Call `async_adopt_native_active_game(hass, entry,
-   legacy_retired=True)` **only** after independently verifying these
-   conditions. This moves the HA-owned entity to the original entity ID,
-   preserving existing Recorder history by key. It refuses collisions,
-   cross-device ownership, or absent checkpoints. The operation is
-   idempotent on repeated, verified invocation.
-5. Inspect the device page and history. If old agent re-advertises native
-   topics, a collision appears, or the entity ID/history cannot be
-   preserved, **STOP** and use the prepared rollback procedure; never
-   delete Recorder rows or try wildcard registry deletions.
-
-The helper's boolean `legacy_retired` is a manual operator assertion,
-NOT independent proof of safe production migration. This does not
-constitute a successful real-device deployment or a finished #56.
+The Recorder purge removes historical state rows of the specified entities.
+The separate verified-interval checkpoint is intentionally reset in step 4.
+**Neither occurs automatically.** The stable per-PC mappings created after
+clean start continue to survive future HA updates.
