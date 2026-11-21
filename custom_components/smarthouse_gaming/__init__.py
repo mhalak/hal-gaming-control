@@ -64,5 +64,6 @@ def _remove_legacy_statistics(hass, entry):
         if ((domain == "sensor" and
              (key in old_sensors or re.fullmatch(r"played_game_[0-9a-f]{16}", key)))
                 or (domain == "binary_sensor" and key == "allowed")
+                or (domain == "number" and key == "weekend_daily_limit")
                 or (domain == "select" and key in {"add_action", "remove_action"})):
             registry.async_remove(entity.entity_id)
