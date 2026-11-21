@@ -36,18 +36,20 @@ def test_gaming_time_displays_verified_elapsed_with_incomplete_coverage():
     c = coordinator(ready=True)
     day = GamingTimeSensor(c, "daily", "Daily gaming time")
     week = GamingTimeSensor(c, "weekly", "Weekly gaming time")
-    assert day.native_value == 2
-    assert week.native_value == 4
+    assert day.native_value == round(120 / 3600, 9)
+    assert week.native_value == round(240 / 3600, 9)
     assert day.extra_state_attributes["coverage_incomplete"] is True
     assert day.extra_state_attributes["cutover_since"] == 100
     assert day.unique_id == "pc1_gaming_time_daily"
+    assert day.native_unit_of_measurement == "h"
+    assert week.native_unit_of_measurement == "h"
 
 
 def test_previous_confirmed_history_remains_readable_when_offline():
     c = coordinator(ready=False, recorded=60, segments=True)
     sensor = GamingTimeSensor(c, "daily", "Daily gaming time")
     assert sensor.available is True
-    assert sensor.native_value == 1
+    assert sensor.native_value == round(60 / 3600, 9)
     c.foreground.export_segments.return_value = []
     assert sensor.available is False
 
@@ -56,3 +58,13 @@ def test_unknown_first_start_does_not_display_a_false_zero():
     c = coordinator(ready=False, recorded=0, segments=False)
     sensor = GamingTimeSensor(c, "daily", "Daily gaming time")
     assert sensor.available is False
+
+
+def test_long_duration_keeps_hours_minutes_and_seconds():
+    from homeassistant.const import UnitOfTime
+    c = coordinator(ready=True, recorded=711 * 60 + 3)
+    sensor = GamingTimeSensor(c, "daily", "Daily gaming time")
+    assert sensor.native_unit_of_measurement == UnitOfTime.HOURS
+    # Numeric duration with an hours unit lets HA's frontend format as H/M/S.
+    assert abs(sensor.native_value * 3600 - (711 * 60 + 3)) < 0.001
+    assert sensor.unique_id == "pc1_gaming_time_daily"
