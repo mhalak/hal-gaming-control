@@ -307,7 +307,14 @@ async def test_ha_owned_active_game_ignores_legacy_agent_game_names(
         assert hass.states.get(legacy).state == "Roblox"
         assert hass.states.get(game).state == "unavailable"
         assert (entry.runtime_data.foreground._connected, entry.runtime_data.foreground._online) == (True, True)
-        await emit(("state/foreground_identity", raw(1)))
+        source = entry.runtime_data.foreground
+        with patch.object(source.ledger, "observe", wraps=source.ledger.observe) as received:
+            await emit(("state/foreground_identity", raw(1)))
+            assert received.call_count == 1, "Scoped MQTT callback not invoked"
+            assert received.call_args.kwargs["retained"] is False, received.call_args
+            assert received.return_value is True, source.ledger.ledger._live.__dict__
+        assert source.current() == "Roblox", source.ledger.ledger._live.__dict__
+        assert entry.runtime_data.data["active_game"] == "Roblox", entry.runtime_data.data
         assert hass.states.get(game).state == "Roblox"
         # Legacy spoofed or stale game labels cannot change the HA name.
         await emit(("state/active_game", "Legacy Win label"))
