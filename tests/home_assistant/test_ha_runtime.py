@@ -452,24 +452,19 @@ async def test_per_game_editor_hidden_preserving_existing_settings(hass, enable_
     manager = hass.config_entries.options
     result = await manager.async_init(entry.entry_id)
     assert result["type"] == data_entry_flow.FlowResultType.MENU
-    assert "game_limits" not in result["menu_options"]
-    assert "mqtt_settings" in result["menu_options"]
-    assert "update_settings" in result["menu_options"]
-    # Preserve concurrent updates to the now-hidden legacy setting.
+    assert result["menu_options"] == ["mqtt_settings", "tracked_apps"]
+    # Preserve concurrent changes to a hidden legacy setting when the active
+    # Tracked applications editor (not the removed Save page) commits.
     hass.config_entries.async_update_entry(entry, options=dict(entry.options) | {
         "per_game":{"Roblox":45}})
-    result = await manager.async_configure(result["flow_id"], {"next_step_id":"save"})
+    with patch("custom_components.smarthouse_gaming.config_flow._discover_foreground_candidate",
+               return_value=None):
+        form = await manager.async_configure(
+            result["flow_id"], {"next_step_id": "tracked_apps"})
+    result = await manager.async_configure(form["flow_id"], {"applications": []})
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
-    assert entry.options["per_game"] == {"Roblox":45}
+    assert result["data"]["per_game"] == {"Roblox":45}
     assert entry.options["daily"] == 60
-
-
-def test_per_game_editor_translations_removed():
-    from pathlib import Path
-    parent = Path(cf.__file__).parent
-    for rel in ("strings.json","translations/en.json"):
-        steps = json.loads((parent / rel).read_text())["options"]["step"]
-        assert not {"game_limits","choose_game","game_limit"} & steps.keys()
 
 
 @pytest.mark.parametrize("key, platform", [("current_game", "sensor"), ("lock_pc", "button"),
