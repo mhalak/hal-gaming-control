@@ -26,7 +26,7 @@ def _display_name(name):
     if (not isinstance(name, str) or not 1 <= len(name.strip()) <= 80
             or name.strip().casefold() in _RESERVED
             or any(ord(ch) < 32 or ord(ch) == 127 for ch in name)
-            or any(ch in name for ch in "<>{}")):
+            or any(ch in name for ch in "<>{}\\/")):
         raise ValueError("Invalid display name")
     return name.strip()
 
