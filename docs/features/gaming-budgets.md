@@ -4,7 +4,20 @@
 
 **Status:** Daily and weekly limits and the **Add 30 minutes** action exist in preview source; verify your installed HA version before using them. The additive Weekend bonus UI and Screen idle bonus have separate release/acceptance boundaries; do not assume every feature below is installed.
 
-> A daily budget is a rule. A parent bonus is a negotiation. A weekly cap is what happens when someone tries to negotiate seven times.
+<table>
+  <tr>
+    <td width="42%" valign="middle">
+      <img src="../assets/illustrations/gaming-budgets.webp" width="320" alt="Caricature of the king-dad granting plus-ten and plus-thirty golden gaming coins to his unimpressed kids, watched by a small friendly robot">
+    </td>
+    <td valign="middle">
+      <h3>By royal decree: bonus minutes!</h3>
+      <p>A daily budget is a rule. A parent bonus is a negotiation. A weekly cap is what happens when someone tries to negotiate seven times.</p>
+      <p>With great power comes the ability to press <strong>Add 30 minutes</strong>. Use it wisely, Your Majesty.</p>
+    </td>
+  </tr>
+</table>
+
+*Illustration only — not a screenshot of Home Assistant. Coin denominations are visual storytelling, not additional released bonus buttons.*
 
 ## Set the basic limits
 
