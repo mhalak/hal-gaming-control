@@ -1,8 +1,8 @@
 """Owner-facing HA Active game and measured day/week sensor contract."""
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from custom_components.smarthouse_gaming.sensor import (
-    ActiveGameSensor, GamingTimeSensor,
+    ActiveGameSensor, GamingTimeSensor, BudgetSensor,
 )
 
 
@@ -68,3 +68,24 @@ def test_long_duration_keeps_hours_minutes_and_seconds():
     # Numeric duration with an hours unit lets HA's frontend format as H/M/S.
     assert abs(sensor.native_value * 3600 - (711 * 60 + 3)) < 0.001
     assert sensor.unique_id == "pc1_gaming_time_daily"
+
+
+def test_budget_remaining_uses_clear_budget_and_parent_bonus_attribute_names():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    c = coordinator(ready=True, recorded=0)
+    c.options = {"enabled": True, "daily": 120, "weekly": 420,
+                 "weekend_bonus": 60, "bonus_date": "2026-11-21",
+                 "bonus_minutes": 30}
+    c.data["totals"] = {"daily": 0, "weekly": 0}
+    saturday = datetime(2026, 11, 21, 12, tzinfo=ZoneInfo("Europe/Zagreb"))
+    with patch("custom_components.smarthouse_gaming.sensor.dt_util.now", return_value=saturday):
+        day = BudgetSensor(c, "daily", "Daily budget remaining")
+        week = BudgetSensor(c, "weekly", "Weekly budget remaining")
+        assert day.unique_id == "pc1_daily_budget_remaining"
+        assert week.unique_id == "pc1_weekly_budget_remaining"
+        assert day.extra_state_attributes["budget_minutes"] == 210
+        assert day.extra_state_attributes["parent_bonus_minutes"] == 30
+        assert week.extra_state_attributes["budget_minutes"] == 420
+        assert "limit_minutes" not in day.extra_state_attributes
+        assert "bonus_minutes" not in day.extra_state_attributes
