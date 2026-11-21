@@ -47,7 +47,7 @@ Track gaming time on Windows PCs, set limits, give bonus minutes and use parent 
     </td>
     <td valign="middle">
       <h3>🪄 Controls &amp; automations — Automation Rules!</h3>
-      <p>Use <strong>Lock PC</strong> or <strong>Terminate game</strong> when needed. Home Assistant can handle reminders, so the robot can handle the arguments. <strong>Automatic enforcement still needs testing.</strong></p>
+      <p>Need a manual stop? Use <strong>Lock PC</strong> or <strong>Terminate game</strong>. The real magic is native Home Assistant automations: you set the reminders and rules, and let the robot handle “five more minutes.” <strong>Automatic enforcement still needs testing.</strong></p>
       <p><a href="docs/features/parent-actions.md">How controls and automations fit together</a></p>
     </td>
   </tr>

@@ -28,6 +28,10 @@ Every feature starts with one of our family cartoons. **The jokes are real; the 
 
 Check [known limitations](known_limitations.md), [release history](ha_releases.md) or the [real screenshot plan](assets/screenshots/README.md). Please keep children's names and home-network details out of bug reports.
 
+## For contributors
+
+This is a source-only preview. Feedback and reproducible bugs are welcome through [GitHub issues](https://github.com/mhalak/smarthouse-parental-control/issues). Please share versions and what happened, not private family or network data.
+
 ## For developers
 
 Looking for code and implementation details? See [Windows deployment](windows_deployment.md), [MQTT and privacy](mqtt_protocol.md), [Recorder coverage](recorder_coverage.md), [Home Assistant engineering reference](reference/ha_integration_technical.md) and [older issue history](reference/known_limitations_history.md). The feature guides also link to their earlier technical notes.
