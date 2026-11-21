@@ -11,7 +11,8 @@
     </td>
     <td valign="middle">
       <h3>Budget Review — DO NOT DISTURB</h3>
-      <p>The family gaming-time auditor has receipts. Mum is distinctly unimpressed. The breakdown below is an illustration of a planned feature, not live data.</p>
+      <p>Every minute played, every bonus granted, every minute left — Dad has the receipts.</p>
+      <p>Mum has questions. The budget balances. <strong>Dad's parenting score remains under evaluation.</strong></p>
     </td>
   </tr>
 </table>
