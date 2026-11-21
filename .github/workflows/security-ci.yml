@@ -22,15 +22,26 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      # Cache only the exact-version scanner binary, never findings or test output.
+      # PRs still scan complete Git history on every revision.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: gitleaks-bin
+        with:
+          path: ${{ runner.temp }}/gitleaks-ci/gitleaks
+          key: gitleaks-v8.30.0-${{ runner.os }}-${{ runner.arch }}
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        if: steps.gitleaks-bin.outputs.cache-hit != 'true'
         with:
           go-version: '1.25.x'
           cache: false
       - name: Install pinned open-source scanner
+        if: steps.gitleaks-bin.outputs.cache-hit != 'true'
+        env:
+          GOBIN: ${{ runner.temp }}/gitleaks-ci
         run: go install github.com/zricethezav/gitleaks/v8@v8.30.0
       - name: Scan checked-out Git history with fully redacted findings
         run: |
-          "$(go env GOPATH)/bin/gitleaks" git --redact=100 --no-banner --log-opts="--all" .
+          "${{ runner.temp }}/gitleaks-ci/gitleaks" git --redact=100 --no-banner --log-opts="--all" .
 
   python-sast:
     name: Bandit

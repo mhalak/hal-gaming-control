@@ -29,6 +29,14 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./check_powershell.ps1 .
-      - run: pip install -r requirements-dev.txt
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: '0.13.7'
+          enable-cache: true
+          cache-dependency-glob: |
+            requirements-quality.txt
+            windows_agent/requirements-dev.txt
+            windows_agent/requirements.txt
+      - run: uv pip install --system -r requirements-dev.txt
       - run: python -m pytest -q
       - run: python -m compileall -q gaming_control service_entry.py
