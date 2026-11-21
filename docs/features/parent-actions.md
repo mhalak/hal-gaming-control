@@ -11,12 +11,14 @@
     </td>
     <td valign="middle">
       <h3>Automation Rules!</h3>
-      <p>The house can help enforce rules; the robot would rather not negotiate with the kids. Manual buttons work in preview, while safe automatic enforcement still requires validation.</p>
+      <p>Every family needs a scapegoat. Ours runs on Home Assistant. Unlike Dad, the smart home has no feelings to hurt, so saying <strong>“No”</strong> to “just five more minutes” is much easier. Naturally, Dad sends the robot to deliver the news.</p>
+      <p>There's just one small problem: our server has yet to pass its <strong>Flying Objects Resistance Test</strong>. Controllers, cushions, and the occasional airborne slipper remain untested.</p>
+      <p>That's where <strong>Home Assistant automations</strong> come in: parents choose the rules, reminders, and grace periods. For now, <strong>Lock PC</strong> and <strong>Terminate game</strong> are manual controls. Safe automatic enforcement still needs real-world testing.</p>
     </td>
   </tr>
 </table>
 
-**Automation Rules!** Dad wants the robot to handle the arguments. The robot would like to file a complaint.
+The point isn't to take parents out of the loop. Let Home Assistant handle the repeated reminders while you decide what happens next.
 
 **Development preview:** **Lock PC** and **Terminate game** worked in limited real-PC tests. **Automatic enforcement is not yet validated or enabled by default.**
 
