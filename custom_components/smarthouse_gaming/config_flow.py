@@ -154,6 +154,18 @@ def _mqtt_broker_details(hass):
     return broker, port_label, tls_label
 
 
+def _new_candidate_label(candidate, baseline):
+    """Show a confirmed untracked app, never generic or unsafe Java."""
+    if not isinstance(candidate, dict):
+        return None
+    from .app_registry import identity_key
+    try:
+        key = identity_key(candidate["process"], candidate.get("signature"))
+        return raw_label(candidate) if key not in load_apps(baseline) else None
+    except (KeyError, ValueError, TypeError):
+        return None
+
+
 class GamingOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         self.values = DEFAULTS | dict(self.config_entry.options)
@@ -264,16 +276,7 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
 
         choices = editor_choices(self._app_baseline, self._selected_app)
         candidate = self._selected_app
-        candidate_key = None
-        if isinstance(candidate, dict):
-            from .app_registry import identity_key
-            try:
-                key = identity_key(
-                    candidate["process"], candidate.get("signature"))
-                if key not in load_apps(self._app_baseline):
-                    candidate_key = raw_label(candidate)
-            except (KeyError, ValueError, TypeError):
-                pass
+        candidate_key = _new_candidate_label(candidate, self._app_baseline)
         if candidate_key is not None:
             preview = candidate_key
         elif isinstance(candidate, dict):

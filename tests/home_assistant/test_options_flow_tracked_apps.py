@@ -180,11 +180,11 @@ async def test_forged_new_process_or_duplicate_is_rejected(
         hass, enable_custom_integrations):
     entry = add_device(hass, DATA1)
     manager, view = await open_step(hass, entry, "tracked_apps", ROBLOX)
-    result = await manager.async_configure(view["flow_id"], {"applications": [
-        {"name": "Other", "detected": "private.exe"}]})
-    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    # HA's native SelectSelector rejects forged choices BEFORE our callback.
+    with pytest.raises(data_entry_flow.InvalidData):
+        await manager.async_configure(view["flow_id"], {"applications": [
+            {"name": "Other", "detected": "private.exe"}]})
     assert "tracked_apps" not in entry.options
-    assert result["errors"]["base"] == "invalid_application"
 
     result = await manager.async_configure(view["flow_id"], {"applications": [
         {"name": "Roblox", "detected": "RobloxPlayerBeta.exe"},
@@ -215,9 +215,10 @@ async def test_ambiguous_bare_java_is_shown_but_cannot_be_enrolled(
     entry = add_device(hass, DATA1)
     manager, view = await open_step(hass, entry, "tracked_apps", vague)
     assert "ambiguous" in view["description_placeholders"]["candidate"]
-    result = await manager.async_configure(view["flow_id"], {"applications": [
-        {"name": "Minecraft", "detected": "javaw.exe"}]})
-    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    # Ambiguous Java isn't an available dropdown option.
+    with pytest.raises(data_entry_flow.InvalidData):
+        await manager.async_configure(view["flow_id"], {"applications": [
+            {"name": "Minecraft", "detected": "javaw.exe"}]})
     assert "tracked_apps" not in entry.options
 
 
