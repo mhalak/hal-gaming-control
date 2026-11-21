@@ -6,8 +6,8 @@
 
 <table>
   <tr>
-    <td width="132" valign="middle">
-      <img src="../assets/illustrations/budget-overview.webp" width="120" alt="Dad reviewing a detailed HAL gaming budget with mum watching unimpressed beside a Do Not Disturb desk sign">
+    <td width="32%" valign="middle">
+      <img src="../assets/illustrations/budget-overview.webp" width="100%" alt="Dad reviewing a detailed HAL gaming budget with mum watching unimpressed beside a Do Not Disturb desk sign">
     </td>
     <td valign="middle">
       <h3>Budget Review — DO NOT DISTURB</h3>
