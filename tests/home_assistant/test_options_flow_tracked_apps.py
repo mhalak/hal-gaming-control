@@ -91,7 +91,7 @@ async def test_real_home_assistant_options_translations_render_snapshot_and_labe
         description = resources[f"{key}.description"]
         assert "Currently detected application" in description
         assert "Currently detected application" in description
-        assert "> **{preview_name}**" in description
+        assert "> ### {preview_name}" in description
         assert "> `{raw_value}`" in description
         assert "**Note**" in description
         assert "Displayed as" not in description
@@ -104,7 +104,7 @@ async def test_real_home_assistant_options_translations_render_snapshot_and_labe
     assert view["step_id"] == "tracked_apps"
     placeholders = view["description_placeholders"]
     rendered = description.format(**placeholders)
-    assert "> **Roblox**" in rendered
+    assert "> ### Roblox" in rendered
     assert "> `RobloxPlayerBeta.exe`" in rendered
     assert "**Note**" in rendered
     assert "{raw_value}" not in rendered
@@ -532,7 +532,7 @@ async def test_translations_explain_single_page_editor_and_mqtt(
         assert "\\n" not in tracked  # Real Markdown line breaks, not literal \\n sequences
         assert "nothing is written to Windows" in tracked
         assert "Currently detected application" in tracked
-        assert "> **{preview_name}**" in tracked
+        assert "> ### {preview_name}" in tracked
         assert "> `{raw_value}`" in tracked
         assert "**Note**" in tracked
         assert "Displayed as" not in tracked
