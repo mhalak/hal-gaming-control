@@ -4,8 +4,8 @@
 
 <table>
   <tr>
-    <td width="132" valign="middle">
-      <img src="../assets/illustrations/parent-actions.webp" width="120" alt="Dad pushing a resisting HAL robot toward angry children while mum watches, under an Automation Rules sign">
+    <td width="32%" valign="middle">
+      <img src="../assets/illustrations/parent-actions.webp" width="100%" alt="Dad pushing a resisting HAL robot toward angry children while mum watches, under an Automation Rules sign">
     </td>
     <td valign="middle">
       <h3>Automation Rules!</h3>

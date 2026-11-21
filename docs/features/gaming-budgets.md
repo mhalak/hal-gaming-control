@@ -4,8 +4,8 @@
 
 <table>
   <tr>
-    <td width="132" valign="middle">
-      <img src="../assets/illustrations/gaming-budgets-portrait.webp" width="120" alt="King-dad giving golden gaming-time bonus coins to his two unimpressed children and the HAL robot">
+    <td width="32%" valign="middle">
+      <img src="../assets/illustrations/gaming-budgets-portrait.webp" width="100%" alt="King-dad giving golden gaming-time bonus coins to his two unimpressed children and the HAL robot">
     </td>
     <td valign="middle">
       <h3>By royal decree: bonus minutes for everyone!</h3>

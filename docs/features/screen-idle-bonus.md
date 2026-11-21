@@ -4,8 +4,8 @@
 
 <table>
   <tr>
-    <td width="132" valign="middle">
-      <img src="../assets/illustrations/screen-idle-bonus.webp" width="120" alt="Smiling blond boy asleep while a game grinds in the background and a robot waves its finger at dad checking his watch">
+    <td width="32%" valign="middle">
+      <img src="../assets/illustrations/screen-idle-bonus.webp" width="100%" alt="Smiling blond boy asleep while a game grinds in the background and a robot waves its finger at dad checking his watch">
     </td>
     <td valign="middle">
       <h3>The loot won't mine itself</h3>

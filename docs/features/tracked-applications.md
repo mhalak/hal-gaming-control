@@ -4,8 +4,8 @@
 
 <table>
   <tr>
-    <td width="132" valign="middle">
-      <img src="../assets/illustrations/tracked-applications.webp" width="120" alt="Dad tapping a conceptual Roblox control tablet while daughter plays Roblox, with the friendly HAL robot">
+    <td width="32%" valign="middle">
+      <img src="../assets/illustrations/tracked-applications.webp" width="100%" alt="Dad tapping a conceptual Roblox control tablet while daughter plays Roblox, with the friendly HAL robot">
     </td>
     <td valign="middle">
       <h3>The family app detective</h3>
