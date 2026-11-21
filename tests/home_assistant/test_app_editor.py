@@ -2,7 +2,7 @@
 import pytest
 
 from custom_components.smarthouse_gaming.app_editor import (
-    CandidateChanged, apply_app_editor, editor_choices, editor_rows, raw_label,
+    apply_app_editor, editor_choices, editor_rows, raw_label,
 )
 from custom_components.smarthouse_gaming.app_registry import identity_key
 
@@ -27,13 +27,13 @@ def test_add_rename_remove_in_one_submit_and_preserve_process():
     assert rows[0]["name"] == "Old Minecraft"
     rows[0]["name"] = "Minecraft Java"
     rows.append({"name": "Roblox", "detected": raw_label(ROBLOX)})
-    edited = apply_app_editor(baseline, rows, ROBLOX, ROBLOX)
+    edited = apply_app_editor(baseline, rows, ROBLOX)
     assert edited == [
         {"process": "javaw.exe", "signature": JAVA["signature"],
          "name": "Minecraft Java"},
         {"process": "RobloxPlayerBeta.exe", "signature": None, "name": "Roblox"},
     ]
-    assert apply_app_editor(edited, [editor_rows(edited)[1]], None, None) == [
+    assert apply_app_editor(edited, [editor_rows(edited)[1]], None) == [
         edited[1]]
 
 
@@ -42,7 +42,7 @@ def test_can_rename_when_no_fresh_candidate_exists():
                 "name": "Roblox"}]
     assert apply_app_editor(initial, [
         {"name": "Roblox Classic", "detected": "RobloxPlayerBeta.exe"}],
-        None, None)[0]["name"] == "Roblox Classic"
+        None)[0]["name"] == "Roblox Classic"
 
 
 @pytest.mark.parametrize("bad", [
@@ -55,7 +55,7 @@ def test_can_rename_when_no_fresh_candidate_exists():
 ])
 def test_rejects_unverified_duplicate_or_reserved_entries(bad):
     with pytest.raises(ValueError):
-        apply_app_editor([], bad, ROBLOX, ROBLOX)
+        apply_app_editor([], bad, ROBLOX)
 
 
 @pytest.mark.parametrize("changed", [
@@ -63,11 +63,20 @@ def test_rejects_unverified_duplicate_or_reserved_entries(bad):
     {**ROBLOX, "token": "c" * 32},
     {**ROBLOX, "process": "chrome.exe"},
 ])
-def test_new_app_must_match_fresh_candidate_even_if_list_is_editable(changed):
-    with pytest.raises(CandidateChanged):
-        apply_app_editor(
-            [], [{"name": "Roblox", "detected": "RobloxPlayerBeta.exe"}],
-            ROBLOX, changed)
+def test_session_snapshot_remains_authorized_after_later_foreground_change(changed):
+    # The changed current state has no bearing on the saved per-flow snapshot.
+    captured = ROBLOX.copy()
+    assert apply_app_editor(
+        [], [{"name": "Roblox", "detected": "RobloxPlayerBeta.exe"}],
+        captured) == [
+        {"process": "RobloxPlayerBeta.exe", "signature": None, "name": "Roblox"}]
+    assert changed != captured
+
+
+def test_no_snapshot_cannot_create_unverified_application():
+    with pytest.raises(ValueError):
+        apply_app_editor([], [{"name": "Roblox", "detected": "RobloxPlayerBeta.exe"}],
+                         None)
 
 
 def test_candidate_java_without_signature_cannot_be_added():
@@ -75,7 +84,7 @@ def test_candidate_java_without_signature_cannot_be_added():
     assert editor_choices([], vague) == {}
     with pytest.raises(ValueError):
         apply_app_editor([], [{"name": "Minecraft", "detected": "javaw.exe"}],
-                         vague, vague)
+                         vague)
 
 
 def test_already_registered_candidate_is_not_added_twice():
@@ -85,4 +94,4 @@ def test_already_registered_candidate_is_not_added_twice():
     assert list(choices) == ["RobloxPlayerBeta.exe"]
     with pytest.raises(ValueError):
         apply_app_editor(initial, editor_rows(initial) + editor_rows(initial),
-                         ROBLOX, ROBLOX)
+                         ROBLOX)
