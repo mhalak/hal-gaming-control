@@ -38,12 +38,17 @@ def add_device(hass, data, options=None):
     return entry
 
 
-async def open_step(hass, entry, step, candidate=None):
+async def open_step(hass, entry, step, candidate=None, raw="from_candidate"):
     manager = hass.config_entries.options
     view = await manager.async_init(entry.entry_id)
     if step == "tracked_apps":
+        if raw == "from_candidate":
+            raw = ({"state": "foreground", "process": candidate["process"],
+                    "signature": candidate["signature"]} if candidate else None)
         with patch.object(cf, "_discover_foreground_candidate",
-                          new=AsyncMock(return_value=candidate)):
+                          new=AsyncMock(return_value=candidate)), \
+                patch.object(cf, "_discover_raw_foreground_snapshot",
+                             new=AsyncMock(return_value=raw)):
             view = await manager.async_configure(
                 view["flow_id"], {"next_step_id": step})
     else:
@@ -78,7 +83,8 @@ async def test_one_form_shows_existing_name_and_raw_process(
     manager, view = await open_step(hass, entry, "tracked_apps", ROBLOX)
     assert view["type"] == data_entry_flow.FlowResultType.FORM
     assert view["step_id"] == "tracked_apps"
-    assert "RobloxPlayerBeta.exe" in view["description_placeholders"]["candidate"]
+    assert view["description_placeholders"]["raw_value"] == "RobloxPlayerBeta.exe"
+    assert view["description_placeholders"]["displayed_as"] == "idle"
     assert rows(view) == [{
         "name": "Minecraft Java",
         "detected": "javaw.exe — java_class: net.minecraft.client.main.Main"}]
@@ -99,9 +105,97 @@ async def test_no_candidate_shows_clear_preview_and_does_not_import_windows_rule
     entry = add_device(hass, DATA1)
     _, view = await open_step(hass, entry, "tracked_apps")
     assert rows(view) == []
-    assert "No fresh foreground" in view["description_placeholders"]["candidate"]
+    assert view["description_placeholders"]["raw_value"] == "unavailable"
+    assert view["description_placeholders"]["displayed_as"] == "unavailable"
     assert "tracked_apps" not in entry.options
     assert "Minecraft" not in json.dumps(view, default=str)
+
+
+async def test_raw_snapshot_maps_registered_name_without_changing_app_list(
+        hass, enable_custom_integrations):
+    entry = add_device(hass, DATA1, {"tracked_apps": [{
+        "process": ROBLOX["process"], "signature": None, "name": "Roblox"}]})
+    _, view = await open_step(hass, entry, "tracked_apps", ROBLOX)
+    assert view["description_placeholders"]["raw_value"] == "RobloxPlayerBeta.exe"
+    assert view["description_placeholders"]["displayed_as"] == "Roblox"
+    assert rows(view) == [{"name": "Roblox", "detected": "RobloxPlayerBeta.exe"}]
+
+
+@pytest.mark.parametrize("raw, process, friendly", [
+    ({"state": "foreground", "process": "chrome.exe", "signature": None},
+     "chrome.exe", "idle"),
+    ({"state": "idle", "process": None, "signature": None}, "idle", "idle"),
+    ({"state": "unknown", "process": None, "signature": None},
+     "unknown", "unavailable"),
+    (None, "unavailable", "unavailable"),
+])
+async def test_raw_foreground_preview_has_fail_closed_display(
+        hass, enable_custom_integrations, raw, process, friendly):
+    entry = add_device(hass, DATA1)
+    _, view = await open_step(hass, entry, "tracked_apps", raw=raw)
+    assert view["description_placeholders"]["raw_value"] == process
+    assert view["description_placeholders"]["displayed_as"] == friendly
+    assert rows(view) == []
+
+
+async def test_java_signature_is_visible_and_matched_to_friendly_alias(
+        hass, enable_custom_integrations):
+    entry = add_device(hass, DATA1, {"tracked_apps": [{
+        "process": "javaw.exe", "signature": MINECRAFT["signature"],
+        "name": "Minecraft"}]})
+    _, view = await open_step(hass, entry, "tracked_apps", MINECRAFT)
+    assert view["description_placeholders"]["raw_value"] == (
+        "javaw.exe — java_class: net.minecraft.client.main.Main")
+    assert view["description_placeholders"]["displayed_as"] == "Minecraft"
+
+
+async def test_raw_identity_change_prevents_cross_app_add_default(
+        hass, enable_custom_integrations):
+    entry = add_device(hass, DATA1)
+    _, view = await open_step(
+        hass, entry, "tracked_apps", ROBLOX,
+        raw={"state": "foreground", "process": "chrome.exe", "signature": None})
+    assert view["description_placeholders"]["raw_value"] == "chrome.exe"
+    assert view["description_placeholders"]["displayed_as"] == "idle"
+    field = next(iter(view["data_schema"].schema.values()))
+    assert field.config["fields"]["detected"].get("default") is None
+
+
+async def test_raw_snapshot_rejects_stale_retained_foreign_and_unsafe_packets(
+        hass, enable_custom_integrations):
+    entry = add_device(hass, DATA1)
+    device_topic = "SmartHouse/Gaming/pc1/state/foreground_identity"
+    now = cf.dt_util.utcnow().timestamp()
+    base = {"version": 2, "device_id": "pc1", "epoch": "a" * 32,
+            "sequence": 1, "observed_at": now,
+            "state": "foreground", "process": "chrome.exe", "signature": None}
+    captured = []
+
+    async def subscribe(_hass, topic, cb, qos=0):
+        captured.append((topic, qos))
+        cb(SimpleNamespace(topic=device_topic, payload=json.dumps(base),
+                           retain=True))
+        cb(SimpleNamespace(topic=device_topic, payload=json.dumps(
+            base | {"device_id": "pc2"}), retain=False))
+        cb(SimpleNamespace(topic=device_topic, payload=json.dumps(
+            base | {"process": "C:/private/file.exe"}), retain=False))
+        cb(SimpleNamespace(topic=device_topic, payload=json.dumps(
+            base | {"observed_at": now - 90}), retain=False))
+        cb(SimpleNamespace(topic=device_topic, payload=json.dumps(base),
+                           retain=False))
+        return lambda: captured.append(("unsubscribed", 0))
+
+    with patch.object(cf.mqtt, "async_subscribe", side_effect=subscribe), \
+            patch.object(cf, "_listen_window", new=AsyncMock()), \
+            patch.object(cf, "_discover_foreground_candidate",
+                         new=AsyncMock(return_value=None)):
+        manager = hass.config_entries.options
+        view = await manager.async_init(entry.entry_id)
+        view = await manager.async_configure(
+            view["flow_id"], {"next_step_id": "tracked_apps"})
+    assert captured == [(device_topic, 0), ("unsubscribed", 0)]
+    assert view["description_placeholders"]["raw_value"] == "chrome.exe"
+    assert view["description_placeholders"]["displayed_as"] == "idle"
 
 
 async def test_add_detected_game_once_in_same_form_preserves_limits(
@@ -223,7 +317,8 @@ async def test_ambiguous_bare_java_is_shown_but_cannot_be_enrolled(
     vague = MINECRAFT | {"signature": None}
     entry = add_device(hass, DATA1)
     manager, view = await open_step(hass, entry, "tracked_apps", vague)
-    assert "ambiguous" in view["description_placeholders"]["candidate"]
+    assert view["description_placeholders"]["raw_value"] == "javaw.exe"
+    assert view["description_placeholders"]["displayed_as"] == "unavailable"
     # Ambiguous Java isn't an available dropdown option.
     with pytest.raises(data_entry_flow.InvalidData):
         await manager.async_configure(view["flow_id"], {"applications": [
@@ -251,10 +346,12 @@ async def test_foreground_candidate_rejects_foreign_and_retained_mqtt(
     manager = hass.config_entries.options
     view = await manager.async_init(entry.entry_id)
     with patch.object(cf.mqtt, "async_subscribe", side_effect=subscribe), \
-            patch.object(cf, "_listen_window", new=AsyncMock()):
+            patch.object(cf, "_listen_window", new=AsyncMock()), \
+            patch.object(cf, "_discover_raw_foreground_snapshot",
+                         new=AsyncMock(return_value=None)):
         view = await manager.async_configure(
             view["flow_id"], {"next_step_id": "tracked_apps"})
-    assert view["description_placeholders"]["candidate"] == "chrome.exe"
+    assert view["description_placeholders"]["raw_value"] == "unavailable"
     assert calls == [(topic, 0), ("unsubscribed", 0)]
 
 
@@ -304,6 +401,11 @@ async def test_translations_explain_single_page_editor_and_mqtt(
         assert "Detected foreground process" in tracked
         assert "Add item" in tracked
         assert "nothing is written to Windows" in tracked
+        assert "Currently detected application" in tracked
+        assert "Raw sensor value" in tracked
+        assert "Displayed as" in tracked
+        assert "snapshot" in tracked.lower()
+        assert steps["tracked_apps"]["data"]["applications"] == "Application List"
         assert "applications" in steps["tracked_apps"]["data"]
         assert "shared" in steps["mqtt_settings"]["description"].lower()
         assert "{actions}" not in json.dumps(steps)
