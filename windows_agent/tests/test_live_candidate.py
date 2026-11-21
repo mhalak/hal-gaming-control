@@ -27,8 +27,8 @@ def capture(sample=SAMPLE, *, name="chrome.exe", session=2, now=10.5):
 
 
 def test_untracked_browser_is_detectable_without_rule_or_path():
-    assert capture() == ("chrome.exe", 42, 123, 2)
-    assert capture(name="javaw.exe") == ("javaw.exe", 42, 123, 2)
+    assert capture() == ("chrome.exe", 42, 123, 2, None)
+    assert capture(name="javaw.exe") == ("javaw.exe", 42, 123, 2, None)
 
 
 @pytest.mark.parametrize("sample", [
@@ -77,7 +77,7 @@ def test_candidate_publisher_does_not_leak_identity_or_retain(bridge):
     assert b.publish_candidate(("chrome.exe", 42, 123, 2))
     call, = candidates(client)
     value = json.loads(call.args[1])
-    assert set(value) == {"version", "device_id", "process", "token", "observed_at"}
+    assert set(value) == {"version", "device_id", "process", "signature", "token", "observed_at"}
     assert value["process"] == "chrome.exe"
     assert value["device_id"] == "pc1"
     assert len(value["token"]) == 32
@@ -99,7 +99,7 @@ def test_candidate_token_rotates_on_focus_change_and_reconnect(bridge):
     first = json.loads(candidates(client)[0].args[1])["token"]
     clock.wall += 0.1
     clock.mono += 0.1
-    assert b.publish_candidate(("notepad.exe", 43, 125, 2))
+    assert b.publish_candidate(("notepad.exe", 43, 125, 2, None))
     second = json.loads(candidates(client)[1].args[1])["token"]
     assert first != second
     b.on_disconnect(client, None, None, None, None)
