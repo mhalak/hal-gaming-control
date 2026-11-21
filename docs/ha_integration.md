@@ -4,7 +4,7 @@
 
 Home Assistant is the family's control panel: see gaming time, choose apps, give extra minutes and use manual controls. It can also handle reminders, which may save the family's last remaining nerve.
 
-**Development preview:** These steps describe HA 0.5.10 preview source. Always check the [release history](ha_releases.md) and the version you've installed.
+**Development preview:** These steps describe HA 0.5.11 preview source. Always check the [release history](ha_releases.md) and the version you've installed.
 
 ## Set it up
 
@@ -26,11 +26,9 @@ To save an app, confirm the small **Add** dialog, then press **Save changes** in
 
 [See the app guide](features/tracked-applications.md).
 
-## Set limits & bonuses
+## Set budgets & bonuses
 
-Open the PC device page to find **Daily limit**, **Weekly limit** and **Add 30 minutes**, where available in your installed preview.
-
-A bonus adds time **today**, not to the weekly limit.
+Open the PC device page to find **Daily budget**, **Weekly budget**, **Weekend bonus** and **Add 30 minutes**, in HA 0.5.11 preview. Daily budget has 10-minute increments up to 600 min, Weekly budget has 60-minute increments up to 4200 min, and Weekend bonus adds up to 600 min to the daily allowance separately on Saturday and Sunday. The bonus does **not** increase the independent weekly budget.\n\n**Daily budget remaining** and **Weekly budget remaining** show remaining percentages. **Daily gaming time** and **Weekly gaming time** use duration readings displayed as hours, minutes and seconds by Home Assistant.
 
 [Gaming budgets](features/gaming-budgets.md)
 
@@ -55,7 +53,7 @@ A bonus adds time **today**, not to the weekly limit.
 - **Wrong app detected?** Close the editor, focus the right app on Windows, and reopen.
 - **New app not saved?** Check the main **Save changes** button.
 - **Missing readings?** Check whether the PC and its connection are active. Missing data isn't zero gaming time.
-- **Old button labels after an update?** Restart Home Assistant and refresh the app. Don't delete saved settings just to fix the display.
+- **Old budget labels after an update?** Restart Home Assistant and refresh the app. Don't delete saved settings just to fix the display.
 
 ## Automation-only command execution — 0.5.0 preview
 
