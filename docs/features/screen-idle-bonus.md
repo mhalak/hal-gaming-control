@@ -4,7 +4,7 @@
 
 **Status: planned; not implemented.** See [design issue #92](https://github.com/mhalak/smarthouse-parental-control/issues/92). There is currently no Screen idle bonus setting to turn on, no automatic award on deployed PCs, and no released screen-off telemetry guarantee.
 
-> **Because the loot won't farm itself.** Your kid has gone to bed; Roblox is still working the night shift. We support the grind. The family gaming budget, however, is not required to work overtime.
+> **As responsible parents, we want our children to succeed in the world. And that loot isn't going to mine itself.** We believe in teaching the value of hard work — ideally by letting a game character do the night shift. We support the grind. The family gaming budget, however, is not required to work overtime.
 
 ## What problem does it solve?
 
