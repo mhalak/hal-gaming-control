@@ -10,11 +10,12 @@ from homeassistant.helpers import selector
 from homeassistant.util import dt as dt_util
 from .const import DOMAIN, ROOT
 from .candidate_protocol import parse_candidate
-from .app_registry import load_apps
+from .app_registry import load_apps, normalized_name
 from .app_editor import (CandidateChanged, apply_app_editor,
                          editor_choices, editor_rows, raw_label)
 from .direct_mqtt import direct_mode
 from .protocol import parse_discovery
+from .raw_foreground import decode_raw_identity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,6 +23,8 @@ _LOGGER = logging.getLogger(__name__)
 DISCOVERY_WINDOW = 3.0
 DISCOVERY_FILTER = "SmartHouse/Gaming/+/discovery"
 MAX_DISCOVERY_PAYLOAD = 65536
+RAW_SNAPSHOT_MAX_AGE = 8.0
+RAW_SNAPSHOT_FUTURE_SKEW = 2.0
 
 
 async def _listen_window():
@@ -87,6 +90,66 @@ async def _discover_foreground_candidate(hass, device_id):
         if unsubscribe is not None:
             unsubscribe()
     return found.get("candidate")
+
+
+async def _discover_raw_foreground_snapshot(hass, device_id):
+    """Read only a current, device-scoped v2 raw identity; never cache old samples."""
+    topic = f"{ROOT}/{device_id}/state/foreground_identity"
+    found = {}
+    unsubscribe = None
+
+    def collect(message):
+        if message.topic != topic or getattr(message, "retain", None) is not False:
+            return
+        try:
+            packet = decode_raw_identity(message.payload, device_id)
+            age = dt_util.utcnow().timestamp() - packet["observed_at"]
+        except (ValueError, TypeError, KeyError):
+            return
+        if -RAW_SNAPSHOT_FUTURE_SKEW <= age < RAW_SNAPSHOT_MAX_AGE:
+            found["packet"] = packet
+
+    try:
+        unsubscribe = await mqtt.async_subscribe(hass, topic, collect, qos=0)
+        await _listen_window()
+    except asyncio.CancelledError:
+        raise
+    except Exception as err:  # noqa: BLE001 - absent data is unavailable, never idle
+        _LOGGER.debug("Raw foreground snapshot unavailable (%s)", type(err).__name__)
+    finally:
+        if unsubscribe is not None:
+            unsubscribe()
+    return found.get("packet")
+
+
+def _raw_foreground_labels(snapshot, apps):
+    """Separate actual executable identity from the HA-normalized display."""
+    if snapshot is None:
+        return "unavailable", "unavailable"
+    state = snapshot["state"]
+    if state == "idle":
+        return "idle", "idle"
+    if state == "unknown":
+        return "unknown", "unavailable"
+    raw = raw_label(snapshot)  # Validated basename + optional safe Java signature
+    mapped = normalized_name(apps, snapshot["process"], snapshot["signature"])
+    if mapped is not None:
+        return raw, mapped
+    # Unknown executable is idle for tracked gameplay, but bare Java is
+    # ambiguous and must not silently be described as a specific game.
+    if snapshot["process"].casefold() in ("java.exe", "javaw.exe") and not snapshot["signature"]:
+        return raw, "unavailable"
+    return raw, "idle"
+
+
+def _candidate_matches_raw(candidate, snapshot):
+    """Do not suggest enrolling a different process from the one just shown."""
+    return (snapshot is None or (
+        snapshot["state"] == "foreground" and
+        isinstance(candidate, dict) and
+        candidate.get("process", "").casefold() ==
+        snapshot["process"].casefold() and
+        candidate.get("signature") == snapshot["signature"]))
 
 
 class GamingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -219,9 +282,16 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
                 self._app_baseline = list(load_apps(self._apps()).values())
             except ValueError:
                 return self.async_abort(reason="invalid_app_configuration")
-            # Only a fresh, per-device non-retained MQTT candidate may be added.
-            self._selected_app = await _discover_foreground_candidate(
-                self.hass, self.config_entry.data["device_id"])
+            # Separate raw identity display from the token-protected Add hint.
+            # Both are collected in one short window, never sent to Windows.
+            self._selected_app, self._raw_snapshot = await asyncio.gather(
+                _discover_foreground_candidate(
+                    self.hass, self.config_entry.data["device_id"]),
+                _discover_raw_foreground_snapshot(
+                    self.hass, self.config_entry.data["device_id"]),
+            )
+            if not _candidate_matches_raw(self._selected_app, self._raw_snapshot):
+                self._selected_app = None
         else:
             rows = user_input.get("applications")
             old_choices = editor_choices(self._app_baseline, None)
@@ -249,13 +319,8 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
         choices = editor_choices(self._app_baseline, self._selected_app)
         candidate = self._selected_app
         candidate_key = _new_candidate_label(candidate, self._app_baseline)
-        if candidate_key is not None:
-            preview = candidate_key
-        elif isinstance(candidate, dict):
-            preview = "Detected runtime is ambiguous or already configured: " + (
-                raw_label(candidate))
-        else:
-            preview = "No fresh foreground application detected; open a game and reopen Configure."
+        raw_value, displayed_as = _raw_foreground_labels(
+            self._raw_snapshot, self._app_baseline)
 
         # HA's native multiple-object editor shows expandable named rows and
         # the built-in Add/Remove-row UI, without a custom frontend dependency.
@@ -294,7 +359,8 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
                 "device": self.config_entry.data.get("name")
                           or self.config_entry.data["device_id"],
                 "count": str(len(self._app_baseline)),
-                "candidate": preview,
+                "raw_value": raw_value,
+                "displayed_as": displayed_as,
             },
             errors=errors,
         )
