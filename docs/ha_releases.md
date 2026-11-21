@@ -1,3 +1,12 @@
+## 0.5.7 — freeze foreground enrollment evidence at form entry
+
+- Capture the safe raw v2 identity and separate validated device-scoped enrollment candidate when entering **Configure → Tracked applications** (three-second window), **not** at initial Configure menu entry.
+- Keep the candidate solely in the server-side Options Flow instance. **Submit never subscribes to MQTT or rechecks the current foreground process/token.** Parents can complete Add after the child Alt-Tabs, closes the app or takes the PC offline, without time pressure.
+- Only captured verified executable/Java identity and previously saved identities are accepted. Never permit arbitrary browser-provided processes, ambiguous bare Java, duplicates or invalid names; keep the race guard for concurrent tracked-app edits. All existing options, entities, controls and recorded game identity remain unchanged.
+- Add a prominent snapshot notice in the form: to capture a different application, close (X), reopen Configure, then select Tracked applications. The native HA Options Flow has no reliable Back/Refresh control for this form. An abandoned flow loses the snapshot; no persistent or Windows-side cache.
+- Remove the obsolete candidate_changed translation and token-at-submit requirement. Update HA form/editor regression tests, docs and HA-only patch version. Windows agent stays 0.2.6.
+- CI and separately coordinated deployment are required; neither merge nor installed version can be assumed from these notes.
+
 ## 0.5.6 — streamline per-PC Configure menu
 
 - Show only **MQTT configuration** (read-only) and **Tracked applications** (one form, immediate HA save).
