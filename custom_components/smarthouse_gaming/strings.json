@@ -22,9 +22,13 @@
   },
   "options": {
     "step": {
-      "menu": {
+      "settings_menu": {
         "title": "Parental control",
-        "description": "Review MQTT connection information or manage tracked applications for this PC."
+        "description": "Review MQTT connection information or manage tracked applications for this PC.",
+        "menu_options": {
+          "mqtt_settings": "MQTT configuration",
+          "tracked_apps": "Tracked applications"
+        }
       },
       "mqtt_settings": {
         "title": "MQTT configuration",
