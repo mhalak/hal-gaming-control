@@ -306,6 +306,7 @@ async def test_ha_owned_active_game_ignores_legacy_agent_game_names(
                    ("state/gaming_active", "ON"))
         assert hass.states.get(legacy).state == "Roblox"
         assert hass.states.get(game).state == "unavailable"
+        assert (entry.runtime_data.foreground._connected, entry.runtime_data.foreground._online) == (True, True)
         await emit(("state/foreground_identity", raw(1)))
         assert hass.states.get(game).state == "Roblox"
         # Legacy spoofed or stale game labels cannot change the HA name.
@@ -356,6 +357,8 @@ async def test_v2_foreground_is_device_scoped_and_resets_on_disconnect(
 
     for pc in ("pc1", "pc2"):
         await emit(pc, "availability", "online")
+        assert (entries[0 if pc == "pc1" else 1].runtime_data.foreground._connected,
+                entries[0 if pc == "pc1" else 1].runtime_data.foreground._online) == (True, True)
         await emit(pc, "state/foreground_identity",
                    raw(pc, 1, "RobloxPlayerBeta.exe"))
     assert hass.states.get(ids["pc1"]).state == "Roblox"
