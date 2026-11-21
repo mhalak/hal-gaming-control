@@ -1,6 +1,8 @@
 # Gaming budgets & bonuses
 
-[← Back to features](../../README.md#feature-gaming-budgets) · [All guides](../README.md)
+[← Feature index](../../README.md#feature-gaming-budgets) · [All guides](../README.md)
+
+[Track applications →](tracked-applications.md)
 
 <table>
   <tr>
@@ -52,4 +54,8 @@ Don't use budget readings alone to trigger automatic game closing. Test the exac
 
 **For developers:** [Original technical notes](../reference/features/gaming-budgets-preview-notes.md) · [HA reference](../reference/ha_integration_technical.md).
 
-[Track applications](tracked-applications.md) · [Controls & automations](parent-actions.md) · [Known limitations](../known_limitations.md)
+More: [Controls & automations](parent-actions.md) · [Known limitations](../known_limitations.md)
+
+---
+
+**Explore more features:** [Track applications →](tracked-applications.md)
