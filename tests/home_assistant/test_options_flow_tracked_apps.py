@@ -398,8 +398,8 @@ async def test_translations_explain_single_page_editor_and_mqtt(
         steps = json.loads((PACKAGE / relative).read_text())["options"]["step"]
         assert set(steps) == {"menu", "mqtt_settings", "tracked_apps"}
         tracked = steps["tracked_apps"]["description"]
-        assert "Detected foreground process" in tracked
-        assert "Add item" in tracked
+        assert "Currently detected application" in tracked
+        assert "use Add to enroll" in tracked
         assert "nothing is written to Windows" in tracked
         assert "Currently detected application" in tracked
         assert "Raw sensor value" in tracked
