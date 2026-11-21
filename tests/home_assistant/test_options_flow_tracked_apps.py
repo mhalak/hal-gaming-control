@@ -62,7 +62,8 @@ async def test_tracked_apps_are_isolated_per_device(hass, enable_custom_integrat
         "candidate": "No fresh foreground application detected"}
     assert "Fortnite" not in json.dumps(one, default=str)
     assert "Minecraft" not in json.dumps(two, default=str)
-    assert not one["data_schema"].schema and not two["data_schema"].schema
+    assert one["type"] == two["type"] == data_entry_flow.FlowResultType.MENU
+    assert set(one["menu_options"]) == {"add_app", "rename_app", "remove_app", "menu"}
 
 
 @pytest.mark.parametrize("data", [DATA1 | {"games": []}, {k: v for k, v in DATA1.items() if k != "games"}])
@@ -70,7 +71,7 @@ async def test_tracked_apps_empty_state_is_explicit(hass, enable_custom_integrat
     _, result = await open_step(hass, add_device(hass, data), "tracked_apps")
     assert result["description_placeholders"]["count"] == "0"
     assert result["description_placeholders"]["apps"] == (
-        "No applications are tracked for this computer yet.")
+        "No HA-managed applications configured yet.")
 
 
 async def test_tracked_apps_back_navigation_is_read_only(hass, enable_custom_integrations):
@@ -80,7 +81,7 @@ async def test_tracked_apps_back_navigation_is_read_only(hass, enable_custom_int
     before = (dict(entry.data), dict(entry.options))
     with patch.object(hass.config_entries, "async_update_entry") as update:
         manager, result = await open_step(hass, entry, "tracked_apps")
-        result = await manager.async_configure(result["flow_id"], {})
+        result = await manager.async_configure(result["flow_id"], {"next_step_id": "menu"})
     assert result["type"] == data_entry_flow.FlowResultType.MENU
     assert result["step_id"] == "menu"
     update.assert_not_called()
@@ -95,7 +96,7 @@ async def test_visiting_tracked_apps_preserves_existing_settings_on_save(
                "bonus_date": "2026-11-20"}
     entry = add_device(hass, DATA1, options)
     manager, result = await open_step(hass, entry, "tracked_apps")
-    result = await manager.async_configure(result["flow_id"], {})
+    result = await manager.async_configure(result["flow_id"], {"next_step_id": "menu"})
     result = await manager.async_configure(result["flow_id"], {"next_step_id": "save"})
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
     for key, value in options.items():
@@ -142,8 +143,8 @@ async def test_strings_describe_read_only_apps_and_separate_connections():
         steps = json.loads((PACKAGE / relative).read_text())["options"]["step"]
         tracked = steps["tracked_apps"]["description"]
         mqtt_text = steps["mqtt_settings"]["description"]
-        assert "read-only" in tracked.lower() and "#7" in tracked
-        assert "enrollment" not in tracked.lower()
+        assert "HA-managed" in tracked and "{candidate}" in tracked
+        assert "nothing is written to Windows" in tracked
         assert "shared" in mqtt_text.lower() and "Windows agent" in mqtt_text
         assert "does not change" in mqtt_text
         assert "{tls}" in mqtt_text and "{connection_help}" in mqtt_text
@@ -175,7 +176,7 @@ async def test_live_foreground_candidate_is_scoped_and_advisory(
     assert result["description_placeholders"]["candidate"] == "chrome.exe"
     assert "chrome.exe" not in result["description_placeholders"]["apps"]
     assert calls == [(topic, 0), ("unsubscribed", 0)]
-    assert not result["data_schema"].schema
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
     assert entry.data["games"] == DATA1["games"]
 
 
