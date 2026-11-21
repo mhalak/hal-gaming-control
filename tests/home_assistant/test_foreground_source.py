@@ -110,10 +110,10 @@ class Harness:
 async def make(hass, mqtt_mock, clock):
     created = []
 
-    async def factory(**kwargs):
+    async def factory(online=True, **kwargs):
         harness = Harness(hass, clock, **kwargs)
         created.append(harness)
-        await harness.start()
+        await harness.start(online)
         return harness
 
     yield factory
@@ -224,6 +224,9 @@ async def test_broker_interruption_is_unavailable_and_recovers_only_on_fresh_dat
     callbacks[0](False)
     assert h.current() is None
     assert h.updates > before
+    # Data that arrives while the broker link is down is not trusted afterwards.
+    clock.advance(1)
+    await h.send()
     callbacks[0](True)
     assert h.current() is None
     clock.advance(1)
@@ -368,7 +371,7 @@ def test_source_has_no_publish_or_legacy_dependency():
     assert not {"async_publish", "publish", "async_publish_mqtt"} & names
     literals = " ".join(n.value for n in ast.walk(tree)
                         if isinstance(n, ast.Constant) and isinstance(n.value, str))
-    assert not any(t in literals for t in ("current_game", "in_game", "active_game", "gaming_active", "+", "#"))
+    assert not any(t in literals for t in ("current_game", "in_game", "active_game", "gaming_active"))
 
 
 async def test_restart_keeps_history_but_never_bridges_the_gap(make, clock):
@@ -428,3 +431,22 @@ async def test_on_update_failure_cannot_break_message_handling(hass, mqtt_mock, 
     await hass.async_block_till_done()
     assert source.current(clock.mono) == "Roblox"
     source.close()
+
+
+async def test_data_received_while_offline_is_not_trusted_when_agent_returns(make):
+    h = await make(online=False)
+    await h.send()
+    await h.availability(b"online")
+    assert h.current() is None
+    h.clock.advance(1)
+    await h.send()
+    assert h.current() == "Roblox"
+
+
+async def test_message_on_unexpected_topic_is_rejected(make):
+    h = await make()
+    await h.send()
+    foreign = MagicMock(topic=f"{ROOT}/pc2/state/foreground_identity", retain=False,
+                        payload=raw(h.clock, 50, device="pc1"))
+    h.source._message(foreign)
+    assert h.current() is None

@@ -279,7 +279,9 @@ async def test_scoped_foreground_pair_rejects_unknown_and_inconsistent_data(
         await hass.async_block_till_done()
 
     def expect(game_value, active_value):
-        assert hass.states.get(game).state == game_value
+        # Active game is fed by the coordinator's normalized value (issue #65), never by
+        # the legacy v1 topics; only the still-legacy gaming_active pair is asserted here.
+        assert hass.states.get(game).state == "unavailable"
         assert hass.states.get(active).state == active_value
 
     with patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish:
@@ -357,14 +359,14 @@ async def test_scoped_foreground_is_device_scoped_and_resets_on_disconnect(
         await emit(pc, ("discovery", json.dumps(DATA | {"device_id": pc, "name": "PC " + pc, "focus_protocol": 1})),
                    ("availability", "online"), ("state/gaming_active", flag),
                    ("state/active_game", game), ("state/focus_availability", "online"))
-    assert states("pc1") == ("Roblox", "on")
-    assert states("pc2") == ("idle", "off")
+    assert states("pc1") == ("unavailable", "on")
+    assert states("pc2") == ("unavailable", "off")
     await emit("pc1", ("availability", "offline"))
     assert states("pc1") == ("unavailable", "unavailable")
-    assert states("pc2") == ("idle", "off")
+    assert states("pc2") == ("unavailable", "off")
     await emit("pc1", ("availability", "online"), ("state/focus_availability", "online"))
     assert states("pc1") == ("unavailable", "unavailable")
     await emit("pc1", ("state/gaming_active", "OFF"), ("state/active_game", "idle"))
-    assert states("pc1") == ("idle", "off")
+    assert states("pc1") == ("unavailable", "off")
     for entry in entries:
         assert await hass.config_entries.async_unload(entry.entry_id)

@@ -2,7 +2,7 @@
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import PERCENTAGE
 from homeassistant.util import dt as dt_util
-from .direct_mqtt import DirectUptime, DirectCurrentGame, DirectActiveGame
+from .direct_mqtt import DirectUptime, DirectCurrentGame
 from .agent_version import AgentVersionSensor, IntegrationVersionSensor
 from .entity import GamingEntity
 from .rule_engine import remaining_budget_percent, effective_budget_limit, daily_bonus_minutes
@@ -14,7 +14,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 BudgetSensor(c, "weekly", "Weekly budget"), AgentVersionSensor(c),
                 IntegrationVersionSensor(c)]
     if c.direct:
-        entities.extend([DirectUptime(c), DirectCurrentGame(c), DirectActiveGame(c)])
+        # Native mode keeps the agent's MQTT-discovery Active game; see ActiveGameSensor.
+        entities.extend([DirectUptime(c), DirectCurrentGame(c), ActiveGameSensor(c)])
     async_add_entities(entities)
 
 
@@ -52,3 +53,27 @@ class BudgetSensor(GamingEntity, SensorEntity):
         if self.period == "daily":
             attributes["bonus_minutes"] = daily_bonus_minutes(options, now)
         return attributes
+
+
+class ActiveGameSensor(GamingEntity, SensorEntity):
+    """Active game from the coordinator's normalized value (direct mode only).
+
+    The value is a tracked application's friendly name, ``idle`` or absent.
+    Absent means unconfirmed and is shown as unavailable, never as idle. The
+    unique ID matches the former direct-mode entity, so the entity ID persists.
+    """
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator, "active_game", "Active game")
+
+    @property
+    def native_value(self):
+        value = (self.coordinator.data or {}).get("active_game")
+        if (isinstance(value, str) and value.strip()
+                and value.casefold() not in ("unknown", "unavailable")):
+            return value
+        return None
+
+    @property
+    def available(self):
+        return self.coordinator.last_update_success and self.native_value is not None
