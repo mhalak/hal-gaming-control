@@ -222,8 +222,12 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
         # An advisory token is not permission to enroll or modify a device.
         self._candidate_token = candidate["token"] if candidate else None
         process = candidate["process"] if candidate else "No fresh foreground application detected"
-        if candidate and process.casefold() in ("java.exe", "javaw.exe", "python.exe", "pythonw.exe"):
-            process += " (additional app identity required)"
+        if candidate:
+            signature = candidate.get("signature")
+            if signature is not None:
+                process += f" + {signature['kind']}: {signature['value']}"
+            elif process.casefold() in ("java.exe", "javaw.exe", "python.exe", "pythonw.exe"):
+                process += " (ambiguous runtime; not uniquely identifiable)"
         return self.async_show_form(step_id="tracked_apps",
             data_schema=vol.Schema({}),
             description_placeholders={
