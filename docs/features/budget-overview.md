@@ -1,6 +1,6 @@
 # Budget Overview
 
-[← Back to features](../../README.md#what-can-it-do) · [All guides](../README.md)
+[← Back to features](../../README.md#feature-budget-overview) · [All guides](../README.md)
 
 <table>
   <tr>

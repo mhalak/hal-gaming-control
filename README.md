@@ -14,6 +14,8 @@ Track gaming time on Windows PCs, set limits, give bonus minutes and use parent 
 
 ## What can it do?
 
+<a name="feature-gaming-budgets"></a>
+
 <table>
   <tr>
     <td width="132" valign="middle">
@@ -26,6 +28,8 @@ Track gaming time on Windows PCs, set limits, give bonus minutes and use parent 
     </td>
   </tr>
 </table>
+
+<a name="feature-tracked-applications"></a>
 
 <table>
   <tr>
@@ -40,6 +44,8 @@ Track gaming time on Windows PCs, set limits, give bonus minutes and use parent 
   </tr>
 </table>
 
+<a name="feature-parent-actions"></a>
+
 <table>
   <tr>
     <td width="132" valign="middle">
@@ -53,6 +59,8 @@ Track gaming time on Windows PCs, set limits, give bonus minutes and use parent 
   </tr>
 </table>
 
+<a name="feature-screen-idle-bonus"></a>
+
 <table>
   <tr>
     <td width="132" valign="middle">
@@ -65,6 +73,8 @@ Track gaming time on Windows PCs, set limits, give bonus minutes and use parent 
     </td>
   </tr>
 </table>
+
+<a name="feature-budget-overview"></a>
 
 <table>
   <tr>
