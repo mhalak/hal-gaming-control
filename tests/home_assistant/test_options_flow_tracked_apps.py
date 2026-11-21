@@ -77,6 +77,34 @@ async def test_menu_exposes_only_live_settings_without_mutating_saved_options(
     assert entry.options == saved
 
 
+async def test_real_home_assistant_options_translations_render_snapshot_and_labels(
+        hass, enable_custom_integrations):
+    """Catch missing translations that static JSON parity tests cannot detect."""
+    from homeassistant.helpers.translation import async_get_translations
+
+    key = f"component.{DOMAIN}.options.step.tracked_apps"
+    for language in ("en", "hr"):
+        resources = await async_get_translations(
+            hass, language, "options", integrations={DOMAIN})
+        assert resources[f"{key}.title"] == "Tracked applications"
+        assert resources[f"{key}.data.applications"] == "Application List"
+        description = resources[f"{key}.description"]
+        assert "Currently detected application" in description
+        assert "Raw sensor value" in description
+        assert "Displayed as" in description
+
+    entry = add_device(hass, DATA1, {"tracked_apps": [{
+        "process": ROBLOX["process"], "signature": None, "name": "Roblox"}]})
+    _, view = await open_step(hass, entry, "tracked_apps", ROBLOX)
+    assert view["step_id"] == "tracked_apps"
+    placeholders = view["description_placeholders"]
+    rendered = description.format(**placeholders)
+    assert "Raw sensor value: `RobloxPlayerBeta.exe`" in rendered
+    assert "Displayed as: **Roblox**" in rendered
+    assert "{raw_value}" not in rendered
+    assert "{displayed_as}" not in rendered
+
+
 async def test_one_form_shows_existing_name_and_raw_process(
         hass, enable_custom_integrations):
     old = [{"process": "javaw.exe", "signature": MINECRAFT["signature"],
