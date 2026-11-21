@@ -131,7 +131,7 @@ class GamingCoordinator(DataUpdateCoordinator):
 
     @property
     def options(self):
-        return DEFAULTS | {k: v for k, v in self.entry.options.items() if k != "weekend_total"}
+        return DEFAULTS | {k: v for k, v in self.entry.options.items() if k not in {"weekend_total", "weekend_daily"}}
 
     def entity_id(self, domain, key):
         registry = er.async_get(self.hass)
