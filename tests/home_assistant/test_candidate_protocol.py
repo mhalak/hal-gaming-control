@@ -87,3 +87,9 @@ def test_non_java_executable_cannot_claim_java_signature():
     with pytest.raises(ValueError):
         decode(VALID | {"process": "chrome.exe",
                         "signature": {"kind": "java_class", "value": "org.example.Main"}})
+
+
+def test_unhashable_signature_kind_is_rejected():
+    with pytest.raises(ValueError):
+        decode(VALID | {"process": "javaw.exe",
+                        "signature": {"kind": [], "value": "org.example.Main"}})

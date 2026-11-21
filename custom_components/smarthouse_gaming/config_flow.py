@@ -215,7 +215,7 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
 
     def _apps(self):
         """Read only this device's HA-owned mappings, not Windows discovery."""
-        return list(self.config_entry.options.get("tracked_apps", []))
+        return self.config_entry.options.get("tracked_apps", [])
 
     def _app_choices(self, apps):
         return [
@@ -243,7 +243,6 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
         # Refresh only on opening the menu, not when submitting edits.
         candidate = await _discover_foreground_candidate(
             self.hass, self.config_entry.data["device_id"])
-        self._shown_candidate = candidate
         if candidate:
             raw = candidate["process"]
             signature = candidate.get("signature")
@@ -269,7 +268,7 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
                 "count": str(len(tracked)),
                 "apps": display,
                 "legacy_apps": "\n".join(
-                    f"• {name}" for name in self.config_entry.data.get("games", []))
+                    f"• {name}" for name in (self.config_entry.data.get("games") or []))
                     or "None reported by legacy agent",
                 "candidate": raw,
             },

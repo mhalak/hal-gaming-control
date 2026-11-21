@@ -21,49 +21,53 @@ _JVM_VALUE_OPTIONS = frozenset(("--add-opens", "--add-exports", "--add-modules",
                                 "--add-reads", "--enable-native-access"))
 
 
-def _java_identity(argv):
-    """Extract only stable Java entry point; never forward full argv.
-
-    Minecraft launch arguments often contain --accessToken and --username.
-    These are intentionally ignored. Unknown/ambiguous entry points are None.
-    """
-    if not isinstance(argv, (list, tuple)) or len(argv) > 256:
+def _java_target(option, args, index):
+    """Extract a bounded launch-target identifier, not its private path."""
+    if index + 1 >= len(args) or not isinstance(args[index + 1], str):
         return None
-    args = argv[1:] if argv and isinstance(argv[0], str) else argv
+    target = args[index + 1]
+    if len(target) > 4096:
+        return None
+    if option == "-jar":
+        jar = ntpath.basename(target)
+        return {"kind": "java_jar", "value": jar} if _JAR.fullmatch(jar) else None
+    if len(target) <= 128 and _MODULE.fullmatch(target):
+        return {"kind": "java_module", "value": target}
+    return None
+
+
+def _java_flag(value):
+    """Recognize self-contained JVM switches, never arbitrary app arguments."""
+    return (value.startswith(("-D", "-X", "-XX:", "-javaagent:", "-agentlib:",
+                              "-agentpath:", "-verbose", "-ea", "-da", "-esa",
+                              "-dsa"))
+            or value in ("-server", "-client", "--enable-preview"))
+
+
+def _java_identity(argv):
+    """Extract only a safe Java launch entry point; never forward full argv."""
+    if not isinstance(argv, (list, tuple)) or not argv or len(argv) > 256:
+        return None
+    args = argv[1:]
     i = 0
     while i < len(args):
         value = args[i]
         if not isinstance(value, str) or len(value) > 4096:
             return None
-        if value == "-jar":
-            if i + 1 >= len(args) or not isinstance(args[i + 1], str):
-                return None
-            jar = ntpath.basename(args[i + 1].replace("/", "\\"))
-            return {"kind": "java_jar", "value": jar} if _JAR.fullmatch(jar) else None
-        if value in ("-m", "--module"):
-            if i + 1 >= len(args) or not isinstance(args[i + 1], str):
-                return None
-            module = args[i + 1]
-            return {"kind": "java_module", "value": module} if _MODULE.fullmatch(module) and len(module) <= 128 else None
+        if value in ("-jar", "-m", "--module"):
+            return _java_target(value, args, i)
         if value in _CLASS_PATH or value in _JVM_VALUE_OPTIONS:
             i += 2
             continue
-        if (value.startswith(("-D", "-X", "-XX:", "-javaagent:", "-agentlib:",
-                               "-agentpath:", "-verbose", "-ea", "-da", "-esa",
-                               "-dsa"))
-                or value in ("-server", "-client", "--enable-preview")):
+        if _java_flag(value):
             i += 1
             continue
-        if value.startswith("-") or value.startswith("@"):
-            # Unknown option may be followed by credentials; never inspect
-            # its parameter as though it were a Java main class.
-            return None
+        # Unknown options, @argfiles, files and other ambiguous positional
+        # arguments fail closed (including options carrying credentials).
         if len(value) <= 128 and _CLASS.fullmatch(value):
             return {"kind": "java_class", "value": value}
-        # Unknown positional value could be a user file or access token.
         return None
     return None
-
 
 
 from .core import match_game
@@ -131,8 +135,6 @@ def candidate_from_sample(sample, session, now, process_factory=psutil.Process,
     candidate does not authorize a new rule, a termination or an update.
     Generic runtimes need a separate discriminator before enrollment.
     """
-    import re
-
     if (not _valid_sample(sample, session, now)
             or sample.get("status") != "window"
             or not _valid_process_identity(sample.get("pid"), sample.get("created"))

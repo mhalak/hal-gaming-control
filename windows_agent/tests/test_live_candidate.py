@@ -74,7 +74,7 @@ def candidates(client):
 
 def test_candidate_publisher_does_not_leak_identity_or_retain(bridge):
     b, client, clock = bridge
-    assert b.publish_candidate(("chrome.exe", 42, 123, 2))
+    assert b.publish_candidate(("chrome.exe", 42, 123, 2, None))
     call, = candidates(client)
     value = json.loads(call.args[1])
     assert set(value) == {"version", "device_id", "process", "signature", "token", "observed_at"}
@@ -85,17 +85,17 @@ def test_candidate_publisher_does_not_leak_identity_or_retain(bridge):
     assert call.kwargs["qos"] == 0
     assert call.kwargs["properties"].MessageExpiryInterval == M.CANDIDATE_EXPIRY
     assert "pid" not in value and "created" not in value and "session" not in value
-    assert not b.publish_candidate(("chrome.exe", 42, 123, 2))
+    assert not b.publish_candidate(("chrome.exe", 42, 123, 2, None))
     clock.wall += 2
     clock.mono += 2
-    assert b.publish_candidate(("chrome.exe", 42, 123, 2))
+    assert b.publish_candidate(("chrome.exe", 42, 123, 2, None))
     assert json.loads(candidates(client)[1].args[1])["token"] == value["token"]
     assert b.publish_candidate(None) is False
 
 
 def test_candidate_token_rotates_on_focus_change_and_reconnect(bridge):
     b, client, clock = bridge
-    b.publish_candidate(("chrome.exe", 42, 123, 2))
+    b.publish_candidate(("chrome.exe", 42, 123, 2, None))
     first = json.loads(candidates(client)[0].args[1])["token"]
     clock.wall += 0.1
     clock.mono += 0.1
@@ -103,17 +103,17 @@ def test_candidate_token_rotates_on_focus_change_and_reconnect(bridge):
     second = json.loads(candidates(client)[1].args[1])["token"]
     assert first != second
     b.on_disconnect(client, None, None, None, None)
-    assert not b.publish_candidate(("notepad.exe", 43, 125, 2))
+    assert not b.publish_candidate(("notepad.exe", 43, 125, 2, None))
     b.on_connect(client, None, None, SimpleNamespace(is_failure=False), None)
     b.synced_generation = b.generation
-    assert b.publish_candidate(("notepad.exe", 43, 125, 2))
+    assert b.publish_candidate(("notepad.exe", 43, 125, 2, None))
     assert json.loads(candidates(client)[2].args[1])["token"] != second
 
 
 def test_unknown_and_unsynchronized_candidate_never_publish(bridge):
     b, client, _ = bridge
     b.synced_generation = None
-    assert not b.publish_candidate(("chrome.exe", 42, 123, 2))
+    assert not b.publish_candidate(("chrome.exe", 42, 123, 2, None))
     b.synced_generation = b.generation
     assert not b.publish_candidate(None)
     assert not candidates(client)
@@ -182,3 +182,41 @@ def test_mqtt_emits_sanitized_java_signature_without_raw_args(bridge):
     assert data["signature"] == signature
     assert "accessToken" not in raw and "SECRET" not in raw
     assert "private" not in raw and "cmdline" not in raw
+
+
+@pytest.mark.parametrize("candidate", [
+    ("chrome.exe", 42, 123, 2),
+    ("java.exe", 42, 123, 2, {"kind": "java_jar", "value": "C:/private.jar"}),
+    ("java.exe", 42, 123, 2, {"kind": "java_class", "value": "org.example.Main --password"}),
+    ("java.exe", 42, 123, 2, {"kind": [], "value": "org.example.Main"}),
+    ("java.exe", 42, 123, 2, {"kind": "raw", "value": "token"}),
+    ("chrome.exe", 42, 123, 2, {"kind": "java_class", "value": "org.example.Main"}),
+])
+def test_publisher_rejects_invalid_candidate_shape_and_signature(bridge, candidate):
+    b, client, _ = bridge
+    assert not b.publish_candidate(candidate)
+    assert not candidates(client)
+
+
+@pytest.mark.parametrize("argv, expected", [
+    (["java.exe", "-m", "org.example.module/org.example.Main"],
+     {"kind": "java_module", "value": "org.example.module/org.example.Main"}),
+    (["java.exe", "--module", "org.example.module"],
+     {"kind": "java_module", "value": "org.example.module"}),
+    (["java.exe", "-m"], None),
+    (["java.exe", "-m", "invalid path"], None),
+    (["java.exe", "-jar"], None),
+    (["java.exe", "--add-opens", "java.base/java.lang=ALL-UNNAMED",
+      "org.example.Main"], {"kind": "java_class", "value": "org.example.Main"}),
+    (["java.exe", "--unrecognized", "org.example.Main"], None),
+    (["java.exe", "@private-args.txt"], None),
+    (["java.exe", "-jar", "x" * 4097], None),
+    ([], None),
+])
+def test_java_launch_target_and_ambiguous_options(argv, expected):
+    target = process("java.exe")
+    target.cmdline.return_value = argv
+    candidate = candidate_from_sample(
+        SAMPLE, 2, 10.5, process_factory=lambda _: target,
+        session_lookup=lambda _: 2)
+    assert candidate[4] == expected

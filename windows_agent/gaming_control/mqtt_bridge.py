@@ -26,6 +26,33 @@ FOREGROUND_CLOCK_SKEW = 2
 CANDIDATE_PERIOD = 2
 CANDIDATE_EXPIRY = 6
 
+def _candidate_process(candidate):
+    return (isinstance(candidate, tuple) and len(candidate) == 5
+            and isinstance(candidate[0], str) and len(candidate[0]) <= 128
+            and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _.'()+-]*\.exe",
+                             candidate[0], re.IGNORECASE) is not None)
+
+
+def _candidate_signature(process, signature):
+    if signature is None:
+        return True
+    if (process.casefold() not in ("java.exe", "javaw.exe")
+            or not isinstance(signature, dict)
+            or set(signature) != {"kind", "value"}):
+        return False
+    kind, value = signature["kind"], signature["value"]
+    if not isinstance(kind, str) or not isinstance(value, str) or len(value) > 128:
+        return False
+    patterns = {
+        "java_class": r"[a-zA-Z_$][\w$]*(?:\.[a-zA-Z_$][\w$]*)+",
+        "java_jar": r"[a-zA-Z0-9][a-zA-Z0-9_.+-]{0,95}\.jar",
+        "java_module": r"[a-zA-Z_][a-zA-Z_0-9.]*(?:/[a-zA-Z_$][\w$]*(?:\.[a-zA-Z_$][\w$]*)*)?",
+    }
+    return kind in patterns and re.fullmatch(
+        patterns[kind], value, re.ASCII | (re.IGNORECASE if kind == "java_jar" else 0)
+    ) is not None
+
+
 class Bridge:
     def __init__(self, config):
         dev, cfg = config['device'], config['mqtt']
@@ -326,7 +353,7 @@ class Bridge:
 
 
     def publish_candidate(self, candidate):
-        """Publish only the basename and a rotating opaque token, never PID/path.
+        """Publish basename, safe signature and opaque token, never PID/path.
 
         A candidate is advisory, is never retained and expires from the broker.
         It cannot, by itself, authorize enrollment or an agent-side mutation.
@@ -335,24 +362,11 @@ class Bridge:
             if not self.connected or self.synced_generation != self.generation:
                 self._candidate_key = self._candidate_token = None
                 return False
-            if (not isinstance(candidate, tuple) or len(candidate) != 5
-                    or not isinstance(candidate[0], str)
-                    or len(candidate[0]) > 128
-                    or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _.'()+-]*\.exe",
-                                        candidate[0], re.IGNORECASE)):
+            if not _candidate_process(candidate) or not _candidate_signature(
+                    candidate[0], candidate[4]):
                 self._candidate_key = self._candidate_token = None
                 return False
             signature = candidate[4]
-            if (signature is not None and
-                    (not isinstance(signature, dict)
-                     or set(signature) != {"kind", "value"}
-                     or signature["kind"] not in ("java_class", "java_jar", "java_module")
-                     or not isinstance(signature["value"], str)
-                     or len(signature["value"]) > 128
-                     or not re.fullmatch(r"[a-zA-Z0-9_$][a-zA-Z0-9_.$+/-]{0,127}",
-                                         signature["value"]))):
-                self._candidate_key = self._candidate_token = None
-                return False
             now = time.monotonic()
             if candidate != self._candidate_key:
                 self._candidate_key = candidate

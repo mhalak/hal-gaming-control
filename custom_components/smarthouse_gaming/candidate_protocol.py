@@ -55,7 +55,7 @@ def _valid_signature(process, signature):
             or set(signature) != {"kind", "value"}):
         return False
     kind, value = signature["kind"], signature["value"]
-    if not isinstance(value, str) or len(value) > 128:
+    if not isinstance(kind, str) or not isinstance(value, str) or len(value) > 128:
         return False
     return bool({
         "java_class": _JAVA_CLASS,

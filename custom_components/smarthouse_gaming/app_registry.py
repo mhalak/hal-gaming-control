@@ -4,7 +4,6 @@ Windows agents never receive or store these mappings. Existing config-entry
 options are the durable source; display-name edits do not change stable keys.
 """
 import json
-import re
 
 from .candidate_protocol import _valid_process, _valid_signature
 
