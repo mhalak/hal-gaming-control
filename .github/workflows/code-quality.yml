@@ -1,5 +1,13 @@
 name: Python code quality
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+concurrency:
+  # PR revisions supersede one another; main, schedules and manual runs never do.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
 jobs:
@@ -13,7 +21,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements-quality.txt pytest
-      - run: python -m pytest -q tests/test_quality_gate.py
+      - run: python -m pytest -q tests/test_quality_gate.py tests/test_ci_event_policy.py
       - name: Enforce function and method complexity (maximum C)
         run: |
           set -o pipefail
