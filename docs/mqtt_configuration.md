@@ -14,4 +14,4 @@ This integration does not initiate its own MQTT connection, store or display cre
 
 The Windows companion agent uses its **own protected config.yaml** and broker credentials. Reconfiguring HA does not remotely reprovision the agents. Do not copy agent credentials into this public repository or diagnostics.
 
-This is only the incremental MQTT view from issue #52. The final two-option **MQTT configuration / Tracked applications** menu and live tracked application enrollment (#7) are separate follow-ups; do not remove existing access to schedule or Windows updater settings until safe alternatives exist.
+Since HA 0.5.6, **Configure** exposes only **MQTT configuration** and **Tracked applications**. The MQTT step is informational; it does not need a global Save. Tracked application edits save directly in HA. The former Restrictions and schedule, Windows update settings and Save pages are no longer reachable. Previously stored policy, schedule and updater URL values are **preserved unchanged**; this removal does not disable an already-enabled rule or update entity. Device-page limit controls and manual actions remain available.

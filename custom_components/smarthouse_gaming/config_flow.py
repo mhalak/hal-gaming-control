@@ -8,15 +8,14 @@ from homeassistant.components import mqtt
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 from homeassistant.util import dt as dt_util
-from .const import DEFAULTS, DOMAIN, ROOT
+from .const import DOMAIN, ROOT
 from .candidate_protocol import parse_candidate
-from .app_registry import load_apps
+from .app_registry import load_apps, normalized_name
 from .app_editor import (CandidateChanged, apply_app_editor,
                          editor_choices, editor_rows, raw_label)
 from .direct_mqtt import direct_mode
 from .protocol import parse_discovery
-from .update_protocol import catalog_url
-from datetime import time
+from .raw_foreground import decode_raw_identity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,6 +23,8 @@ _LOGGER = logging.getLogger(__name__)
 DISCOVERY_WINDOW = 3.0
 DISCOVERY_FILTER = "SmartHouse/Gaming/+/discovery"
 MAX_DISCOVERY_PAYLOAD = 65536
+RAW_SNAPSHOT_MAX_AGE = 8.0
+RAW_SNAPSHOT_FUTURE_SKEW = 2.0
 
 
 async def _listen_window():
@@ -89,6 +90,66 @@ async def _discover_foreground_candidate(hass, device_id):
         if unsubscribe is not None:
             unsubscribe()
     return found.get("candidate")
+
+
+async def _discover_raw_foreground_snapshot(hass, device_id):
+    """Read only a current, device-scoped v2 raw identity; never cache old samples."""
+    topic = f"{ROOT}/{device_id}/state/foreground_identity"
+    found = {}
+    unsubscribe = None
+
+    def collect(message):
+        if message.topic != topic or getattr(message, "retain", None) is not False:
+            return
+        try:
+            packet = decode_raw_identity(message.payload, device_id)
+            age = dt_util.utcnow().timestamp() - packet["observed_at"]
+        except (ValueError, TypeError, KeyError):
+            return
+        if -RAW_SNAPSHOT_FUTURE_SKEW <= age < RAW_SNAPSHOT_MAX_AGE:
+            found["packet"] = packet
+
+    try:
+        unsubscribe = await mqtt.async_subscribe(hass, topic, collect, qos=0)
+        await _listen_window()
+    except asyncio.CancelledError:
+        raise
+    except Exception as err:  # noqa: BLE001 - absent data is unavailable, never idle
+        _LOGGER.debug("Raw foreground snapshot unavailable (%s)", type(err).__name__)
+    finally:
+        if unsubscribe is not None:
+            unsubscribe()
+    return found.get("packet")
+
+
+def _raw_foreground_labels(snapshot, apps):
+    """Separate actual executable identity from the HA-normalized display."""
+    if snapshot is None:
+        return "unavailable", "unavailable"
+    state = snapshot["state"]
+    if state == "idle":
+        return "idle", "idle"
+    if state == "unknown":
+        return "unknown", "unavailable"
+    raw = raw_label(snapshot)  # Validated basename + optional safe Java signature
+    mapped = normalized_name(apps, snapshot["process"], snapshot["signature"])
+    if mapped is not None:
+        return raw, mapped
+    # Unknown executable is idle for tracked gameplay, but bare Java is
+    # ambiguous and must not silently be described as a specific game.
+    if snapshot["process"].casefold() in ("java.exe", "javaw.exe") and not snapshot["signature"]:
+        return raw, "unavailable"
+    return raw, "idle"
+
+
+def _candidate_matches_raw(candidate, snapshot):
+    """Do not suggest enrolling a different process from the one just shown."""
+    return (snapshot is None or (
+        snapshot["state"] == "foreground" and
+        isinstance(candidate, dict) and
+        candidate.get("process", "").casefold() ==
+        snapshot["process"].casefold() and
+        candidate.get("signature") == snapshot["signature"]))
 
 
 class GamingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -168,41 +229,15 @@ def _new_candidate_label(candidate, baseline):
 
 class GamingOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
-        self.values = DEFAULTS | dict(self.config_entry.options)
-        self.values.pop("unlimited", None)
-        self.values.pop("weekend_total", None)
-        self.reset_limits = set()
         return await self.async_step_menu()
 
     async def async_step_menu(self, user_input=None):
-        # Legacy automatic actions are preserved for reversible migration, never edited here.
-        menu = {"limits": "Restrictions and schedule",
-                "mqtt_settings": "MQTT configuration",
-                "tracked_apps": "Tracked applications",
-                "update_settings": "Windows update settings",
-                "save": "Save"}
-        return self.async_show_menu(step_id="menu", menu_options=menu)
-
-    async def async_step_limits(self, user_input=None):
-        errors = {}
-        if user_input is not None:
-            try:
-                for key in ("schedule_start", "schedule_end"):
-                    value = time.fromisoformat(user_input[key])
-                    if value.tzinfo is not None:
-                        raise ValueError
-                self.reset_limits = {key for key in ("daily", "weekly", "weekend_daily")
-                                     if user_input.get("reset_" + key, False)}
-                self.values.update({k: v for k, v in user_input.items() if not k.startswith("reset_")})
-                return await self.async_step_menu()
-            except ValueError:
-                errors["base"] = "invalid_time"
-        schema = {vol.Required(key, default=self.values[key]): bool for key in ("enabled", "schedule_enabled")}
-        for key in ("daily", "weekly", "weekend_daily"):
-            schema[vol.Optional("reset_" + key, default=key in self.reset_limits)] = bool
-        for key in ("schedule_start", "schedule_end"):
-            schema[vol.Required(key, default=self.values[key])] = str
-        return self.async_show_form(step_id="limits", data_schema=vol.Schema(schema), errors=errors)
+        # Legacy policy and updater values stay persisted, but are no longer
+        # edited through Configure. Tracked applications commit on their own.
+        return self.async_show_menu(
+            step_id="menu",
+            menu_options=["mqtt_settings", "tracked_apps"],
+        )
 
     async def async_step_mqtt_settings(self, user_input=None):
         """Show the shared connection and per-device topics without exposing secrets."""
@@ -247,9 +282,16 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
                 self._app_baseline = list(load_apps(self._apps()).values())
             except ValueError:
                 return self.async_abort(reason="invalid_app_configuration")
-            # Only a fresh, per-device non-retained MQTT candidate may be added.
-            self._selected_app = await _discover_foreground_candidate(
-                self.hass, self.config_entry.data["device_id"])
+            # Separate raw identity display from the token-protected Add hint.
+            # Both are collected in one short window, never sent to Windows.
+            self._selected_app, self._raw_snapshot = await asyncio.gather(
+                _discover_foreground_candidate(
+                    self.hass, self.config_entry.data["device_id"]),
+                _discover_raw_foreground_snapshot(
+                    self.hass, self.config_entry.data["device_id"]),
+            )
+            if not _candidate_matches_raw(self._selected_app, self._raw_snapshot):
+                self._selected_app = None
         else:
             rows = user_input.get("applications")
             old_choices = editor_choices(self._app_baseline, None)
@@ -277,13 +319,8 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
         choices = editor_choices(self._app_baseline, self._selected_app)
         candidate = self._selected_app
         candidate_key = _new_candidate_label(candidate, self._app_baseline)
-        if candidate_key is not None:
-            preview = candidate_key
-        elif isinstance(candidate, dict):
-            preview = "Detected runtime is ambiguous or already configured: " + (
-                raw_label(candidate))
-        else:
-            preview = "No fresh foreground application detected; open a game and reopen Configure."
+        raw_value, displayed_as = _raw_foreground_labels(
+            self._raw_snapshot, self._app_baseline)
 
         # HA's native multiple-object editor shows expandable named rows and
         # the built-in Add/Remove-row UI, without a custom frontend dependency.
@@ -322,44 +359,8 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
                 "device": self.config_entry.data.get("name")
                           or self.config_entry.data["device_id"],
                 "count": str(len(self._app_baseline)),
-                "candidate": preview,
+                "raw_value": raw_value,
+                "displayed_as": displayed_as,
             },
             errors=errors,
         )
-
-    async def async_step_update_settings(self, user_input=None):
-        errors = {}
-        if user_input is not None:
-            value = user_input["update_catalog_url"].strip()
-            try:
-                if value:
-                    catalog_url(value)
-                self.values["update_catalog_url"] = value
-                return await self.async_step_menu()
-            except ValueError:
-                errors["base"] = "invalid_catalog"
-        return self.async_show_form(step_id="update_settings", data_schema=vol.Schema({
-            vol.Required("update_catalog_url", default=self.values.get("update_catalog_url", "")): str
-        }), errors=errors)
-
-    async def async_step_save(self, user_input=None):
-        # Preserve live device controls changed while the options UI was open.
-        latest = DEFAULTS | dict(self.config_entry.options)
-        for key in ("daily", "weekly", "weekend_daily"):
-            self.values[key] = -1 if key in self.reset_limits else latest[key]
-        self.values["unlimited"] = latest["unlimited"]
-        # The per-game editor is temporarily withdrawn. Do not overwrite legacy
-        # data or concurrent changes when saving unrelated settings.
-        self.values["per_game"] = dict(latest["per_game"])
-        # A separate HA-only CRUD flow may have saved app aliases meanwhile.
-        # Never let an unrelated Limits/Save flow overwrite those mappings.
-        if "tracked_apps" in latest:
-            self.values["tracked_apps"] = latest["tracked_apps"]
-        else:
-            self.values.pop("tracked_apps", None)
-        for key in ("bonus_date", "bonus_minutes"):
-            self.values.pop(key, None)
-            if key in latest:
-                self.values[key] = latest[key]
-        self.values["actions"] = list(latest["actions"])
-        return self.async_create_entry(title="", data=self.values)

@@ -30,19 +30,18 @@ async def test_invalid_discovery(hass, enable_custom_integrations):
     assert result["type"] == data_entry_flow.FlowResultType.ABORT
     assert result["reason"] == "invalid_discovery"
 
-async def test_options_menu_preserves_legacy_actions_but_no_action_editor(hass, enable_custom_integrations):
+async def test_options_menu_only_has_mqtt_and_apps_and_keeps_legacy_options(
+        hass, enable_custom_integrations):
+    saved = {"actions": ["terminate_game"], "daily": 60,
+             "update_catalog_url": "https://example.com/catalog.json"}
     entry = MockConfigEntry(domain=DOMAIN, title=DATA["name"], data=DATA,
-                            unique_id="pc1", options={"actions": ["terminate_game"]})
+                            unique_id="pc1", options=saved)
     entry.add_to_hass(hass)
-    manager = hass.config_entries.options
-    result = await manager.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["type"] == data_entry_flow.FlowResultType.MENU
-    assert set(result["menu_options"]) == {
-        "limits", "mqtt_settings", "tracked_apps", "update_settings", "save"}
-    result = await manager.async_configure(result["flow_id"], {"next_step_id": "save"})
-    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
-    # Do not destroy legacy action options; they can no longer cause automatic commands.
-    assert entry.options["actions"] == ["terminate_game"]
+    assert result["menu_options"] == ["mqtt_settings", "tracked_apps"]
+    # Removed UI paths must not erase persisted limits, update settings or actions.
+    assert entry.options == saved
 
 
 async def test_remote_update_entity_request_and_completion(hass):
@@ -408,26 +407,16 @@ def test_strings_cover_manual_onboarding():
         assert "discovery_only" not in config["abort"]
 
 
-async def test_limit_form_excludes_override_and_legacy_weekend_total(hass, enable_custom_integrations):
-    entry = MockConfigEntry(domain=DOMAIN, data=DATA, unique_id="pc1",
-                            options={"daily":60,"weekend_daily":120,"weekend_total":90,"unlimited":False})
+async def test_legacy_limit_values_survive_opening_configure(
+        hass, enable_custom_integrations):
+    old = {"daily": 60, "weekend_daily": 120, "weekend_total": 90,
+           "unlimited": False, "schedule_enabled": True,
+           "schedule_start": "17:00", "schedule_end": "21:00"}
+    entry = MockConfigEntry(domain=DOMAIN, data=DATA, unique_id="pc1", options=old)
     entry.add_to_hass(hass)
-    manager = hass.config_entries.options
-    result = await manager.async_init(entry.entry_id)
-    result = await manager.async_configure(result["flow_id"], {"next_step_id":"limits"})
-    fields = {str(k) for k in result["data_schema"].schema}
-    assert fields == {"enabled","reset_daily","reset_weekly","reset_weekend_daily","schedule_enabled","schedule_start","schedule_end"}
-    result = await manager.async_configure(result["flow_id"], {"enabled":True,"schedule_enabled":False,
-        "schedule_start":"16:00","schedule_end":"20:00"})
-    hass.config_entries.async_update_entry(entry, options=dict(entry.options) | {"unlimited":True,"daily":90,"bonus_date":"2026-11-18","bonus_minutes":30,"actions":["lock_pc"]})
-    result = await manager.async_configure(result["flow_id"], {"next_step_id":"save"})
-    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
-    assert entry.options["unlimited"] is True
-    assert entry.options["weekend_daily"] == 120
-    assert entry.options["daily"] == 90
-    assert entry.options["bonus_minutes"] == 30
-    assert entry.options["actions"] == ["lock_pc"]
-    assert "weekend_total" not in entry.options
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["menu_options"] == ["mqtt_settings", "tracked_apps"]
+    assert entry.options == old
 
 
 @pytest.mark.parametrize("connected,direct", [(True,True),(False,False)])
@@ -463,24 +452,19 @@ async def test_per_game_editor_hidden_preserving_existing_settings(hass, enable_
     manager = hass.config_entries.options
     result = await manager.async_init(entry.entry_id)
     assert result["type"] == data_entry_flow.FlowResultType.MENU
-    assert "game_limits" not in result["menu_options"]
-    assert "mqtt_settings" in result["menu_options"]
-    assert "update_settings" in result["menu_options"]
-    # Preserve concurrent updates to the now-hidden legacy setting.
+    assert result["menu_options"] == ["mqtt_settings", "tracked_apps"]
+    # Preserve concurrent changes to a hidden legacy setting when the active
+    # Tracked applications editor (not the removed Save page) commits.
     hass.config_entries.async_update_entry(entry, options=dict(entry.options) | {
         "per_game":{"Roblox":45}})
-    result = await manager.async_configure(result["flow_id"], {"next_step_id":"save"})
+    with patch("custom_components.smarthouse_gaming.config_flow._discover_foreground_candidate",
+               return_value=None):
+        form = await manager.async_configure(
+            result["flow_id"], {"next_step_id": "tracked_apps"})
+    result = await manager.async_configure(form["flow_id"], {"applications": []})
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
-    assert entry.options["per_game"] == {"Roblox":45}
+    assert result["data"]["per_game"] == {"Roblox":45}
     assert entry.options["daily"] == 60
-
-
-def test_per_game_editor_translations_removed():
-    from pathlib import Path
-    parent = Path(cf.__file__).parent
-    for rel in ("strings.json","translations/en.json"):
-        steps = json.loads((parent / rel).read_text())["options"]["step"]
-        assert not {"game_limits","choose_game","game_limit"} & steps.keys()
 
 
 @pytest.mark.parametrize("key, platform", [("current_game", "sensor"), ("lock_pc", "button"),

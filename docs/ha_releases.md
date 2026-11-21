@@ -1,3 +1,12 @@
+## 0.5.6 — streamline per-PC Configure menu
+
+- Show only **MQTT configuration** (read-only) and **Tracked applications** (one form, immediate HA save).
+- The editor now displays **Currently detected application** from a fresh v2 `foreground_identity` MQTT snapshot (safe executable basename and Java discriminator only), **Raw sensor value**, **Displayed as** from HA mappings (`idle` for untracked executables, `unavailable` for missing/ambiguous status), then **Application List**. A mismatching candidate is not offered as a new app. Native HA forms do not push live changes while open: close/reopen after changing the PC foreground; new Add revalidates the latest token before save. Remove legacy Restrictions and schedule, Windows update settings and redundant top-level Save steps and their obsolete translation entries.
+- No options migration, no clearing stored daily/weekly limits, schedule/enablement, legacy actions, per-game settings or approved updater URL. An already-enabled rule still follows saved policy. The remote update entity and manual Lock PC / Terminate game actions remain unchanged. Nothing is written to Windows, and no automatic commands are introduced.
+- Update real Home Assistant flow tests for the two-entry menu, persisted legacy options and application editor save. HA-only patch version; Windows agent remains 0.2.6.
+- The owner observed a missing `{actions}` translation variable on a deployed Configure screen. Current source strings do not contain that placeholder; after deployment verify the installed HA build and refresh frontend translations/cache rather than treating that stale error as proof of a remaining source string.
+- Requires CI review and separately coordinated deployment; no live installation is claimed.
+
 ## 0.5.5 — single-page Tracked applications editor
 
 - Replace the three Add/Rename/Remove submenus with a single native HA multiple-object editor. Current HA-owned mappings are prepopulated as removable/editable rows. Each row displays its **actual, safe Windows executable basename** plus a vetted Java main-class/JAR/module signature where available. New-row default selects the last fresh foreground candidate; user supplies a friendly name.
