@@ -77,7 +77,7 @@ class GamingTimeSensor(GamingEntity, SensorEntity):
     # Frontend formats fractional hours as h/m/s, avoiding 711m 3s.
     # Keep the numeric duration entity and its stable unique ID for history.
     _attr_native_unit_of_measurement = UnitOfTime.HOURS
-    _attr_suggested_display_precision = 6
+    _attr_suggested_display_precision = 9
     _attr_icon = "mdi:timer-outline"
 
     def __init__(self, coordinator, period, name):
@@ -102,7 +102,7 @@ class GamingTimeSensor(GamingEntity, SensorEntity):
         elapsed = raw.get(self.period)
         # Hours as a fractional value preserve sub-minute precision while
         # letting HA display e.g. 11h 51m 3s rather than 711m 3s.
-        return round(elapsed / 3600, 6) if elapsed is not None else None
+        return round(elapsed / 3600, 9) if elapsed is not None else None
 
     @property
     def extra_state_attributes(self):
