@@ -1,5 +1,10 @@
 # Issue #4 — first enrollment, migration and one-PC acceptance
 
+The HA 0.5.3 source removes legacy direct MQTT activity entities from
+new registrations. Old scoped entity registry entries are not automatically
+deleted: the operator must use the exact-owner guarded cleanup after the full
+foreground cutover and native discovery retirement. Preserve Recorder.
+
 The production source cutover is gated on all required PRs and real device
 acceptance; **do not deploy unfinished core libraries as a feature**.
 
