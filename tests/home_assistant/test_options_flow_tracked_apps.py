@@ -157,7 +157,7 @@ async def test_live_foreground_candidate_is_scoped_and_advisory(
     topic = "SmartHouse/Gaming/pc1/state/foreground_candidate"
     current = cf.dt_util.utcnow().timestamp()
     value = {"version": 1, "device_id": "pc1", "process": "chrome.exe",
-             "token": "a" * 32, "observed_at": current}
+             "token": "a" * 32, "signature": None, "observed_at": current}
     calls = []
 
     async def subscribe(_hass, requested, callback, qos=0):
@@ -189,4 +189,4 @@ async def test_generic_runtime_detected_but_marked_not_enrollable(
         manager = hass.config_entries.options
         result = await manager.async_init(entry.entry_id)
         result = await manager.async_configure(result["flow_id"], {"next_step_id": "tracked_apps"})
-    assert "additional app identity required" in result["description_placeholders"]["candidate"]
+    assert "ambiguous runtime" in result["description_placeholders"]["candidate"]
