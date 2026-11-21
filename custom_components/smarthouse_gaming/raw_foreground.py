@@ -84,7 +84,13 @@ class HAOwnedForeground:
     def __init__(self, device_id, tracked_apps, *, intervals=()):
         self.device_id = device_id
         self.apps = load_apps(tracked_apps)
-        self.ledger = ForegroundLedger(device_id, self.apps, intervals=intervals)
+        # Historic keys remain countable after an explicit HA Rename/Remove.
+        # Only self.apps can match NEW live samples: removed apps stay untracked.
+        history = tuple(intervals)
+        archive = {row[2] for row in history
+                   if isinstance(row, (tuple, list)) and len(row) == 3}
+        self.ledger = ForegroundLedger(
+            device_id, set(self.apps) | archive, intervals=history)
 
     def invalidate(self):
         self.ledger.invalidate()
