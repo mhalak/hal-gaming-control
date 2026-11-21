@@ -2,22 +2,22 @@
 
 [← Documentation hub](../../README.md) · [← Project home](../../../README.md)
 
-The five feature illustrations have been generated using the existing SmartHouse Parental Control banner as visual reference: dark teal, cyan/bright yellow highlights, warm parent-and-child cartoon characters, bold outlines, and the friendly white robot.
+The feature illustrations follow the existing SmartHouse Parental Control banner's visual direction: dark teal, cyan/bright yellow highlights, warm parent-and-child cartoon caricatures, bold outlines, and the friendly white robot.
 
-**Artwork is a visual explanation, not a real Home Assistant screenshot.** The generated WebP assets are prepared for import separately; **no binary artwork is committed at this path yet.** Do not add broken image links to the guides before importing their exact files and confirming they render correctly in GitHub.
+**Artwork is a visual explanation, not a real Home Assistant screenshot.** The approved `gaming-budgets.webp` has been committed. The remaining planned files are not in the repository yet; do not add links until the actual image files are imported and verified. The characters are fictionalized cartoons, not real family photographs.
 
-| Planned asset | Guide | Depicts |
-| --- | --- | --- |
-| `gaming-budgets.webp` | [Gaming budgets](../../features/gaming-budgets.md) | Stopwatch, gaming time, reward coins, family and robot |
-| `tracked-applications.webp` | [Tracked applications](../../features/tracked-applications.md) | Robot displaying a grid of different app identities |
-| `parent-actions.webp` | [Manual actions](../../features/parent-actions.md) | Parent using an explicit lock/pause control |
-| `screen-idle-bonus.webp` | [Screen idle bonus — planned](../../features/screen-idle-bonus.md) | Sleeping child and background game continuing |
-| `budget-overview.webp` | [Budget overview — planned](../../features/budget-overview.md) | Robot with an itemized receipt and remaining-time indicator |
+| Asset | Status | Guide | Depicts |
+| --- | --- | --- | --- |
+| [`gaming-budgets.webp`](gaming-budgets.webp) | **Committed** | [Gaming budgets](../../features/gaming-budgets.md) | Royal parent distributing +10 and +30 golden bonus coins to the children, with robot |
+| `tracked-applications.webp` | **Planned** | [Tracked applications](../../features/tracked-applications.md) | Robot displaying a grid of different app identities |
+| `parent-actions.webp` | **Planned** | [Manual actions](../../features/parent-actions.md) | Parent using an explicit lock/pause control |
+| `screen-idle-bonus.webp` | **Planned** | [Screen idle bonus — planned](../../features/screen-idle-bonus.md) | Sleeping child and background game continuing |
+| `budget-overview.webp` | **Planned** | [Budget overview — planned](../../features/budget-overview.md) | Robot with an itemized receipt and remaining-time indicator |
 
 ## Publishing workflow
 
-1. Import the five approved WebP files into this folder without unnecessary recompression or changing their names.
-2. Confirm actual file presence in the PR before adding the corresponding link to the beginning of each feature guide: `![Feature illustration](../assets/illustrations/<file>.webp)`.
+1. Import each subsequent approved WebP asset using its planned filename.
+2. Confirm the file exists and renders in GitHub before linking it from the matching guide and README two-column feature card.
 3. Keep a visible **Planned** marker on features that don't exist yet. Art alone is not proof of implementation.
 4. Follow the separate [real screenshot checklist](../screenshots/README.md) for actual UI captures, privacy, and version labeling.
 
