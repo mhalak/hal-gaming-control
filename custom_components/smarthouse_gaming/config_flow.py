@@ -11,8 +11,8 @@ from homeassistant.util import dt as dt_util
 from .const import DOMAIN, ROOT
 from .candidate_protocol import parse_candidate
 from .app_registry import load_apps, normalized_name
-from .app_editor import (CandidateChanged, apply_app_editor,
-                         editor_choices, editor_rows, raw_label)
+from .app_editor import (apply_app_editor, editor_choices, editor_rows,
+                         raw_label)
 from .direct_mqtt import direct_mode
 from .protocol import parse_discovery
 from .raw_foreground import decode_raw_identity
@@ -293,26 +293,17 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
             if not _candidate_matches_raw(self._selected_app, self._raw_snapshot):
                 self._selected_app = None
         else:
-            rows = user_input.get("applications")
-            old_choices = editor_choices(self._app_baseline, None)
-            needs_candidate = isinstance(rows, list) and any(
-                isinstance(row, dict)
-                and row.get("detected") not in old_choices
-                for row in rows)
-            latest_candidate = (
-                await _discover_foreground_candidate(
-                    self.hass, self.config_entry.data["device_id"])
-                if needs_candidate else None)
+            # Only the server-side snapshot made when this editor opened
+            # may authorize a new application. Never resubscribe on Submit:
+            # a parent's explicit choice outlives a child's Alt-Tab/exit.
             try:
                 new_apps = apply_app_editor(
-                    self._app_baseline, rows, self._selected_app,
-                    latest_candidate)
+                    self._app_baseline, user_input.get("applications"),
+                    self._selected_app)
                 result = self._commit_app_change(new_apps)
                 if result is not None:
                     return result
                 errors["base"] = "configuration_changed"
-            except CandidateChanged:
-                errors["base"] = "candidate_changed"
             except ValueError:
                 errors["base"] = "invalid_application"
 
