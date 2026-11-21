@@ -2,7 +2,7 @@
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.const import PERCENTAGE
 from homeassistant.util import dt as dt_util
-from .direct_mqtt import DirectUptime, DirectCurrentGame
+from .direct_mqtt import DirectUptime
 from .agent_version import AgentVersionSensor, IntegrationVersionSensor
 from .entity import GamingEntity
 from .rule_engine import remaining_budget_percent, effective_budget_limit, daily_bonus_minutes
@@ -17,7 +17,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 GamingTimeSensor(c, "weekly", "Weekly gaming time"),
                 AgentVersionSensor(c), IntegrationVersionSensor(c)]
     if c.direct:
-        entities.extend([DirectUptime(c), DirectCurrentGame(c)])
+        entities.append(DirectUptime(c))
     async_add_entities(entities)
 
 

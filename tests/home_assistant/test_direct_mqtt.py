@@ -44,13 +44,15 @@ async def test_scoped_entities_and_safe_controls(hass, enable_custom_integration
         await hass.async_block_till_done()
 
     registry = er.async_get(hass)
-    keys = {"uptime":"sensor", "current_game":"sensor", "in_game":"binary_sensor",
-            "terminate_game":"button", "lock_pc":"button"}
+    keys = {"uptime":"sensor", "terminate_game":"button", "lock_pc":"button"}
     ids = {key:registry.async_get_entity_id(platform, DOMAIN, "pc1_"+key) for key,platform in keys.items()}
     assert all(ids.values())
     assert all(registry.async_get(eid) is None for eid in legacy)
     owned = er.async_entries_for_config_entry(registry, entry.entry_id)
-    assert {e.unique_id for e in owned if e.entity_id.split(".")[0] in ("sensor","binary_sensor")} == {"pc1_uptime","pc1_in_game","pc1_current_game","pc1_budget_daily","pc1_budget_weekly","pc1_agent_version","pc1_integration_version","pc1_active_game","pc1_gaming_active","pc1_gaming_time_daily","pc1_gaming_time_weekly"}
+    assert {e.unique_id for e in owned if e.entity_id.split(".")[0] in ("sensor","binary_sensor")} == {"pc1_uptime","pc1_budget_daily","pc1_budget_weekly","pc1_agent_version","pc1_integration_version","pc1_active_game","pc1_gaming_time_daily","pc1_gaming_time_weekly"}
+    for old_key, old_domain in (("current_game", "sensor"), ("in_game", "binary_sensor"),
+                                ("gaming_active", "binary_sensor")):
+        assert registry.async_get_entity_id(old_domain, DOMAIN, "pc1_" + old_key) is None
     assert all(registry.async_get_entity_id(platform, "mqtt", "smarthouse_gaming_pc1_"+key) is None for key,platform in keys.items())
     assert len({registry.async_get(eid).device_id for eid in ids.values()}) == 1
     assert entry.runtime_data.entity_id("sensor","uptime") == ids["uptime"]
@@ -62,8 +64,6 @@ async def test_scoped_entities_and_safe_controls(hass, enable_custom_integration
             async_fire_mqtt_message(hass, ROOT+"/"+suffix, payload)
         await hass.async_block_till_done()
         assert hass.states.get(ids["uptime"]).state == "100"
-        assert hass.states.get(ids["current_game"]).state == "Roblox"
-        assert hass.states.get(ids["in_game"]).state == "on"
         assert not publish.called
         await hass.services.async_call("button","press",{"entity_id":ids["lock_pc"]},blocking=True)
         publish.assert_awaited_once_with(hass,ROOT+"/command/lock_pc","PRESS",qos=0,retain=False)
@@ -262,10 +262,11 @@ async def test_ha_owned_active_game_entity_is_present_in_both_modes(
     for period in ("daily", "weekly"):
         assert registry.async_get_entity_id(
             "sensor", DOMAIN, "pc1_gaming_time_" + period)
-    # Legacy gaming_active is still a separate temporary compatibility entity
-    # until the controlled #67 source/discovery cleanup.
-    assert bool(registry.async_get_entity_id(
-        "binary_sensor", DOMAIN, "pc1_gaming_active")) is direct
+    # No process-presence or agent-derived activity entities in either mode.
+    for domain, key in (("sensor", "current_game"),
+                        ("binary_sensor", "in_game"),
+                        ("binary_sensor", "gaming_active")):
+        assert registry.async_get_entity_id(domain, DOMAIN, "pc1_" + key) is None
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
@@ -285,7 +286,7 @@ async def test_ha_owned_active_game_ignores_legacy_agent_game_names(
     registry = er.async_get(hass)
     game = registry.async_get_entity_id("sensor", DOMAIN, "pc1_active_game")
     legacy = registry.async_get_entity_id("sensor", DOMAIN, "pc1_current_game")
-    assert game and legacy
+    assert game and legacy is None
 
     async def emit(*messages):
         for suffix, payload in messages:
@@ -304,7 +305,8 @@ async def test_ha_owned_active_game_ignores_legacy_agent_game_names(
                    ("state/current_game", "Roblox"),
                    ("state/active_game", "Roblox"),
                    ("state/gaming_active", "ON"))
-        assert hass.states.get(legacy).state == "Roblox"
+        assert registry.async_get_entity_id("sensor", DOMAIN,
+                                            "pc1_current_game") is None
         assert hass.states.get(game).state == "unavailable"
         assert (entry.runtime_data.foreground._connected, entry.runtime_data.foreground._online) == (True, True)
         source = entry.runtime_data.foreground

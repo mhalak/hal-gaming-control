@@ -12,7 +12,7 @@ game, and it still sends raw v2 foreground identity data to the HA-owned
 temporarily remain for rollback and manual termination; neither is used by
 the HA foreground budget accounting.
 
-**Staged-update dependency:** HA 0.5.2, exact source SHA, app enrollment and
+**Staged-update dependency:** HA 0.5.3, exact source SHA, app enrollment and
 existing native entity identity migration must be reviewed before the agent
 tombstones old native entities. Deploy HA integration on the confirmed TrueNAS
 project stack and update only ONE authorized Windows PC first; confirm there

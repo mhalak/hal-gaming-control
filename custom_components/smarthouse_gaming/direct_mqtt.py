@@ -1,8 +1,6 @@
 """Scoped MQTT telemetry and controls for HA installations with discovery disabled."""
-import json
 
 from homeassistant.components import mqtt
-from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.components.button import ButtonEntity
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.core import callback
@@ -12,7 +10,6 @@ from homeassistant.helpers.entity import Entity, EntityCategory
 
 from .const import ROOT
 from .action_registry import ACTION_REGISTRY
-from .protocol import parse_discovery
 
 
 def direct_mode(hass):
@@ -74,8 +71,6 @@ class DirectEntity(Entity):
                 value = int(value)
             else:
                 value = None
-        elif self._state_key == "in_game":
-            value = {"ON": True, "OFF": False}.get(value) if isinstance(value, str) else None
         elif not isinstance(value, str) or not value or len(value) > 255 or value in ("unknown", "unavailable"):
             value = None
         self._value = value
@@ -93,126 +88,6 @@ class DirectUptime(DirectEntity, SensorEntity):
     @property
     def native_value(self):
         return self._value
-
-
-class DirectCurrentGame(DirectEntity, SensorEntity):
-    def __init__(self, c):
-        super().__init__(c, "current_game", "Current game", "current_game")
-
-    @property
-    def native_value(self):
-        return self._value
-
-
-class DirectInGame(DirectEntity, BinarySensorEntity):
-    def __init__(self, c):
-        super().__init__(c, "in_game", "In game", "in_game")
-
-    @property
-    def is_on(self):
-        return self._value
-
-
-class DirectForeground(DirectEntity):
-    """Read the complete scoped foreground pair, never infer it from process presence."""
-
-    def __init__(self, c, key, name):
-        super().__init__(c, key, name)
-        self._supported = False
-        self._focus_online = False
-        self._game = None
-        self._active = None
-        self._games = set(c.games)
-
-    @property
-    def available(self):
-        return (self._connected and self._online and self._supported and self._focus_online
-                and ((self._active is True and self._game in self._games)
-                     or (self._active is False and self._game == "idle")))
-
-    async def async_added_to_hass(self):
-        await super().async_added_to_hass()
-        callbacks = {
-            "/discovery": self._metadata,
-            "/state/focus_availability": self._focus,
-            "/state/active_game": self._foreground_game,
-            "/state/gaming_active": self._foreground_active,
-        }
-        for suffix, handler in callbacks.items():
-            self.async_on_remove(await mqtt.async_subscribe(
-                self.hass, self._root + suffix, handler, qos=1))
-
-    def _clear_pair(self):
-        self._game = self._active = None
-
-    @callback
-    def _connection(self, connected):
-        if not connected:
-            self._supported = self._focus_online = False
-            self._clear_pair()
-        super()._connection(connected)
-
-    @callback
-    def _availability(self, message):
-        if message.payload != "online":
-            self._focus_online = False
-            self._clear_pair()
-        super()._availability(message)
-
-    @callback
-    def _metadata(self, message):
-        try:
-            if (message.topic != self._root + "/discovery"
-                    or not isinstance(message.payload, (str, bytes))
-                    or len(message.payload) > 65536):
-                raise ValueError("Invalid foreground metadata")
-            parse_discovery(message.topic, message.payload)
-            version = json.loads(message.payload).get("focus_protocol")
-            supported = type(version) is int and version == 1
-        except (ValueError, TypeError):
-            supported = False
-        self._supported = supported
-        if not supported:
-            self._focus_online = False
-            self._clear_pair()
-        self.async_write_ha_state()
-
-    @callback
-    def _focus(self, message):
-        self._focus_online = message.payload == "online"
-        if not self._focus_online:
-            self._clear_pair()
-        self.async_write_ha_state()
-
-    @callback
-    def _foreground_game(self, message):
-        value = message.payload
-        self._game = value if isinstance(value, str) and (value == "idle" or value in self._games) else None
-        self.async_write_ha_state()
-
-    @callback
-    def _foreground_active(self, message):
-        value = message.payload
-        self._active = {"ON": True, "OFF": False}.get(value) if isinstance(value, str) else None
-        self.async_write_ha_state()
-
-
-class DirectActiveGame(DirectForeground, SensorEntity):
-    def __init__(self, c):
-        super().__init__(c, "active_game", "Active game")
-
-    @property
-    def native_value(self):
-        return self._game if self.available else None
-
-
-class DirectGamingActive(DirectForeground, BinarySensorEntity):
-    def __init__(self, c):
-        super().__init__(c, "gaming_active", "Gaming active")
-
-    @property
-    def is_on(self):
-        return self._active if self.available else None
 
 
 class DirectAction(DirectEntity, ButtonEntity):

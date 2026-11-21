@@ -1,8 +1,9 @@
-"""Expose process presence and foreground activity in direct MQTT mode."""
-from .direct_mqtt import DirectInGame, DirectGamingActive
+"""Gaming presence/activity legacy binary sensors retired after v2 cutover.
+
+The retained Windows wire protocol is not a valid HA foreground source.
+Future HA restriction sensors will derive from verified coordinator totals.
+"""
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    c = entry.runtime_data
-    if c.direct:
-        async_add_entities([DirectInGame(c), DirectGamingActive(c)])
+    """There are no legacy binary sensors to register."""
