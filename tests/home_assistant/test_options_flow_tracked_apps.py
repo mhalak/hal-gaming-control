@@ -57,11 +57,17 @@ def rows(view):
     return field.default()
 
 
-async def test_menu_keeps_unrelated_options(hass, enable_custom_integrations):
-    e = add_device(hass, DATA1)
-    view = await hass.config_entries.options.async_init(e.entry_id)
-    assert set(view["menu_options"]) == {
-        "limits", "mqtt_settings", "tracked_apps", "update_settings", "save"}
+async def test_menu_exposes_only_live_settings_without_mutating_saved_options(
+        hass, enable_custom_integrations):
+    saved = {"daily": 90, "schedule_enabled": True,
+             "schedule_start": "16:00", "schedule_end": "20:00",
+             "update_catalog_url": "https://example.com/catalog.json",
+             "actions": ["lock_pc"]}
+    entry = add_device(hass, DATA1, saved)
+    view = await hass.config_entries.options.async_init(entry.entry_id)
+    assert view["type"] == data_entry_flow.FlowResultType.MENU
+    assert view["menu_options"] == ["mqtt_settings", "tracked_apps"]
+    assert entry.options == saved
 
 
 async def test_one_form_shows_existing_name_and_raw_process(
@@ -293,25 +299,28 @@ async def test_translations_explain_single_page_editor_and_mqtt(
         hass, enable_custom_integrations):
     for relative in ("strings.json", "translations/en.json"):
         steps = json.loads((PACKAGE / relative).read_text())["options"]["step"]
+        assert set(steps) == {"menu", "mqtt_settings", "tracked_apps"}
         tracked = steps["tracked_apps"]["description"]
         assert "Detected foreground process" in tracked
         assert "Add item" in tracked
         assert "nothing is written to Windows" in tracked
         assert "applications" in steps["tracked_apps"]["data"]
-        assert "add_app" not in steps and "rename_app" not in steps
         assert "shared" in steps["mqtt_settings"]["description"].lower()
+        assert "{actions}" not in json.dumps(steps)
 
 
-async def test_unrelated_options_save_keeps_concurrent_tracked_apps(
+async def test_editor_replaces_top_level_save_without_resetting_legacy_settings(
         hass, enable_custom_integrations):
-    entry = add_device(hass, DATA1, {"daily": 100})
-    manager = hass.config_entries.options
-    view = await manager.async_init(entry.entry_id)
-    latest = {"daily": 90, "tracked_apps": [
-        {"process": "RobloxPlayerBeta.exe", "signature": None, "name": "Roblox"}]}
-    hass.config_entries.async_update_entry(entry, options=latest)
-    result = await manager.async_configure(
-        view["flow_id"], {"next_step_id": "save"})
+    saved = {"daily": 100, "weekly": 200, "enabled": True,
+             "update_catalog_url": "https://example.com/catalog.json",
+             "actions": ["terminate_game"], "unlimited": False}
+    entry = add_device(hass, DATA1, saved)
+    manager, view = await open_step(hass, entry, "tracked_apps", ROBLOX)
+    with patch.object(cf, "_discover_foreground_candidate",
+                      new=AsyncMock(return_value=ROBLOX)):
+        result = await manager.async_configure(view["flow_id"], {
+            "applications": [{"name": "Roblox", "detected": raw_label(ROBLOX)}]})
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
-    assert result["data"]["tracked_apps"] == latest["tracked_apps"]
-    assert result["data"]["daily"] == 90
+    for key, value in saved.items():
+        assert result["data"][key] == value
+    assert result["data"]["tracked_apps"][0]["name"] == "Roblox"
