@@ -32,7 +32,7 @@
       },
       "tracked_apps": {
         "title": "Tracked applications",
-        "description": "**Currently detected application**\n\nRaw sensor value: `{raw_value}`\n\nDisplayed as: **{displayed_as}**\n\n*Snapshot when opened. Switch apps and reopen this screen to refresh.*\n\nUse Add to enroll a detected application; its identity is rechecked on Submit.",
+        "description": "**Currently detected application**\n\nRaw sensor value: `{raw_value}`\n\nDisplayed as: **{displayed_as}**\n\n*Snapshot when opened. Switch apps and reopen this screen to refresh.*\n\nUse Add to enroll a detected application; its identity is rechecked on Submit. Only HA mappings change; nothing is written to Windows.",
         "data": {
           "applications": "Application List"
         }
