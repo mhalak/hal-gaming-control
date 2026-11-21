@@ -4,7 +4,7 @@
 
 **Status: planned; not implemented.** See [design issue #92](https://github.com/mhalak/smarthouse-parental-control/issues/92). There is currently no Screen idle bonus setting to turn on, no automatic award on deployed PCs, and no released screen-off telemetry guarantee.
 
-> **As responsible parents, we want our children to succeed in the world. And that loot isn't going to mine itself.** We believe in teaching the value of hard work — ideally by letting a game character do the night shift. We support the grind. The family gaming budget, however, is not required to work overtime.
+> **As responsible parents, we want our children to succeed in the world.** And the loot isn't going to mine itself. So while the family sleeps, a digital employee can put in the night shift. We support the grind; we just don't think the gaming budget needs to pull overtime.
 
 ## What problem does it solve?
 
