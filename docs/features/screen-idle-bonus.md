@@ -1,6 +1,8 @@
 # AFK grind & Screen idle bonus
 
-[← Back to features](../../README.md#feature-screen-idle-bonus) · [All guides](../README.md)
+[← Feature index](../../README.md#feature-screen-idle-bonus) · [All guides](../README.md)
+
+[← Controls & automations](parent-actions.md) · [Budget Overview →](budget-overview.md)
 
 <table>
   <tr>
@@ -43,4 +45,8 @@ Until then, this is a plan, not a promise. Even the robot knows better than to g
 
 **For developers:** [Original design notes](../reference/features/screen-idle-bonus-preview-notes.md).
 
-[Gaming budgets](gaming-budgets.md) · [Budget Overview](budget-overview.md)
+More: [Gaming budgets](gaming-budgets.md)
+
+---
+
+**Explore more features:** [← Controls & automations](parent-actions.md) · [Budget Overview →](budget-overview.md)

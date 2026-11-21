@@ -1,6 +1,8 @@
 # Controls & automations
 
-[← Back to features](../../README.md#feature-parent-actions) · [All guides](../README.md)
+[← Feature index](../../README.md#feature-parent-actions) · [All guides](../README.md)
+
+[← Track applications](tracked-applications.md) · [AFK grind →](screen-idle-bonus.md)
 
 <table>
   <tr>
@@ -41,4 +43,8 @@ The robot insists on a trial run before meeting angry children.
 
 **For developers:** [Original technical notes](../reference/features/parent-actions-preview-notes.md).
 
-[Gaming budgets](gaming-budgets.md) · [Known limitations](../known_limitations.md)
+More: [Gaming budgets](gaming-budgets.md) · [Known limitations](../known_limitations.md)
+
+---
+
+**Explore more features:** [← Track applications](tracked-applications.md) · [AFK grind →](screen-idle-bonus.md)
