@@ -12,7 +12,7 @@ import re
 
 _JAVA_RUNTIMES = frozenset(("java.exe", "javaw.exe"))
 # Public Java entry-point identifiers only; no arbitrary switches or values.
-_CLASS = re.compile(r"[a-zA-Z_$][\w$]*(?:\.[a-zA-Z_$][\w$]*)+", re.ASCII)
+_CLASS = re.compile(r"[a-z][a-zA-Z0-9_$]*(?:\.[a-z][a-zA-Z0-9_$]*)+\.[A-Z][a-zA-Z0-9_$]*", re.ASCII)
 _MODULE = re.compile(r"[a-zA-Z_][a-zA-Z_0-9.]*(?:/[a-zA-Z_$][\w$]*(?:\.[a-zA-Z_$][\w$]*)*)?", re.ASCII)
 _JAR = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_.+-]{0,95}\.jar", re.IGNORECASE | re.ASCII)
 _CLASS_PATH = frozenset(("-cp", "-classpath", "--class-path", "-p", "--module-path"))
@@ -48,9 +48,16 @@ def _java_identity(argv):
         if value in _CLASS_PATH or value in _JVM_VALUE_OPTIONS:
             i += 2
             continue
-        if value.startswith("-"):
+        if (value.startswith(("-D", "-X", "-XX:", "-javaagent:", "-agentlib:",
+                               "-agentpath:", "-verbose", "-ea", "-da", "-esa",
+                               "-dsa"))
+                or value in ("-server", "-client", "--enable-preview")):
             i += 1
             continue
+        if value.startswith("-") or value.startswith("@"):
+            # Unknown option may be followed by credentials; never inspect
+            # its parameter as though it were a Java main class.
+            return None
         if len(value) <= 128 and _CLASS.fullmatch(value):
             return {"kind": "java_class", "value": value}
         # Unknown positional value could be a user file or access token.
