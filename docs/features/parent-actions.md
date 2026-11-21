@@ -11,9 +11,12 @@
     </td>
     <td valign="middle">
       <h3>Automation Rules!</h3>
-      <p>Every family needs a scapegoat. Ours runs on Home Assistant. Unlike Dad, the smart home has no feelings to hurt, so saying <strong>“No”</strong> to “just five more minutes” is much easier. Naturally, Dad sends the robot to deliver the news.</p>
-      <p>There's just one small problem: our server has yet to pass its <strong>Flying Objects Resistance Test</strong>. Controllers, cushions, and the occasional airborne slipper remain untested.</p>
-      <p>That's the beauty of <strong>Home Assistant automations</strong>: parents set the rules, reminders, and grace periods; the house gets to say <strong>“Time's up!”</strong> with absolutely no fear of the inevitable “But Daaad!” Dad can handle the appeals. The robot, unfortunately, runs the complaints department.</p>
+      <p>Every family needs a scapegoat. Ours happens to run on Home Assistant.</p>
+      <p>Unlike Dad, our smart home has no feelings, no parental guilt, and absolutely no weakness for puppy eyes. When “just five more minutes” turns into the seventh negotiation of the evening, the house simply announces: <strong>“Time's up!”</strong></p>
+      <p>Naturally, Dad lets the robot deliver the bad news.</p>
+      <p>There's just one tiny problem: our server has never passed its <strong>Flying Objects Resistance Test</strong>. Game controllers, cushions, and the occasional airborne slipper remain dangerously outside its warranty coverage.</p>
+      <p>The beauty of <strong>Home Assistant automations</strong>? Parents make the rules, choose the reminders, and decide how generous the grace periods should be. The house handles the countdown, the robot handles the complaints, and Dad can finally say:</p>
+      <p><strong>“Don't look at me. I just live here, same as you.”</strong></p>
     </td>
   </tr>
 </table>
