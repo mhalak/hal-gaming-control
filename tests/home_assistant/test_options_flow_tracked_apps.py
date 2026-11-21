@@ -88,8 +88,10 @@ async def test_real_home_assistant_options_translations_render_snapshot_and_labe
             hass, language, "options", integrations={DOMAIN})
         assert resources[f"{key}.title"] == "Tracked applications"
         assert resources[f"{key}.data.applications"] == "Application List"
+        assert resources[f"{key}.submit"] == "Save changes"
         description = resources[f"{key}.description"]
         assert "Currently detected application" in description
+        assert "Save changes" in description
         assert "Currently detected application" in description
         assert "> ### {preview_name}" in description
         assert "> `{raw_value}`" in description
@@ -526,6 +528,8 @@ async def test_translations_explain_single_page_editor_and_mqtt(
         }
         assert "{actions}" not in steps["settings_menu"]["description"]
         assert steps["settings_menu"]["title"] == "Parental control"
+        assert steps["tracked_apps"]["submit"] == "Save changes"
+        assert "submit" not in steps["mqtt_settings"]
         tracked = steps["tracked_apps"]["description"]
         assert "Currently detected application" in tracked
         assert "Use Add to enroll" in tracked
@@ -535,6 +539,7 @@ async def test_translations_explain_single_page_editor_and_mqtt(
         assert "> ### {preview_name}" in tracked
         assert "> `{raw_value}`" in tracked
         assert "**Note**" in tracked
+        assert "Save changes" in tracked
         assert "Displayed as" not in tracked
         assert "Raw sensor value:" not in tracked
         assert tracked.rstrip().endswith("---")
