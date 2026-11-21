@@ -24,7 +24,7 @@ def test_weekend_and_concurrent_games():
     assert totals["per_game"] == {"Minecraft": 1800, "Roblox": 3600}
 
 def test_limits_intersect():
-    options = DEFAULTS | {"enabled":True, "daily":120, "weekly":60, "weekend_daily":30,
+    options = DEFAULTS | {"enabled":True, "daily":0, "weekly":60, "weekend_bonus":30,
                           "weekend_total":120, "per_game":{"Roblox":15}}
     totals = {"daily":1800,"weekly":3600,"weekend_total":1800,"per_game":{"Roblox":900}}
     assert violations(options,totals,dt(21,12),["Roblox"]) == ["daily","weekly","game:Roblox"]
@@ -66,7 +66,7 @@ def test_discovery_and_actions():
     ("weekly", 23, 0, 100.0),
 ])
 def test_budget_percent(period, day, used, expected):
-    opts = {"enabled": True, "daily": 60, "weekly": 300, "weekend_daily": 120}
+    opts = {"enabled": True, "daily": 60, "weekly": 300, "weekend_bonus": 60}
     assert remaining_budget_percent(opts, {period: used}, dt(day), period) == expected
 
 
@@ -76,9 +76,9 @@ def test_budget_percent(period, day, used, expected):
     ({"enabled": False}, {"daily": 900}, None),
     ({"unlimited": True}, {"daily": 900}, None),
     ({}, {}, None),
-    ({"weekend_daily": -1}, {"daily": 900}, 75.0),
+    ({"weekend_bonus": 0}, {"daily": 900}, 75.0),
 ])
-def test_budget_no_limit_and_weekend_fallback(overrides, totals, expected):
+def test_budget_no_limit_and_weekend_zero_bonus(overrides, totals, expected):
     opts = {"enabled": True, "daily": 60} | overrides
     assert remaining_budget_percent(opts, totals, dt(21), "daily") == expected
 
@@ -93,16 +93,16 @@ def test_budget_is_independent_of_other_limits_and_schedule():
 
 @pytest.mark.parametrize("day,expected", [(20, 50.0), (21, 75.0), (22, 75.0), (23, 50.0)])
 def test_budget_weekday_weekend_boundaries(day, expected):
-    options = {"enabled": True, "daily": 60, "weekend_daily": 120}
+    options = {"enabled": True, "daily": 60, "weekend_bonus": 60}
     assert remaining_budget_percent(options, {"daily": 1800}, dt(day), "daily") == expected
 
 
 def test_legacy_weekend_total_is_ignored_and_override_bypasses_all_rules():
     options = DEFAULTS | {"enabled": True, "daily": 60, "weekly": 300,
-                          "weekend_daily": 120, "weekend_total": 0}
+                          "weekend_bonus": 60, "weekend_total": 0}
     totals = {"daily": 1800, "weekly": 3600, "per_game": {"Roblox": 1800}}
     assert violations(options, totals, dt(21, 12), ["Roblox"]) == []
-    blocked = options | {"daily": 0, "weekly": 0, "weekend_daily": 0,
+    blocked = options | {"daily": 0, "weekly": 0, "weekend_bonus": 0,
                          "schedule_enabled": True, "per_game": {"Roblox": 0}}
     assert violations(blocked, totals, dt(21, 12), ["Roblox"]) == [
         "daily", "weekly", "schedule", "game:Roblox"]
@@ -111,7 +111,7 @@ def test_legacy_weekend_total_is_ignored_and_override_bypasses_all_rules():
 
 
 def test_bonus_stacks_only_today_and_affects_both_enforcement_and_display():
-    opts = DEFAULTS | {"enabled": True, "daily":60, "weekend_daily":120, "weekly":300,
+    opts = DEFAULTS | {"enabled": True, "daily":60, "weekend_bonus":60, "weekly":300,
                        "bonus_date":"2026-11-21", "bonus_minutes":60}
     totals = {"daily":7200, "weekly":7200, "per_game":{}}
     assert effective_budget_limit(opts, dt(21), "daily") == 180
@@ -122,7 +122,7 @@ def test_bonus_stacks_only_today_and_affects_both_enforcement_and_display():
     assert daily_bonus_minutes(opts, dt(22)) == 0
     assert effective_budget_limit(opts, dt(21), "weekly") == 300
     assert remaining_budget_percent(opts, totals, dt(21), "weekly") == 60.0
-    assert effective_budget_limit(opts | {"daily":-1,"weekend_daily":-1}, dt(21), "daily") == -1
+    assert effective_budget_limit(opts | {"daily":-1,"weekend_bonus":0}, dt(21), "daily") == -1
 
 
 def test_bonus_can_extend_zero_daily_limit_but_not_weekly_or_schedule():
@@ -132,12 +132,11 @@ def test_bonus_can_extend_zero_daily_limit_but_not_weekly_or_schedule():
     assert remaining_budget_percent(opts, totals, dt(18), "daily") == 100
     assert violations(opts, totals, dt(18), []) == ["weekly","schedule"]
 
-# Proposed additive weekend bonus contract. These tests intentionally go RED before
-# production code changes. No migration or active policy switch occurs in this PR.
+# Additive weekend bonus contract, active on both weekend days.
 @pytest.mark.parametrize("day,expected", [(20,60),(21,100),(22,100),(23,60)])
 def test_opt_in_weekend_bonus_adds_to_weekday_base(day, expected):
     from custom_components.smarthouse_gaming.rule_engine import effective_budget_limit
-    opts = DEFAULTS | {"daily": 60, "weekend_daily": 10, "weekend_bonus": 40}
+    opts = DEFAULTS | {"daily": 60, "weekend_bonus": 40}
     assert effective_budget_limit(opts, dt(day), "daily") == expected
 
 
@@ -162,30 +161,8 @@ def test_opt_in_weekend_bonus_rejects_malformed_config(value):
         effective_budget_limit(options, dt(21), "daily")
 
 
-@pytest.mark.parametrize("daily,legacy,bonus", [
-    (60, -1, 0), (60, 60, 0), (60, 120, 60),
-    (0, 20, 20), (0, -1, 0), (-1, -1, 0),
-])
-def test_legacy_override_preview_only_when_exactly_representable(daily, legacy, bonus):
-    from custom_components.smarthouse_gaming.rule_engine import preview_weekend_bonus_migration
-    options = DEFAULTS | {"daily": daily, "weekend_daily": legacy}
-    assert preview_weekend_bonus_migration(options) == bonus
-    # Preview is pure. In particular, it must not silently change persisted settings.
-    assert options["weekend_daily"] == legacy and "weekend_bonus" not in options
-
-
-@pytest.mark.parametrize("daily,legacy", [
-    (60, 30), (-1, 60), (10, 620), (60, 75),
-])
-def test_legacy_override_requires_manual_resolution_if_not_equivalent(daily, legacy):
-    from custom_components.smarthouse_gaming.rule_engine import preview_weekend_bonus_migration
-    with pytest.raises(ValueError, match="manual resolution"):
-        preview_weekend_bonus_migration(DEFAULTS | {"daily": daily, "weekend_daily": legacy})
-
-
-def test_no_explicit_migration_preserves_existing_weekend_override():
-    options = DEFAULTS | {"enabled": True, "daily": 60, "weekly": 300,
-                          "weekend_daily": 120}
+def test_retired_legacy_weekend_override_is_ignored():
+    options = DEFAULTS | {"daily": 60, "weekly": 300, "weekend_daily": 120}
     assert effective_budget_limit(options, dt(20), "daily") == 60
-    assert effective_budget_limit(options, dt(21), "daily") == 120
-    assert "weekend_bonus" not in options
+    assert effective_budget_limit(options, dt(21), "daily") == 60
+    assert options["weekend_bonus"] == 0
