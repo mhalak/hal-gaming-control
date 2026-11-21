@@ -85,7 +85,8 @@ class GamingCoordinator(DataUpdateCoordinator):
             return
         if self._save_task is None or self._save_task.done():
             self._save_task = self.hass.async_create_task(self._async_flush_confirmed())
-        self.hass.async_create_task(self.async_request_refresh())
+        # Live state must not wait for coordinator's debounced periodic refresh.
+        self.async_set_updated_data(self._foreground_data(dt_util.now()))
 
     async def _async_flush_confirmed(self):
         if self.foreground is None or not self.storage_healthy:
