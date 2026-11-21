@@ -52,7 +52,9 @@ Don't use budget readings alone to trigger automatic game closing. Test the exac
 
 *The +10 coins in the cartoon are royal decoration, not another released button.*
 
-**Preview clean start:** Budget numbers use new entity IDs; older *_limit number and old percent-budget sensor entities are retired from the entity registry. Existing Recorder history is not purged. Weekly values saved as unlimited (-1) stay unlimited until configured; the new weekly slider accepts only 0–4200 in 60-minute steps.\n\n**For developers:** [Original technical notes](../reference/features/gaming-budgets-preview-notes.md) · [HA reference](../reference/ha_integration_technical.md).
+**Preview clean start:** Budget numbers use new entity IDs; older *_limit number and old percent-budget sensor entities are retired from the entity registry. Existing Recorder history is not purged. Weekly values saved as unlimited (-1) stay unlimited until configured; the new weekly slider accepts only 0–4200 in 60-minute steps.
+
+**For developers:** [Original technical notes](../reference/features/gaming-budgets-preview-notes.md) · [HA reference](../reference/ha_integration_technical.md).
 
 More: [Controls & automations](parent-actions.md) · [Known limitations](../known_limitations.md)
 
