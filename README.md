@@ -6,9 +6,9 @@
 
 *Powered by HAL Systems.*
 
-Tired of negotiating "just five more minutes" for the seventh time tonight? Let Home Assistant keep score while you enjoy your coffee.
+Heard “just five more minutes” again? Let Home Assistant keep track while you enjoy your coffee.
 
-It tracks gaming budgets on Windows PCs, lets parents grant bonus minutes, and provides explicit controls when negotiations fail. No cloud account or recurring parental-control subscription required.
+Track gaming time on Windows PCs, set limits, give bonus minutes and use parent controls when needed. No cloud account or parental-control subscription required.
 
 *Emotionally off duty, not legally. Please don't actually outsource parenting to a YAML file.*
 
@@ -21,7 +21,7 @@ It tracks gaming budgets on Windows PCs, lets parents grant bonus minutes, and p
     </td>
     <td valign="middle">
       <h3>⏱️ Gaming budgets — the clock doesn't negotiate.</h3>
-      <p>Daily and weekly limits keep score. Feeling royal? Press <strong>Add 30 minutes</strong>. The daily allowance grows; the weekly limit remains unimpressed.</p>
+      <p>The king can grant <strong>30 bonus minutes today</strong>. The weekly limit, however, refuses to bow.</p>
       <p><a href="docs/features/gaming-budgets.md">Budgets &amp; bonuses explained</a></p>
     </td>
   </tr>
@@ -34,7 +34,7 @@ It tracks gaming budgets on Windows PCs, lets parents grant bonus minutes, and p
     </td>
     <td valign="middle">
       <h3>🎮 Track applications — not just games.</h3>
-      <p>Roblox, Minecraft, even a suspicious <code>javaw.exe</code>: Windows reports the foreground app; Home Assistant gives it a friendly name. The gaming chair is no alibi. <em>Development preview.</em></p>
+      <p>Choose what to track: Roblox, Minecraft or another app. Home Assistant gives each one a friendly name. <em>Development preview.</em></p>
       <p><a href="docs/features/tracked-applications.md">How to track an application</a></p>
     </td>
   </tr>
@@ -47,7 +47,7 @@ It tracks gaming budgets on Windows PCs, lets parents grant bonus minutes, and p
     </td>
     <td valign="middle">
       <h3>🪄 Controls &amp; automations — Automation Rules!</h3>
-      <p>Use <strong>Lock PC</strong> or <strong>Terminate game</strong> manually. Native HA automations are the real magic: let the house handle the seventh “five more minutes.” <strong>Automatic restriction enforcement is not yet validated.</strong></p>
+      <p>Use <strong>Lock PC</strong> or <strong>Terminate game</strong> when needed. Home Assistant can handle reminders, so the robot can handle the arguments. <strong>Automatic enforcement still needs testing.</strong></p>
       <p><a href="docs/features/parent-actions.md">How controls and automations fit together</a></p>
     </td>
   </tr>
@@ -60,7 +60,7 @@ It tracks gaming budgets on Windows PCs, lets parents grant bonus minutes, and p
     </td>
     <td valign="middle">
       <h3>🌙 AFK grind — the loot won't mine itself.</h3>
-      <p><strong>Planned.</strong> Kids could sleep while their game keeps grinding. Confirmed screen-off time would stop counting; an optional bonus could restore eligible idle minutes <em>before</em> screen-off.</p>
+      <p><strong>Planned.</strong> The child sleeps. The game keeps grinding. Screen-off time would stop counting, with an optional bonus for eligible idle time before the screen switched off.</p>
       <p><a href="docs/features/screen-idle-bonus.md">How Screen idle bonuses will work</a></p>
     </td>
   </tr>
@@ -73,21 +73,21 @@ It tracks gaming budgets on Windows PCs, lets parents grant bonus minutes, and p
     </td>
     <td valign="middle">
       <h3>🧾 Budget overview — the gaming-time audit.</h3>
-      <p><strong>Planned.</strong> Daily allowance + bonuses − measured playtime = remaining minutes. Dad has the receipts. Apparently “five more minutes” requires an auditor.</p>
+      <p><strong>Planned.</strong> Daily allowance + bonuses − time played = time left. Dad has the receipts. Mum would like the audit to end.</p>
       <p><a href="docs/features/budget-overview.md">See the proposed Budget overview</a></p>
     </td>
   </tr>
 </table>
 
-**Development preview, not a finished family appliance.** The repository contains a Home Assistant integration and a Windows companion; feature availability depends on the deployed version. The app editor and other preview features still require complete end-to-end acceptance. Screen idle bonuses and the itemized Budget overview are **not implemented yet**. Do not turn on automatic enforcement until your own setup has been validated. [Release status and known limitations](docs/known_limitations.md).
+**Development preview.** Features depend on the installed version. Screen idle bonuses and the itemized Budget Overview are **not implemented**. Don't enable automatic game closing or locking before testing on your PC. [What's ready and what's missing](docs/known_limitations.md).
 
 ## Want to get started?
 
-**[Browse the documentation](docs/README.md)** for the beginner-friendly how-tos, screenshots when available, installation instructions, troubleshooting and engineering details. Or go directly to the [Windows deployment guide](docs/windows_deployment.md) and [Home Assistant setup](docs/ha_integration.md).
+**[Browse the guides](docs/README.md)** for setup and everyday use. Need more detail? See [Windows setup](docs/windows_deployment.md) and [Home Assistant setup](docs/ha_integration.md).
 
 ## The fine print (someone has to be the adult)
 
-This is a family convenience tool, **not** tamper-proof security software or a substitute for parenting. A local administrator can stop it; missing telemetry can make measurements incomplete; terminating a game can lose unsaved progress. Keep MQTT private and restrict credentials. Do not disable Windows Smart App Control or Defender to install an unsigned development build. [Read the limitations](docs/known_limitations.md) and [privacy and protocol notes](docs/mqtt_protocol.md).
+This is a family tool, **not** unbreakable security or a replacement for parenting. Missing data can leave gaps in playtime history; closing a game can lose unsaved progress. Keep your home network secure. **Never turn off Windows security protections** just to install it. [Known limitations](docs/known_limitations.md) · [Privacy details](docs/mqtt_protocol.md).
 
 ### Development disclosure: even the developer has been automated
 

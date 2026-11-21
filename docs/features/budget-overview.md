@@ -1,8 +1,6 @@
-# Budget overview — the gaming-time receipt
+# Budget Overview
 
-[← Documentation](../README.md) · [← Project home](../../README.md)
-
-**Status: planned; not implemented.** See [design issue #93](https://github.com/mhalak/smarthouse-parental-control/issues/93). The existing daily/weekly entities are not yet an itemized Budget overview.
+[← Back to features](../../README.md#what-can-it-do) · [All guides](../README.md)
 
 <table>
   <tr>
@@ -16,58 +14,35 @@
   </tr>
 </table>
 
-*Conceptual illustration only — not a screenshot of Home Assistant or proof of released behavior.*
+**Budget Review — DO NOT DISTURB.** Dad has the numbers. Mum has questions. No one is allowed to interrupt the audit.
 
-> When a child asks, "Where did all my time go?", you should be able to show a receipt without opening twelve sensors or doing arithmetic on the fridge.
+**Planned — not implemented.** The itemized Budget Overview isn't available in Home Assistant yet. [Design issue #93](https://github.com/mhalak/smarthouse-parental-control/issues/93).
 
-## Proposed per-PC display
+## Where did the time go?
 
-Example only — **not live Home Assistant data**:
+The idea is simple: one easy-to-read receipt for your child's PC.
 
-```text
-Gaming budget — Today
+| Item | Minutes |
+| --- | ---: |
+| Daily allowance | 180 |
+| Weekend bonus | +30 |
+| Parent bonus | +30 |
+| Screen idle bonus | +10 |
+| Time played | −200 |
+| **Time left today** | **50** |
 
-+180 min   Daily budget
- +10 min   Screen idle bonus
- +30 min   Parent bonus
------------------------------
- 220 min   Total daily budget
--210 min   Measured gaming time
------------------------------
-  10 min   Remaining today
+*The numbers are examples, not live Home Assistant data. Some bonuses shown here are still planned.*
 
-Weekly remaining: shown separately
-```
+Each bonus has its own line. Bonus minutes **don't remove playtime already recorded**.
 
-On weekends, the **Weekend bonus** appears as a separate positive line. Each press of **Add 30 minutes** increases the Parent bonus line for the current day.
+## Where would I see it?
 
-The **Screen idle bonus is a true, parent-approved daily bonus**, **not** a correction to measured usage. In this example, daily and weekly **measured** gaming time remain 210 minutes. The daily allowance is 220; daily remaining is 10. A weekly cap is *not* raised by any of these daily bonuses, so the weekly restriction may still be binding.
+The first version is planned as a **Home Assistant dashboard card**. No extra add-on should be needed.
 
-## Where will it live?
+**Weekly limits stay separate.** Extra minutes today don't add to the week's allowance.
 
-The first implementation target is a **native Home Assistant Markdown dashboard card** reading a structured, per-PC breakdown from the integration. This requires no extra HACS card or custom JavaScript.
+Dad may now close the spreadsheet. Mum has been waiting.
 
-**Important limitation:** the standard Home Assistant **Settings → Devices & services → Device info** page does not allow a Python integration to insert arbitrary Markdown into the middle of its default entity list. A custom frontend for that page is deferred; the Markdown dashboard card is the near-term plan.
+**For developers:** [Original design notes](../reference/features/budget-overview-preview-notes.md).
 
-## Where will the data come from?
-
-The integration should expose a consistent structured snapshot (not a string of independently rounded guesses) with these fields:
-
-- Daily base allowance and, when applicable, separate Weekend, Parent and Screen idle bonus minutes.
-- Effective daily total and current measured gaming time.
-- Daily remaining and **weekly remaining** / weekly availability.
-- Source freshness and incomplete Recorder coverage, without reporting missing values as fake zero.
-
-Bonus grants need an event ledger to avoid duplicates on reconnect, restart or repeat display-off messages. A Screen idle bonus increases **daily allowance**; measured per-app/daily/weekly time remains recorded. Parent-granted bonuses remain separate from Screen idle awards.
-
-## Screenshot plan
-
-**Screenshot pending — cannot capture until this feature exists and is deployed:**
-1. The itemized Markdown dashboard card with sanitized example PC label and the five ledger rows.
-2. A Screen idle bonus being added after a verified display-off event.
-3. Daily budget remaining alongside the **independent weekly remaining** state, including an exhausted-weekly example.
-
-No mocked screenshot should be presented as proof of a shipped feature. See [screenshot checklist](../assets/screenshots/README.md).
-
-### Related
-[Gaming budgets](gaming-budgets.md) · [Screen idle bonus](screen-idle-bonus.md) · [Issue #93](https://github.com/mhalak/smarthouse-parental-control/issues/93)
+[Gaming budgets](gaming-budgets.md) · [AFK grind](screen-idle-bonus.md)

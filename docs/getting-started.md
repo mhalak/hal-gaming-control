@@ -1,48 +1,31 @@
-# Getting started (development preview)
+# Getting started
 
-[← Documentation](README.md) · [← Project home](../README.md)
+[← All guides](README.md) · [← Project home](../README.md)
 
-This is the shortest safe route from "interesting GitHub project" to a tested Home Assistant device. It is **not** a one-click consumer installer yet.
+SmartHouse Parental Control connects your child's Windows PC to Home Assistant, so you can see gaming time, set limits and give extra minutes when you choose.
 
-## 1. Know what you're installing
+**This is a development preview, not a one-click installer.** You'll need to be comfortable testing software built from source.
 
-SmartHouse Parental Control has two parts:
+## What you'll need
 
-- **Windows companion** on each child gaming PC: reports local telemetry and receives explicit parent-requested actions.
-- **Home Assistant integration**: keeps per-PC tracked-app names, gaming budgets, history and parent-facing controls. It uses your existing MQTT integration.
+- A **Windows 10 or 11 (64-bit) PC** for your child.
+- **Home Assistant** with MQTT and Recorder enabled.
+- The [Windows companion](windows_deployment.md) and [Home Assistant integration](ha_integration.md).
 
-The system is local-first. See [architecture and privacy details](mqtt_protocol.md).
+Windows reports activity. Home Assistant displays it and keeps the settings.
 
-## 2. Check prerequisites and release safety
+## Get it running
 
-You need a supported Home Assistant instance with MQTT and Recorder, and a Windows 10/11 x64 PC able to reach the MQTT broker.
+1. Read [known limitations](known_limitations.md). There's no verified signed Windows installer yet. **Don't disable Windows security** to force it to install.
+2. Set up the [Windows companion](windows_deployment.md). Start with **one test PC**, not every computer in the house.
+3. Follow the [Home Assistant setup guide](ha_integration.md). Both systems must be able to reach your MQTT broker.
+4. Check that the PC appears in Home Assistant and that **fresh activity data** arrives.
+5. [Track an app](features/tracked-applications.md), [set a budget](features/gaming-budgets.md) and try the [manual parent controls](features/parent-actions.md) when safe.
 
-**Important:** this is a source-only development preview. There is **no verified public signed Windows installer**. Smart App Control has blocked an unsigned build in testing. Don't disable operating-system protections to force installation. If you're not equipped for source builds and controlled pilots, follow the [release history](ha_releases.md) and [known limitations](known_limitations.md) instead of deploying to a family PC.
-
-## 3. Install and verify the Windows companion
-
-Follow the [Windows deployment guide](windows_deployment.md), including source revision/build verification, MQTT credentials, backups, and a **single-PC pilot**.
-
-Do not assume an agent is working merely because its files were copied. Confirm that the actual service starts and that fresh device-scoped telemetry reaches Home Assistant.
-
-## 4. Install and configure Home Assistant
-
-Follow the [Home Assistant integration guide](ha_integration.md). HACS installs **only** the Home Assistant side; it cannot install the Windows service on the child's PC.
-
-Create or select the correct device and confirm that it is reporting fresh, coherent data. Do not enable automated game termination or locking during initial setup.
-
-## 5. Set up your family's rules
-
-1. [Track an application](features/tracked-applications.md), such as Roblox or Minecraft, using the **HA-only** list and its two-step Add → Save changes flow.
-2. [Set daily and weekly budgets](features/gaming-budgets.md), and test the 30-minute parent bonus if available on your installed version.
-3. Learn the difference between the explicit [Lock PC and Terminate game](features/parent-actions.md) actions.
-
-Once the source and your deployment are validated, evaluate policy enforcement separately; don't infer that every experimental feature is active just because it is described in this repository.
+**Keep automatic locking and game termination off** until you've tested your PC and version. Closing a game may lose unsaved progress.
 
 ## Coming later
 
-[Screen idle bonus / overnight AFK support](features/screen-idle-bonus.md) and [itemized Budget overview](features/budget-overview.md) are **planned**, not installation steps today.
+[AFK grind bonuses](features/screen-idle-bonus.md) and the [itemized Budget Overview](features/budget-overview.md) are plans, not installation steps.
 
-## Screenshots
-
-Real step-by-step screenshots are being prepared from a sanitized test environment. See the [capture plan](assets/screenshots/README.md); no fake screenshots or sensitive family data will be published.
+*Real setup screenshots are being prepared without family names or network details. [Screenshot checklist](assets/screenshots/README.md).*

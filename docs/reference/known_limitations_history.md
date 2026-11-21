@@ -1,0 +1,68 @@
+> **Archived engineering notes (21 November 2026).** These notes cover specific development versions and may be outdated. For the shorter parent-facing guide, [start here](../known_limitations.md).
+
+---
+
+# Known limitations and release blockers
+
+SmartHouse Parental Control — Powered by HAL Systems
+
+Development preview. This is a record of observed limitations, not instructions to weaken Windows security. See [product direction](product_direction.md) for the agreed roadmap.
+
+## Verified core functionality
+
+Maintainer-observed live smoke test: Terminate game — PASS; Lock PC — PASS. Both explicit actions work on request. Per-PC coverage and exact tested versions were not specified by the owner; this does not certify all target devices, automatic policy enforcement or foreground accounting.
+
+A public source-only development preview is distinct from a stable 1.0.0 release and trusted binary distribution. Unresolved signing, CI and functional acceptance remain mandatory gates for stable release.
+
+## Windows Smart App Control and signing — release blocker
+
+During manual deployment of Windows agent 0.2.1, Windows 11 Smart App Control (SAC) blocked the unsigned service executable under the VerifiedAndReputableDesktop Code Integrity policy. The observed service-start failure was error 4551 (SCM event 7000). Elevation did not resolve the block. One test PC with SAC already Off ran 0.2.1; the other initially required rollback. Both local builds were unsigned.
+
+In controlled development testing, the blocked unsigned build subsequently ran on a system where SAC was Off, with Defender protections still enabled. This does not establish compatibility with SAC enforced. Do not disable Windows security to install this software. No signed build has yet passed SAC-enforced acceptance.
+
+The permanent solution is trusted Windows Authenticode signing of applicable binaries, with verification of the final package, trust chain and timestamp. Ed25519 release-manifest signatures authenticate the update package but do not establish Windows executable trust. Signing pipeline development remains incomplete; no trusted signed distribution is advertised. No certificate purchase or provider enrollment is assumed. Do not disable SAC, Defender or other security controls on production installations to run an unsigned or blocked executable. Stop and report deployment failures; preserve the last working installation.
+
+Public release gate: produce reviewed, signed, versioned artifacts, verify those artifacts on a real SAC-enforced Windows system, and validate the installation and update/rollback path.
+
+## Other current limitations
+
+| Area | Known limitation | Follow-up / boundary |
+| --- | --- | --- |
+| HA accounting | Main 0.4.2 and HA 0.5.0 candidate still count configured running processes, including minimized/background games. Windows foreground telemetry exists but scoped HA entities and foreground-only accounting are missing. | Verify actual foreground MQTT on both PCs before enabling restrictions. |
+| HA 0.5.0 preview | New version/diagnostic, safe MQTT view, removal of internal automatic commands and additive bonus kernel are staged for deployment, **not verified installed**. Full duration sensors, Weekend bonus slider, fresh restriction trigger and foreground-only accounting remain unavailable. | TrueNAS deployment #56 with backup/rollback; preserve old limits/Recorder and do not activate destructive automations or silently migrate. |
+| Foreground helper | Agent 0.2.0 had a named-pipe access failure; 0.2.1 includes a permissions fix. Full real interactive-session acceptance is not established by idle telemetry or an isolated IPC test. | #38; verify Alt+Tab, minimized games, lock/unlock and stale/unknown states. |
+| Configured applications | Currently matches explicit executable rules in protected local YAML; unconfigured applications are not tracked and config changes require service restart. | Configure → Tracked applications lists discovery-reported rules read-only; enrollment, rename and removal in HA are not implemented (#7). |
+| Warnings | No Windows countdown overlay or extra-time request UI in current agent. | Popup in backlog, request feature deferred. |
+| Remote updater | Disabled until trusted signing and distribution prerequisites, approved catalog/key configuration and update/rollback acceptance are satisfied. | Trusted manual deployment remains the development path. |
+| Recorder and connectivity | Unobserved intervals are excluded under heartbeat coverage; missing history cannot be reconstructed reliably. HA/MQTT outages prevent central enforcement. | See [Recorder coverage](recorder_coverage.md); do not label unknown as confirmed idle or retrospectively reinterpret process history as foreground time. |
+| Enforcement | Not tamper-proof: a local administrator can stop the service; Windows lock is not permanent lockout; termination can lose unsaved progress. | Keep restrictions disabled during smoke tests; enforce only verified policies using authorized commands. |
+| Platforms | Windows 10/11 x64 agent only. Other platforms and browser-tab-level tracking are not supported. | Browser app enrollment, if implemented, tracks the application rather than a specific tab. |
+| CI and publication | Hosted GitHub Actions jobs have failed to start due to a billing/spending-limit issue on verified prior runs; some newer failed-job logs are unavailable. Local checks are partial evidence, not a green hosted CI or public release. | Resolve CI and run formal acceptance before 1.0.0. HACS catalog inclusion is pending. |
+
+## Development versus production
+
+Development exceptions must not become product instructions or be treated as release acceptance. Document exact versions and observed outcomes, keep configuration and logs private, and never publish personal identifiers, local paths or raw personal telemetry. See [Windows deployment](windows_deployment.md), [foreground migration](foreground_accounting_migration.md), and [HACS release checklist](hacs_release.md).
+
+| HA 0.5.1 / Windows 0.2.4 candidate | A fresh untracked foreground executable and, for Java, a vetted launch-argument discriminator can be selected for HA-only application alias management. HA-only Add/Rename/Remove is present in the candidate source and does not write to Windows; the existing Active game entity does **not yet** use these aliases, and full foreground accounting remains unimplemented. | Keep legacy rules intact and revalidate the token before saving; do not treat it as an agent-side authorization. #7/#52 and #4 remain open. |
+
+## Foreground snapshot in the HA application editor (0.5.6)
+
+The native **Tracked applications** Options Flow displays a read-only raw foreground identity snapshot (validated basename plus optional safe Java launch signature) and its HA-friendly `Displayed as` label when entering the form. This is **not a live stream**: if the foreground app changes while the dialog stays open (for example after Alt-Tab), the text does **not** update. Close and reopen Configure → Tracked applications to collect the next fresh 3-second observation. A custom Home Assistant frontend with a WebSocket subscription would be needed for an uninterrupted live value in the same dialog; this version intentionally remains HACS-independent and uses the standard Options Flow. Absent, stale, retained, foreign-device and malformed raw messages are rejected and shown as `unavailable` rather than `idle`. Explicit raw idle is `idle`; confirmed foreground executables not in the app list display `idle` as the normalized name; bare Java without a unique launch signature remains `unavailable`.
+
+The displayed raw identity is **not** the entire MQTT JSON: the UI deliberately excludes timestamps, sequence, session epoch, PID, paths, window titles, arbitrary command-line arguments and ephemeral enrollment tokens. For HA 0.5.6 specifically, the separate non-retained `foreground_candidate` was an advisory hint and Add also demanded a fresh token when submitting; switching focus could cause a `candidate_changed` error. **That behavior was removed in HA 0.5.7**, which securely captures the candidate within the flow only when entering Tracked applications.
+
+## Captured Add identity lifecycle — HA 0.5.7
+
+The **Currently detected application** preview is a **single snapshot captured when entering** the Tracked applications screen, during a short MQTT observation window. **Opening the initial Configure menu alone does not read it.** Only fresh, non-retained, same-device validated process names and permitted Java launch discriminators can be offered as new app identities; none is invented by a browser-provided process name.
+
+The snapshot remains in **that Options Flow's server-side memory** until the form is successfully submitted or the flow is abandoned/expired. Once captured, the parent can enter a name and Submit even after the child Alt-Tabs, closes the game or disconnects; the UI cannot live-refresh and Submit does **not** re-read MQTT or require the same foreground token. A failed name/duplicate validation re-renders the form while retaining its capture. The capture does not become a permanent saved app automatically: explicit Add and Submit are required. Existing app list race detection still rejects concurrent edits in another flow; that is **not** a foreground-change error.
+
+To detect another game, **close the dialog with X, choose Configure on the PC again, and choose Tracked applications**; that opens a new capture. Do not rely on a single Back press in the native HA form (there is no reliable built-in Back/Refresh button). If HA discards/expires an abandoned Options Flow, its snapshot cannot be recovered. The integration does not persist tokens or send new Windows settings or controls.
+
+## HA 0.5.7 Configure translations: blank labels / old actions string
+
+The 0.5.7 menu returned two step IDs as an unlabeled list, but lacked their `options.step.menu.menu_options` translation keys. This can render two blank rows, while an obsolete cached `Configured actions (in order): {actions}` description can produce a `formatjs MISSING_VALUE` warning. HA 0.5.8 switches to an explicitly labeled menu and a fresh translation step ID, `settings_menu`; both source and English dictionaries contain the correct keys. The legacy text is **not** in the current source. Restart HA after updating, then close/reopen the mobile app. If the old string still appears, reset the **frontend cache only** in Companion or test in an incognito browser; verify the installed integration version and files before filing another issue. Never delete HA config entries, tracking mappings, Recorder history or unrelated integrations to address UI translation caching.
+
+## HA 0.5.9 native app preview hierarchy
+
+The Tracked applications Options Flow uses a Markdown blockquote to visually separate the **Currently detected application** alias and safe raw executable from a short **Note** and the existing **Application List**. Home Assistant's frontend is responsible for rendering Markdown; shading/borders are not guaranteed. If the blockquote is rendered only as an indented quote, this is a visual limitation, not a failure to identify the application. The displayed **Not tracked** caption is an editor-only label for an observed unregistered executable, **not** a change in Active game sensor state or time accounting. Form descriptions and labels depend on Companion's frontend translation cache; after upgrading restart HA, then reset the frontend cache if text is missing, without deleting saved options.

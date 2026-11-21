@@ -1,8 +1,6 @@
-# Track any application
+# Track applications
 
-[← Documentation](../README.md) · [← Project home](../../README.md)
-
-**Status:** Home Assistant Tracked applications editor is in the current development preview (HA source 0.5.10). Full cross-device, foreground accounting and deployment acceptance remain separate work. This isn't a Windows-side game list.
+[← Back to features](../../README.md#what-can-it-do) · [All guides](../README.md)
 
 <table>
   <tr>
@@ -16,47 +14,38 @@
   </tr>
 </table>
 
-*Conceptual illustration only — not a screenshot of Home Assistant or proof of released behavior.*
+The family app detective knows Roblox and Minecraft aren't always called Roblox and Minecraft in Windows. That's why Home Assistant lets you choose names that make sense.
 
-> Roblox gets screen time. Minecraft gets screen time. If you want your child's spreadsheet skills to count as gaming, well, you're the parent.
+**Development preview:** The app editor exists in HA 0.5.10 preview source. Test real tracking on your own PC.
 
-## What you can track
+## Add an app
 
-Any detectable foreground executable can be placed on the per-PC tracked application list, including non-games. Home Assistant assigns a friendly name you choose. For example, `RobloxPlayerBeta.exe` can display as **Roblox**.
+1. Open the app on your child's PC and bring it to the front.
+2. In Home Assistant, open **Settings → Devices & services → SmartHouse Parental Control**, then select the PC.
+3. Choose **Configure → Tracked applications** and check **Currently detected application**.
+4. Under **Application List**, press **Add**, enter a friendly name and confirm the small dialog.
+5. **Press Save changes in the main window too.** The first Add only changes the draft list.
+6. Reopen the editor to check that your name was saved.
 
-Java applications need more care: `java.exe` or `javaw.exe` alone is ambiguous, so the Windows companion provides a minimal *safe* Java class/JAR/module signature when it can. This distinguishes Minecraft from another Java application without exporting command lines or private paths. Some apps cannot be safely identified and shouldn't be guessed.
+**On a phone:** The keyboard's Enter key won't submit the small dialog. Tap **Add** and then the main **Save changes** button.
 
-The PC only observes and reports. **Names and tracked-app settings live in Home Assistant**, not in the child's Windows configuration.
+## What can it track?
 
-## Add an application
+Any supported foreground app, not just games. For example, `RobloxPlayerBeta.exe` can display as **Roblox**.
 
-1. Confirm the Windows companion and Home Assistant integration are installed and sending fresh telemetry. Start the application on the child's PC and bring it to the foreground.
-2. In Home Assistant, open **Settings → Devices & services → SmartHouse Parental Control**. Choose the correct PC's integration entry, then **Configure → Tracked applications**.
-3. Review **Currently detected application**. It should show the safe raw executable identity (and Java signature where applicable). The editor captures a *snapshot when you open this step*. If the wrong app appears, close the dialog with **X**, focus the right app on Windows, and reopen **Configure → Tracked applications**.
-4. In **Application List**, choose **Add**, supply your friendly name and confirm the inner **Add** dialog. You can similarly edit or remove existing entries.
-5. **Important: press the outer Save changes button as well.** The inner Add/Edit/Delete dialog only changes the draft list displayed on screen. Closing without **Save changes** discards these edits.
-6. Reopen Tracked applications to confirm the persisted mapping. The final user-facing Active game behavior depends on the separately validated foreground cutover; do not treat adding a name as proof that all accounting is correct.
+Some Java apps need more information to tell Minecraft from other apps using `javaw.exe`. When the system can't identify an app safely, it should say so rather than guess.
 
-**Mobile note:** the on-screen keyboard's Enter action cannot submit the inner Add dialog through the native Home Assistant selector. Tap the actual **Add** button, dismiss the keyboard if needed, then tap the outer **Save changes** button. A single-step editor is deferred to [future custom frontend work](https://github.com/mhalak/smarthouse-parental-control/issues/89).
+**App names and tracking choices stay in Home Assistant**, not on the child's PC.
 
-## What should the screen look like?
+## Something look wrong?
 
-**Screenshot pending — current HA preview, to be captured on a sanitized test setup:**
+- **Wrong app shown?** Close the editor, focus the right app on Windows and reopen it.
+- **App disappeared?** Check the main **Save changes** button.
+- **Not tracked** means the app isn't in this PC's list. **Idle** and **Unavailable** mean different things.
+- Tracking an app does **not** automatically close it.
 
-1. **Currently detected application** showing a public executable basename and friendly name.
-2. **Application List** showing Add/Edit/Delete for two sample entries.
-3. **Save changes** visible on a mobile screen, including the double-confirmation behavior.
+*Dad's Roblox slider is part of the cartoon, not a real control screen. Nice try, Dad.*
 
-See the [capture checklist](../assets/screenshots/README.md). Do not substitute screenshots from a different version; the form changed between HA 0.5.8, 0.5.9 and 0.5.10.
+**For developers:** [Original technical notes](../reference/features/tracked-applications-preview-notes.md).
 
-## Troubleshooting
-
-- **The wrong app appears:** focus the desired Windows app, close the HA Options Flow completely and reopen Tracked applications. The preview does not live-refresh.
-- **It says Not tracked:** the detected app has not been enrolled in this PC's list. An explicit Idle means no tracked application is active; Unavailable means insufficient reliable telemetry. These states are not interchangeable.
-- **Bare Java cannot be added as Minecraft:** a stable, safe distinguishing Java signature is required. Never paste the entire launch command containing auth tokens.
-- **My new entry disappeared:** check whether the outer **Save changes** was pressed.
-
-This feature is independent of **Terminate game**: adding an application for tracking does not itself authorize a remote game-closing action.
-
-### Related
-[Gaming budgets](gaming-budgets.md) · [Screen idle bonus — planned](screen-idle-bonus.md) · [HA integration guide](../ha_integration.md) · [Product direction](../product_direction.md)
+[Gaming budgets](gaming-budgets.md) · [Controls & automations](parent-actions.md)
