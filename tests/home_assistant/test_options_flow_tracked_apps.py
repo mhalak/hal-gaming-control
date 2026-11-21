@@ -307,6 +307,9 @@ async def test_translations_explain_single_page_editor_and_mqtt(
         assert "applications" in steps["tracked_apps"]["data"]
         assert "shared" in steps["mqtt_settings"]["description"].lower()
         assert "{actions}" not in json.dumps(steps)
+        errors = json.loads((PACKAGE / relative).read_text())["options"]["error"]
+        assert "invalid_time" not in errors
+        assert "invalid_catalog" not in errors
 
 
 async def test_editor_replaces_top_level_save_without_resetting_legacy_settings(
