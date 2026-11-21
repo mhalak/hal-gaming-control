@@ -185,6 +185,18 @@ async def test_java_signature_is_visible_and_matched_to_friendly_alias(
     assert view["description_placeholders"]["preview_name"] == "Minecraft"
 
 
+async def test_preview_escapes_markdown_punctuation_in_saved_display_name(
+        hass, enable_custom_integrations):
+    entry = add_device(hass, DATA1, {"tracked_apps": [{
+        "process": ROBLOX["process"], "signature": None,
+        "name": "Roblox *Family*"}]})
+    _, view = await open_step(hass, entry, "tracked_apps", ROBLOX)
+    assert view["description_placeholders"]["preview_name"] == r"Roblox \*Family\*"
+    # Stored friendly name and list editor remain unmodified.
+    assert rows(view) == [
+        {"name": "Roblox *Family*", "detected": "RobloxPlayerBeta.exe"}]
+
+
 async def test_preview_presents_untracked_and_idle_as_distinct_states(
         hass, enable_custom_integrations):
     entry = add_device(hass, DATA1)
@@ -205,7 +217,7 @@ async def test_raw_identity_change_prevents_cross_app_add_default(
         hass, entry, "tracked_apps", ROBLOX,
         raw={"state": "foreground", "process": "chrome.exe", "signature": None})
     assert view["description_placeholders"]["raw_value"] == "chrome.exe"
-    assert view["description_placeholders"]["preview_name"] == "idle"
+    assert view["description_placeholders"]["preview_name"] == "Not tracked"
     field = next(iter(view["data_schema"].schema.values()))
     assert field.config["fields"]["detected"].get("default") is None
 
@@ -244,7 +256,7 @@ async def test_raw_snapshot_rejects_stale_retained_foreign_and_unsafe_packets(
             view["flow_id"], {"next_step_id": "tracked_apps"})
     assert captured == [(device_topic, 0), ("unsubscribed", 0)]
     assert view["description_placeholders"]["raw_value"] == "chrome.exe"
-    assert view["description_placeholders"]["preview_name"] == "idle"
+    assert view["description_placeholders"]["preview_name"] == "Not tracked"
 
 
 async def test_add_detected_game_once_in_same_form_preserves_limits(
