@@ -1,3 +1,12 @@
+## 0.5.11 — clean-preview budget names, additive Weekend bonus and readable durations
+
+- Replace the old **Daily limit**, **Weekly limit** and **Weekend daily limit** configuration entities with fresh **Daily budget**, **Weekly budget** and **Weekend bonus** entities. New `number` IDs end in `_daily_budget`, `_weekly_budget` and `_weekend_bonus`. Remove only the obsolete project-owned limit entity registry entries.
+- **Daily budget:** 0–600 min in 10-minute steps, with the existing -10 no-limit slider position mapped to internal -1. **Weekly budget:** 0–4200 min in 60-minute steps; 0 is a real finite budget. Existing weekly -1/no-limit is not coerced into 0 or silently enabled; the parent must select a valid weekly slider value. Legacy off-grid values are preserved until edited.
+- **Weekend bonus:** 0–600 min in 10-minute steps, added to finite Daily budget on Saturday *and* Sunday. It does not increase Weekly budget. The previous `weekend_daily` stored value is not migrated or interpreted; when no new bonus has been configured, the bonus is **0**. Manual weekend edits discard obsolete weekend override keys. This is a deliberate fresh-preview behavior change; review budgets before enabling automations.
+- Rename percent sensors to **Daily budget remaining** and **Weekly budget remaining** with new unique IDs ending in `_daily_budget_remaining` / `_weekly_budget_remaining`, to avoid duplicate names. They still represent percentages.
+- **Daily gaming time** and **Weekly gaming time** retain their entity IDs and numeric duration class, but native values are now fractional **hours**, not minutes. Home Assistant displays larger durations as hours/minutes/seconds. Any old numeric automations using raw minutes must be updated.
+- No game-time history or other integrations are purged; no Windows agent update or automatic enforcement. Home Assistant 0.5.11, Windows agent 0.2.6. Controlled HA deployment and physical Android verification remain separate.
+
 ## 0.5.10 — clarify final save action in native application editor
 
 - Name the native **Tracked applications** Options Flow's final button **Save changes** instead of generic **Submit**, using Home Assistant's supported `options.step.tracked_apps.submit` translation. Other steps and the nested Add/Edit dialogs are unchanged.
