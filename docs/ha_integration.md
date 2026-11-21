@@ -1,5 +1,9 @@
 # Home Assistant integration
 
+[← Documentation hub](README.md) · [← Project home](../README.md)
+
+**Looking for step-by-step instructions rather than the version-specific reference?** Start with [Track applications](features/tracked-applications.md), [Gaming budgets and bonuses](features/gaming-budgets.md), and [Manual parent actions](features/parent-actions.md). The [Screen idle bonus](features/screen-idle-bonus.md) and [Budget overview](features/budget-overview.md) are documented plans, **not shipped controls**.
+
 ## Version status
 
 **0.5.0 is a deployment candidate, not a verified installation.** It includes removal of implicit actions/selectors, safe MQTT configuration diagnostics, local version diagnostics, and the opt-in weekend bonus calculation kernel. The expanded feature set described below (duration sensors, full Weekend bonus UI, fresh restriction sensor) is still planned and **not included** in this 0.5.0 build. Existing installations retain the legacy Weekend daily limit UI until a separate safe migration. See [release history](ha_releases.md) and [product direction](product_direction.md).
