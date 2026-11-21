@@ -296,7 +296,7 @@ async def test_capture_starts_only_after_selecting_tracked_apps_and_reopen_recap
                              "state": "foreground", "process": ROBLOX["process"],
                              "signature": None})) as raw_probe:
         menu = await manager.async_init(entry.entry_id)
-        assert menu["step_id"] == "menu"
+        assert menu["step_id"] == "settings_menu"
         candidate_probe.assert_not_awaited()
         raw_probe.assert_not_awaited()
         first = await manager.async_configure(
