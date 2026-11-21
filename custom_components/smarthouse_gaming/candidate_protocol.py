@@ -1,7 +1,7 @@
 """Validate ephemeral, device-scoped foreground candidates for HA Options Flow.
 
 A candidate is only an advisory hint. It never authorizes rule enrollment.
-The Windows agent must independently re-check focus and acknowledge any edit.
+Application edits are HA-only. Revalidate current live observation before saving.
 """
 import json
 import math
@@ -42,9 +42,9 @@ def _valid_observation(observed, now):
             and -FUTURE_SKEW <= now - observed < MAX_CANDIDATE_AGE)
 
 
-_JAVA_CLASS = re.compile(r"[a-zA-Z_$][\\w$]*(?:\\.[a-zA-Z_$][\\w$]*)+", re.ASCII)
-_JAVA_JAR = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_.+-]{0,95}\\.jar", re.IGNORECASE | re.ASCII)
-_JAVA_MODULE = re.compile(r"[a-zA-Z_][a-zA-Z_0-9.]*(?:/[a-zA-Z_$][\\w$]*(?:\\.[a-zA-Z_$][\\w$]*)*)?", re.ASCII)
+_JAVA_CLASS = re.compile(r"[a-zA-Z_$][\w$]*(?:\.[a-zA-Z_$][\w$]*)+", re.ASCII)
+_JAVA_JAR = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_.+-]{0,95}\.jar", re.IGNORECASE | re.ASCII)
+_JAVA_MODULE = re.compile(r"[a-zA-Z_][a-zA-Z_0-9.]*(?:/[a-zA-Z_$][\w$]*(?:\.[a-zA-Z_$][\w$]*)*)?", re.ASCII)
 
 
 def _valid_signature(process, signature):
