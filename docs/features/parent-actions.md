@@ -13,7 +13,7 @@
       <h3>Automation Rules!</h3>
       <p>Every family needs a scapegoat. Ours runs on Home Assistant. Unlike Dad, the smart home has no feelings to hurt, so saying <strong>“No”</strong> to “just five more minutes” is much easier. Naturally, Dad sends the robot to deliver the news.</p>
       <p>There's just one small problem: our server has yet to pass its <strong>Flying Objects Resistance Test</strong>. Controllers, cushions, and the occasional airborne slipper remain untested.</p>
-      <p>That's where <strong>Home Assistant automations</strong> come in: parents choose the rules, reminders, and grace periods. For now, <strong>Lock PC</strong> and <strong>Terminate game</strong> are manual controls. Safe automatic enforcement still needs real-world testing.</p>
+      <p>That's the beauty of <strong>Home Assistant automations</strong>: parents set the rules, reminders, and grace periods; the house gets to say <strong>“Time's up!”</strong> with absolutely no fear of the inevitable “But Daaad!” Dad can handle the appeals. The robot, unfortunately, runs the complaints department.</p>
     </td>
   </tr>
 </table>
