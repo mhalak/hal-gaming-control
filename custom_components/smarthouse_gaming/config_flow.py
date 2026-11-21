@@ -253,7 +253,7 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
                 raw += " (ambiguous Java runtime)"
         else:
             raw = "No fresh foreground application detected"
-        display = "\\n".join(
+        display = "\n".join(
             f"• {row['name']} ← {row['process']}"
             + (f" + {row['signature']['value']}" if row['signature'] else "")
             for row in tracked.values()
@@ -268,7 +268,7 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
                 "device": self.config_entry.data.get("name") or self.config_entry.data["device_id"],
                 "count": str(len(tracked)),
                 "apps": display,
-                "legacy_apps": "\\n".join(
+                "legacy_apps": "\n".join(
                     f"• {name}" for name in self.config_entry.data.get("games", []))
                     or "None reported by legacy agent",
                 "candidate": raw,
