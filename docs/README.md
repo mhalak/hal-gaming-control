@@ -13,7 +13,7 @@ Welcome to the useful part of the manual. The front page makes promises; these p
 3. [Windows companion deployment](windows_deployment.md) — source build and service verification.
 4. [Tracked applications](features/tracked-applications.md) — add Roblox, Minecraft, or another app in Home Assistant.
 5. [Gaming budgets and bonuses](features/gaming-budgets.md) — daily/weekly limits and parent-granted minutes.
-6. [Manual parental actions](features/parent-actions.md) — Lock PC, Terminate game and precautions.
+6. [Parent controls and automations](features/parent-actions.md) — manual Lock PC / Terminate game and the planned native HA automation workflow.
 
 ## Feature guides
 
@@ -21,7 +21,7 @@ Welcome to the useful part of the manual. The front page makes promises; these p
 | --- | --- | --- |
 | Track an application, including non-games | HA application editor in preview; full end-to-end acceptance pending | [Tracked applications](features/tracked-applications.md) |
 | Daily and weekly gaming budgets, Add 30 minutes | Preview; verify your installed version | [Gaming budgets](features/gaming-budgets.md) |
-| Lock PC and Terminate game | Limited manual smoke tests passed | [Manual actions](features/parent-actions.md) |
+| Manual controls and native HA automations | Lock PC / Terminate game passed limited smoke tests; automated restriction trigger still needs acceptance | [Controls and automations](features/parent-actions.md) |
 | Screen idle bonus / overnight AFK grinding | **Planned — not implemented** | [Screen idle bonus](features/screen-idle-bonus.md) |
 | Human-readable itemized Budget overview | **Planned — not implemented** | [Budget overview](features/budget-overview.md) |
 
