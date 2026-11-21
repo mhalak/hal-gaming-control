@@ -14,7 +14,18 @@ It tracks gaming budgets on Windows PCs, lets parents grant bonus minutes, and p
 
 ## What can it do?
 
-**⏱️ Gaming budgets — the clock doesn't negotiate.** Daily and weekly limits, measured gaming time, and a parent-controlled **Add 30 minutes** button. No more mental arithmetic at bedtime. [How budgets and bonuses work](docs/features/gaming-budgets.md).
+<table>
+  <tr>
+    <td width="42%" valign="middle">
+      <a href="docs/features/gaming-budgets.md"><img src="docs/assets/illustrations/gaming-budgets.webp" width="320" alt="A cartoon king-dad showers plus-ten and plus-thirty gold gaming bonus coins upon two unimpressed children, with the family robot watching"></a>
+    </td>
+    <td valign="middle">
+      <h3>⏱️ Gaming budgets — the clock doesn't negotiate.</h3>
+      <p>Daily and weekly limits keep score. Feeling royal? Bestow an <strong>Add 30 minutes</strong> bonus on the young subjects — without changing their weekly limit. Even parental generosity has a terms-of-service agreement.</p>
+      <p><a href="docs/features/gaming-budgets.md">How budgets and bonuses work</a></p>
+    </td>
+  </tr>
+</table>
 
 **🎮 Track applications — not just games.** Roblox, Minecraft, or any other application you decide deserves a spot on the scoreboard. The Home Assistant app list supports friendly names, while Windows reports safe foreground app identities. [How to track an application](docs/features/tracked-applications.md).
 
