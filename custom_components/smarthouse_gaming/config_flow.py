@@ -7,7 +7,10 @@ from homeassistant import config_entries
 from homeassistant.components import mqtt
 from homeassistant.core import callback
 from homeassistant.helpers import selector
+from homeassistant.util import dt as dt_util
 from .const import DEFAULTS, DOMAIN, ROOT
+from .candidate_protocol import parse_candidate
+from .app_registry import add_app, identity_key, load_apps, rename_app, remove_app
 from .direct_mqtt import direct_mode
 from .protocol import parse_discovery
 from .update_protocol import catalog_url
@@ -55,6 +58,35 @@ async def _discover_devices(hass):
         if unsubscribe is not None:
             unsubscribe()
     return found
+
+
+
+async def _discover_foreground_candidate(hass, device_id):
+    """Briefly listen for a fresh, non-retained candidate from this PC only."""
+    topic = f"{ROOT}/{device_id}/state/foreground_candidate"
+    found = {}
+    unsubscribe = None
+
+    def collect(message):
+        try:
+            candidate = parse_candidate(
+                message.topic, message.payload, device_id,
+                retained=message.retain, now=dt_util.utcnow().timestamp())
+        except (ValueError, TypeError):
+            return
+        found["candidate"] = candidate
+
+    try:
+        unsubscribe = await mqtt.async_subscribe(hass, topic, collect, qos=0)
+        await _listen_window()
+    except asyncio.CancelledError:
+        raise
+    except Exception as err:  # noqa: BLE001 - no candidate is a safe outcome
+        _LOGGER.debug("Foreground candidate unavailable (%s)", type(err).__name__)
+    finally:
+        if unsubscribe is not None:
+            unsubscribe()
+    return found.get("candidate")
 
 
 class GamingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -181,19 +213,176 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
                 "mode": "Scoped discovery" if direct_mode(self.hass) else "Native MQTT discovery",
             })
 
+    def _apps(self):
+        """Read only this device's HA-owned mappings, not Windows discovery."""
+        return self.config_entry.options.get("tracked_apps", [])
+
+    def _app_choices(self, apps):
+        return [
+            {"value": key,
+             "label": f"{row['name']} — {row['process']}"
+                      + (f" + {row['signature']['value']}" if row['signature'] else "")}
+            for key, row in load_apps(apps).items()
+        ]
+
+    def _commit_app_change(self, new_apps):
+        """Commit app edits without replacing concurrent limit/budget options."""
+        latest = dict(self.config_entry.options)
+        if latest.get("tracked_apps", []) != self._app_baseline:
+            return None
+        latest["tracked_apps"] = new_apps
+        return self.async_create_entry(title="", data=latest)
+
     async def async_step_tracked_apps(self, user_input=None):
-        """Show this device's discovery applications without changing configuration."""
-        if user_input is not None:
-            return await self.async_step_menu()
-        games = list(self.config_entry.data.get("games") or [])
-        return self.async_show_form(step_id="tracked_apps",
-            data_schema=vol.Schema({}),
+        """HA-owned app configuration: all edits remain local to selected entry."""
+        apps = self._apps()
+        try:
+            tracked = load_apps(apps)
+        except ValueError:
+            return self.async_abort(reason="invalid_app_configuration")
+        # Refresh only on opening the menu, not when submitting edits.
+        candidate = await _discover_foreground_candidate(
+            self.hass, self.config_entry.data["device_id"])
+        if candidate:
+            raw = candidate["process"]
+            signature = candidate.get("signature")
+            if signature:
+                raw += f" + {signature['kind']}: {signature['value']}"
+            elif raw.casefold() in ("java.exe", "javaw.exe"):
+                raw += " (ambiguous Java runtime)"
+        else:
+            raw = "No fresh foreground application detected"
+        display = "\n".join(
+            f"• {row['name']} ← {row['process']}"
+            + (f" + {row['signature']['value']}" if row['signature'] else "")
+            for row in tracked.values()
+        ) or "No HA-managed applications configured yet."
+        return self.async_show_menu(
+            step_id="tracked_apps",
+            menu_options={"add_app": "Add application",
+                          "rename_app": "Rename application",
+                          "remove_app": "Remove application",
+                          "menu": "Back"},
             description_placeholders={
                 "device": self.config_entry.data.get("name") or self.config_entry.data["device_id"],
-                "count": str(len(games)),
-                "apps": "\n".join(f"• {name}" for name in games)
-                        or "No applications are tracked for this computer yet.",
-            })
+                "count": str(len(tracked)),
+                "apps": display,
+                "legacy_apps": "\n".join(
+                    f"• {name}" for name in (self.config_entry.data.get("games") or []))
+                    or "None reported by legacy agent",
+                "candidate": raw,
+            },
+        )
+
+    async def async_step_add_app(self, user_input=None):
+        """Bind an alias to the unchanged live candidate, never stored on PC."""
+        errors = {}
+        # Empty forms are a retry, not a request to enroll an unnamed app.
+        if user_input is None or "name" not in user_input:
+            self._selected_app = await _discover_foreground_candidate(
+                self.hass, self.config_entry.data["device_id"])
+            self._app_baseline = self._apps()
+        else:
+            selected = getattr(self, "_selected_app", None)
+            current = await _discover_foreground_candidate(
+                self.hass, self.config_entry.data["device_id"])
+            if (selected is None or current is None
+                    or any(current.get(k) != selected.get(k)
+                           for k in ("process", "signature", "token"))):
+                errors["base"] = "candidate_changed"
+            else:
+                try:
+                    next_apps = add_app(self._app_baseline, selected, user_input["name"])
+                    result = self._commit_app_change(next_apps)
+                    if result is not None:
+                        return result
+                    errors["base"] = "configuration_changed"
+                except ValueError:
+                    errors["base"] = "invalid_application"
+        selected = getattr(self, "_selected_app", None)
+        valid = False
+        if selected:
+            try:
+                identity_key(selected["process"], selected.get("signature"))
+                valid = True
+            except ValueError:
+                pass
+        if not valid:
+            errors["base"] = "no_live_candidate"
+        description = " + ".join(
+            [selected["process"]]
+            + ([selected["signature"]["value"]] if selected and selected.get("signature") else [])
+        ) if valid else "No uniquely identifiable foreground application"
+        return self.async_show_form(
+            step_id="add_app",
+            data_schema=vol.Schema({vol.Required("name"): str}) if valid else vol.Schema({}),
+            description_placeholders={"candidate": description},
+            errors=errors,
+        )
+
+    async def async_step_rename_app(self, user_input=None):
+        """Rename a stable process signature without losing usage identity."""
+        errors = {}
+        if user_input is None:
+            self._app_baseline = self._apps()
+        elif "target" in user_input:
+            try:
+                next_apps = rename_app(
+                    self._app_baseline, user_input["target"], user_input["name"])
+                result = self._commit_app_change(next_apps)
+                if result is not None:
+                    return result
+                errors["base"] = "configuration_changed"
+            except ValueError:
+                errors["base"] = "invalid_application"
+        try:
+            choices = self._app_choices(self._app_baseline)
+        except ValueError:
+            return self.async_abort(reason="invalid_app_configuration")
+        if not choices:
+            return self.async_show_form(
+                step_id="rename_app", data_schema=vol.Schema({}),
+                errors={"base": "no_tracked_apps"})
+        return self.async_show_form(
+            step_id="rename_app",
+            data_schema=vol.Schema({
+                vol.Required("target"): selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=choices)),
+                vol.Required("name"): str,
+            }),
+            errors=errors,
+        )
+
+    async def async_step_remove_app(self, user_input=None):
+        """Remove selected HA mapping only; never send device commands."""
+        errors = {}
+        if user_input is None:
+            self._app_baseline = self._apps()
+        elif "target" in user_input:
+            try:
+                next_apps = remove_app(self._app_baseline, user_input["target"])
+                result = self._commit_app_change(next_apps)
+                if result is not None:
+                    return result
+                errors["base"] = "configuration_changed"
+            except ValueError:
+                errors["base"] = "invalid_application"
+        try:
+            choices = self._app_choices(self._app_baseline)
+        except ValueError:
+            return self.async_abort(reason="invalid_app_configuration")
+        if not choices:
+            return self.async_show_form(
+                step_id="remove_app", data_schema=vol.Schema({}),
+                errors={"base": "no_tracked_apps"})
+        return self.async_show_form(
+            step_id="remove_app",
+            data_schema=vol.Schema({
+                vol.Required("target"): selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=choices)),
+            }),
+            errors=errors,
+        )
 
     async def async_step_update_settings(self, user_input=None):
         errors = {}
@@ -219,6 +408,12 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
         # The per-game editor is temporarily withdrawn. Do not overwrite legacy
         # data or concurrent changes when saving unrelated settings.
         self.values["per_game"] = dict(latest["per_game"])
+        # A separate HA-only CRUD flow may have saved app aliases meanwhile.
+        # Never let an unrelated Limits/Save flow overwrite those mappings.
+        if "tracked_apps" in latest:
+            self.values["tracked_apps"] = latest["tracked_apps"]
+        else:
+            self.values.pop("tracked_apps", None)
         for key in ("bonus_date", "bonus_minutes"):
             self.values.pop(key, None)
             if key in latest:

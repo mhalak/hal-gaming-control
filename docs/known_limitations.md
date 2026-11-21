@@ -38,3 +38,5 @@ Public release gate: produce reviewed, signed, versioned artifacts, verify those
 ## Development versus production
 
 Development exceptions must not become product instructions or be treated as release acceptance. Document exact versions and observed outcomes, keep configuration and logs private, and never publish personal identifiers, local paths or raw personal telemetry. See [Windows deployment](windows_deployment.md), [foreground migration](foreground_accounting_migration.md), and [HACS release checklist](hacs_release.md).
+
+| HA 0.5.1 / Windows 0.2.4 candidate | A fresh untracked foreground executable and, for Java, a vetted launch-argument discriminator can be selected for HA-only application alias management. HA-only Add/Rename/Remove is present in the candidate source and does not write to Windows; the existing Active game entity does **not yet** use these aliases, and full foreground accounting remains unimplemented. | Keep legacy rules intact and revalidate the token before saving; do not treat it as an agent-side authorization. #7/#52 and #4 remain open. |

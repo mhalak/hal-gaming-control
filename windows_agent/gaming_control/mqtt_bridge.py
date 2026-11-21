@@ -5,6 +5,7 @@ import math
 import os
 import queue
 import re
+import secrets
 import threading
 import time
 from uuid import uuid4
@@ -22,6 +23,35 @@ STATE_ACK_TIMEOUT = 2
 FOREGROUND_PERIOD = 2
 FOREGROUND_MAX_AGE = 10
 FOREGROUND_CLOCK_SKEW = 2
+CANDIDATE_PERIOD = 2
+CANDIDATE_EXPIRY = 6
+
+def _candidate_process(candidate):
+    return (isinstance(candidate, tuple) and len(candidate) == 5
+            and isinstance(candidate[0], str) and len(candidate[0]) <= 128
+            and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _.'()+-]*\.exe",
+                             candidate[0], re.IGNORECASE) is not None)
+
+
+def _candidate_signature(process, signature):
+    if signature is None:
+        return True
+    if (process.casefold() not in ("java.exe", "javaw.exe")
+            or not isinstance(signature, dict)
+            or set(signature) != {"kind", "value"}):
+        return False
+    kind, value = signature["kind"], signature["value"]
+    if not isinstance(kind, str) or not isinstance(value, str) or len(value) > 128:
+        return False
+    patterns = {
+        "java_class": r"[a-zA-Z_$][\w$]*(?:\.[a-zA-Z_$][\w$]*)+",
+        "java_jar": r"[a-zA-Z0-9][a-zA-Z0-9_.+-]{0,95}\.jar",
+        "java_module": r"[a-zA-Z_][a-zA-Z_0-9.]*(?:/[a-zA-Z_$][\w$]*(?:\.[a-zA-Z_$][\w$]*)*)?",
+    }
+    return kind in patterns and re.fullmatch(
+        patterns[kind], value, re.ASCII | (re.IGNORECASE if kind == "java_jar" else 0)
+    ) is not None
+
 
 class Bridge:
     def __init__(self, config):
@@ -45,6 +75,8 @@ class Bridge:
         self._foreground_context = None
         self._foreground_last = None
         self._foreground_sent = float('-inf')
+        self._candidate_key = self._candidate_token = None
+        self._candidate_sent = float('-inf')
         # MQTT 5 preserves the retain flag even on live deliveries.
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f'gaming-{self.id}',
                                   protocol=mqtt.MQTTv5)
@@ -93,6 +125,8 @@ class Bridge:
             self._foreground_context = None
             self._foreground_last = None
             self._foreground_sent = float('-inf')
+            self._candidate_key = self._candidate_token = None
+            self._candidate_sent = float('-inf')
         # Do not receive stored retained actions; reject any live retained action as well.
         options = mqtt.SubscribeOptions(qos=0, retainAsPublished=True, retainHandling=2)
         for topic in self.command_topics:
@@ -106,7 +140,8 @@ class Bridge:
             self.generation += 1
             self.refresh_requested = True
             self._foreground_context = None
-
+            self._candidate_key = self._candidate_token = None
+        
     def on_message(self, client, userdata, msg):
         with self.lock:
             if msg.topic == self.prefix + '/status':
@@ -314,6 +349,54 @@ class Bridge:
                 return False
             self._foreground_last = (packet["active_game"], packet["gaming_active"])
             self._foreground_sent = now
+        return True
+
+
+    def publish_candidate(self, candidate):
+        """Publish basename, safe signature and opaque token, never PID/path.
+
+        A candidate is advisory, is never retained and expires from the broker.
+        It cannot, by itself, authorize enrollment or an agent-side mutation.
+        """
+        with self.lock:
+            if not self.connected or self.synced_generation != self.generation:
+                self._candidate_key = self._candidate_token = None
+                return False
+            if not _candidate_process(candidate) or not _candidate_signature(
+                    candidate[0], candidate[4]):
+                self._candidate_key = self._candidate_token = None
+                return False
+            signature = candidate[4]
+            now = time.monotonic()
+            if candidate != self._candidate_key:
+                self._candidate_key = candidate
+                self._candidate_token = secrets.token_hex(16)
+                self._candidate_sent = float("-inf")
+            if now - self._candidate_sent < CANDIDATE_PERIOD:
+                return False
+            generation, token = self.generation, self._candidate_token
+            payload = json.dumps({
+                "version": 1, "device_id": self.id, "process": candidate[0],
+                "signature": signature,
+                "token": token, "observed_at": time.time(),
+            })
+        if not self._same_connection(generation):
+            return False
+        try:
+            properties = Properties(PacketTypes.PUBLISH)
+            properties.MessageExpiryInterval = CANDIDATE_EXPIRY
+            info = self.client.publish(
+                self.root + "/state/foreground_candidate", payload,
+                qos=0, retain=False, properties=properties)
+        except (RuntimeError, ValueError, OSError):
+            return False
+        if info.rc != mqtt.MQTT_ERR_SUCCESS:
+            return False
+        with self.lock:
+            if (not self.connected or self.generation != generation
+                    or self._candidate_token != token):
+                return False
+            self._candidate_sent = now
         return True
 
     def stop(self):
