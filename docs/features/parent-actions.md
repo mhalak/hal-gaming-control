@@ -4,6 +4,20 @@
 
 **Status:** **Lock PC** and **Terminate game** have passed limited live smoke testing as explicit actions in the development preview. That is not a guarantee for every PC, game or installation.
 
+<table>
+  <tr>
+    <td width="132" valign="middle">
+      <img src="../assets/illustrations/parent-actions.webp" width="120" alt="Dad pushing a resisting HAL robot toward angry children while mum watches, under an Automation Rules sign">
+    </td>
+    <td valign="middle">
+      <h3>Automation Rules!</h3>
+      <p>The house can help enforce rules; the robot would rather not negotiate with the kids. Manual buttons work in preview, while safe automatic enforcement still requires validation.</p>
+    </td>
+  </tr>
+</table>
+
+*Conceptual illustration only — not a screenshot of Home Assistant or proof of released behavior.*
+
 > Manual buttons settle the occasional dispute. Home Assistant automations are the magic that could save your nerves before the next "five more minutes" debate. The robot can referee; the parents still make the rules.
 
 ## Before you press anything

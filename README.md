@@ -27,13 +27,57 @@ It tracks gaming budgets on Windows PCs, lets parents grant bonus minutes, and p
   </tr>
 </table>
 
-**🎮 Track applications — not just games.** Roblox, Minecraft, or any other application you decide deserves a spot on the scoreboard. The Home Assistant app list supports friendly names, while Windows reports safe foreground app identities. [How to track an application](docs/features/tracked-applications.md).
+<table>
+  <tr>
+    <td width="132" valign="middle">
+      <a href="docs/features/tracked-applications.md"><img src="docs/assets/illustrations/tracked-applications.webp" width="120" alt="🎮 Track applications — not just games.: HAL Systems family cartoon illustration"></a>
+    </td>
+    <td valign="middle">
+      <h3>🎮 Track applications — not just games.</h3>
+      <p>Roblox, Minecraft, even a suspicious <code>javaw.exe</code>: Windows reports the foreground app; Home Assistant gives it a friendly name. The gaming chair is no alibi. <em>Development preview.</em></p>
+      <p><a href="docs/features/tracked-applications.md">How to track an application</a></p>
+    </td>
+  </tr>
+</table>
 
-**🪄 Controls & automations — the magic that saves parental nerves.** Need an intervention now? **Lock PC** and **Terminate game** are explicit buttons, both smoke-tested on real hardware. The real superpower is **native Home Assistant automations**: design your own warning, grace period and (once the restriction signal is validated) consequence. Let the house handle the seventh "five more minutes" negotiation. **Automatic restriction enforcement is not yet validated or enabled by default.** [How controls and automations fit together](docs/features/parent-actions.md).
+<table>
+  <tr>
+    <td width="132" valign="middle">
+      <a href="docs/features/parent-actions.md"><img src="docs/assets/illustrations/parent-actions.webp" width="120" alt="🪄 Controls &amp; automations — Automation Rules!: HAL Systems family cartoon illustration"></a>
+    </td>
+    <td valign="middle">
+      <h3>🪄 Controls &amp; automations — Automation Rules!</h3>
+      <p>Use <strong>Lock PC</strong> or <strong>Terminate game</strong> manually. Native HA automations are the real magic: let the house handle the seventh “five more minutes.” <strong>Automatic restriction enforcement is not yet validated.</strong></p>
+      <p><a href="docs/features/parent-actions.md">How controls and automations fit together</a></p>
+    </td>
+  </tr>
+</table>
 
-**🌙 AFK grind — investing in their future.** *Planned.* As responsible parents, we want our kids to succeed in life. And the loot isn't going to mine itself. With the display confirmed off, the game could keep grinding without charging new gaming minutes. Generous parents could also grant a **Screen idle bonus** for eligible idle time *before* the screen went off, without rewriting playtime history. The virtual economy never sleeps; thankfully, the kids can. [How Screen idle bonuses will work](docs/features/screen-idle-bonus.md).
+<table>
+  <tr>
+    <td width="132" valign="middle">
+      <a href="docs/features/screen-idle-bonus.md"><img src="docs/assets/illustrations/screen-idle-bonus.webp" width="120" alt="🌙 AFK grind — the loot won't mine itself.: HAL Systems family cartoon illustration"></a>
+    </td>
+    <td valign="middle">
+      <h3>🌙 AFK grind — the loot won't mine itself.</h3>
+      <p><strong>Planned.</strong> Kids could sleep while their game keeps grinding. Confirmed screen-off time would stop counting; an optional bonus could restore eligible idle minutes <em>before</em> screen-off.</p>
+      <p><a href="docs/features/screen-idle-bonus.md">How Screen idle bonuses will work</a></p>
+    </td>
+  </tr>
+</table>
 
-**🧾 Budget overview — show your work.** *Planned.* A simple receipt: daily budget + weekend bonus + parent bonus + Screen idle bonus − measured gaming time = remaining time. [See the proposed Budget overview](docs/features/budget-overview.md).
+<table>
+  <tr>
+    <td width="132" valign="middle">
+      <a href="docs/features/budget-overview.md"><img src="docs/assets/illustrations/budget-overview.webp" width="120" alt="🧾 Budget overview — the gaming-time audit.: HAL Systems family cartoon illustration"></a>
+    </td>
+    <td valign="middle">
+      <h3>🧾 Budget overview — the gaming-time audit.</h3>
+      <p><strong>Planned.</strong> Daily allowance + bonuses − measured playtime = remaining minutes. Dad has the receipts. Apparently “five more minutes” requires an auditor.</p>
+      <p><a href="docs/features/budget-overview.md">See the proposed Budget overview</a></p>
+    </td>
+  </tr>
+</table>
 
 **Development preview, not a finished family appliance.** The repository contains a Home Assistant integration and a Windows companion; feature availability depends on the deployed version. The app editor and other preview features still require complete end-to-end acceptance. Screen idle bonuses and the itemized Budget overview are **not implemented yet**. Do not turn on automatic enforcement until your own setup has been validated. [Release status and known limitations](docs/known_limitations.md).
 
