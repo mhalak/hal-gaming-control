@@ -6,6 +6,8 @@
 
 In current HA 0.5.6, Configure contains only **MQTT configuration** (read-only) and **Tracked applications** (saves directly). The older Restrictions and schedule, Windows update settings and Save steps were removed without changing existing stored policy, schedule, catalog URL or legacy action options; existing enabled controls still operate according to their saved values. Limit sliders and manual device controls remain on the device page.
 
+The application editor now shows the latest fresh v2 raw foreground process identity (executable basename and vetted Java signature only) and its HA-normalized display label above the Application List. A mapped foreground app shows its saved name, an untracked executable displays `idle` for tracked gameplay, and unavailable/ambiguous observations are not mislabeled as idle. The standard Home Assistant Options Flow is a snapshot at form entry: it **cannot live-update an open form** while focus changes, so close and reopen Tracked applications after switching apps on the PC. The Add selector comes from a separately validated, fresh foreground candidate; new enrollment is rechecked on Submit. No raw argv, PID, window titles or private executable paths are sent to the frontend or saved in HA app mappings.
+
 Install custom_components/smarthouse_gaming through manual installation or HACS where available. Restart HA. MQTT and Recorder must be enabled. Add one config entry per PC using scoped or native MQTT discovery. Restrictions are disabled by default.
 
 ## Planned device controls — after the 0.5.0 preview
