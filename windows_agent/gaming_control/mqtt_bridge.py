@@ -335,11 +335,22 @@ class Bridge:
             if not self.connected or self.synced_generation != self.generation:
                 self._candidate_key = self._candidate_token = None
                 return False
-            if (not isinstance(candidate, tuple) or len(candidate) != 4
+            if (not isinstance(candidate, tuple) or len(candidate) != 5
                     or not isinstance(candidate[0], str)
                     or len(candidate[0]) > 128
                     or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _.'()+-]*\.exe",
                                         candidate[0], re.IGNORECASE)):
+                self._candidate_key = self._candidate_token = None
+                return False
+            signature = candidate[4]
+            if (signature is not None and
+                    (not isinstance(signature, dict)
+                     or set(signature) != {"kind", "value"}
+                     or signature["kind"] not in ("java_class", "java_jar", "java_module")
+                     or not isinstance(signature["value"], str)
+                     or len(signature["value"]) > 128
+                     or not re.fullmatch(r"[a-zA-Z0-9_$][a-zA-Z0-9_.$+/-]{0,127}",
+                                         signature["value"]))):
                 self._candidate_key = self._candidate_token = None
                 return False
             now = time.monotonic()
@@ -352,6 +363,7 @@ class Bridge:
             generation, token = self.generation, self._candidate_token
             payload = json.dumps({
                 "version": 1, "device_id": self.id, "process": candidate[0],
+                "signature": signature,
                 "token": token, "observed_at": time.time(),
             })
         if not self._same_connection(generation):
