@@ -215,7 +215,7 @@ async def test_add_detected_game_once_in_same_form_preserves_limits(
     for key in ("daily", "per_game", "unlimited"):
         assert result["data"][key] == entry.options[key]
     assert entry.data == DATA1
-    assert probe.await_count == 1
+    probe.assert_not_awaited()
     publish.assert_not_called()
 
 
@@ -258,22 +258,84 @@ async def test_rename_or_delete_existing_works_without_live_game(
     assert entry2.options["tracked_apps"] == []
 
 
-@pytest.mark.parametrize("changed", [
+@pytest.mark.parametrize("later", [
     MINECRAFT | {"token": "b" * 32},
     ROBLOX,
     None,
 ])
-async def test_new_candidate_changed_cannot_enroll(
-        hass, enable_custom_integrations, changed):
+async def test_captured_application_can_be_added_after_alt_tab_or_exit(
+        hass, enable_custom_integrations, later):
     entry = add_device(hass, DATA1)
     manager, view = await open_step(hass, entry, "tracked_apps", MINECRAFT)
+    assert view["description_placeholders"]["raw_value"].startswith("javaw.exe")
+    # No additional sample is needed at Submit, even hours later in the same flow.
     with patch.object(cf, "_discover_foreground_candidate",
-                      new=AsyncMock(return_value=changed)):
+                      new=AsyncMock(return_value=later)) as candidate_probe, \
+            patch.object(cf, "_discover_raw_foreground_snapshot",
+                         new=AsyncMock(return_value=None)) as raw_probe:
         result = await manager.async_configure(view["flow_id"], {"applications": [
             {"name": "Minecraft", "detected": raw_label(MINECRAFT)}]})
-    assert result["type"] == data_entry_flow.FlowResultType.FORM
-    assert result["errors"]["base"] == "candidate_changed"
+    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert result["data"]["tracked_apps"] == [
+        {"process": "javaw.exe", "signature": MINECRAFT["signature"],
+         "name": "Minecraft"}]
+    candidate_probe.assert_not_awaited()
+    raw_probe.assert_not_awaited()
+
+
+async def test_capture_starts_only_after_selecting_tracked_apps_and_reopen_recaptures(
+        hass, enable_custom_integrations):
+    entry = add_device(hass, DATA1)
+    manager = hass.config_entries.options
+    with patch.object(cf, "_discover_foreground_candidate",
+                      new=AsyncMock(return_value=ROBLOX)) as candidate_probe, \
+            patch.object(cf, "_discover_raw_foreground_snapshot",
+                         new=AsyncMock(return_value={
+                             "state": "foreground", "process": ROBLOX["process"],
+                             "signature": None})) as raw_probe:
+        menu = await manager.async_init(entry.entry_id)
+        assert menu["step_id"] == "menu"
+        candidate_probe.assert_not_awaited()
+        raw_probe.assert_not_awaited()
+        first = await manager.async_configure(
+            menu["flow_id"], {"next_step_id": "tracked_apps"})
+    assert first["description_placeholders"]["raw_value"] == ROBLOX["process"]
+    candidate_probe.assert_awaited_once()
+    raw_probe.assert_awaited_once()
+
+    # Leaving Configure and opening a NEW Options Flow recaptures, without
+    # cross-flow reuse of the previous executable, signature or token.
+    manager2 = hass.config_entries.options
+    menu2 = await manager2.async_init(entry.entry_id)
+    with patch.object(cf, "_discover_foreground_candidate",
+                      new=AsyncMock(return_value=MINECRAFT)), \
+            patch.object(cf, "_discover_raw_foreground_snapshot",
+                         new=AsyncMock(return_value={
+                             "state": "foreground", "process": "javaw.exe",
+                             "signature": MINECRAFT["signature"]})):
+        second = await manager2.async_configure(
+            menu2["flow_id"], {"next_step_id": "tracked_apps"})
+    assert second["description_placeholders"]["raw_value"] == raw_label(MINECRAFT)
+    with pytest.raises(data_entry_flow.InvalidData):
+        await manager2.async_configure(second["flow_id"], {"applications": [
+            {"name": "Old Roblox", "detected": raw_label(ROBLOX)}]})
     assert "tracked_apps" not in entry.options
+
+
+async def test_capture_survives_validation_errors_without_resubscribing(
+        hass, enable_custom_integrations):
+    entry = add_device(hass, DATA1)
+    manager, view = await open_step(hass, entry, "tracked_apps", ROBLOX)
+    with patch.object(cf, "_discover_foreground_candidate", new=AsyncMock()) as probe:
+        invalid = await manager.async_configure(view["flow_id"], {
+            "applications": [{"name": "idle", "detected": raw_label(ROBLOX)}]})
+        assert invalid["errors"]["base"] == "invalid_application"
+        assert invalid["description_placeholders"]["raw_value"] == raw_label(ROBLOX)
+        corrected = await manager.async_configure(invalid["flow_id"], {
+            "applications": [{"name": "Roblox", "detected": raw_label(ROBLOX)}]})
+    assert corrected["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert corrected["data"]["tracked_apps"][0]["name"] == "Roblox"
+    probe.assert_not_awaited()
 
 
 async def test_forged_new_process_or_duplicate_is_rejected(
@@ -406,6 +468,8 @@ async def test_translations_explain_single_page_editor_and_mqtt(
         assert "Raw sensor value" in tracked
         assert "Displayed as" in tracked
         assert "snapshot" in tracked.lower()
+        assert "does not need to stay focused" in tracked.lower()
+        assert "close and reopen" in tracked.lower()
         assert steps["tracked_apps"]["data"]["applications"] == "Application List"
         assert "applications" in steps["tracked_apps"]["data"]
         assert "shared" in steps["mqtt_settings"]["description"].lower()
