@@ -1,14 +1,10 @@
 """One-screen HA app list editor: friendly names, verified raw identities.
 
 The frontend receives only safe executable basenames and vetted Java
-signatures. Adding a process requires an unchanged, fresh MQTT candidate;
-renaming and removing old rows never send data to Windows.
+signatures. New Add uses a confirmed snapshot captured at form entry, not the current
+foreground at Submit. Renaming and removing never send data to Windows.
 """
 from .app_registry import MAX_APPS, identity_key, load_apps
-
-
-class CandidateChanged(ValueError):
-    """Foreground changed while a newly detected app was being enrolled."""
 
 
 def raw_label(row):
@@ -41,15 +37,17 @@ def editor_rows(apps):
             for row in load_apps(apps).values()]
 
 
-def apply_app_editor(baseline, proposed, first_candidate, latest_candidate):
-    """Apply one list edit, rejecting forged process IDs and stale additions.
+def apply_app_editor(baseline, proposed, captured_candidate):
+    """Apply edits using ONLY verified identity captured for this flow session.
 
-    Existing rows can be renamed or deleted freely, but a new identity
-    can ONLY equal the original candidate AND its freshly observed token.
+    The parent explicitly authorizes enrollment of the process observed when
+    the editor opened, independent of subsequent Alt-Tab/PC availability.
+    Browser input cannot add arbitrary identities absent from this snapshot
+    or the existing HA list.
     """
     old = load_apps(baseline)
     known = {raw_label(row): row for row in old.values()}
-    choices = editor_choices(baseline, first_candidate)
+    choices = editor_choices(baseline, captured_candidate)
     if not isinstance(proposed, list) or len(proposed) > MAX_APPS:
         raise ValueError("Invalid number of applications")
 
@@ -64,13 +62,10 @@ def apply_app_editor(baseline, proposed, first_candidate, latest_candidate):
         if raw in known:
             source = known[raw]
         else:
-            if not isinstance(first_candidate, dict):
-                raise ValueError("Cannot add without a candidate")
-            if (not isinstance(latest_candidate, dict)
-                    or any(latest_candidate.get(field) != first_candidate.get(field)
-                           for field in ("process", "signature", "token"))):
-                raise CandidateChanged("Foreground application changed")
-            source = first_candidate
+            if (not isinstance(captured_candidate, dict)
+                    or raw != raw_label(captured_candidate)):
+                raise ValueError("Not in the verified flow snapshot")
+            source = captured_candidate
 
         result.append({"process": source["process"],
                        "signature": source.get("signature"),
