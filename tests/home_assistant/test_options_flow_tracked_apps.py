@@ -399,7 +399,8 @@ async def test_translations_explain_single_page_editor_and_mqtt(
         assert set(steps) == {"menu", "mqtt_settings", "tracked_apps"}
         tracked = steps["tracked_apps"]["description"]
         assert "Currently detected application" in tracked
-        assert "use Add to enroll" in tracked
+        assert "Use Add to enroll" in tracked
+        assert "\\n" not in tracked  # Real Markdown line breaks, not literal \\n sequences
         assert "nothing is written to Windows" in tracked
         assert "Currently detected application" in tracked
         assert "Raw sensor value" in tracked
