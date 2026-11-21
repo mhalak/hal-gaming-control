@@ -1,6 +1,6 @@
 # Track applications
 
-[← Back to features](../../README.md#what-can-it-do) · [All guides](../README.md)
+[← Back to features](../../README.md#feature-tracked-applications) · [All guides](../README.md)
 
 <table>
   <tr>

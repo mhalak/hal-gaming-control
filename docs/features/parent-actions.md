@@ -1,6 +1,6 @@
 # Controls & automations
 
-[← Back to features](../../README.md#what-can-it-do) · [All guides](../README.md)
+[← Back to features](../../README.md#feature-parent-actions) · [All guides](../README.md)
 
 <table>
   <tr>

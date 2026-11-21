@@ -1,6 +1,6 @@
 # AFK grind & Screen idle bonus
 
-[← Back to features](../../README.md#what-can-it-do) · [All guides](../README.md)
+[← Back to features](../../README.md#feature-screen-idle-bonus) · [All guides](../README.md)
 
 <table>
   <tr>
