@@ -9,6 +9,7 @@ The feature illustrations follow the existing SmartHouse Parental Control banner
 | Asset | Status | Guide | Depicts |
 | --- | --- | --- | --- |
 | [`gaming-budgets.webp`](gaming-budgets.webp) | **Committed** | [Gaming budgets](../../features/gaming-budgets.md) | Royal parent distributing +10 and +30 golden bonus coins to the children, with robot |
+| [`gaming-budgets-portrait.webp`](gaming-budgets-portrait.webp) | **Committed** | [Gaming budgets](../../features/gaming-budgets.md) | Portrait variant for the narrower README image column; same characters and bonus coins |
 | `tracked-applications.webp` | **Planned** | [Tracked applications](../../features/tracked-applications.md) | Robot displaying a grid of different app identities |
 | `parent-actions.webp` | **Planned** | [Manual actions](../../features/parent-actions.md) | Parent using an explicit lock/pause control |
 | `screen-idle-bonus.webp` | **Planned** | [Screen idle bonus — planned](../../features/screen-idle-bonus.md) | Sleeping child and background game continuing |
@@ -22,3 +23,7 @@ The feature illustrations follow the existing SmartHouse Parental Control banner
 4. Follow the separate [real screenshot checklist](../screenshots/README.md) for actual UI captures, privacy, and version labeling.
 
 This keeps our illustration style consistent and avoids fictional UI screenshots.
+
+## Mobile README card experiment
+
+The gaming-budget card uses a GitHub-rendered HTML table: a **132-pixel image column** with a 120-pixel-wide portrait image, and an unbounded text column that receives remaining width. The portrait is intended for narrow portrait-mode screens; the previous landscape image remains committed for the detailed guide. GitHub strips custom CSS and does not support arbitrary media queries in a repository README, so mobile behavior must be verified on an actual phone before applying this layout to every feature.
