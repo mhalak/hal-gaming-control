@@ -54,6 +54,18 @@ def _candidate_signature(process, signature):
     ) is not None
 
 
+
+def _raw_identity_parts(state, candidate):
+    """Return safe public identity or reject a malformed foreground state."""
+    if state == "foreground":
+        if not _candidate_process(candidate) or not _candidate_signature(
+                candidate[0], candidate[4]):
+            return None
+        return candidate[0], candidate[4]
+    if state in ("idle", "unknown") and candidate is None:
+        return None, None
+    return None
+
 class Bridge:
     def __init__(self, config):
         dev, cfg = config['device'], config['mqtt']
@@ -380,15 +392,10 @@ class Bridge:
             if not (0 <= age < FOREGROUND_MAX_AGE and math.isfinite(observed)
                     and abs((wall - observed) - age) <= FOREGROUND_CLOCK_SKEW):
                 return False
-            if state == "foreground":
-                if not _candidate_process(candidate) or not _candidate_signature(
-                        candidate[0], candidate[4]):
-                    return False
-                process, signature = candidate[0], candidate[4]
-            elif state in ("idle", "unknown") and candidate is None:
-                process = signature = None
-            else:
+            parts = _raw_identity_parts(state, candidate)
+            if parts is None:
                 return False
+            process, signature = parts
             identity = (state, process, json.dumps(signature, sort_keys=True))
             if identity == self._raw_last and now - self._raw_sent < RAW_FOREGROUND_PERIOD:
                 return False
