@@ -16,13 +16,13 @@ It tracks gaming budgets on Windows PCs, lets parents grant bonus minutes, and p
 
 <table>
   <tr>
-    <td width="132" valign="top">
+    <td width="132" valign="middle">
       <a href="docs/features/gaming-budgets.md"><img src="docs/assets/illustrations/gaming-budgets-portrait.webp" width="120" alt="Cartoon king-dad tossing +10 and +30 gold coins to his two unimpressed blue-eyed children, next to a cheerful robot"></a>
     </td>
-    <td valign="top">
+    <td valign="middle">
       <h3>⏱️ Gaming budgets — the clock doesn't negotiate.</h3>
-      <p>Daily and weekly limits keep score. Feeling royal? Bestow an <strong>Add 30 minutes</strong> bonus on the young subjects — without changing their weekly limit. Even parental generosity has a terms-of-service agreement.</p>
-      <p><a href="docs/features/gaming-budgets.md">How budgets and bonuses work</a></p>
+      <p>Daily and weekly limits keep score. Feeling royal? Press <strong>Add 30 minutes</strong>. The daily allowance grows; the weekly limit remains unimpressed.</p>
+      <p><a href="docs/features/gaming-budgets.md">Budgets &amp; bonuses explained</a></p>
     </td>
   </tr>
 </table>
