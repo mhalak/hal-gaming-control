@@ -186,9 +186,12 @@ async def test_forged_new_process_or_duplicate_is_rejected(
             {"name": "Other", "detected": "private.exe"}]})
     assert "tracked_apps" not in entry.options
 
-    result = await manager.async_configure(view["flow_id"], {"applications": [
-        {"name": "Roblox", "detected": "RobloxPlayerBeta.exe"},
-        {"name": "Duplicate", "detected": "RobloxPlayerBeta.exe"}]})
+    with patch.object(cf, "_discover_foreground_candidate",
+                      new=AsyncMock(return_value=ROBLOX)):
+        result = await manager.async_configure(view["flow_id"], {
+            "applications": [
+                {"name": "Roblox", "detected": "RobloxPlayerBeta.exe"},
+                {"name": "Duplicate", "detected": "RobloxPlayerBeta.exe"}]})
     assert result["type"] == data_entry_flow.FlowResultType.FORM
     assert result["errors"]["base"] == "invalid_application"
 
