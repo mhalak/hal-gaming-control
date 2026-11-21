@@ -11,7 +11,7 @@
     </td>
     <td valign="middle">
       <h3>The loot won't mine itself ⛏️</h3>
-      <p>Kid asleep. Screen off. Minecraft's working the night shift like it has a mortgage. Our robot refuses to bill the gaming budget for a pickaxe's overtime.</p>
+      <p>Kid asleep. Minecraft's working the night shift like it has a mortgage. Our robot refuses to bill the gaming budget for a pickaxe's overtime.</p>
     </td>
   </tr>
 </table>
