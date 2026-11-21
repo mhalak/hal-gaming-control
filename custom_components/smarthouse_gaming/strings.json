@@ -52,12 +52,42 @@
       },
       "tracked_apps": {
         "title": "Tracked applications",
-        "description": "Read-only tracked applications for {device} ({count}):\\n\\n{apps}\\n\\nCurrent focused identity: {candidate}\\n\\nFor Java apps this is the executable plus a safe main-class/JAR/module identifier. A bare Java runtime is ambiguous. Windows sends no private command lines, access tokens, paths or titles; HA will own the configured aliases. Add/Rename/Remove is still in development (#7)."
+        "description": "HA-managed applications on {device} ({count}):\\n\\n{apps}\\n\\nCurrent foreground identity: {candidate}\\n\\nAdd, rename or remove a mapping here; nothing is written to Windows. For Java use the verified main class/JAR/module identity. Newly added apps do not change the existing Windows process rules or activate enforcement."
+      },
+      "add_app": {
+        "title": "Add detected application",
+        "description": "Current foreground identity: {candidate}. Give it a display name for the future Active game entity. Keep the same application focused until saving. No Windows configuration is changed.",
+        "data": {
+          "name": "Display name"
+        }
+      },
+      "rename_app": {
+        "title": "Rename tracked application",
+        "description": "Change only the display name; the process identity and future statistics key remain unchanged.",
+        "data": {
+          "target": "Tracked application",
+          "name": "New display name"
+        }
+      },
+      "remove_app": {
+        "title": "Remove tracked application",
+        "description": "Remove this mapping from Home Assistant only; existing Windows configuration is untouched.",
+        "data": {
+          "target": "Tracked application"
+        }
       }
     },
     "error": {
       "invalid_time": "Enter a valid local time (HH:MM).",
-      "invalid_catalog": "Enter an HTTPS URL without credentials, query or fragment."
+      "invalid_catalog": "Enter an HTTPS URL without credentials, query or fragment.",
+      "no_live_candidate": "No fresh uniquely identifiable application. Open it on the selected PC and try again. Java needs a safe main class or JAR/module.",
+      "candidate_changed": "The foreground application changed or its sample expired. Reopen Add application while the original application is focused.",
+      "configuration_changed": "The HA application list changed while this form was open. Reopen the flow before editing.",
+      "invalid_application": "Invalid, duplicate, or already removed application mapping/name.",
+      "no_tracked_apps": "No HA-managed applications to modify yet."
+    },
+    "abort": {
+      "invalid_app_configuration": "Stored tracked applications are invalid; no changes were made."
     }
   }
 }
