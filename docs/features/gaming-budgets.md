@@ -2,13 +2,19 @@
 
 [← Back to features](../../README.md#what-can-it-do) · [All guides](../README.md)
 
-<p align="center">
-  <img src="../assets/illustrations/gaming-budgets-portrait.webp" width="300" alt="King-dad giving golden gaming-time bonus coins to his two unimpressed children and the HAL robot">
-</p>
+<table>
+  <tr>
+    <td width="132" valign="middle">
+      <img src="../assets/illustrations/gaming-budgets-portrait.webp" width="120" alt="King-dad giving golden gaming-time bonus coins to his two unimpressed children and the HAL robot">
+    </td>
+    <td valign="middle">
+      <h3>By royal decree: bonus minutes for everyone!</h3>
+      <p>Our king loves handing out bonus minutes. The weekly limit, however, refuses to bow.</p>
+    </td>
+  </tr>
+</table>
 
-### By royal decree: bonus minutes for everyone!
-
-Our king may be generous, but even royal decrees have rules. The extra minutes go to the child's PC you choose, not every gaming device in the kingdom.
+Even royal decrees have rules: bonus time goes to the child's PC you choose, not every gaming device in the kingdom.
 
 **Development preview:** Daily and weekly limits and **Add 30 minutes** exist in preview source. Check your installed version first.
 
