@@ -11,7 +11,7 @@
     </td>
     <td valign="middle">
       <h3>The family app detective</h3>
-      <p>The computer reports the active app; Home Assistant decides which name appears on the scoreboard. Even <code>javaw.exe</code> deserves an identity check.</p>
+      <p>Roblox claims it’s homework. Minecraft insists it’s architecture class. Our family detective checks which app is actually on screen. Case closed. The suspects would like to appeal.</p>
     </td>
   </tr>
 </table>
