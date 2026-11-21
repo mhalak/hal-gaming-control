@@ -8,11 +8,12 @@ Welcome to the useful part of the manual. The front page makes promises; these p
 
 ## Start here
 
-1. [Home Assistant setup and daily use](ha_integration.md) — install the integration and understand device controls.
-2. [Windows companion deployment](windows_deployment.md) — install and validate the Windows service on a gaming PC.
-3. [Tracked applications](features/tracked-applications.md) — add Roblox, Minecraft, or another application in Home Assistant.
-4. [Gaming budgets and bonuses](features/gaming-budgets.md) — daily/weekly limits and parent-granted minutes.
-5. [Manual parental actions](features/parent-actions.md) — Lock PC, Terminate game and precautions.
+1. [Getting started](getting-started.md) — a beginner-friendly path from installation to first verified reading.
+2. [Home Assistant setup and daily use](ha_integration.md) — device controls and integration reference.
+3. [Windows companion deployment](windows_deployment.md) — source build and service verification.
+4. [Tracked applications](features/tracked-applications.md) — add Roblox, Minecraft, or another app in Home Assistant.
+5. [Gaming budgets and bonuses](features/gaming-budgets.md) — daily/weekly limits and parent-granted minutes.
+6. [Manual parental actions](features/parent-actions.md) — Lock PC, Terminate game and precautions.
 
 ## Feature guides
 
@@ -28,7 +29,7 @@ The guides describe both the *parent-facing behavior* and any important implemen
 
 ## Screenshots
 
-Real screenshots belong next to the procedure they explain, not on the landing page. See the [screenshot capture checklist](assets/screenshots/README.md). Capture images from a validated preview deployment, strip children's names, PC names, MQTT addresses, tokens and other personal data, and keep filenames stable. Until a real image is captured, the guides show a clearly labeled screenshot placeholder **in text only**.
+Each feature guide may open with a playful HAL Systems illustration; the actual setup steps must use real sanitized Home Assistant screenshots. Illustrations express concepts, **not proof of a shipped UI**. Screenshots belong next to the procedure they explain, not on the landing page. See the [screenshot capture checklist](assets/screenshots/README.md). Capture images from a validated preview deployment, strip children's names, PC names, MQTT addresses, tokens and other personal data, and keep filenames stable. Until a real image is captured, the guides show a clearly labeled screenshot placeholder **in text only**.
 
 ## Under the hood
 
