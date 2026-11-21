@@ -71,7 +71,9 @@ async def test_menu_exposes_only_live_settings_without_mutating_saved_options(
     entry = add_device(hass, DATA1, saved)
     view = await hass.config_entries.options.async_init(entry.entry_id)
     assert view["type"] == data_entry_flow.FlowResultType.MENU
-    assert view["menu_options"] == ["mqtt_settings", "tracked_apps"]
+    assert view["step_id"] == "settings_menu"
+    assert view["menu_options"] == {"mqtt_settings": "MQTT configuration",
+                                       "tracked_apps": "Tracked applications"}
     assert entry.options == saved
 
 
@@ -294,7 +296,7 @@ async def test_capture_starts_only_after_selecting_tracked_apps_and_reopen_recap
                              "state": "foreground", "process": ROBLOX["process"],
                              "signature": None})) as raw_probe:
         menu = await manager.async_init(entry.entry_id)
-        assert menu["step_id"] == "menu"
+        assert menu["step_id"] == "settings_menu"
         candidate_probe.assert_not_awaited()
         raw_probe.assert_not_awaited()
         first = await manager.async_configure(
@@ -458,7 +460,13 @@ async def test_translations_explain_single_page_editor_and_mqtt(
         hass, enable_custom_integrations):
     for relative in ("strings.json", "translations/en.json"):
         steps = json.loads((PACKAGE / relative).read_text())["options"]["step"]
-        assert set(steps) == {"menu", "mqtt_settings", "tracked_apps"}
+        assert set(steps) == {"settings_menu", "mqtt_settings", "tracked_apps"}
+        assert steps["settings_menu"]["menu_options"] == {
+            "mqtt_settings": "MQTT configuration",
+            "tracked_apps": "Tracked applications",
+        }
+        assert "{actions}" not in steps["settings_menu"]["description"]
+        assert steps["settings_menu"]["title"] == "Parental control"
         tracked = steps["tracked_apps"]["description"]
         assert "Currently detected application" in tracked
         assert "Use Add to enroll" in tracked

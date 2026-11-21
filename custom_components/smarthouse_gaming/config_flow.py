@@ -229,20 +229,24 @@ def _new_candidate_label(candidate, baseline):
 
 class GamingOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
-        return await self.async_step_menu()
+        return await self.async_step_settings_menu()
 
-    async def async_step_menu(self, user_input=None):
-        # Legacy policy and updater values stay persisted, but are no longer
-        # edited through Configure. Tracked applications commit on their own.
+    async def async_step_settings_menu(self, user_input=None):
+        # Use a new translation key so old, cached "actions" descriptions
+        # cannot be used for the two-option Configure menu.
+        # Explicit labels also work with older frontend translation caches.
         return self.async_show_menu(
-            step_id="menu",
-            menu_options=["mqtt_settings", "tracked_apps"],
+            step_id="settings_menu",
+            menu_options={
+                "mqtt_settings": "MQTT configuration",
+                "tracked_apps": "Tracked applications",
+            },
         )
 
     async def async_step_mqtt_settings(self, user_input=None):
         """Show the shared connection and per-device topics without exposing secrets."""
         if user_input is not None:
-            return await self.async_step_menu()
+            return await self.async_step_settings_menu()
         root = f"{ROOT}/{self.config_entry.data['device_id']}"
         broker, port, tls = _mqtt_broker_details(self.hass)
         connected = mqtt.is_connected(self.hass)
