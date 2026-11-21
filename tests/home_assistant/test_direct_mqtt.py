@@ -50,7 +50,7 @@ async def test_scoped_entities_and_safe_controls(hass, enable_custom_integration
     assert all(ids.values())
     assert all(registry.async_get(eid) is None for eid in legacy)
     owned = er.async_entries_for_config_entry(registry, entry.entry_id)
-    assert {e.unique_id for e in owned if e.entity_id.split(".")[0] in ("sensor","binary_sensor")} == {"pc1_uptime","pc1_in_game","pc1_current_game","pc1_budget_daily","pc1_budget_weekly","pc1_agent_version","pc1_integration_version","pc1_active_game","pc1_gaming_active"}
+    assert {e.unique_id for e in owned if e.entity_id.split(".")[0] in ("sensor","binary_sensor")} == {"pc1_uptime","pc1_in_game","pc1_current_game","pc1_budget_daily","pc1_budget_weekly","pc1_agent_version","pc1_integration_version","pc1_active_game","pc1_gaming_active","pc1_gaming_time_daily","pc1_gaming_time_weekly"}
     assert all(registry.async_get_entity_id(platform, "mqtt", "smarthouse_gaming_pc1_"+key) is None for key,platform in keys.items())
     assert len({registry.async_get(eid).device_id for eid in ids.values()}) == 1
     assert entry.runtime_data.entity_id("sensor","uptime") == ids["uptime"]
@@ -248,123 +248,134 @@ async def test_agent_version_is_independent_of_update_capability_and_pc_availabi
 
 
 @pytest.mark.parametrize("direct", [True, False])
-async def test_foreground_entities_only_in_scoped_mode(hass, enable_custom_integrations, mqtt_mock, direct):
-    entry = MockConfigEntry(domain=DOMAIN, title=DATA["name"], unique_id="pc1", data=DATA)
+async def test_ha_owned_active_game_entity_is_present_in_both_modes(
+        hass, enable_custom_integrations, mqtt_mock, direct):
+    entry = MockConfigEntry(domain=DOMAIN, title=DATA["name"],
+                            unique_id="pc1", data=DATA)
     entry.add_to_hass(hass)
-    with patch("custom_components.smarthouse_gaming.coordinator.direct_mode", return_value=direct):
+    with patch("custom_components.smarthouse_gaming.coordinator.direct_mode",
+               return_value=direct):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
     registry = er.async_get(hass)
-    for platform, key in [("sensor", "active_game"), ("binary_sensor", "gaming_active")]:
-        assert bool(registry.async_get_entity_id(platform, DOMAIN, "pc1_" + key)) is direct
+    assert registry.async_get_entity_id("sensor", DOMAIN, "pc1_active_game")
+    for period in ("daily", "weekly"):
+        assert registry.async_get_entity_id(
+            "sensor", DOMAIN, "pc1_gaming_time_" + period)
+    # Legacy gaming_active is still a separate temporary compatibility entity
+    # until the controlled #67 source/discovery cleanup.
+    assert bool(registry.async_get_entity_id(
+        "binary_sensor", DOMAIN, "pc1_gaming_active")) is direct
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_scoped_foreground_pair_rejects_unknown_and_inconsistent_data(
+async def test_ha_owned_active_game_ignores_legacy_agent_game_names(
         hass, enable_custom_integrations, mqtt_mock):
-    entry = MockConfigEntry(domain=DOMAIN, title=DATA["name"], unique_id="pc1", data=DATA)
+    from time import time
+
+    options = {"tracked_apps": [{"process": "RobloxPlayerBeta.exe",
+                                 "signature": None, "name": "Roblox"}]}
+    entry = MockConfigEntry(domain=DOMAIN, title=DATA["name"], unique_id="pc1",
+                            data=DATA, options=options)
     entry.add_to_hass(hass)
-    with patch("custom_components.smarthouse_gaming.coordinator.direct_mode", return_value=True):
+    with patch("custom_components.smarthouse_gaming.coordinator.direct_mode",
+               return_value=True):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
     registry = er.async_get(hass)
     game = registry.async_get_entity_id("sensor", DOMAIN, "pc1_active_game")
-    active = registry.async_get_entity_id("binary_sensor", DOMAIN, "pc1_gaming_active")
     legacy = registry.async_get_entity_id("sensor", DOMAIN, "pc1_current_game")
-    assert game and active and legacy
+    assert game and legacy
 
     async def emit(*messages):
         for suffix, payload in messages:
             async_fire_mqtt_message(hass, ROOT + "/" + suffix, payload)
         await hass.async_block_till_done()
 
-    def expect(game_value, active_value):
-        assert hass.states.get(game).state == game_value
-        assert hass.states.get(active).state == active_value
+    def raw(seq, state="foreground", process="RobloxPlayerBeta.exe"):
+        return json.dumps({"version": 2, "device_id": "pc1",
+                           "epoch": "a" * 32, "sequence": seq,
+                           "observed_at": time(), "state": state,
+                           "process": process if state == "foreground" else None,
+                           "signature": None})
 
     with patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish:
-        await emit(("availability", "online"), ("state/current_game", "Roblox"),
-                   ("state/in_game", "ON"), ("state/uptime", "100"))
-        expect("unavailable", "unavailable")
-        # Old process presence is never a substitute for missing foreground data.
+        await emit(("availability", "online"),
+                   ("state/current_game", "Roblox"),
+                   ("state/active_game", "Roblox"),
+                   ("state/gaming_active", "ON"))
         assert hass.states.get(legacy).state == "Roblox"
-        await emit(("discovery", json.dumps(DATA | {"focus_protocol": 1})),
-                   ("state/gaming_active", "ON"), ("state/active_game", "Roblox"))
-        expect("unavailable", "unavailable")
-        await emit(("state/focus_availability", "online"))
-        expect("Roblox", "on")
-
-        # A mismatched pair must not advertise a confirmed foreground state.
-        await emit(("state/gaming_active", "OFF"))
-        expect("unavailable", "unavailable")
-        await emit(("state/active_game", "idle"))
-        expect("idle", "off")
-        await emit(("state/focus_availability", "offline"))
-        expect("unavailable", "unavailable")
-        await emit(("state/gaming_active", "UNKNOWN"), ("state/active_game", "unknown"))
-        expect("unavailable", "unavailable")
-        await emit(("state/gaming_active", "ON"), ("state/active_game", "Roblox"),
-                   ("state/focus_availability", "online"))
-        expect("Roblox", "on")
-        await emit(("state/active_game", "Not enrolled"))
-        expect("unavailable", "unavailable")
-        await emit(("state/active_game", "Roblox"))
-        expect("Roblox", "on")
-        await emit(("discovery", "{malformed"))
-        expect("unavailable", "unavailable")
-        await emit(("discovery", json.dumps(DATA | {"focus_protocol": True})),
-                   ("state/gaming_active", "ON"), ("state/active_game", "Roblox"),
-                   ("state/focus_availability", "online"))
-        expect("unavailable", "unavailable")
-        await emit(("discovery", json.dumps(DATA | {"focus_protocol": 1})),
-                   ("state/gaming_active", "ON"), ("state/active_game", "Roblox"),
-                   ("state/focus_availability", "online"))
-        expect("Roblox", "on")
-        # A downgrade must invalidate the foreground pair even if retained topics remain.
-        await emit(("discovery", json.dumps(DATA)))
-        expect("unavailable", "unavailable")
-        assert hass.states.get(legacy).state == "Roblox"
+        assert hass.states.get(game).state == "unavailable"
+        assert (entry.runtime_data.foreground._connected, entry.runtime_data.foreground._online) == (True, True)
+        source = entry.runtime_data.foreground
+        with patch.object(source.ledger, "observe", wraps=source.ledger.observe) as received:
+            await emit(("state/foreground_identity", raw(1)))
+            assert received.call_count == 1, "Scoped MQTT callback not invoked"
+            assert received.call_args.kwargs["retained"] is False, received.call_args
+            assert source.current() == "Roblox", source.ledger.ledger._live.__dict__
+        assert source.current() == "Roblox", source.ledger.ledger._live.__dict__
+        assert entry.runtime_data.data["active_game"] == "Roblox", entry.runtime_data.data
+        assert hass.states.get(game).state == "Roblox"
+        # Legacy spoofed or stale game labels cannot change the HA name.
+        await emit(("state/active_game", "Legacy Win label"))
+        assert hass.states.get(game).state == "Roblox"
+        await emit(("state/foreground_identity", raw(2, process="chrome.exe")))
+        assert hass.states.get(game).state == "idle"
+        await emit(("state/foreground_identity", raw(3, state="unknown")))
+        assert hass.states.get(game).state == "unavailable"
+        await emit(("state/foreground_identity", "{malformed"))
+        assert hass.states.get(game).state == "unavailable"
         publish.assert_not_awaited()
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_scoped_foreground_is_device_scoped_and_resets_on_disconnect(
+async def test_v2_foreground_is_device_scoped_and_resets_on_disconnect(
         hass, enable_custom_integrations, mqtt_mock):
-    entries = [MockConfigEntry(domain=DOMAIN, title="PC " + pc, unique_id=pc,
-                               data={**DATA, "device_id": pc, "name": "PC " + pc})
-               for pc in ("pc1", "pc2")]
-    with patch("custom_components.smarthouse_gaming.coordinator.direct_mode", return_value=True):
+    from time import time
+
+    entries = [
+        MockConfigEntry(
+            domain=DOMAIN, title="PC " + pc, unique_id=pc,
+            data={**DATA, "device_id": pc, "name": "PC " + pc},
+            options={"tracked_apps": [{"process": "RobloxPlayerBeta.exe",
+                                       "signature": None, "name": "Roblox"}]}
+                    if pc == "pc1" else {"tracked_apps": []})
+        for pc in ("pc1", "pc2")]
+    with patch("custom_components.smarthouse_gaming.coordinator.direct_mode",
+               return_value=True):
         for entry in entries:
             entry.add_to_hass(hass)
             assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
     registry = er.async_get(hass)
-    ids = {pc: (registry.async_get_entity_id("sensor", DOMAIN, pc + "_active_game"),
-                registry.async_get_entity_id("binary_sensor", DOMAIN, pc + "_gaming_active"))
-           for pc in ("pc1", "pc2")}
-    assert all(eid for pair in ids.values() for eid in pair)
+    ids = {pc: registry.async_get_entity_id(
+        "sensor", DOMAIN, pc + "_active_game") for pc in ("pc1", "pc2")}
+    assert all(ids.values())
 
-    async def emit(pc, *messages):
-        for suffix, payload in messages:
-            async_fire_mqtt_message(hass, f"SmartHouse/Gaming/{pc}/{suffix}", payload)
+    async def emit(pc, suffix, payload):
+        async_fire_mqtt_message(hass, f"SmartHouse/Gaming/{pc}/{suffix}", payload)
         await hass.async_block_till_done()
 
-    def states(pc):
-        return tuple(hass.states.get(eid).state for eid in ids[pc])
+    def raw(pc, seq, process):
+        return json.dumps({
+            "version": 2, "device_id": pc, "epoch": "a" * 32,
+            "sequence": seq, "observed_at": time(), "state": "foreground",
+            "process": process, "signature": None})
 
-    # Advertise the configured identity, avoiding an unrelated metadata-triggered reload.
-    for pc, game, flag in [("pc1", "Roblox", "ON"), ("pc2", "idle", "OFF")]:
-        await emit(pc, ("discovery", json.dumps(DATA | {"device_id": pc, "name": "PC " + pc, "focus_protocol": 1})),
-                   ("availability", "online"), ("state/gaming_active", flag),
-                   ("state/active_game", game), ("state/focus_availability", "online"))
-    assert states("pc1") == ("Roblox", "on")
-    assert states("pc2") == ("idle", "off")
-    await emit("pc1", ("availability", "offline"))
-    assert states("pc1") == ("unavailable", "unavailable")
-    assert states("pc2") == ("idle", "off")
-    await emit("pc1", ("availability", "online"), ("state/focus_availability", "online"))
-    assert states("pc1") == ("unavailable", "unavailable")
-    await emit("pc1", ("state/gaming_active", "OFF"), ("state/active_game", "idle"))
-    assert states("pc1") == ("idle", "off")
+    for pc in ("pc1", "pc2"):
+        await emit(pc, "availability", "online")
+        assert (entries[0 if pc == "pc1" else 1].runtime_data.foreground._connected,
+                entries[0 if pc == "pc1" else 1].runtime_data.foreground._online) == (True, True)
+        await emit(pc, "state/foreground_identity",
+                   raw(pc, 1, "RobloxPlayerBeta.exe"))
+    assert hass.states.get(ids["pc1"]).state == "Roblox"
+    assert hass.states.get(ids["pc2"]).state == "idle"
+    await emit("pc1", "availability", "offline")
+    assert hass.states.get(ids["pc1"]).state == "unavailable"
+    assert hass.states.get(ids["pc2"]).state == "idle"
+    await emit("pc1", "availability", "online")
+    assert hass.states.get(ids["pc1"]).state == "unavailable"
+    await emit("pc1", "state/foreground_identity", raw("pc1", 2, "chrome.exe"))
+    assert hass.states.get(ids["pc1"]).state == "idle"
     for entry in entries:
         assert await hass.config_entries.async_unload(entry.entry_id)

@@ -1,8 +1,8 @@
 """Expose raw telemetry and the two owner-requested budget indicators."""
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.const import PERCENTAGE
 from homeassistant.util import dt as dt_util
-from .direct_mqtt import DirectUptime, DirectCurrentGame, DirectActiveGame
+from .direct_mqtt import DirectUptime, DirectCurrentGame
 from .agent_version import AgentVersionSensor, IntegrationVersionSensor
 from .entity import GamingEntity
 from .rule_engine import remaining_budget_percent, effective_budget_limit, daily_bonus_minutes
@@ -11,10 +11,13 @@ from .rule_engine import remaining_budget_percent, effective_budget_limit, daily
 async def async_setup_entry(hass, entry, async_add_entities):
     c = entry.runtime_data
     entities = [BudgetSensor(c, "daily", "Daily budget"),
-                BudgetSensor(c, "weekly", "Weekly budget"), AgentVersionSensor(c),
-                IntegrationVersionSensor(c)]
+                BudgetSensor(c, "weekly", "Weekly budget"),
+                ActiveGameSensor(c),
+                GamingTimeSensor(c, "daily", "Daily gaming time"),
+                GamingTimeSensor(c, "weekly", "Weekly gaming time"),
+                AgentVersionSensor(c), IntegrationVersionSensor(c)]
     if c.direct:
-        entities.extend([DirectUptime(c), DirectCurrentGame(c), DirectActiveGame(c)])
+        entities.extend([DirectUptime(c), DirectCurrentGame(c)])
     async_add_entities(entities)
 
 
@@ -52,3 +55,52 @@ class BudgetSensor(GamingEntity, SensorEntity):
         if self.period == "daily":
             attributes["bonus_minutes"] = daily_bonus_minutes(options, now)
         return attributes
+
+
+class ActiveGameSensor(GamingEntity, SensorEntity):
+    """Single HA-owned foreground name, never a Windows-provided legacy label."""
+
+    _attr_icon = "mdi:gamepad-variant"
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator, "active_game", "Active game")
+
+    @property
+    def native_value(self):
+        return (self.coordinator.data or {}).get("active_game")
+
+
+class GamingTimeSensor(GamingEntity, SensorEntity):
+    """Confirmed-only elapsed time; offline history is marked incomplete."""
+
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = "min"
+    _attr_icon = "mdi:timer-outline"
+
+    def __init__(self, coordinator, period, name):
+        super().__init__(coordinator, "gaming_time_" + period, name)
+        self.period = period
+
+    @property
+    def available(self):
+        data = self.coordinator.data or {}
+        if not super().available and not data.get("recorded_totals"):
+            return False
+        return ("recorded_totals" in data
+                and (bool(data.get("ready"))
+                     or bool(self.coordinator.foreground.export_segments())))
+
+    @property
+    def native_value(self):
+        data = self.coordinator.data or {}
+        raw = data.get("recorded_totals")
+        if raw is None:
+            return None
+        elapsed = raw.get(self.period)
+        return round(elapsed / 60, 2) if elapsed is not None else None
+
+    @property
+    def extra_state_attributes(self):
+        data = self.coordinator.data or {}
+        return {"coverage_incomplete": data.get("coverage_incomplete", True),
+                "cutover_since": data.get("cutover_since")}

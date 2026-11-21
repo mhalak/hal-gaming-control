@@ -8,8 +8,10 @@ async def async_setup_entry(hass, entry):
         raise ConfigEntryNotReady("MQTT unavailable")
     coordinator = GamingCoordinator(hass, entry)
     try:
+        await coordinator.async_start_foreground()
         await coordinator.async_config_entry_first_refresh()
     except BaseException:
+        await coordinator.async_stop_foreground()
         coordinator.close()
         raise
     entry.runtime_data = coordinator
@@ -34,7 +36,11 @@ async def _reload(hass, entry):
 
 
 async def async_unload_entry(hass, entry):
-    return await hass.config_entries.async_unload_platforms(entry, ["sensor", "binary_sensor", "button", "switch", "number", "select", "update"])
+    unloaded = await hass.config_entries.async_unload_platforms(
+        entry, ["sensor", "binary_sensor", "button", "switch", "number", "select", "update"])
+    if unloaded:
+        await entry.runtime_data.async_stop_foreground()
+    return unloaded
 
 
 def _remove_legacy_statistics(hass, entry):
