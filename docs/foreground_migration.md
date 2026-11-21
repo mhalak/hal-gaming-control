@@ -52,3 +52,37 @@ CI fixtures and PR comments. A synthetic test harness is not proof of a
 successful live installation.
 
 Current synthetic tests: `tests/home_assistant/test_foreground_e2e.py`.
+
+## Native MQTT Active game entity ID preservation — manual guarded steps
+
+This procedure must be carried out only by the authorized deployment
+operator. Code support is in `active_game_identity.py`; the helper is
+**never invoked on HA startup or background discovery**.
+
+1. While the **old MQTT Active game entity still exists**, call
+   `async_capture_native_active_game(hass, entry)` for the exact device.
+   This durably captures its existing `sensor.*` entity ID under that
+   entry's HA storage. It refuses missing or ambiguous ownership.
+2. Upgrade the verified TrueNAS-associated HA integration to the reviewed
+   HA v2 foreground source. Deploy the compatible Windows native discovery
+   retirement build to **one PC only** after the agent has passed security
+   and rollback checks. Confirm exact tombstones for old agent-owned
+   activity sensors and no re-advertisement by legacy agents.
+3. Wait until the old native `sensor.*_active_game` MQTT registry entry is
+   actually unregistered. Verify the new HA-owned entity is registered,
+   belongs to the expected config entry, and no unrelated entity occupies
+   the historic entity ID.
+4. Call `async_adopt_native_active_game(hass, entry,
+   legacy_retired=True)` **only** after independently verifying these
+   conditions. This moves the HA-owned entity to the original entity ID,
+   preserving existing Recorder history by key. It refuses collisions,
+   cross-device ownership, or absent checkpoints. The operation is
+   idempotent on repeated, verified invocation.
+5. Inspect the device page and history. If old agent re-advertises native
+   topics, a collision appears, or the entity ID/history cannot be
+   preserved, **STOP** and use the prepared rollback procedure; never
+   delete Recorder rows or try wildcard registry deletions.
+
+The helper's boolean `legacy_retired` is a manual operator assertion,
+NOT independent proof of safe production migration. This does not
+constitute a successful real-device deployment or a finished #56.
