@@ -11,12 +11,14 @@
     </td>
     <td valign="middle">
       <h3>The family app detective</h3>
-      <p>Roblox claims it's homework. Minecraft says it's an architecture lesson. Our family detective checks which app is actually on screen. Case closed. The suspects would like to appeal.</p>
+      <p>Only apps chosen by parents make the watchlist. The rest stay untracked.</p>
+      <p>If a little mastermind switches to a new game to dodge the clock, our detective spots it on screen so you can add it in a few taps.</p>
+      <p><strong>Nice try. Case reopened.</strong></p>
     </td>
   </tr>
 </table>
 
-The family app detective knows Roblox and Minecraft aren't always called Roblox and Minecraft in Windows. That's why Home Assistant lets you choose names that make sense.
+The watchlist is yours to manage. If a new game appears, open **Tracked applications** while it's on screen, give the detected app a friendly name and save it. The list lives in Home Assistant, not on the child's PC.
 
 **Development preview:** The app editor exists in HA 0.5.10 preview source. Test real tracking on your own PC.
 
