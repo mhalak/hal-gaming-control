@@ -1,6 +1,8 @@
 # Track applications
 
-[← Back to features](../../README.md#feature-tracked-applications) · [All guides](../README.md)
+[← Feature index](../../README.md#feature-tracked-applications) · [All guides](../README.md)
+
+[← Gaming budgets](gaming-budgets.md) · [Controls & automations →](parent-actions.md)
 
 <table>
   <tr>
@@ -49,3 +51,7 @@ Some Java apps need more information to tell Minecraft from other apps using `ja
 **For developers:** [Original technical notes](../reference/features/tracked-applications-preview-notes.md).
 
 [Gaming budgets](gaming-budgets.md) · [Controls & automations](parent-actions.md)
+
+---
+
+**Explore more features:** [← Gaming budgets](gaming-budgets.md) · [Controls & automations →](parent-actions.md)

@@ -1,6 +1,8 @@
 # Budget Overview
 
-[← Back to features](../../README.md#feature-budget-overview) · [All guides](../README.md)
+[← Feature index](../../README.md#feature-budget-overview) · [All guides](../README.md)
+
+[← AFK grind](screen-idle-bonus.md)
 
 <table>
   <tr>
@@ -46,3 +48,7 @@ Dad may now close the spreadsheet. Mum has been waiting.
 **For developers:** [Original design notes](../reference/features/budget-overview-preview-notes.md).
 
 [Gaming budgets](gaming-budgets.md) · [AFK grind](screen-idle-bonus.md)
+
+---
+
+**Explore more features:** [← AFK grind](screen-idle-bonus.md) · [Feature index](../../README.md#feature-budget-overview)
