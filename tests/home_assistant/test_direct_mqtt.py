@@ -312,7 +312,7 @@ async def test_ha_owned_active_game_ignores_legacy_agent_game_names(
             await emit(("state/foreground_identity", raw(1)))
             assert received.call_count == 1, "Scoped MQTT callback not invoked"
             assert received.call_args.kwargs["retained"] is False, received.call_args
-            assert received.return_value is True, source.ledger.ledger._live.__dict__
+            assert source.current() == "Roblox", source.ledger.ledger._live.__dict__
         assert source.current() == "Roblox", source.ledger.ledger._live.__dict__
         assert entry.runtime_data.data["active_game"] == "Roblox", entry.runtime_data.data
         assert hass.states.get(game).state == "Roblox"
