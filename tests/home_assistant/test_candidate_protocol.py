@@ -52,3 +52,38 @@ def test_duplicate_json_fields_and_oversized_payload_rejected():
         parse_candidate(TOPIC, raw, "pc1", retained=False, now=100)
     with pytest.raises(ValueError):
         parse_candidate(TOPIC, "x" * 1025, "pc1", retained=False, now=100)
+
+
+def test_two_java_entry_points_have_distinct_safe_identifiers():
+    minecraft = VALID | {
+        "process": "javaw.exe",
+        "signature": {"kind": "java_class",
+                      "value": "net.minecraft.client.main.Main"},
+    }
+    other = VALID | {
+        "process": "javaw.exe",
+        "signature": {"kind": "java_class", "value": "org.example.other.Main"},
+    }
+    one, two = decode(minecraft), decode(other)
+    assert one["process"] == two["process"]
+    assert one["signature"] != two["signature"]
+
+
+@pytest.mark.parametrize("signature", [
+    {"kind": "java_class", "value": "Main"},  # no unique namespace
+    {"kind": "java_class", "value": r"C:\\Private\\Main"},
+    {"kind": "java_jar", "value": r"C:\\Private\\Minecraft.jar"},
+    {"kind": "java_jar", "value": "sensitive personal.jar"},
+    {"kind": "java_class", "value": "org.example.Main", "raw_args": "SECRET"},
+    {"kind": "raw", "value": "--accessToken SECRET"},
+    {"kind": "java_class", "value": "org.example.Main --accessToken SECRET"},
+])
+def test_private_or_ambiguous_java_signatures_rejected(signature):
+    with pytest.raises(ValueError):
+        decode(VALID | {"process": "javaw.exe", "signature": signature})
+
+
+def test_non_java_executable_cannot_claim_java_signature():
+    with pytest.raises(ValueError):
+        decode(VALID | {"process": "chrome.exe",
+                        "signature": {"kind": "java_class", "value": "org.example.Main"}})
