@@ -1,3 +1,11 @@
+## 0.5.9 — clearer native Tracked applications snapshot
+
+- The **Currently detected application** section is presented as a Markdown blockquote preview with a level-three heading for the HA-friendly app name (for example **Roblox**), with the safe raw executable and optional vetted Java signature beneath in code formatting. Remove the redundant `Displayed as:` and `Raw sensor value:` prose labels.
+- Display **Not tracked** (UI-only) for a fresh foreground executable absent from the HA application list, **Idle** for an explicit idle state, and **Unavailable** for unconfirmed/unknown/ambiguous data. This does **not** change the Active game sensor: its untracked-process value remains `idle`. Escape Markdown punctuation in custom friendly names without modifying the saved name.
+- Place a short **Note** after the preview explaining snapshot-only behavior, delayed Add after Alt+Tab/exit, and **X → Configure → Tracked applications** to take a new snapshot. A Markdown divider precedes the existing native **Application List** object editor.
+- Blockquote styling (including shading or border) depends on Home Assistant's frontend Markdown renderer; this release does not add a true `ha-card` or custom frontend. Verify the final appearance in the Companion app before claiming a shaded tile.
+- HA-only visual update; list Add/Edit/Delete, server-side frozen capture, validation, MQTT transport, budgets, Recorder, entities and Windows agent 0.2.6 are unchanged. Requires 8/8 CI and a separate controlled deployment.
+
 ## 0.5.8 — restore readable Configure menu after HA 0.5.7
 
 - Fix the missing labels on the two-option native Options Flow menu. Home Assistant expects `options.step.<step_id>.menu_options` translations for a list of option IDs; the previous `menu` step provided only individual destination step titles. The new menu uses explicit step-ID-to-label pairs as an additional fallback when translation resources are stale.

@@ -123,24 +123,26 @@ async def _discover_raw_foreground_snapshot(hass, device_id):
 
 
 def _raw_foreground_labels(snapshot, apps):
-    """Separate actual executable identity from the HA-normalized display."""
+    """Show the HA alias, or a distinct UI-only snapshot state and raw identity."""
     if snapshot is None:
-        return "unavailable", "unavailable"
+        return "unavailable", "Unavailable"
     state = snapshot["state"]
     if state == "idle":
-        return "idle", "idle"
+        return "idle", "Idle"
     if state == "unknown":
-        return "unknown", "unavailable"
-    raw = raw_label(snapshot)  # Validated basename + optional safe Java signature
+        return "unknown", "Unavailable"
+    raw = raw_label(snapshot)  # Safe basename and optional vetted Java signature
     mapped = normalized_name(apps, snapshot["process"], snapshot["signature"])
     if mapped is not None:
-        return raw, mapped
-    # Unknown executable is idle for tracked gameplay, but bare Java is
-    # ambiguous and must not silently be described as a specific game.
+        # A user-chosen name can include Markdown punctuation. Preserve it as
+        # literal text rather than allowing it to format the description.
+        safe_name = re.sub(r"([\\`*_\[\]()#+.!>|-])", r"\\\1", mapped)
+        return raw, safe_name
     if snapshot["process"].casefold() in ("java.exe", "javaw.exe") and not snapshot["signature"]:
-        return raw, "unavailable"
-    return raw, "idle"
-
+        return raw, "Unavailable"
+    # The actual Active game sensor remains idle for an untracked process.
+    # "Not tracked" is only an enrollment preview, not gameplay/accounting.
+    return raw, "Not tracked"
 
 def _candidate_matches_raw(candidate, snapshot):
     """Do not suggest enrolling a different process from the one just shown."""
@@ -314,7 +316,7 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
         choices = editor_choices(self._app_baseline, self._selected_app)
         candidate = self._selected_app
         candidate_key = _new_candidate_label(candidate, self._app_baseline)
-        raw_value, displayed_as = _raw_foreground_labels(
+        raw_value, preview_name = _raw_foreground_labels(
             self._raw_snapshot, self._app_baseline)
 
         # HA's native multiple-object editor shows expandable named rows and
@@ -355,7 +357,7 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
                           or self.config_entry.data["device_id"],
                 "count": str(len(self._app_baseline)),
                 "raw_value": raw_value,
-                "displayed_as": displayed_as,
+                "preview_name": preview_name,
             },
             errors=errors,
         )

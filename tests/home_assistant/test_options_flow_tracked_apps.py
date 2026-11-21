@@ -90,8 +90,13 @@ async def test_real_home_assistant_options_translations_render_snapshot_and_labe
         assert resources[f"{key}.data.applications"] == "Application List"
         description = resources[f"{key}.description"]
         assert "Currently detected application" in description
-        assert "Raw sensor value" in description
-        assert "Displayed as" in description
+        assert "Currently detected application" in description
+        assert "> ### {preview_name}" in description
+        assert "> `{raw_value}`" in description
+        assert "**Note**" in description
+        assert "Displayed as" not in description
+        assert "Raw sensor value:" not in description
+        assert description.rstrip().endswith("---")
 
     entry = add_device(hass, DATA1, {"tracked_apps": [{
         "process": ROBLOX["process"], "signature": None, "name": "Roblox"}]})
@@ -99,10 +104,11 @@ async def test_real_home_assistant_options_translations_render_snapshot_and_labe
     assert view["step_id"] == "tracked_apps"
     placeholders = view["description_placeholders"]
     rendered = description.format(**placeholders)
-    assert "Raw sensor value: `RobloxPlayerBeta.exe`" in rendered
-    assert "Displayed as: **Roblox**" in rendered
+    assert "> ### Roblox" in rendered
+    assert "> `RobloxPlayerBeta.exe`" in rendered
+    assert "**Note**" in rendered
     assert "{raw_value}" not in rendered
-    assert "{displayed_as}" not in rendered
+    assert "{preview_name}" not in rendered
 
 
 async def test_one_form_shows_existing_name_and_raw_process(
@@ -114,7 +120,7 @@ async def test_one_form_shows_existing_name_and_raw_process(
     assert view["type"] == data_entry_flow.FlowResultType.FORM
     assert view["step_id"] == "tracked_apps"
     assert view["description_placeholders"]["raw_value"] == "RobloxPlayerBeta.exe"
-    assert view["description_placeholders"]["displayed_as"] == "idle"
+    assert view["description_placeholders"]["preview_name"] == "Not tracked"
     assert rows(view) == [{
         "name": "Minecraft Java",
         "detected": "javaw.exe — java_class: net.minecraft.client.main.Main"}]
@@ -136,7 +142,7 @@ async def test_no_candidate_shows_clear_preview_and_does_not_import_windows_rule
     _, view = await open_step(hass, entry, "tracked_apps")
     assert rows(view) == []
     assert view["description_placeholders"]["raw_value"] == "unavailable"
-    assert view["description_placeholders"]["displayed_as"] == "unavailable"
+    assert view["description_placeholders"]["preview_name"] == "Unavailable"
     assert "tracked_apps" not in entry.options
     assert "Minecraft" not in json.dumps(view, default=str)
 
@@ -147,24 +153,24 @@ async def test_raw_snapshot_maps_registered_name_without_changing_app_list(
         "process": ROBLOX["process"], "signature": None, "name": "Roblox"}]})
     _, view = await open_step(hass, entry, "tracked_apps", ROBLOX)
     assert view["description_placeholders"]["raw_value"] == "RobloxPlayerBeta.exe"
-    assert view["description_placeholders"]["displayed_as"] == "Roblox"
+    assert view["description_placeholders"]["preview_name"] == "Roblox"
     assert rows(view) == [{"name": "Roblox", "detected": "RobloxPlayerBeta.exe"}]
 
 
 @pytest.mark.parametrize("raw, process, friendly", [
     ({"state": "foreground", "process": "chrome.exe", "signature": None},
-     "chrome.exe", "idle"),
-    ({"state": "idle", "process": None, "signature": None}, "idle", "idle"),
+     "chrome.exe", "Not tracked"),
+    ({"state": "idle", "process": None, "signature": None}, "idle", "Idle"),
     ({"state": "unknown", "process": None, "signature": None},
-     "unknown", "unavailable"),
-    (None, "unavailable", "unavailable"),
+     "unknown", "Unavailable"),
+    (None, "unavailable", "Unavailable"),
 ])
 async def test_raw_foreground_preview_has_fail_closed_display(
         hass, enable_custom_integrations, raw, process, friendly):
     entry = add_device(hass, DATA1)
     _, view = await open_step(hass, entry, "tracked_apps", raw=raw)
     assert view["description_placeholders"]["raw_value"] == process
-    assert view["description_placeholders"]["displayed_as"] == friendly
+    assert view["description_placeholders"]["preview_name"] == friendly
     assert rows(view) == []
 
 
@@ -176,7 +182,32 @@ async def test_java_signature_is_visible_and_matched_to_friendly_alias(
     _, view = await open_step(hass, entry, "tracked_apps", MINECRAFT)
     assert view["description_placeholders"]["raw_value"] == (
         "javaw.exe — java_class: net.minecraft.client.main.Main")
-    assert view["description_placeholders"]["displayed_as"] == "Minecraft"
+    assert view["description_placeholders"]["preview_name"] == "Minecraft"
+
+
+async def test_preview_escapes_markdown_punctuation_in_saved_display_name(
+        hass, enable_custom_integrations):
+    entry = add_device(hass, DATA1, {"tracked_apps": [{
+        "process": ROBLOX["process"], "signature": None,
+        "name": "Roblox *Family*"}]})
+    _, view = await open_step(hass, entry, "tracked_apps", ROBLOX)
+    assert view["description_placeholders"]["preview_name"] == r"Roblox \*Family\*"
+    # Stored friendly name and list editor remain unmodified.
+    assert rows(view) == [
+        {"name": "Roblox *Family*", "detected": "RobloxPlayerBeta.exe"}]
+
+
+async def test_preview_presents_untracked_and_idle_as_distinct_states(
+        hass, enable_custom_integrations):
+    entry = add_device(hass, DATA1)
+    _, untracked = await open_step(hass, entry, "tracked_apps", raw={
+        "state": "foreground", "process": "chrome.exe", "signature": None})
+    _, idle = await open_step(hass, entry, "tracked_apps", raw={
+        "state": "idle", "process": None, "signature": None})
+    assert untracked["description_placeholders"]["preview_name"] == "Not tracked"
+    assert untracked["description_placeholders"]["raw_value"] == "chrome.exe"
+    assert idle["description_placeholders"]["preview_name"] == "Idle"
+    assert idle["description_placeholders"]["raw_value"] == "idle"
 
 
 async def test_raw_identity_change_prevents_cross_app_add_default(
@@ -186,7 +217,7 @@ async def test_raw_identity_change_prevents_cross_app_add_default(
         hass, entry, "tracked_apps", ROBLOX,
         raw={"state": "foreground", "process": "chrome.exe", "signature": None})
     assert view["description_placeholders"]["raw_value"] == "chrome.exe"
-    assert view["description_placeholders"]["displayed_as"] == "idle"
+    assert view["description_placeholders"]["preview_name"] == "Not tracked"
     field = next(iter(view["data_schema"].schema.values()))
     assert field.config["fields"]["detected"].get("default") is None
 
@@ -225,7 +256,7 @@ async def test_raw_snapshot_rejects_stale_retained_foreign_and_unsafe_packets(
             view["flow_id"], {"next_step_id": "tracked_apps"})
     assert captured == [(device_topic, 0), ("unsubscribed", 0)]
     assert view["description_placeholders"]["raw_value"] == "chrome.exe"
-    assert view["description_placeholders"]["displayed_as"] == "idle"
+    assert view["description_placeholders"]["preview_name"] == "Not tracked"
 
 
 async def test_add_detected_game_once_in_same_form_preserves_limits(
@@ -410,7 +441,7 @@ async def test_ambiguous_bare_java_is_shown_but_cannot_be_enrolled(
     entry = add_device(hass, DATA1)
     manager, view = await open_step(hass, entry, "tracked_apps", vague)
     assert view["description_placeholders"]["raw_value"] == "javaw.exe"
-    assert view["description_placeholders"]["displayed_as"] == "unavailable"
+    assert view["description_placeholders"]["preview_name"] == "Unavailable"
     # Ambiguous Java isn't an available dropdown option.
     with pytest.raises(data_entry_flow.InvalidData):
         await manager.async_configure(view["flow_id"], {"applications": [
@@ -501,10 +532,14 @@ async def test_translations_explain_single_page_editor_and_mqtt(
         assert "\\n" not in tracked  # Real Markdown line breaks, not literal \\n sequences
         assert "nothing is written to Windows" in tracked
         assert "Currently detected application" in tracked
-        assert "Raw sensor value" in tracked
-        assert "Displayed as" in tracked
+        assert "> ### {preview_name}" in tracked
+        assert "> `{raw_value}`" in tracked
+        assert "**Note**" in tracked
+        assert "Displayed as" not in tracked
+        assert "Raw sensor value:" not in tracked
+        assert tracked.rstrip().endswith("---")
         assert "snapshot" in tracked.lower()
-        assert "does not need to stay focused" in tracked.lower()
+        assert "switches apps or exits" in tracked.lower()
         assert "close and reopen" in tracked.lower()
         assert steps["tracked_apps"]["data"]["applications"] == "Application List"
         assert "applications" in steps["tracked_apps"]["data"]
