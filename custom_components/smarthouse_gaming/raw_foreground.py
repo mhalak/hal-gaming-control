@@ -21,6 +21,16 @@ _RAW_FIELDS = frozenset((
 _EPOCH = re.compile(r"[0-9a-f]{32}")
 
 
+
+def _valid_raw_stamp(value):
+    """Bound epoch, strictly positive sequence and finite wall timestamp."""
+    return (isinstance(value["epoch"], str)
+            and _EPOCH.fullmatch(value["epoch"]) is not None
+            and type(value["sequence"]) is int
+            and 1 <= value["sequence"] <= MAX_SEQUENCE
+            and _finite(value["observed_at"])
+            and value["observed_at"] >= 0)
+
 def decode_raw_identity(payload, device_id):
     """Fail closed on malformed, foreign or ambiguous raw MQTT data."""
     if not isinstance(payload, (bytes, str)) or len(payload) > MAX_PAYLOAD:
@@ -35,12 +45,7 @@ def decode_raw_identity(payload, device_id):
         raise ValueError("Unsupported foreground protocol")
     if not isinstance(device_id, str) or value["device_id"] != device_id:
         raise ValueError("Wrong foreground device")
-    if (not isinstance(value["epoch"], str)
-            or _EPOCH.fullmatch(value["epoch"]) is None
-            or type(value["sequence"]) is not int
-            or not 1 <= value["sequence"] <= MAX_SEQUENCE
-            or not _finite(value["observed_at"])
-            or value["observed_at"] < 0):
+    if not _valid_raw_stamp(value):
         raise ValueError("Invalid foreground sequence or timestamp")
     state, process, signature = (value["state"], value["process"], value["signature"])
     if state == "foreground":
