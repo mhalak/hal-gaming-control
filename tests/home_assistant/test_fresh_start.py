@@ -62,11 +62,11 @@ async def test_mismatched_device_is_blocked_without_changes(hass):
 
 async def test_loaded_entry_is_blocked(hass):
     one = config_entry(hass, "pc1")
-    original = one._state
-    one._state = ConfigEntryState.LOADED
+    original = one.state
+    one.state = ConfigEntryState.LOADED
     try:
         with pytest.raises(FreshStartBlocked, match="Unload"):
             await async_reset_confirmed_intervals(
                 hass, one, confirm_device_id="pc1")
     finally:
-        one._state = original
+        one.state = original
