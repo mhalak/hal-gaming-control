@@ -21,14 +21,21 @@ async def test_options_menu_has_no_legacy_action_editors(hass, enable_custom_int
     entry = MockConfigEntry(domain=DOMAIN, data=DATA, unique_id="pc1",
                             options={"actions": actions, "daily": 60})
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    manager = hass.config_entries.options
+    result = await manager.async_init(entry.entry_id)
     assert result["type"] == data_entry_flow.FlowResultType.MENU
+    assert result["menu_options"] == ["mqtt_settings", "tracked_apps"]
     assert not {"add_action", "remove_action", "move_action"} & set(result["menu_options"])
-    assert {"limits", "mqtt_settings", "update_settings", "save"} <= set(result["menu_options"])
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"next_step_id": "save"})
-    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
-    assert entry.options["daily"] == 60
+    # Opening Configure and saving an unchanged HA app list must not erase
+    # the stored actions or limits; no automatic action is triggered.
+    with patch("custom_components.smarthouse_gaming.config_flow._discover_foreground_candidate",
+               new=AsyncMock(return_value=None)):
+        form = await manager.async_configure(
+            result["flow_id"], {"next_step_id": "tracked_apps"})
+    saved = await manager.async_configure(form["flow_id"], {"applications": []})
+    assert saved["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert saved["data"]["actions"] == actions
+    assert saved["data"]["daily"] == 60
 
 
 async def test_cleanup_retires_only_owned_action_selectors(hass):
