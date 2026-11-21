@@ -5,14 +5,11 @@ from homeassistant.const import EntityCategory, UnitOfTime
 from homeassistant.exceptions import HomeAssistantError
 
 from .entity import GamingEntity
-from .rule_engine import preview_weekend_bonus_migration
 
-# Keep the established daily/weekly unique IDs to preserve existing user settings,
-# dashboard references and Recorder entity history. Weekend bonus is a NEW control:
-# reusing the old replacement-limit ID would silently change automation semantics.
+# Fresh preview: use budget and bonus IDs rather than legacy limit IDs.
 CONTROLS = {
-    "daily": ("Daily budget", "daily_limit", -10, 600, 10),
-    "weekly": ("Weekly budget", "weekly_limit", 0, 4200, 60),
+    "daily": ("Daily budget", "daily_budget", -10, 600, 10),
+    "weekly": ("Weekly budget", "weekly_budget", 0, 4200, 60),
     "weekend_bonus": ("Weekend bonus", "weekend_bonus", 0, 600, 10),
 }
 # The daily control previously exposed -10 as a no-limit position. Keep its
@@ -22,11 +19,11 @@ DISABLED_SLIDER_VALUE = -10
 
 async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities([
-        GamingLimit(entry.runtime_data, key) for key in CONTROLS
+        GamingBudget(entry.runtime_data, key) for key in CONTROLS
     ])
 
 
-class GamingLimit(GamingEntity, NumberEntity):
+class GamingBudget(GamingEntity, NumberEntity):
     _attr_entity_category = EntityCategory.CONFIG
     _attr_native_unit_of_measurement = UnitOfTime.MINUTES
     _attr_mode = NumberMode.SLIDER
@@ -49,41 +46,20 @@ class GamingLimit(GamingEntity, NumberEntity):
 
     @property
     def native_value(self):
-        if self.key == "weekend_bonus" and "weekend_bonus" not in self.coordinator.entry.options:
-            # Read-only equivalent preview. This never migrates or writes policy.
-            # An unrepresentable old weekend override stays active until a
-            # parent explicitly chooses a new additive bonus.
-            try:
-                return preview_weekend_bonus_migration(self.coordinator.options)
-            except ValueError:
-                return None
-
         value = self.coordinator.options[self.key]
         if self.key == "daily" and value == -1:
             return DISABLED_SLIDER_VALUE
-        # Legacy weekly -1 (no cap), non-aligned or over-range saved values must
-        # not be guessed, clamped, or silently rewritten to a finite budget.
-        return value if isinstance(value, int) and 0 <= value <= self.native_max_value else None
+        # Legacy weekly values outside the new scale remain unchanged in config;
+        # the user must choose a new valid hour value if required.
+        return value if type(value) is int and 0 <= value <= self.native_max_value else None
 
     @property
     def extra_state_attributes(self):
-        stored = self.coordinator.entry.options
-        if self.key == "weekend_bonus":
-            legacy_mode = "weekend_bonus" not in stored
-            return {
-                "configured_minutes": stored.get("weekend_bonus"),
-                "legacy_weekend_override_minutes": stored.get("weekend_daily", -1)
-                    if legacy_mode else None,
-                "mode": "legacy_override" if legacy_mode else "additive_bonus",
-                "requires_manual_resolution": legacy_mode and self.native_value is None,
-                "preview_bonus_minutes": self.native_value if legacy_mode else None,
-            }
         value = self.coordinator.options[self.key]
         return {
             "configured_minutes": value,
-            "disabled_meaning": "No limit" if value == -1 else None,
-            "requires_configuration": value == -1 and self.key == "weekly",
-            "disabled_slider_value": DISABLED_SLIDER_VALUE if self.key == "daily" else None,
+            "disabled_meaning": "No limit" if self.key == "daily" and value == -1 else None,
+            "requires_configuration": self.key == "weekly" and value == -1,
         }
 
     async def async_set_native_value(self, value):
@@ -98,9 +74,9 @@ class GamingLimit(GamingEntity, NumberEntity):
         entry = self.coordinator.entry
         options = dict(entry.options)
         if self.key == "weekend_bonus":
-            # Explicit owner choice switches policy to the additive key.
-            # Old replacement values are not treated as bonus minutes.
+            # Discard obsolete replacement budget fields on explicit save.
             options.pop("weekend_daily", None)
+            options.pop("weekend_total", None)
         options[self.key] = configured
         self.hass.config_entries.async_update_entry(entry, options=options)
         self.async_write_ha_state()
