@@ -11,7 +11,7 @@
     </td>
     <td valign="middle">
       <h3>The family app detective</h3>
-      <p>Parents pick tracked apps; the rest stay untracked. New game? Spotted on screen. Add it in a few taps. <strong>Case reopened.</strong></p>
+      <p>Parents pick tracked apps; the rest stay untracked. New game spotted on screen? Add it in a few taps. <strong>Nice try, you rascal!</strong> 🕵️</p>
     </td>
   </tr>
 </table>
