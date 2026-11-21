@@ -84,7 +84,7 @@ async def test_first_enrollment_is_once_and_update_preserves_named_apps(
         "Minecraft", "Roblox"}
 
     # Mimic the persistent HA config-entry option payload after an update.
-    saved_options = json.loads(json.dumps(obj.options))
+    saved_options = json.loads(json.dumps(dict(obj.options)))
     hass.config_entries.async_update_entry(
         obj, options=saved_options | {"weekly": 360})
     assert obj.options["tracked_apps"] == saved_options["tracked_apps"]
