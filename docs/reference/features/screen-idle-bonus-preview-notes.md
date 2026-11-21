@@ -4,14 +4,14 @@
 
 # Screen idle bonus — AFK grind support
 
-[← Documentation](../README.md) · [← Project home](../../README.md)
+[← Documentation](../../README.md) · [← Project home](../../../README.md)
 
 **Status: planned; not implemented.** See [design issue #92](https://github.com/mhalak/smarthouse-parental-control/issues/92). There is currently no Screen idle bonus setting to turn on, no automatic award on deployed PCs, and no released screen-off telemetry guarantee.
 
 <table>
   <tr>
     <td width="132" valign="middle">
-      <img src="../assets/illustrations/screen-idle-bonus.webp" width="120" alt="Smiling blond boy asleep while a game grinds in the background and a robot waves its finger at dad checking his watch">
+      <img src="../../assets/illustrations/screen-idle-bonus.webp" width="120" alt="Smiling blond boy asleep while a game grinds in the background and a robot waves its finger at dad checking his watch">
     </td>
     <td valign="middle">
       <h3>The loot won't mine itself</h3>
@@ -69,14 +69,14 @@ This is deliberately conservative:
 
 ## Where will the parent see it?
 
-The [planned itemized Budget overview](budget-overview.md) will show `+ Screen idle bonus` alongside base allowance, parent bonus and any weekend bonus. It will also show **measured gaming time unchanged** and the resulting daily and weekly balances.
+The [planned itemized Budget overview](../../features/budget-overview.md) will show `+ Screen idle bonus` alongside base allowance, parent bonus and any weekend bonus. It will also show **measured gaming time unchanged** and the resulting daily and weekly balances.
 
 **Screenshot planned after implementation and real-device testing:**
 1. Parent setting to enable/disable automatic Screen idle bonuses.
 2. An awarded bonus entry in the child's Budget overview.
 3. A confirmed `idle` Active game state while the display is off.
 
-These are **future screenshots**, not images of a working current feature. Follow the [sanitized screenshot guide](../assets/screenshots/README.md).
+These are **future screenshots**, not images of a working current feature. Follow the [sanitized screenshot guide](../../assets/screenshots/README.md).
 
 ### Related
-[Gaming budgets](gaming-budgets.md) · [Budget overview](budget-overview.md) · [Product direction](../product_direction.md) · [Issue #92](https://github.com/mhalak/smarthouse-parental-control/issues/92)
+[Gaming budgets](../../features/gaming-budgets.md) · [Budget overview](../../features/budget-overview.md) · [Product direction](../../product_direction.md) · [Issue #92](https://github.com/mhalak/smarthouse-parental-control/issues/92)

@@ -4,14 +4,14 @@
 
 # Track any application
 
-[← Documentation](../README.md) · [← Project home](../../README.md)
+[← Documentation](../../README.md) · [← Project home](../../../README.md)
 
 **Status:** Home Assistant Tracked applications editor is in the current development preview (HA source 0.5.10). Full cross-device, foreground accounting and deployment acceptance remain separate work. This isn't a Windows-side game list.
 
 <table>
   <tr>
     <td width="132" valign="middle">
-      <img src="../assets/illustrations/tracked-applications.webp" width="120" alt="Dad tapping a conceptual Roblox control tablet while daughter plays Roblox, with the friendly HAL robot">
+      <img src="../../assets/illustrations/tracked-applications.webp" width="120" alt="Dad tapping a conceptual Roblox control tablet while daughter plays Roblox, with the friendly HAL robot">
     </td>
     <td valign="middle">
       <h3>The family app detective</h3>
@@ -51,7 +51,7 @@ The PC only observes and reports. **Names and tracked-app settings live in Home 
 2. **Application List** showing Add/Edit/Delete for two sample entries.
 3. **Save changes** visible on a mobile screen, including the double-confirmation behavior.
 
-See the [capture checklist](../assets/screenshots/README.md). Do not substitute screenshots from a different version; the form changed between HA 0.5.8, 0.5.9 and 0.5.10.
+See the [capture checklist](../../assets/screenshots/README.md). Do not substitute screenshots from a different version; the form changed between HA 0.5.8, 0.5.9 and 0.5.10.
 
 ## Troubleshooting
 
@@ -63,4 +63,4 @@ See the [capture checklist](../assets/screenshots/README.md). Do not substitute 
 This feature is independent of **Terminate game**: adding an application for tracking does not itself authorize a remote game-closing action.
 
 ### Related
-[Gaming budgets](gaming-budgets.md) · [Screen idle bonus — planned](screen-idle-bonus.md) · [HA integration guide](../ha_integration.md) · [Product direction](../product_direction.md)
+[Gaming budgets](../../features/gaming-budgets.md) · [Screen idle bonus — planned](../../features/screen-idle-bonus.md) · [HA integration guide](../../ha_integration.md) · [Product direction](../../product_direction.md)

@@ -4,14 +4,14 @@
 
 # Budget overview — the gaming-time receipt
 
-[← Documentation](../README.md) · [← Project home](../../README.md)
+[← Documentation](../../README.md) · [← Project home](../../../README.md)
 
 **Status: planned; not implemented.** See [design issue #93](https://github.com/mhalak/smarthouse-parental-control/issues/93). The existing daily/weekly entities are not yet an itemized Budget overview.
 
 <table>
   <tr>
     <td width="132" valign="middle">
-      <img src="../assets/illustrations/budget-overview.webp" width="120" alt="Dad reviewing a detailed HAL gaming budget with mum watching unimpressed beside a Do Not Disturb desk sign">
+      <img src="../../assets/illustrations/budget-overview.webp" width="120" alt="Dad reviewing a detailed HAL gaming budget with mum watching unimpressed beside a Do Not Disturb desk sign">
     </td>
     <td valign="middle">
       <h3>Budget Review — DO NOT DISTURB</h3>
@@ -71,7 +71,7 @@ Bonus grants need an event ledger to avoid duplicates on reconnect, restart or r
 2. A Screen idle bonus being added after a verified display-off event.
 3. Daily budget remaining alongside the **independent weekly remaining** state, including an exhausted-weekly example.
 
-No mocked screenshot should be presented as proof of a shipped feature. See [screenshot checklist](../assets/screenshots/README.md).
+No mocked screenshot should be presented as proof of a shipped feature. See [screenshot checklist](../../assets/screenshots/README.md).
 
 ### Related
-[Gaming budgets](gaming-budgets.md) · [Screen idle bonus](screen-idle-bonus.md) · [Issue #93](https://github.com/mhalak/smarthouse-parental-control/issues/93)
+[Gaming budgets](../../features/gaming-budgets.md) · [Screen idle bonus](../../features/screen-idle-bonus.md) · [Issue #93](https://github.com/mhalak/smarthouse-parental-control/issues/93)

@@ -4,14 +4,14 @@
 
 # Gaming budgets and bonus minutes
 
-[← Documentation](../README.md) · [← Project home](../../README.md)
+[← Documentation](../../README.md) · [← Project home](../../../README.md)
 
 **Status:** Daily and weekly limits and the **Add 30 minutes** action exist in preview source; verify your installed HA version before using them. The additive Weekend bonus UI and Screen idle bonus have separate release/acceptance boundaries; do not assume every feature below is installed.
 
 <table>
   <tr>
     <td width="42%" valign="middle">
-      <img src="../assets/illustrations/gaming-budgets.webp" width="320" alt="Caricature of the king-dad granting plus-ten and plus-thirty golden gaming coins to his unimpressed kids, watched by a small friendly robot">
+      <img src="../../assets/illustrations/gaming-budgets.webp" width="320" alt="Caricature of the king-dad granting plus-ten and plus-thirty golden gaming coins to his unimpressed kids, watched by a small friendly robot">
     </td>
     <td valign="middle">
       <h3>By royal decree: bonus minutes!</h3>
@@ -30,7 +30,7 @@
 3. Set the allowances and check the current **Daily gaming time**, **Weekly gaming time**, **Daily budget**, and **Weekly budget** entities where available in your installed preview.
 4. Confirm the behavior with a short real-device test before enabling any restrictions or external automation. **No automatic enforcement should be enabled just because a budget sensor exists.**
 
-The older **Weekend daily limit** option *replaces* the daily allowance and is not the same as the newer *additive* **Weekend bonus**. Upgrading between versions requires a safe migration. See [HA integration details](../ha_integration.md) and [product direction](../product_direction.md).
+The older **Weekend daily limit** option *replaces* the daily allowance and is not the same as the newer *additive* **Weekend bonus**. Upgrading between versions requires a safe migration. See [HA integration details](../../ha_integration.md) and [product direction](../../product_direction.md).
 
 ## Give a parent bonus
 
@@ -46,9 +46,9 @@ It **does not add 30 minutes to the weekly limit**, and it does not erase alread
 - **Daily budget**: today's allowance, including applicable bonuses.
 - **Weekly budget**: an independent cap on usage during the week.
 - **Weekend bonus (target model)**: extra daily minutes on each weekend day; no rollover to Monday.
-- **Screen idle bonus (planned)**: additional *daily* allowance from eligible inactivity before Windows turned the display off. It is **not** a reduction of recorded gaming time. [Explanation](screen-idle-bonus.md).
+- **Screen idle bonus (planned)**: additional *daily* allowance from eligible inactivity before Windows turned the display off. It is **not** a reduction of recorded gaming time. [Explanation](../../features/screen-idle-bonus.md).
 
-An itemized textual [Budget overview](budget-overview.md) is planned. Until released, use the actual preview entities, their attributes and the release-specific guide rather than assuming the proposed display exists.
+An itemized textual [Budget overview](../../features/budget-overview.md) is planned. Until released, use the actual preview entities, their attributes and the release-specific guide rather than assuming the proposed display exists.
 
 ## Screenshots
 
@@ -58,7 +58,7 @@ An itemized textual [Budget overview](budget-overview.md) is planned. Until rele
 2. Parent pressing **Add 30 minutes**, then the reflected daily allowance.
 3. Weekend bonus controls **only after** the additive UI is actually released.
 
-[How to capture screenshots safely](../assets/screenshots/README.md)
+[How to capture screenshots safely](../../assets/screenshots/README.md)
 
 ## Common questions
 
@@ -69,4 +69,4 @@ An itemized textual [Budget overview](budget-overview.md) is planned. Until rele
 **Did the Screen idle bonus rewrite the activity history?** No. It is a policy bonus granted by the parent, not a measurement correction.
 
 ### Related
-[Manual actions](parent-actions.md) · [Budget overview — planned](budget-overview.md) · [Screen idle bonus — planned](screen-idle-bonus.md) · [Release history](../ha_releases.md)
+[Manual actions](../../features/parent-actions.md) · [Budget overview — planned](../../features/budget-overview.md) · [Screen idle bonus — planned](../../features/screen-idle-bonus.md) · [Release history](../../ha_releases.md)

@@ -6,7 +6,7 @@
 
 SmartHouse Parental Control — Powered by HAL Systems
 
-Development preview. This is a record of observed limitations, not instructions to weaken Windows security. See [product direction](product_direction.md) for the agreed roadmap.
+Development preview. This is a record of observed limitations, not instructions to weaken Windows security. See [product direction](../product_direction.md) for the agreed roadmap.
 
 ## Verified core functionality
 
@@ -34,14 +34,14 @@ Public release gate: produce reviewed, signed, versioned artifacts, verify those
 | Configured applications | Currently matches explicit executable rules in protected local YAML; unconfigured applications are not tracked and config changes require service restart. | Configure → Tracked applications lists discovery-reported rules read-only; enrollment, rename and removal in HA are not implemented (#7). |
 | Warnings | No Windows countdown overlay or extra-time request UI in current agent. | Popup in backlog, request feature deferred. |
 | Remote updater | Disabled until trusted signing and distribution prerequisites, approved catalog/key configuration and update/rollback acceptance are satisfied. | Trusted manual deployment remains the development path. |
-| Recorder and connectivity | Unobserved intervals are excluded under heartbeat coverage; missing history cannot be reconstructed reliably. HA/MQTT outages prevent central enforcement. | See [Recorder coverage](recorder_coverage.md); do not label unknown as confirmed idle or retrospectively reinterpret process history as foreground time. |
+| Recorder and connectivity | Unobserved intervals are excluded under heartbeat coverage; missing history cannot be reconstructed reliably. HA/MQTT outages prevent central enforcement. | See [Recorder coverage](../recorder_coverage.md); do not label unknown as confirmed idle or retrospectively reinterpret process history as foreground time. |
 | Enforcement | Not tamper-proof: a local administrator can stop the service; Windows lock is not permanent lockout; termination can lose unsaved progress. | Keep restrictions disabled during smoke tests; enforce only verified policies using authorized commands. |
 | Platforms | Windows 10/11 x64 agent only. Other platforms and browser-tab-level tracking are not supported. | Browser app enrollment, if implemented, tracks the application rather than a specific tab. |
 | CI and publication | Hosted GitHub Actions jobs have failed to start due to a billing/spending-limit issue on verified prior runs; some newer failed-job logs are unavailable. Local checks are partial evidence, not a green hosted CI or public release. | Resolve CI and run formal acceptance before 1.0.0. HACS catalog inclusion is pending. |
 
 ## Development versus production
 
-Development exceptions must not become product instructions or be treated as release acceptance. Document exact versions and observed outcomes, keep configuration and logs private, and never publish personal identifiers, local paths or raw personal telemetry. See [Windows deployment](windows_deployment.md), [foreground migration](foreground_accounting_migration.md), and [HACS release checklist](hacs_release.md).
+Development exceptions must not become product instructions or be treated as release acceptance. Document exact versions and observed outcomes, keep configuration and logs private, and never publish personal identifiers, local paths or raw personal telemetry. See [Windows deployment](../windows_deployment.md), [foreground migration](../foreground_accounting_migration.md), and [HACS release checklist](../hacs_release.md).
 
 | HA 0.5.1 / Windows 0.2.4 candidate | A fresh untracked foreground executable and, for Java, a vetted launch-argument discriminator can be selected for HA-only application alias management. HA-only Add/Rename/Remove is present in the candidate source and does not write to Windows; the existing Active game entity does **not yet** use these aliases, and full foreground accounting remains unimplemented. | Keep legacy rules intact and revalidate the token before saving; do not treat it as an agent-side authorization. #7/#52 and #4 remain open. |
 

@@ -4,13 +4,13 @@
 
 # Home Assistant integration
 
-[← Documentation hub](README.md) · [← Project home](../README.md)
+[← Documentation hub](../README.md) · [← Project home](../../README.md)
 
-**Looking for step-by-step instructions rather than the version-specific reference?** Start with [Track applications](features/tracked-applications.md), [Gaming budgets and bonuses](features/gaming-budgets.md), and [Manual parent actions](features/parent-actions.md). The [Screen idle bonus](features/screen-idle-bonus.md) and [Budget overview](features/budget-overview.md) are documented plans, **not shipped controls**.
+**Looking for step-by-step instructions rather than the version-specific reference?** Start with [Track applications](../features/tracked-applications.md), [Gaming budgets and bonuses](../features/gaming-budgets.md), and [Manual parent actions](../features/parent-actions.md). The [Screen idle bonus](../features/screen-idle-bonus.md) and [Budget overview](../features/budget-overview.md) are documented plans, **not shipped controls**.
 
 ## Version status
 
-**0.5.0 is a deployment candidate, not a verified installation.** It includes removal of implicit actions/selectors, safe MQTT configuration diagnostics, local version diagnostics, and the opt-in weekend bonus calculation kernel. The expanded feature set described below (duration sensors, full Weekend bonus UI, fresh restriction sensor) is still planned and **not included** in this 0.5.0 build. Existing installations retain the legacy Weekend daily limit UI until a separate safe migration. See [release history](ha_releases.md) and [product direction](product_direction.md).
+**0.5.0 is a deployment candidate, not a verified installation.** It includes removal of implicit actions/selectors, safe MQTT configuration diagnostics, local version diagnostics, and the opt-in weekend bonus calculation kernel. The expanded feature set described below (duration sensors, full Weekend bonus UI, fresh restriction sensor) is still planned and **not included** in this 0.5.0 build. Existing installations retain the legacy Weekend daily limit UI until a separate safe migration. See [release history](../ha_releases.md) and [product direction](../product_direction.md).
 
 In current HA 0.5.10, Configure contains only **MQTT configuration** (read-only) and **Tracked applications** (saves on **Save changes**). The older Restrictions and schedule, Windows update settings and Save steps were removed without changing existing stored policy, schedule, catalog URL or legacy action options; existing enabled controls still operate according to their saved values. Limit sliders and manual device controls remain on the device page.
 
@@ -48,7 +48,7 @@ Windows update settings are separate; remote updates remain disabled unless prov
 
 ## Planned follow-ups
 
-The foreground follow-up migrates accounting to foreground-only telemetry in both MQTT modes. Application enrollment adds Application list under the integration's Configure menu, including enrollment from live foreground identity. The planned Windows helper adds the remaining-time warning popup. These are not available as 0.5.0 features. See [product direction](product_direction.md).
+The foreground follow-up migrates accounting to foreground-only telemetry in both MQTT modes. Application enrollment adds Application list under the integration's Configure menu, including enrollment from live foreground identity. The planned Windows helper adds the remaining-time warning popup. These are not available as 0.5.0 features. See [product direction](../product_direction.md).
 
 ## Legacy 0.4.2 reference
 

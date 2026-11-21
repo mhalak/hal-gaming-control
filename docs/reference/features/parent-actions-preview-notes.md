@@ -4,14 +4,14 @@
 
 # Parent controls and Home Assistant automations
 
-[← Documentation](../README.md) · [← Project home](../../README.md)
+[← Documentation](../../README.md) · [← Project home](../../../README.md)
 
 **Status:** **Lock PC** and **Terminate game** have passed limited live smoke testing as explicit actions in the development preview. That is not a guarantee for every PC, game or installation.
 
 <table>
   <tr>
     <td width="132" valign="middle">
-      <img src="../assets/illustrations/parent-actions.webp" width="120" alt="Dad pushing a resisting HAL robot toward angry children while mum watches, under an Automation Rules sign">
+      <img src="../../assets/illustrations/parent-actions.webp" width="120" alt="Dad pushing a resisting HAL robot toward angry children while mum watches, under an Automation Rules sign">
     </td>
     <td valign="middle">
       <h3>Automation Rules!</h3>
@@ -44,11 +44,11 @@ The two buttons are the manual fallback. The **biggest advantage of a Home Assis
 
 **Example of the intended workflow (not yet a verified end-to-end feature):** once a fresh, device-scoped **Gaming restriction active** signal is available and validated, a native HA automation could notify the family, wait briefly, confirm the restriction is *still active*, then optionally invoke **Terminate game** or **Lock PC**. Or it could simply notify a parent and leave the decision to them. The parent owns the rule, timing and consequence.
 
-**Important implementation boundary:** The integration does not silently publish automatic termination or lock commands. The dedicated restriction trigger and automatic enforcement flow still need release/real-device acceptance. Ordinary budget sensors alone are **not** reliable authorization to terminate a game; unknown or unavailable telemetry is **not** a confirmed restriction. Keep destructive automations **disabled** until the exact version, trigger freshness and behavior have been tested with disposable sessions. [See the version-specific HA integration reference](../ha_integration.md#automation-only-command-execution--050-preview).
+**Important implementation boundary:** The integration does not silently publish automatic termination or lock commands. The dedicated restriction trigger and automatic enforcement flow still need release/real-device acceptance. Ordinary budget sensors alone are **not** reliable authorization to terminate a game; unknown or unavailable telemetry is **not** a confirmed restriction. Keep destructive automations **disabled** until the exact version, trigger freshness and behavior have been tested with disposable sessions. [See the version-specific HA integration reference](../../ha_integration.md#automation-only-command-execution--050-preview).
 
 ## Screenshots
 
 **Screenshot pending:** sanitized HA device page showing the two manual buttons and a simple confirmation of which PC is selected. Avoid user/PC names or local network details.
 
 ### Related
-[Gaming budgets](gaming-budgets.md) · [Windows deployment](../windows_deployment.md) · [Known limitations](../known_limitations.md)
+[Gaming budgets](../../features/gaming-budgets.md) · [Windows deployment](../../windows_deployment.md) · [Known limitations](../../known_limitations.md)

@@ -57,4 +57,8 @@ A bonus adds time **today**, not to the weekly limit.
 - **Missing readings?** Check whether the PC and its connection are active. Missing data isn't zero gaming time.
 - **Old button labels after an update?** Restart Home Assistant and refresh the app. Don't delete saved settings just to fix the display.
 
+## Automation-only command execution — 0.5.0 preview
+
+The older preview described how to build a Home Assistant automation that can issue commands. **Nothing closes a game automatically by default**, and a budget sensor is not a safe trigger on its own. Read the [original engineering explanation](reference/ha_integration_technical.md#automation-only-command-execution--050-preview) before testing these ideas.
+
 Need the engineering details, version history or older controls? See the [technical HA reference](reference/ha_integration_technical.md), [known limitations](known_limitations.md) and [release history](ha_releases.md).
