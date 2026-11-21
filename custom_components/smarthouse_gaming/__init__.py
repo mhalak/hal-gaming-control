@@ -54,7 +54,7 @@ def _remove_legacy_statistics(hass, entry):
     old_sensors = {
         "played_daily", "played_weekly", "played_weekend_total",
         "remaining_daily", "remaining_weekly", "remaining_weekend_total",
-        "restriction",
+        "restriction", "budget_daily", "budget_weekly",
     }
     for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
         if entity.platform != DOMAIN or not entity.unique_id.startswith(prefix):
