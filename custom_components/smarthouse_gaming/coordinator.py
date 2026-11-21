@@ -1,4 +1,5 @@
 """HA-side enforcement and Recorder-based historical accounting."""
+import json
 import logging
 from time import monotonic
 from homeassistant.components.recorder import get_instance, history
@@ -14,6 +15,9 @@ from .protocol import games_from_state
 from .liveness import UptimeLiveness, MAX_HEARTBEAT_AGE
 from .coverage import heartbeat_intervals, covered_transitions
 from .direct_mqtt import direct_mode
+from .foreground_source import ForegroundSource
+from .foreground_store import ForegroundStore, ForegroundStoreError
+from .foreground_cutover import async_activate_cutover
 from .rule_engine import calculate, violations, windows
 
 _LOGGER = logging.getLogger(__name__)
@@ -40,11 +44,89 @@ class GamingCoordinator(DataUpdateCoordinator):
         self.loaded = False
         self.coverage_start = None
         self.liveness = UptimeLiveness()
+        self.foreground = None
+        self.foreground_store = None
+        self.cutover_since = None
+        self.storage_healthy = False
+        self._saved_segments = ()
+        self._save_task = None
 
     @staticmethod
     def policy_snapshot(options):
         # All gaming settings are read live. Only catalog changes need a reload.
-        return {"update_catalog_url": options.get("update_catalog_url", "")}
+        return {"update_catalog_url": options.get("update_catalog_url", ""),
+                "tracked_apps": json.dumps(options.get("tracked_apps", []), sort_keys=True)}
+
+
+    async def async_start_foreground(self):
+        """Activate v2 storage and live stream, never old Windows rules."""
+        self.cutover_since = await async_activate_cutover(
+            self.hass, self.entry.entry_id, self.device_id)
+        store = ForegroundStore(self.hass, self.entry.entry_id, self.device_id)
+        segments = await store.async_load(self.cutover_since)
+        self.foreground_store = store
+        self._saved_segments = segments
+        self.storage_healthy = True
+        self.foreground = ForegroundSource(
+            self.hass, self.device_id,
+            self.entry.options.get("tracked_apps", []),
+            self._live_foreground_changed, intervals=segments)
+        try:
+            await self.foreground.async_start()
+        except BaseException:
+            self.foreground.close()
+            self.foreground = None
+            raise
+
+    @callback
+    def _live_foreground_changed(self):
+        """A sample may advance verified time; never persist an inferred gap."""
+        if self.foreground is None:
+            return
+        if self._save_task is None or self._save_task.done():
+            self._save_task = self.hass.async_create_task(self._async_flush_confirmed())
+        self.hass.async_create_task(self.async_request_refresh())
+
+    async def _async_flush_confirmed(self):
+        if self.foreground is None or not self.storage_healthy:
+            return
+        current = self.foreground.export_segments()
+        if current == self._saved_segments:
+            return
+        try:
+            await self.foreground_store.async_save(self.cutover_since, current)
+        except ForegroundStoreError:
+            _LOGGER.error("Cannot persist verified foreground intervals for %s",
+                          self.device_id)
+            self.storage_healthy = False
+            self.hass.async_create_task(self.async_request_refresh())
+        else:
+            self._saved_segments = current
+
+    async def async_stop_foreground(self):
+        """Stop incoming samples, then flush the last confirmed checkpoint."""
+        if self.foreground is None:
+            return
+        self.foreground.close()
+        if self._save_task is not None:
+            await self._save_task
+        await self._async_flush_confirmed()
+        self.foreground = None
+
+    def _foreground_data(self, now):
+        """Production path: never consult legacy current_game/process presence."""
+        alias = self.foreground.current(monotonic())
+        raw = self.foreground.totals(now)
+        names = {row["name"]: raw["per_game"].get(key, 0)
+                 for key, row in self.foreground.ledger.apps.items()}
+        totals = dict(raw, per_game=names)
+        ready = self.storage_healthy and alias is not None
+        active = [alias] if ready and alias != "idle" else []
+        # Confirmed intervals are a lower bound; gaps are never known idle.
+        return {"ready": ready, "online": ready, "active_game": alias if ready else None,
+                "totals": totals if ready else {}, "recorded_totals": totals,
+                "coverage_incomplete": True, "cutover_since": self.cutover_since,
+                "reasons": None, "active": active}
 
     @property
     def options(self):
@@ -127,6 +209,8 @@ class GamingCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
         now = dt_util.now()
+        if self.foreground is not None:
+            return self._foreground_data(now)
         source = self.entity_id("sensor", "current_game")
         uptime_id = self.entity_id("sensor", "uptime")
         if not source or not uptime_id:
@@ -159,6 +243,8 @@ class GamingCoordinator(DataUpdateCoordinator):
 
     @callback
     def close(self):
+        if self.foreground is not None:
+            self.foreground.close()
         if self.unsubscribe:
             self.unsubscribe()
             self.unsubscribe = None
