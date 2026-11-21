@@ -60,3 +60,19 @@ runs; caching benefits cannot be honestly quantified from a cold-only run.
 Do not merge a faster run if any test was removed, coverage was weakened,
 a security scan was skipped, or Windows-specific dependencies were not
 installed and exercised.
+
+## First cold comparison: PR #64 (`533514c`)
+
+All **eight** workflow conclusions were successful, with all original test
+commands and enforcement gates active. From job-log timestamps: HA coverage
+was 63 s (down from 94 s); HA runtime 43 s (down from 69 s); Windows
+coverage data on Windows was 64 s (down from 66 s); Windows agent Windows
+unit test job was 52 s (down from 57 s). Aggregate Windows coverage
+follow-up took 7 s after its OS-specific dependencies completed. The
+approximate all-jobs critical-path envelope went from ~94 s to ~76 s on
+those two comparable PR revisions. GitHub scheduling and host variability
+mean this is evidence, not a guaranteed duration.
+
+An additional PR revision enables `pytest --durations=12` on Windows jobs
+without changing what is tested; this diagnoses the remaining 30–40 second
+Windows pytest runtime and also measures a warmed dependency/scanner cache.
