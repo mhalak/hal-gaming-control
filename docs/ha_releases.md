@@ -1,3 +1,11 @@
+## 0.5.8 — restore readable Configure menu after HA 0.5.7
+
+- Fix the missing labels on the two-option native Options Flow menu. Home Assistant expects `options.step.<step_id>.menu_options` translations for a list of option IDs; the previous `menu` step provided only individual destination step titles. The new menu uses explicit step-ID-to-label pairs as an additional fallback when translation resources are stale.
+- Rename the source step translation key from `options.step.menu` to `options.step.settings_menu`. This deliberately avoids an older cached menu description with the retired `Configured actions (in order): {actions}` placeholder. The current source has no such placeholder.
+- Keep the same **MQTT configuration** and **Tracked applications** destinations. Do not change device entries, options, app snapshots, budgets, Windows agent behavior, commands or Recorder. HA-only patch version `0.5.8`; Windows remains `0.2.6`.
+- On controlled deployment, restart Home Assistant completely, allow integrations to finish starting, then close/reopen Companion. If obsolete text persists, reset the Companion app frontend cache (Settings → Companion App → Reset frontend cache, wording depends on app release) or test in a fresh browser session. Confirm installed integration files/version if the issue still reproduces. Never delete the integration or saved mappings as a cache workaround.
+- Regression coverage: menu is a translated two-label dict in the real HA options manager; English and source strings match, and no current menu description requires an unavailable placeholder. This does not prove the post-deploy mobile frontend state; verify with a real device.
+
 ## 0.5.7 — freeze foreground enrollment evidence at form entry
 
 - Capture the safe raw v2 identity and separate validated device-scoped enrollment candidate when entering **Configure → Tracked applications** (three-second window), **not** at initial Configure menu entry.
