@@ -10,8 +10,8 @@
       <img src="../assets/illustrations/screen-idle-bonus.webp" width="100%" alt="Smiling blond boy asleep while a game grinds in the background and a robot waves its finger at dad checking his watch">
     </td>
     <td valign="middle">
-      <h3>The loot won't mine itself</h3>
-      <p>Kid asleep, computer grinding, robot explaining why the clock should not keep charging playtime. A future idea, not an available switch.</p>
+      <h3>The loot won't mine itself ⛏️</h3>
+      <p>Kid asleep. Screen off. Minecraft's working the night shift like it has a mortgage. Our robot refuses to bill the gaming budget for a pickaxe's overtime.</p>
     </td>
   </tr>
 </table>
