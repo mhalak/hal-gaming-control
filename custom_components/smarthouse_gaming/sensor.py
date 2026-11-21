@@ -47,13 +47,13 @@ class BudgetSensor(GamingEntity, SensorEntity):
         limit = effective_budget_limit(options, now, self.period)
         used = totals.get(self.period) if data.get("ready") else None
         attributes = {
-            "limit_minutes": limit if limit >= 0 else None,
+            "budget_minutes": limit if limit >= 0 else None,
             "used_minutes": round(used / 60, 2) if used is not None else None,
             "remaining_minutes": round(max(0, limit - used / 60), 2)
                 if limit >= 0 and used is not None else None,
         }
         if self.period == "daily":
-            attributes["bonus_minutes"] = daily_bonus_minutes(options, now)
+            attributes["parent_bonus_minutes"] = daily_bonus_minutes(options, now)
         return attributes
 
 
