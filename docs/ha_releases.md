@@ -1,3 +1,10 @@
+## 0.5.10 — clarify final save action in native application editor
+
+- Name the native **Tracked applications** Options Flow's final button **Save changes** instead of generic **Submit**, using Home Assistant's supported `options.step.tracked_apps.submit` translation. Other steps and the nested Add/Edit dialogs are unchanged.
+- Add a short Note that Add, Rename and Delete modify the draft Application List until **Save changes** is pressed. Closing the outer editor without that final action does not persist the edits.
+- Retain captured foreground snapshot, process verification, per-PC mapping, safety checks, runtime policy, MQTT and Recorder untouched. This is a HA UI copy-only change. Windows agent remains 0.2.6.
+- Regression test reads real Home Assistant Options Flow translations in English and Croatian fallback, with existing editor persistence tests. Standard HA frontend translation cache may need refreshing after deploy.
+
 ## 0.5.9 — clearer native Tracked applications snapshot
 
 - The **Currently detected application** section is presented as a Markdown blockquote preview with a level-three heading for the HA-friendly app name (for example **Roblox**), with the safe raw executable and optional vetted Java signature beneath in code formatting. Remove the redundant `Displayed as:` and `Raw sensor value:` prose labels.
