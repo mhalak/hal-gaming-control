@@ -10,8 +10,8 @@ from .rule_engine import remaining_budget_percent, effective_budget_limit, daily
 
 async def async_setup_entry(hass, entry, async_add_entities):
     c = entry.runtime_data
-    entities = [BudgetSensor(c, "daily", "Daily budget"),
-                BudgetSensor(c, "weekly", "Weekly budget"),
+    entities = [BudgetSensor(c, "daily", "Daily budget remaining"),
+                BudgetSensor(c, "weekly", "Weekly budget remaining"),
                 ActiveGameSensor(c),
                 GamingTimeSensor(c, "daily", "Daily gaming time"),
                 GamingTimeSensor(c, "weekly", "Weekly gaming time"),
@@ -26,7 +26,7 @@ class BudgetSensor(GamingEntity, SensorEntity):
     _attr_icon = "mdi:gamepad-variant-outline"
 
     def __init__(self, coordinator, period, name):
-        super().__init__(coordinator, "budget_" + period, name)
+        super().__init__(coordinator, period + "_budget_remaining", name)
         self.period = period
 
     @property
