@@ -28,6 +28,8 @@ FOREGROUND_CLOCK_SKEW = 2
 CANDIDATE_PERIOD = 2
 CANDIDATE_EXPIRY = 6
 RAW_FOREGROUND_PERIOD = 2
+DISPLAY_CONTEXT_PERIOD = 30
+DISPLAY_CONTEXT_EXPIRY = 45
 
 def _candidate_process(candidate):
     return (isinstance(candidate, tuple) and len(candidate) == 5
@@ -102,6 +104,7 @@ class Bridge:
         self._raw_last = None
         self._raw_sent = float('-inf')
         self._raw_candidate = self._raw_receipt = self._target_offer = None
+        self._display_sent = float('-inf')
         # MQTT 5 preserves the retain flag even on live deliveries.
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f'gaming-{self.id}',
                                   protocol=mqtt.MQTTv5)
@@ -516,6 +519,60 @@ class Bridge:
                 'epoch': packet_epoch, 'sequence': packet_seq,
                 'observed_at': observed, 'captured_at': captured,
             }
+        return True
+
+    def publish_display_context(self, policy, input_idle_ms, context):
+        """Read-only, device-scoped telemetry, NOT proof of screen-off.
+
+        The Windows helper supplies session-specific input age; the SYSTEM
+        service supplies only current power-policy settings. HA must not award
+        bonuses based on this context alone.
+        """
+        if not isinstance(policy, dict):
+            return False
+        ac, dc, source = (policy.get("ac_timeout_seconds"),
+                          policy.get("dc_timeout_seconds"), policy.get("power_source"))
+        if (any(type(x) is not int and x is not None for x in (ac, dc))
+                or any(x is not None and not 0 <= x <= 0xffffffff for x in (ac, dc))
+                or source not in ("ac", "battery", "unknown")):
+            return False
+        if type(input_idle_ms) is not int or not 0 <= input_idle_ms <= 86400000:
+            input_idle_ms = None
+        with self.lock:
+            if context is None or context is not self._foreground_context:
+                return False
+            generation, observed, captured = context
+            now, wall = time.monotonic(), time.time()
+            age = now - captured
+            if (not self.connected or self.generation != generation
+                    or self.synced_generation != generation
+                    or not 0 <= age < FOREGROUND_MAX_AGE
+                    or not math.isfinite(observed)
+                    or abs((wall - observed) - age) > FOREGROUND_CLOCK_SKEW
+                    or now - self._display_sent < DISPLAY_CONTEXT_PERIOD):
+                return False
+        packet = json.dumps({
+            "version": 1, "device_id": self.id, "observed_at": wall,
+            "display_state": "unknown",  # no OFF notification implemented yet
+            "ac_timeout_seconds": ac, "dc_timeout_seconds": dc,
+            "power_source": source, "last_input_idle_ms": input_idle_ms,
+        }, separators=(",", ":"))
+        if not self._same_connection(generation):
+            return False
+        try:
+            properties = Properties(PacketTypes.PUBLISH)
+            properties.MessageExpiryInterval = DISPLAY_CONTEXT_EXPIRY
+            info = self.client.publish(
+                self.root + "/state/display_context", packet,
+                qos=0, retain=False, properties=properties)
+        except (RuntimeError, ValueError, OSError):
+            return False
+        if info.rc != mqtt.MQTT_ERR_SUCCESS:
+            return False
+        with self.lock:
+            if not self.connected or self.generation != generation:
+                return False
+            self._display_sent = now
         return True
 
     def publish_target_offer(self, candidate, context, *, sample_time):
