@@ -165,3 +165,16 @@ def test_stop_cancels_unfinished_upload(tmp_path):
     assert list(tmp_path.glob("*.part"))
     b.stop()
     assert not list(tmp_path.glob("*.part"))
+
+
+def test_foreign_start_and_chunk_do_not_disclose_live_transfer_id(tmp_path):
+    b = connected(tmp_path)
+    packet(b, "start", offer())
+    count = len(responses(b))
+    packet(b, "start", offer(transfer_id="c" * 32))
+    packet(b, "start", b'{"bad":"payload"}')
+    packet(b, "chunk", encode_chunk("c" * 32, 0, DATA[:65536]))
+    assert len(responses(b)) == count
+    packet(b, "start", offer())  # idempotent reoffer is allowed
+    assert len(responses(b)) == count + 1
+    assert responses(b)[-1]["transfer_id"] == TID
