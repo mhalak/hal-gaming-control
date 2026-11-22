@@ -36,7 +36,9 @@ class WindowsAgentUpdate(GamingEntity, UpdateEntity):
         self.installed = None
         self.approved = None
         self.capable = False
-        self.ota_protocol = None  # Windows staging capability, NOT install permission.
+        self.ota_protocol = None  # 1=untrusted staging, 2=signed handoff provisioned.
+        self.ota_install_capable = False
+        self._ota_staging = False
         self._ota_pipeline = None
         self.pending = None
         self.started = None
@@ -58,12 +60,22 @@ class WindowsAgentUpdate(GamingEntity, UpdateEntity):
 
     @property
     def available(self):
-        return bool(self.pending or (self.capable and self.installed and self.approved and
-                    self.coordinator.data.get("online")))
+        options = self.coordinator.entry.options
+        mqtt_requested = options.get("ota_install_enabled") is True
+        signed_ready = (
+            self.ota_protocol == 2 and self.ota_install_capable
+            and bool(options.get("ota_release_base_url"))
+            and bool(options.get("ota_signer_public_key"))
+        )
+        return bool(
+            self.pending or self._ota_staging or
+            (self.capable and self.installed and self.approved
+             and (self.coordinator.data or {}).get("online")
+             and (signed_ready if mqtt_requested else True)))
 
     @property
     def in_progress(self):
-        return self.pending is not None
+        return self.pending is not None or self._ota_staging
 
     @property
     def extra_state_attributes(self):
@@ -71,7 +83,9 @@ class WindowsAgentUpdate(GamingEntity, UpdateEntity):
             "update_status": self.result,
             "request_id": self.pending["request_id"] if self.pending else None,
             "mqtt_ota_protocol": self.ota_protocol,
-            "mqtt_ota_install_ready": False,  # Signed Windows installer handoff pending.
+            "mqtt_ota_install_ready": self.ota_install_capable
+                and self.ota_protocol == 2
+                and self.coordinator.entry.options.get("ota_install_enabled") is True,
         }
 
     async def async_added_to_hass(self):
@@ -125,10 +139,13 @@ class WindowsAgentUpdate(GamingEntity, UpdateEntity):
             self.installed = raw["agent_version"]
             self.capable = raw.get("remote_update") is True
             value = raw.get("mqtt_ota_protocol")
-            self.ota_protocol = 1 if type(value) is int and value == 1 else None
+            self.ota_protocol = value if type(value) is int and value in (1, 2) else None
+            self.ota_install_capable = (
+                self.ota_protocol == 2 and raw.get("mqtt_ota_install_ready") is True)
         except (KeyError, ValueError, TypeError):
             self.capable = False
             self.ota_protocol = None
+            self.ota_install_capable = False
             self.installed = None
         self._complete()
         self.async_write_ha_state()
@@ -192,7 +209,8 @@ class WindowsAgentUpdate(GamingEntity, UpdateEntity):
             await self._refresh_catalog()
         self.async_write_ha_state()
 
-    async def _async_stage_signed_ota_candidate(self, version, *, on_progress=None):
+    async def _async_stage_signed_ota_candidate(
+            self, version, *, on_progress=None, signed_handoff=False):
         """Internal, default-OFF release preflight + MQTT quarantine, not Install.
 
         This is deliberately NOT reached from async_install, a Home Assistant
@@ -204,7 +222,13 @@ class WindowsAgentUpdate(GamingEntity, UpdateEntity):
         from .ota_transport import OtaTransferError
 
         opts = self.coordinator.entry.options
-        if opts.get("ota_stage_preview_enabled") is not True or self.pending:
+        if self.pending:
+            raise HomeAssistantError("Another Windows update request is active")
+        if signed_handoff:
+            if (opts.get("ota_install_enabled") is not True
+                    or self.ota_protocol != 2 or not self.ota_install_capable):
+                raise HomeAssistantError("Signed Windows OTA Install is not provisioned")
+        elif opts.get("ota_stage_preview_enabled") is not True:
             raise HomeAssistantError("OTA staging disabled or install already active")
         if self._ota_pipeline is None:
             self._ota_pipeline = OtaStagingPipeline(
@@ -217,7 +241,8 @@ class WindowsAgentUpdate(GamingEntity, UpdateEntity):
                 remote_update=self.capable, ota_protocol=self.ota_protocol,
                 base_url=opts.get("ota_release_base_url"),
                 pinned_public_key=opts.get("ota_signer_public_key"),
-                on_progress=on_progress)
+                on_progress=on_progress, **(
+                    {"signed_handoff": True} if signed_handoff else {}))
         except (OtaPreflightError, ReleaseCacheError, OtaTransferError,
                 ValueError, OSError) as err:
             raise HomeAssistantError("Signed OTA staging preflight failed") from err
@@ -233,6 +258,22 @@ class WindowsAgentUpdate(GamingEntity, UpdateEntity):
             chosen = version or self.approved
             if not chosen or chosen != self.approved:
                 raise HomeAssistantError("Only the approved catalog version can be installed")
+            if self.coordinator.entry.options.get("ota_install_enabled") is True:
+                # Do not publish ANY Windows update command until this one
+                # approved ZIP has been Ed25519-checked, transferred and
+                # authenticated by that exact PC's pinned local signer.
+                self._ota_staging = True
+                self.result = "preparing_signed_ota"
+                self.async_write_ha_state()
+                try:
+                    await self._async_stage_signed_ota_candidate(
+                        chosen, signed_handoff=True)
+                except Exception:
+                    self.result = "ota_preflight_failed"
+                    self.async_write_ha_state()
+                    raise
+                finally:
+                    self._ota_staging = False
             try:
                 self.pending = make_request(self.installed, chosen, time())
             except ValueError as err:
