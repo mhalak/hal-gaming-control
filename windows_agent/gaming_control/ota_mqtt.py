@@ -57,8 +57,10 @@ class OtaMqttReceiver:
 
     def _start(self, payload, now):
         if self.active is not None and not self.active.completed:
-            # In-flight transfer is not overwritten by another start message.
-            return self._ack(self.active, "receiving")
+            if now < self.active.offer["expires_at"]:
+                # In-flight transfer is not overwritten by another start.
+                return self._ack(self.active, "receiving")
+            self.reset()  # Reclaim expired partial data before fresh start.
         candidate = StageReceiver(self.staging_root, self.device_id)
         try:
             candidate.start(payload, now=now)
