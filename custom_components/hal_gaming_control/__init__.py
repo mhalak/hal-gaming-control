@@ -1,17 +1,18 @@
 """SmartHouse Gaming Control integration."""
 
-from homeassistant.core import callback
-from homeassistant.helpers import config_validation as cv
-
-from .const import DOMAIN
-from .services import async_setup_services
-
-CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+def _config_entry_only(config):
+    """Defer HA imports: the standalone rules work without HA installed."""
+    from homeassistant.helpers import config_validation as cv
+    from .const import DOMAIN
+    return cv.config_entry_only_config_schema(DOMAIN)(config)
 
 
-@callback
-def async_setup(hass, config):
+CONFIG_SCHEMA = _config_entry_only
+
+
+async def async_setup(hass, config):
     """Expose admin actions before gaming PC entries are loaded."""
+    from .services import async_setup_services
     async_setup_services(hass)
     return True
 
