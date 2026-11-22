@@ -243,8 +243,29 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
                 "mqtt_settings": "MQTT configuration",
                 "tracked_apps": "Tracked applications",
                 "screen_idle": "Screen idle (experimental)",
+                "unified_telemetry": "Unified MQTT telemetry (experimental)",
                 "windows_updates": "Windows updates (advanced)",
             },
+        )
+
+    async def async_step_unified_telemetry(self, user_input=None):
+        """Explicit safe per-PC v3 cutover; v2 stays default until Windows ready."""
+        options = dict(self.config_entry.options)
+        errors = {}
+        if user_input is not None:
+            enabled = user_input.get("unified_telemetry_enabled") is True
+            if enabled and user_input.get("unified_telemetry_acknowledged") is not True:
+                errors["base"] = "unified_telemetry_unconfirmed"
+            if not errors:
+                options["unified_telemetry_enabled"] = enabled
+                return self.async_create_entry(title="", data=options)
+        return self.async_show_form(
+            step_id="unified_telemetry", errors=errors,
+            data_schema=vol.Schema({
+                vol.Required("unified_telemetry_enabled",
+                             default=options.get("unified_telemetry_enabled", False)): bool,
+                vol.Required("unified_telemetry_acknowledged", default=False): bool,
+            }),
         )
 
     async def async_step_screen_idle(self, user_input=None):
