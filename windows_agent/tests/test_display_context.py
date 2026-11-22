@@ -103,10 +103,16 @@ def test_authenticated_interactive_helper_includes_input_age_without_content():
          patch("gaming_control.focus_session.sample_window",
                return_value={"time": 12.3, "status": "idle"}), \
          patch("gaming_control.focus_session.read_interactive_input_idle_ms",
-               return_value=120000):
+               return_value=120000), \
+         patch("gaming_control.focus_session.DisplayObserver") as observer:
+        observer.return_value.sample.return_value = {
+            "display_state": "unknown", "display_event_age_ms": None}
         assert helper_main(PIPE_PREFIX + "a" * 32, "123") != 0
     body = json.loads(file.WriteFile.call_args.args[1])
-    assert body == {"time": 12.3, "status": "idle", "last_input_idle_ms": 120000}
+    assert body["time"] == 12.3 and body["status"] == "idle"
+    assert body["last_input_idle_ms"] == 120000
+    assert body["display_state"] == "unknown"
+    assert body["display_event_age_ms"] is None
     assert "username" not in body and "keys" not in body
     handle.Close.assert_called_once()
 
