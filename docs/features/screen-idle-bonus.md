@@ -59,12 +59,14 @@ The agent can publish a non-retained, 45-second-expiry, device-scoped MQTT JSON 
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "device_id": "example_pc",
   "observed_at": 1790000000.0,
   "display_state": "off",
   "display_scope": "windows_console",
   "display_event_age_ms": 1500,
+  "display_epoch": "0123456789abcdef0123456789abcdef",
+  "display_sequence": 12,
   "ac_timeout_seconds": 600,
   "dc_timeout_seconds": 300,
   "power_source": "ac",
