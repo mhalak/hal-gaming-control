@@ -67,6 +67,12 @@ def _raw_identity_parts(state, candidate):
         return None, None
     return None
 
+
+def _valid_target_sample(sample_time, now, captured_at):
+    return (type(sample_time) in (int, float) and math.isfinite(sample_time)
+            and 0 <= now - sample_time <= 1.5
+            and 0 <= now - captured_at < TARGET_TTL)
+
 class Bridge:
     def __init__(self, config):
         dev, cfg = config['device'], config['mqtt']
@@ -494,14 +500,11 @@ class Bridge:
             if (not self.connected or self.synced_generation != self.generation
                     or context is not self._foreground_context or receipt is None
                     or candidate is None or candidate != receipt['candidate']
-                    or receipt['generation'] != self.generation
-                    or type(sample_time) not in (float, int)
-                    or not math.isfinite(sample_time)):
+                    or receipt['generation'] != self.generation):
                 self._target_offer = None
                 return False
             now = time.monotonic()
-            if (not 0 <= now - sample_time <= 1.5
-                    or not 0 <= now - receipt['captured_at'] < TARGET_TTL):
+            if not _valid_target_sample(sample_time, now, receipt['captured_at']):
                 self._target_offer = None
                 return False
             if (self._target_offer is not None
