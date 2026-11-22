@@ -27,36 +27,87 @@ So if the kids somehow have *another hour*, we can finally ask: **Did the little
 
 It's a transparent breakdown, **not an automatic cheat detector**. Unusual numbers should be easy to question, while the independent weekly budget still applies.
 
-**Planned — not implemented.** The itemized Budget Overview isn't available in Home Assistant yet. [Design issue #93](https://github.com/mhalak/hal-gaming-control/issues/93).
+**Implementation under review — not released yet.** The HA Budget Overview is being implemented in [issue #93](https://github.com/mhalak/hal-gaming-control/issues/93). Do not expect these new attributes until the PR has been reviewed, merged and deployed.
 
-## Where did the time go?
+## The gaming-time receipt
 
-The idea is simple: one easy-to-read receipt for your child's PC.
+Here is what a parent's daily budget might look like:
 
 | Item | Minutes |
 | --- | ---: |
 | Daily allowance | 180 |
 | Weekend bonus | +30 |
 | Parent bonus | +30 |
-| Screen idle bonus | +10 |
-| Time played | −200 |
-| **Time left today** | **50** |
+| Screen idle bonus | Not available yet |
+| **Total daily allowance** | **240** |
+| Measured gaming time | −200 |
+| **Remaining today** | **40** |
 
-*The numbers are examples, not live Home Assistant data. Some bonuses shown here are still planned.*
+*Illustrative values, not live measurements.* The Screen idle bonus remains **pending** until [Smart Idle #92](screen-idle-bonus.md) delivers a verified event ledger. Pending does not mean zero eligible time and must not be guessed.
 
-Each bonus has its own line. Bonus minutes **don't remove playtime already recorded**.
+## Add a Home Assistant dashboard card
 
-## Where would I see it?
+The first version uses an ordinary **Markdown card**. There is no additional frontend integration to install. After updating HAL Gaming Control:
 
-The first version is planned as a **Home Assistant dashboard card**. No extra add-on should be needed.
+1. Open **Settings → Devices & services → HAL Gaming Control**, select your child's PC and find its existing **Daily budget remaining** entity.
+2. Note its actual entity ID (for example, `sensor.lucija_daily_budget_remaining`).
+3. Edit a dashboard, **Add card → Markdown**, switch to YAML editing if necessary and paste the example below.
+4. Change only the `e` value on the first line to the actual entity ID.
 
-**Weekly limits stay separate.** Extra minutes today don't add to the week's allowance.
+```yaml
+type: markdown
+title: "Gaming budget — Today"
+content: |
+  {% set e = 'sensor.lucija_daily_budget_remaining' %}
+  {% set mode = state_attr(e, 'daily_budget_status') %}
+  {% set weekly_mode = state_attr(e, 'weekly_budget_status') %}
+  {% set idle = state_attr(e, 'screen_idle_bonus_minutes') %}
+  {% if states(e) in ['unknown', 'unavailable'] or mode is none %}
+  **Budget data unavailable.** Check that the PC has reported fresh, reliable data.
+  {% elif mode == 'disabled' %}
+  **Gaming rules are disabled.** No active allowance is being enforced.
+  {% elif mode == 'unlimited' %}
+  **Unlimited daily gaming.** There is no finite daily countdown.
+  {% else %}
+  **Daily allowance:** {{ state_attr(e, 'base_daily_minutes') }} min
 
-Dad may now close the spreadsheet. Mum has been waiting.
+  **Weekend bonus:** +{{ state_attr(e, 'weekend_bonus_minutes') }} min
 
-**For developers:** [Original design notes](../reference/features/budget-overview-preview-notes.md).
+  **Parent bonus:** +{{ state_attr(e, 'parent_bonus_minutes') }} min
 
-More: [Gaming budgets](gaming-budgets.md)
+  **Screen idle bonus:** {% if idle is number %}+{{ idle }} min{% else %}Pending Smart Idle support{% endif %}
+
+  ---
+
+  **Total daily allowance:** {{ state_attr(e, 'daily_limit_minutes') }} min
+
+  **Measured gaming time:** {{ state_attr(e, 'daily_used_minutes') if state_attr(e, 'daily_used_minutes') is number else 'unknown' }} min
+
+  **Remaining today:** {{ state_attr(e, 'daily_remaining_minutes') if state_attr(e, 'daily_remaining_minutes') is number else 'unknown' }} min
+  {% endif %}
+
+  {% if weekly_mode == 'limited' %}
+  **Weekly remaining:** {{ state_attr(e, 'weekly_remaining_minutes') if state_attr(e, 'weekly_remaining_minutes') is number else 'unknown' }} / {{ state_attr(e, 'weekly_limit_minutes') }} min
+  {% elif weekly_mode == 'unlimited' %}
+  **Weekly allowance:** unlimited
+  {% endif %}
+
+  {% if state_attr(e, 'coverage_incomplete') == true %}
+  ⚠️ **Coverage incomplete:** offline or unverified periods may be missing from measured gaming time.
+  {% endif %}
+```
+
+You can create one card per gaming PC by changing the device-specific entity ID. A daily allowance with remaining time **does not override an exhausted weekly budget or an out-of-hours restriction**. Daily and weekly restrictions continue to use exact verified seconds, not rounded dashboard figures.
+
+The standard Home Assistant **Device info** page cannot host this injected Markdown card; add it to a dashboard instead. The existing **Daily budget remaining** and **Weekly budget remaining** sensor identities remain unchanged, including automations that already use them.
+
+## Data and privacy
+
+The daily sensor exposes the base allowance, Weekend bonus, Parent bonus, currently unimplemented Screen idle bonus, total effective daily limit, measured daily time, remaining daily time and the independent weekly ledger in its attributes. It also reports whether the policy is disabled/unlimited and whether historical coverage is incomplete.
+
+This is a **read-only view** of HAL Gaming Control's existing local HA accounting. No Windows agent change, additional cloud service or second application is required. Bonuses never rewrite history or add minutes to the weekly cap.
+
+More: [Gaming budgets](gaming-budgets.md) · [Screen idle bonus](screen-idle-bonus.md)
 
 ---
 
