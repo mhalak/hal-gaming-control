@@ -1,3 +1,11 @@
+## 0.9.0 — Parent bonus grant journal backend (#165; review candidate)
+
+- Every **new** press of the existing `Add 30 minutes` button creates a persistent, device-scoped, UTC-timestamped grant with an immutable ID and active state. The date-scoped cumulative `bonus_minutes` stays synchronized as a backward-compatible mirror; the existing daily/weekly usage, limits and entities retain their semantics.
+- The Budget Overview includes today's individual Parent grant records, most recent activity and an explicitly unattributed legacy total for bonuses awarded before migration. Repeated presses are distinct, and cancellation of a specific current-day grant is implemented as a validated, idempotent **backend operation** (records are preserved as cancelled, not deleted).
+- **The user-facing Undo selection/confirmation UI is NOT yet included in this backend increment.** A later PR under #165 must expose authenticated, device-scoped cancellation without races or decorative/inert buttons. Do not market this as a finished Undo feature or deploy it as proof of UI acceptance.
+- Audit journal is retained up to 90 days and capped at 2048 events, fails closed on invalid records. No Windows/MQTT payload change, no automatic game termination or lock, and no compensation for Unlimited (#164) or Screen Idle (#92). This is a reviewed-source candidate only until CI, review and actual HA/Android tests pass.
+- Windows agent remains **0.2.9**. Deploy HA only after pilot preflight and approval; green CI alone is not an installation.
+
 ## 0.8.0 — native Budget Overview dashboard receipt (#93)
 
 - HA-only feature release: existing per-PC **Daily budget remaining** entity exposes a structured daily/weekly receipt with base, Weekend and Parent bonuses, exact remaining seconds and confirmed measured playtime. Includes a native Lovelace Markdown/Tile dashboard example; sensor unique IDs are unchanged.
