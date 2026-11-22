@@ -165,7 +165,8 @@ class HaOtaTransport:
 
     async def async_stage_package(self, path, *, device_id, version,
                                   transfer_id=None, ack_timeout=ACK_TIMEOUT,
-                                  retries=RETRIES, on_progress=None):
+                                  retries=RETRIES, on_progress=None,
+                                  expected_sha256=None, expected_size=None):
         if (type(ack_timeout) not in (float, int) or not 0 < ack_timeout <= 30
                 or type(retries) is not int or not 0 <= retries <= 5):
             raise ValueError("Invalid OTA transport retry limits")
@@ -178,6 +179,16 @@ class HaOtaTransport:
             package = await self.hass.async_add_executor_job(partial(
                 PackageFrames, path, device_id=device_id, version=version,
                 transfer_id=transfer_id, expires_at=int(time()) + TRANSFER_TTL))
+            # The signed manifest, not the sender's newly computed checksum,
+            # determines which bytes are authorized to be transmitted.
+            if (expected_sha256 is not None and
+                    (type(expected_sha256) is not str or
+                     package.sha256 != expected_sha256)):
+                raise OtaTransferError("OTA bytes differ from signed manifest digest")
+            if (expected_size is not None and
+                    (type(expected_size) is not int or
+                     package.size != expected_size)):
+                raise OtaTransferError("OTA bytes differ from signed manifest size")
             return await _Transfer(
                 self.hass, package, ack_timeout=ack_timeout,
                 retries=retries, on_progress=on_progress).run()
