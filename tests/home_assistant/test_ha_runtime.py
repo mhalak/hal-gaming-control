@@ -470,6 +470,9 @@ async def test_per_game_editor_hidden_preserving_existing_settings(hass, enable_
     assert entry.options["daily"] == 60
 
 
+@pytest.mark.parametrize("reported,expected", [
+    ("a" * 40, "a" * 40), ("abc", None), ("A" * 40, None), (True, None), (None, None),
+])
 async def test_agent_version_includes_validated_build_sha(hass, reported, expected):
     from unittest.mock import Mock
     from custom_components.parental.agent_version import AgentVersionSensor
