@@ -17,10 +17,11 @@ class OtaPreflightError(ValueError):
     """Safe refusal to stage untrusted, mismatched or ineligible release."""
 
 
-def _stage_capable(device_id, online, remote_update, ota_protocol):
+def _stage_capable(device_id, online, remote_update, ota_protocol, signed_handoff=False):
     return (isinstance(device_id, str) and bool(device_id)
             and online is True and remote_update is True
-            and type(ota_protocol) is int and ota_protocol == 1)
+            and type(ota_protocol) is int
+            and ota_protocol == (2 if signed_handoff else 1))
 
 
 def _source_configured(base_url, pinned_public_key):
@@ -30,9 +31,11 @@ def _source_configured(base_url, pinned_public_key):
 
 
 def require_candidate(*, device_id, installed, approved, version, online,
-                      remote_update, ota_protocol, base_url, pinned_public_key):
+                      remote_update, ota_protocol, base_url, pinned_public_key,
+                      signed_handoff=False):
     """Only a newer, fixed-catalog release for a live stage-capable PC."""
-    if not _stage_capable(device_id, online, remote_update, ota_protocol):
+    if not _stage_capable(device_id, online, remote_update, ota_protocol,
+                          signed_handoff=signed_handoff):
         raise OtaPreflightError("Windows PC is not online and explicitly OTA-capable")
     if not isinstance(version, str) or version != approved:
         raise OtaPreflightError("Only the fixed approved catalog release may be staged")
@@ -68,7 +71,7 @@ class OtaStagingPipeline:
             device_id=device_id, installed=installed, approved=approved,
             version=version, online=online, remote_update=remote_update,
             ota_protocol=ota_protocol, base_url=base_url,
-            pinned_public_key=pinned_public_key)
+            pinned_public_key=pinned_public_key, signed_handoff=signed_handoff)
         if signed_handoff and ota_protocol != 2:
             raise OtaPreflightError("Signed Windows OTA handoff requires v2 capability")
         if self._lock.locked():
