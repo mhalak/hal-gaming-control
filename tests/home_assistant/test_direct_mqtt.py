@@ -533,3 +533,42 @@ async def test_rules_opt_in_switch_only_controls_passive_signal(
         assert hass.states.get(restricted).state == "off"
         publish.assert_not_awaited()
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_legacy_terminate_button_requires_live_legacy_catalog_capability(
+        hass, enable_custom_integrations, mqtt_mock):
+    from homeassistant.exceptions import HomeAssistantError
+
+    # An existing HA config entry still advertises terminate; the Windows PC
+    # has migrated to rules-free mode, and its new MQTT metadata revokes it.
+    entry = MockConfigEntry(domain=DOMAIN, title=DATA["name"], unique_id="pc1", data=DATA)
+    entry.add_to_hass(hass)
+    with patch("custom_components.hal_gaming_control.coordinator.direct_mode", return_value=True):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    eid = er.async_get(hass).async_get_entity_id("button", DOMAIN, "pc1_terminate_game")
+    assert eid
+    with patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish:
+        async_fire_mqtt_message(hass, ROOT + "/discovery", json.dumps(DATA | {
+            "games": [], "actions": ["lock_pc"]}))
+        async_fire_mqtt_message(hass, ROOT + "/availability", "online")
+        await hass.async_block_till_done()
+        assert hass.states.get(eid).state == "unavailable"
+        # Home Assistant must refuse instead of publishing a command that
+        # would silently do nothing or hit a legacy connected agent.
+        with pytest.raises(HomeAssistantError):
+            await hass.services.async_call("button", "press",
+                                           {"entity_id": eid}, blocking=True)
+        publish.assert_not_awaited()
+        async_fire_mqtt_message(hass, "SmartHouse/Gaming/pc2/discovery",
+                                json.dumps(DATA | {"device_id": "pc2", "actions": ["terminate_game"]}))
+        await hass.async_block_till_done()
+        assert hass.states.get(eid).state == "unavailable"
+        async_fire_mqtt_message(hass, ROOT + "/discovery", json.dumps(DATA))
+        await hass.async_block_till_done()
+        assert hass.states.get(eid).state != "unavailable"
+        await hass.services.async_call("button", "press",
+                                       {"entity_id": eid}, blocking=True)
+        publish.assert_awaited_once_with(
+            hass, ROOT + "/command/terminate_game", "PRESS", qos=0, retain=False)
+    assert await hass.config_entries.async_unload(entry.entry_id)
