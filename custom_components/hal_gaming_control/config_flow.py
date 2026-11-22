@@ -65,6 +65,12 @@ async def _discover_devices(hass):
 
 
 
+def _discovery_options(devices):
+    """Always show the MQTT identity so matching friendly names are distinguishable."""
+    return [{"value": key, "label": f"{device['name']} ({key})"}
+            for key, device in devices.items()]
+
+
 async def _discover_foreground_candidate(hass, device_id):
     """Briefly listen for a fresh, non-retained candidate from this PC only."""
     topic = f"{ROOT}/{device_id}/state/foreground_candidate"
@@ -207,7 +213,7 @@ class GamingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             await self.async_set_unique_id(self.device["device_id"], raise_on_progress=False)
             self._abort_if_unique_id_configured()
             return await self.async_step_confirm({})
-        options = [{"value": k, "label": v["name"]} for k, v in self._devices.items()]
+        options = _discovery_options(self._devices)
         return self.async_show_form(step_id="user", data_schema=vol.Schema({
             vol.Required("device"): selector.SelectSelector(selector.SelectSelectorConfig(options=options))}))
 

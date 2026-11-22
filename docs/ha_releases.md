@@ -1,3 +1,9 @@
+## 0.12.2 — Show device name and MQTT identity when adding a gaming PC (#198)
+
+- **Add gaming PC** now displays every candidate as `name (device_id)`, including both current Windows hostname-scoped entries and old retained discovery aliases. Example: `DESKTOP-9KHJGVL (desktop_lucija)` versus `DESKTOP-9KHJGVL (DESKTOP-9KHJGVL)`. This lets the operator identify which MQTT namespace belongs to each choice.
+- Keep valid candidates separate by their actual MQTT `device_id`. No implicit alias deduplication, no forced migration and no guessing which device is live. Already-configured IDs are still excluded; an unconfigured legacy ID may remain listed until its exact retained discovery is explicitly cleaned.
+- No MQTT publishing, tombstones, HA entity/config-entry migration, Windows service change, Recorder deletion, gaming quota/action change or automated deployment. HA-only **0.12.2** (Preview 23); Windows stays **0.4.0**. Deployment HOLD #56 remains active.
+
 ## 0.12.1 — Tracked applications preview works with Windows v3-only telemetry (#192)
 
 - Fix **Currently detected application → Unavailable** in the native Tracked applications editor when Windows agent **0.3.0+** publishes only the v3 `state/telemetry` packet. The editor now briefly samples both the historical v2 raw foreground topic and the validated non-retained v3 observation; a valid v3 observation is preferred if both exist. This is a **read-only preview**, not a change to quota accounting, v3 opt-in, commands or process termination.

@@ -237,10 +237,78 @@ async def test_user_flow_two_devices_selectable(hass, enable_custom_integrations
     result = await start_user(hass)
     assert option_values(result) == ["pc1", "pc2"]
     labels = {o["value"]: o["label"] for o in result["data_schema"].schema["device"].config["options"]}
-    assert labels == {"pc1": "Gaming PC 1", "pc2": "Gaming PC 2"}
+    assert labels == {"pc1": "Gaming PC 1 (pc1)", "pc2": "Gaming PC 2 (pc2)"}
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"device": "pc2"})
     assert result["data"] == DATA2
     assert result["result"].unique_id == "pc2"
+
+
+async def test_hostname_discovery_displays_legacy_and_new_ids_explicitly(
+        hass, enable_custom_integrations, fake_mqtt):
+    """#198 screenshot: two PCs each publish both legacy and current names."""
+    host1, host2 = "DESKTOP-9KHJGVL", "DESKTOP-F29J1R1"
+    rows = [
+        ("desktop_lucija", host1), ("desktop_ivan", host2),
+        (host1, host1), (host2, host2),
+    ]
+    fake_mqtt.messages = [
+        msg(device_id, DATA | {"device_id": device_id, "name": name})
+        for device_id, name in rows
+    ]
+    result = await start_user(hass)
+    assert option_values(result) == [host1, host2, "desktop_ivan", "desktop_lucija"]
+    labels = {o["value"]: o["label"] for o in
+              result["data_schema"].schema["device"].config["options"]}
+    assert labels == {
+        host1: f"{host1} ({host1})",
+        host2: f"{host2} ({host2})",
+        "desktop_lucija": f"{host1} (desktop_lucija)",
+        "desktop_ivan": f"{host2} (desktop_ivan)",
+    }
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"device": host1})
+    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert result["data"]["device_id"] == host1
+    assert result["result"].unique_id == host1
+
+
+async def test_configured_hostname_does_not_hide_unconfigured_legacy_identity(
+        hass, enable_custom_integrations, fake_mqtt):
+    """Entries are filtered by actual ID, not by duplicated display name."""
+    hostname = "DESKTOP-9KHJGVL"
+    canonical = DATA | {"device_id": hostname, "name": hostname}
+    previous = DATA | {"device_id": "desktop_lucija", "name": hostname}
+    MockConfigEntry(domain=DOMAIN, title=hostname, data=canonical,
+                    unique_id=hostname).add_to_hass(hass)
+    fake_mqtt.messages = [msg(previous["device_id"], previous), msg(hostname, canonical)]
+    result = await start_user(hass)
+    assert option_values(result) == ["desktop_lucija"]
+    assert result["data_schema"].schema["device"].config["options"][0]["label"] == (
+        f"{hostname} (desktop_lucija)")
+
+
+async def test_legacy_id_still_discoverable_without_hostname_successor(
+        hass, enable_custom_integrations, fake_mqtt):
+    """Older agents retain their original identity and are labeled honestly."""
+    previous = DATA | {"device_id": "desktop_lucija", "name": "DESKTOP-9KHJGVL"}
+    fake_mqtt.messages = [msg(previous["device_id"], previous)]
+    result = await start_user(hass)
+    assert option_values(result) == ["desktop_lucija"]
+    assert result["data_schema"].schema["device"].config["options"][0]["label"] == (
+        "DESKTOP-9KHJGVL (desktop_lucija)")
+
+
+async def test_same_friendly_name_has_distinguishable_options(
+        hass, enable_custom_integrations, fake_mqtt):
+    """Distinct MQTT identities must never be silently merged."""
+    fake_mqtt.messages = [
+        msg(device_id, DATA | {"device_id": device_id, "name": "Gaming PC"})
+        for device_id in ("legacy-a", "legacy-b")
+    ]
+    result = await start_user(hass)
+    assert option_values(result) == ["legacy-a", "legacy-b"]
+    labels = [o["label"] for o in result["data_schema"].schema["device"].config["options"]]
+    assert labels == ["Gaming PC (legacy-a)", "Gaming PC (legacy-b)"]
 
 
 async def test_user_flow_filters_configured_devices(hass, enable_custom_integrations, fake_mqtt):

@@ -1,6 +1,6 @@
 # HACS / Marketplace publication and version policy
 
-**Current source:** HAL Gaming Control Preview 22 — HA integration **0.12.1**, Windows agent **0.4.0**. The HA domain is `hal_gaming_control`. This remains unaccepted **development preview software**, not a signed Windows distribution and not approval for deployment to the household. See [#56 HOLD](https://github.com/mhalak/hal-gaming-control/issues/56).
+**Current source:** HAL Gaming Control Preview 23 — HA integration **0.12.2**, Windows agent **0.4.0**. The Add gaming PC selector shows each MQTT candidate as **name (device_id)**, making legacy retained aliases recognizable without mutating broker topics. The HA domain is `hal_gaming_control`. This remains unaccepted **development preview software**, not a signed Windows distribution and not approval for deployment to the household. See [#56 HOLD](https://github.com/mhalak/hal-gaming-control/issues/56).
 
 ## #189 — why Marketplace showed a commit after release
 
