@@ -78,7 +78,8 @@ class DisplayStateTracker:
         elapsed = (self.clock() - self.changed) * 1000
         if not math.isfinite(elapsed) or not 0 <= elapsed <= MAX_EVENT_AGE_MS:
             self.invalidate()
-            return {"display_state": "unknown", "display_event_age_ms": None}
+            return {"display_state": "unknown", "display_event_age_ms": None,
+                    "display_epoch": None, "display_sequence": None}
         return {"display_state": self.state, "display_event_age_ms": int(elapsed),
                 "display_epoch": self.epoch, "display_sequence": self.sequence}
 
