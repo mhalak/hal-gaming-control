@@ -754,6 +754,36 @@ class Bridge:
                 self._telemetry_last_clock = (wall, now)
         return sent
 
+    def prime_target_receipt(self, candidate, context, *, sample_time):
+        """Authorize a future short-lived terminate offer WITHOUT v2 telemetry.
+
+        A successful fresh v3 observation is a prerequisite at the call site.
+        The private process/session identity stays only in service memory.
+        """
+        if not self._target_enabled:
+            return False
+        with self.lock:
+            self._target_offer = self._raw_receipt = None
+            if (not self.connected or self.synced_generation != self.generation
+                    or context is None or context is not self._foreground_context
+                    or _raw_identity_parts('foreground', candidate) is None):
+                return False
+            generation, observed, captured = context
+            now, wall = time.monotonic(), time.time()
+            if (generation != self.generation
+                    or not _valid_target_sample(sample_time, now, captured)
+                    or not math.isfinite(observed)
+                    or abs((wall - observed) - (now - captured)) > FOREGROUND_CLOCK_SKEW):
+                return False
+            self._raw_sequence += 1
+            self._raw_receipt = {
+                'candidate': candidate, 'generation': generation,
+                'epoch': self._foreground_epoch,
+                'sequence': self._raw_sequence,
+                'observed_at': observed, 'captured_at': captured,
+            }
+        return True
+
     def publish_target_offer(self, candidate, context, *, sample_time):
         """Offer one short-lived capability for the privately verified foreground.
 
