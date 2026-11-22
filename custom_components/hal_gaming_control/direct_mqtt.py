@@ -126,7 +126,9 @@ class DirectUptime(DirectEntity, SensorEntity):
 
     @callback
     def _v3_telemetry(self, message):
-        if not self._connected or not self._online:
+        source = getattr(self.coordinator, "foreground", None)
+        if (not self._connected or not self._online
+                or not getattr(source, "v3_capable", False)):
             return
         now, mono = time(), monotonic()
         if message.topic != self._root + "/state/telemetry":
