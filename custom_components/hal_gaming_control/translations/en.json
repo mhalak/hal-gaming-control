@@ -28,7 +28,8 @@
         "menu_options": {
           "mqtt_settings": "MQTT configuration",
           "tracked_apps": "Tracked applications",
-          "windows_updates": "Windows updates (advanced)"
+          "windows_updates": "Windows updates (advanced)",
+          "screen_idle": "Screen idle (experimental)"
         }
       },
       "mqtt_settings": {
@@ -53,6 +54,15 @@
           "ota_signer_public_key": "Operator-pinned Ed25519 PUBLIC key (PEM)"
         },
         "submit": "Save trusted update settings"
+      },
+      "screen_idle": {
+        "title": "Screen idle bonus (experimental)",
+        "description": "**Preview — not hardware validated.** When enabled, live, verified Windows console OFF observations stop charging new tracked-game intervals until a fresh ON return. A separate daily bonus is possible ONLY for continuously measured foreground time before a real display-off event and only when matching the configured Windows power timeout. Console OFF may NOT mean every physical monitor is dark. Game controllers, manual monitor-off, disconnects and multi-monitor configurations require real-PC validation. No gaming processes are stopped, no Windows settings change, and the feature is OFF by default. Test on a disposable PC before enabling for children.",
+        "data": {
+          "screen_idle_enabled": "Enable Screen idle preview for this PC",
+          "screen_idle_acknowledged": "I understand this is an experimental feature and requires real-PC validation"
+        },
+        "submit": "Save Screen idle policy"
       }
     },
     "error": {
@@ -60,7 +70,8 @@
       "configuration_changed": "The HA application list changed while this form was open. Reopen the flow before editing.",
       "invalid_application": "Invalid application row, duplicate process, or invalid name. Only the verified foreground process can be added.",
       "no_tracked_apps": "No HA-managed applications to modify yet.",
-      "invalid_signed_release": "Use a fixed HTTPS catalog and release directory, a valid Ed25519 PUBLIC PEM key, and all required fields when enabling updates. No settings were changed."
+      "invalid_signed_release": "Use a fixed HTTPS catalog and release directory, a valid Ed25519 PUBLIC PEM key, and all required fields when enabling updates. No settings were changed.",
+      "screen_idle_preview_unconfirmed": "Confirm the experimental limitations before enabling. No settings were changed."
     },
     "abort": {
       "invalid_app_configuration": "Stored tracked applications are invalid; no changes were made."
