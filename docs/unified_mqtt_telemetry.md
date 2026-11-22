@@ -54,7 +54,7 @@ When enabled, the Windows service publishes:
   },
   "system": {
     "uptime_seconds": 45630,
-    "agent_version": "0.2.12",
+    "agent_version": "0.2.13",
     "agent_build_sha": null
   }
 }
@@ -124,4 +124,4 @@ combined** with routine telemetry.
    does not deploy to family computers, install signed binaries, change
    updater trust, or modify Screen idle / Parent bonus policy.
 
-No HA source or entity implementation is part of this Windows-only PR.
+The HA v3 decoder and the existing native MQTT Uptime discovery repoint are implemented in Preview 20 source (HA 0.12.1 / Windows 0.2.13). Both remain OFF by default; one-PC production acceptance and deployment #56 are still pending.

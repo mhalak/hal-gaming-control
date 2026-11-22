@@ -1,6 +1,6 @@
 # Unified Windows telemetry v3 — Home Assistant consumer (#176)
 
-**Status:** HA source ready for integration tests, **OFF by default**. Preview 19: HA **0.12.0**, Windows agent **0.2.12 unchanged**. Windows v3 publisher source code is now merged (Windows config `telemetry.unified_v3_enabled` remains OFF by default); native MQTT Uptime discovery repoint and actual device acceptance are still separate work. **Do not deploy/enable on the family PCs** until the common #176 producer/consumer acceptance and [deployment gate #56](https://github.com/mhalak/hal-gaming-control/issues/56) are complete.
+**Status:** HA source ready for integration tests, **OFF by default**. Preview 20: HA **0.12.1**, Windows agent **0.2.13**. Windows v3 publisher source code is now merged (Windows config `telemetry.unified_v3_enabled` remains OFF by default); native MQTT Uptime discovery repoint is now implemented in source, but actual device acceptance is still pending. **Do not deploy/enable on the family PCs** until the common #176 producer/consumer acceptance and [deployment gate #56](https://github.com/mhalak/hal-gaming-control/issues/56) are complete.
 
 ## Single read-only MQTT stream
 
@@ -33,7 +33,7 @@
   },
   "system": {
     "uptime_seconds": 45630,
-    "agent_version": "0.2.12",
+    "agent_version": "0.2.13",
     "agent_build_sha": null
   }
 }
@@ -47,7 +47,7 @@ The consumer validates **at most 4096 bytes**, unique JSON keys, exact schema/ve
 
 Windows `foreground` and `display` are *independent authenticated helper observations* inside one atomic publisher snapshot. The field `sample_age_ms` is validated and respected. Stale foreground becomes **unknown**, not idle. Stale screen observations or old display notification receipts become **unknown**, not claimed physical monitor OFF. Display is applied **before** raw foreground accounting. On confirmed OFF, effective game becomes idle without new gaming seconds; when the screen returns ON, a subsequent later fresh foreground packet is needed to resume. The original console `event_epoch:event_sequence` stays intact for replay-safe optional Screen Idle daily bonus. The Windows agent never grants bonuses.
 
-Existing entities and Recorder history are preserved. The **Active game** sensor gets display state, event age, AC/DC timeout, power source, input idle and uptime as attributes. Direct MQTT mode reuses the **same Uptime unique ID** for v3 `system.uptime_seconds` and expires it after missed packets. Native MQTT mode retains its old Uptime discovery identity and requires the **Windows publisher** to change the existing `state_topic` to v3 with a bounded numeric value template when v3 is cut over. Do not publish a second Uptime discovery config.
+Existing entities and Recorder history are preserved. The **Active game** sensor gets display state, event age, AC/DC timeout, power source, input idle and uptime as attributes. Direct MQTT mode reuses the **same Uptime unique ID** for v3 `system.uptime_seconds` and expires it after missed packets. Native MQTT mode retains its old Uptime discovery identity and now supports a Windows-owned, in-place `state_topic` repoint to v3 with a bounded numeric template and 10-second expiry (only when Windows v3 is enabled); the original unique ID and reversible v2 mapping are preserved. Do not publish a second Uptime discovery config.
 
 ## Explicit migration and rollback
 

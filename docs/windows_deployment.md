@@ -1,3 +1,9 @@
+## Windows agent 0.2.13 Preview 20 — native Uptime v3 discovery (#176)
+
+When local `telemetry.unified_v3_enabled: true`, the Windows publisher republishes its **existing** retained `homeassistant/sensor/smarthouse_gaming_<device_id>_uptime/config` under the original topic and unique ID. Its `state_topic` becomes `SmartHouse/Gaming/<device_id>/state/telemetry`, with a device-matched, bounded numeric Jinja template extracting `system.uptime_seconds` and `expire_after: 10` seconds. On local v3 disable/reconnect, the exact same discovery config returns to the legacy retained `state/uptime` source; no second entity or wildcard cleanup is performed. Other native entity IDs and controls are unchanged.
+
+HA Preview 20 **0.12.1** also requires an interactive helper sample genuinely newer than console ON before charging gaming time. **Both v3 switches remain OFF; no deployment is authorized** until #56's trusted signing/bootstrap/backup and real one-PC v3 compatibility pilot are completed.
+
 ## Windows agent 0.2.12 Preview 18 — stable updater status identity (#166 follow-up)
 
 Fixes the separate Windows SYSTEM updater's MQTT status client for the default minimal Windows configuration: the auto-generated per-installation `device_id` is persisted in protected ProgramData, while `config.yaml` contains no `device.id`. Update progress now uses the persisted ID and stays device-scoped, rejects symlinks, malformed IDs and conflicting YAML/persisted identities, and preserves legacy YAML-only installations. Adds regressions for all four paths. Screen Idle bonus support (#92) in HA 0.11.0 is also opt-in and still needs a physical Windows acceptance test. Signed OTA activation remains default OFF and the [integrated deployment gate](https://github.com/mhalak/hal-gaming-control/issues/56) remains HOLD pending authentic signed artifacts, bootstrap, backups and one-PC Smart App Control acceptance.

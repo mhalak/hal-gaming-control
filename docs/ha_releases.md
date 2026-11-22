@@ -1,3 +1,9 @@
+## 0.12.1 — Safe post-ON accounting and native v3 Uptime discovery (#176)
+
+- **Preview 20**, HA **0.12.1** and Windows **0.2.13**, source only. HA requires a genuinely post-console-ON interactive helper foreground sample, not merely a newer MQTT envelope, before resuming gaming accounting and targeted-action candidates. Stale samples remain unknown.
+- The Windows v3 publisher now republishes the **same native MQTT Uptime discovery config** with `state_topic` pointing to its v3 `state/telemetry` JSON, a device-matched numeric `value_template` and `expire_after: 10`. When switched back to v2, the same sensor again uses `state/uptime`. No duplicate entity or registry purge. Direct MQTT Uptime already supports v3.
+- Both v3 compatibility switches remain **OFF by default**. Real Windows/HA one-PC acceptance, signed binaries, backup and rollback are still pending; #56 deployment HOLD remains in force.
+
 ## 0.12.0 — HA Unified telemetry v3 consumer (#176; opt-in only)
 
 - **Preview 19**, HA **0.12.0**, Windows **0.2.12 unchanged**. Adds a strict, 4 KiB, read-only MQTT v3 decoder with source epoch/sequence/time/device checks, replay/reconnect protection, bounded foreground/display/system fields, exact Java discriminator and unknown-safe handling.
