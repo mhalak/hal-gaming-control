@@ -8,7 +8,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 SHA = "1234567890abcdef" * 2 + "12345678"
-RELEASE = {"release": "HAL Gaming Control Preview 10", "windows_agent": "0.2.6",
+RELEASE = {"release": "HAL Gaming Control Preview 11", "windows_agent": "0.2.7",
            "home_assistant": "0.7.0"}
 
 
@@ -73,7 +73,7 @@ def test_release_missing_file_is_not_a_legacy_default(checkout):
         release_tool().read_release(checkout)
 
 
-@pytest.mark.parametrize("component,version", [("windows_agent", "0.2.6"), ("home_assistant", "0.7.0")])
+@pytest.mark.parametrize("component,version", [("windows_agent", "0.2.7"), ("home_assistant", "0.7.0")])
 def test_build_identity_is_bound_to_clean_revision(checkout, component, version):
     tool = release_tool()
     with patch.object(tool, "_git", side_effect=lambda root, *args:
@@ -96,7 +96,7 @@ def test_build_allows_matching_explicit_version(checkout):
     tool = release_tool()
     with patch.object(tool, "_git", side_effect=lambda root, *args:
                       SHA if args == ("rev-parse", "HEAD") else ""):
-        assert tool.build_identity(checkout, "windows_agent", requested_version="0.2.6")["version"] == "0.2.6"
+        assert tool.build_identity(checkout, "windows_agent", requested_version="0.2.7")["version"] == "0.2.7"
 
 
 @pytest.mark.parametrize("status", [" M release.json", "?? untracked.py"])
