@@ -42,11 +42,16 @@ def test_foreign_or_malformed_notifications_do_not_claim_off():
 def test_tracker_requires_event_and_expires_after_age_limit():
     clock = Mock(return_value=10.0)
     model = D.DisplayStateTracker(clock=clock)
-    assert model.snapshot() == {"display_state": "unknown", "display_event_age_ms": None}
+    assert model.snapshot() == {"display_state": "unknown", "display_event_age_ms": None,
+            "display_epoch": None, "display_sequence": None}
     assert model.receive(wire(0))
+    assert model.snapshot()["display_sequence"] == 1
     clock.return_value = 11.25
-    assert model.snapshot() == {"display_state": "off", "display_event_age_ms": 1250}
+    assert model.snapshot()["display_state"] == "off"
+    assert model.snapshot()["display_event_age_ms"] == 1250
+    assert model.snapshot()["display_epoch"] == model.epoch
     model.receive(wire(1))
+    assert model.snapshot()["display_sequence"] == 2
     assert model.snapshot()["display_state"] == "on"
     model.receive(wire(2))
     assert model.snapshot()["display_state"] == "dim"
@@ -55,7 +60,8 @@ def test_tracker_requires_event_and_expires_after_age_limit():
     clock.return_value = 20
     model.receive(wire(0))
     clock.return_value = 20 + D.MAX_EVENT_AGE_MS / 1000 + 1
-    assert model.snapshot() == {"display_state": "unknown", "display_event_age_ms": None}
+    assert model.snapshot() == {"display_state": "unknown", "display_event_age_ms": None,
+            "display_epoch": None, "display_sequence": None}
 
 
 def test_tracker_ignores_foreign_event_and_invalidates_bad_event_and_clock():
@@ -129,7 +135,8 @@ def test_registration_failure_does_not_break_existing_focus_probe():
         observer = D.DisplayObserver()
         assert not observer.start()
     assert observer.sample() == {"display_state": "unknown",
-                                 "display_event_age_ms": None}
+                                 "display_event_age_ms": None,
+                                 "display_epoch": None, "display_sequence": None}
 
 
 def test_helper_freshness_and_lock_reset_display_state():
@@ -137,7 +144,8 @@ def test_helper_freshness_and_lock_reset_display_state():
     p.session, p.process = 1, Mock()
     p.started = time.monotonic()
     sample = {"time": time.monotonic(), "status": "idle",
-              "display_state": "off", "display_event_age_ms": 100}
+              "display_state": "off", "display_event_age_ms": 100,
+              "display_epoch": "a" * 32, "display_sequence": 1}
     with patch("gaming_control.focus_session.selected_session",
                return_value=(1, "unlocked")), \
          patch.object(p, "_report_child_exit", return_value=False), \
@@ -157,7 +165,8 @@ def test_stale_helper_sample_cannot_claim_display_off():
     p.session, p.process = 1, Mock()
     p.started = time.monotonic()
     sample = {"time": time.monotonic() - 20, "status": "idle",
-              "display_state": "off", "display_event_age_ms": 100}
+              "display_state": "off", "display_event_age_ms": 100,
+              "display_epoch": "a" * 32, "display_sequence": 1}
     with patch("gaming_control.focus_session.selected_session",
                return_value=(1, "unlocked")), \
          patch.object(p, "_report_child_exit", return_value=False), \
@@ -186,7 +195,8 @@ def test_one_mqtt_json_includes_screen_state_and_timeout_not_extra_entities():
     b = live_bridge()
     ctx = b.capture_foreground_context()
     assert b.publish_display_context(policy(), 120000, ctx,
-                                     display_state="off", display_event_age_ms=500)
+                                     display_state="off", display_event_age_ms=500,
+                                     display_epoch="a" * 32, display_sequence=1)
     assert b.client.publish.call_count == 1
     call = b.client.publish.call_args
     assert call.args[0] == b.root + "/state/display_context"
@@ -197,10 +207,14 @@ def test_one_mqtt_json_includes_screen_state_and_timeout_not_extra_entities():
     assert data["ac_timeout_seconds"] == 600
     assert data["dc_timeout_seconds"] == 120
     assert data["display_scope"] == "windows_console"
+    assert data["version"] == 2
+    assert data["display_epoch"] == "a" * 32 and data["display_sequence"] == 1
     assert not b.publish_display_context(policy(), 120001, ctx,
-                                         display_state="off", display_event_age_ms=501)
+                                         display_state="off", display_event_age_ms=501,
+                                         display_epoch="a" * 32, display_sequence=1)
     assert b.publish_display_context(policy(), 120002, ctx,
-                                     display_state="on", display_event_age_ms=1)
+                                     display_state="on", display_event_age_ms=1,
+                                     display_epoch="a" * 32, display_sequence=2)
     assert b.client.publish.call_count == 2
 
 
@@ -213,7 +227,8 @@ def test_invalid_untrusted_state_cannot_claim_power_off(state, age, expected):
     b = live_bridge()
     ctx = b.capture_foreground_context()
     assert b.publish_display_context(policy(), None, ctx,
-                                     display_state=state, display_event_age_ms=age)
+                                     display_state=state, display_event_age_ms=age,
+                                     display_epoch="a" * 32, display_sequence=1)
     msg = json.loads(b.client.publish.call_args.args[1])
     assert msg["display_state"] == expected
 
@@ -222,11 +237,13 @@ def test_reconnect_invalidates_previous_power_state():
     b = live_bridge()
     ctx = b.capture_foreground_context()
     assert b.publish_display_context(policy(), 5, ctx,
-                                     display_state="off", display_event_age_ms=1)
+                                     display_state="off", display_event_age_ms=1,
+                                     display_epoch="a" * 32, display_sequence=1)
     b.client.publish.reset_mock()
     b.on_disconnect(b.client, None, None, None, None)
     assert not b.publish_display_context(policy(), 5, ctx,
-                                         display_state="off", display_event_age_ms=1)
+                                         display_state="off", display_event_age_ms=1,
+                                         display_epoch="a" * 32, display_sequence=1)
     b.on_connect(b.client, None, None, SimpleNamespace(is_failure=False), None)
     assert b.publish({"in_game": "OFF", "current_game": "idle"}, 11)
     b.client.publish.reset_mock()

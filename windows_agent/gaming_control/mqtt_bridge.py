@@ -88,12 +88,14 @@ def _display_context_fields(policy, input_idle_ms):
     return ac, dc, source, input_idle_ms
 
 
-def _display_event_fields(state, age_ms):
-    """Only authenticated, fresh interactive-helper state can leave the agent."""
+def _display_event_fields(state, age_ms, epoch, sequence):
+    """Only authenticated, ordered helper events can leave the agent."""
     if (type(state) is str and state in ("on", "off", "dim")
-            and type(age_ms) is int and 0 <= age_ms <= 86400000):
-        return state, age_ms
-    return "unknown", None
+            and type(age_ms) is int and 0 <= age_ms <= 86400000
+            and type(epoch) is str and re.fullmatch(r"[0-9a-f]{32}", epoch)
+            and type(sequence) is int and 1 <= sequence <= (1 << 63) - 1):
+        return state, age_ms, epoch, sequence
+    return "unknown", None, None, None
 
 
 def _valid_target_sample(sample_time, now, captured_at):
@@ -583,17 +585,21 @@ class Bridge:
                          or now - self._display_sent >= DISPLAY_CONTEXT_PERIOD))
 
     def publish_display_context(self, policy, input_idle_ms, context, *,
-                                display_state="unknown", display_event_age_ms=None):
+                                display_state="unknown", display_event_age_ms=None,
+                                display_epoch=None, display_sequence=None):
         """Publish console display notifications, never physical-monitor proof."""
         fields = _display_context_fields(policy, input_idle_ms)
-        state, age_ms = _display_event_fields(display_state, display_event_age_ms)
+        state, age_ms, epoch, seq = _display_event_fields(
+            display_state, display_event_age_ms, display_epoch, display_sequence)
         now, wall = time.monotonic(), time.time()
-        if fields is None or not self._can_send_display_context(context, now, wall, state):
+        if fields is None or not self._can_send_display_context(
+                context, now, wall, (state, epoch, seq)):
             return False
         ac, dc, source, input_idle_ms = fields
         payload = json.dumps({
-            "version": 1, "device_id": self.id, "observed_at": wall,
+            "version": 2, "device_id": self.id, "observed_at": wall,
             "display_state": state, "display_event_age_ms": age_ms,
+            "display_epoch": epoch, "display_sequence": seq,
             "display_scope": "windows_console",
             "ac_timeout_seconds": ac, "dc_timeout_seconds": dc,
             "power_source": source, "last_input_idle_ms": input_idle_ms,
@@ -615,7 +621,7 @@ class Bridge:
             if not self.connected or self.generation != generation:
                 return False
             self._display_sent = now
-            self._display_last_state = state
+            self._display_last_state = (state, epoch, seq)
         return True
 
     def publish_target_offer(self, candidate, context, *, sample_time):

@@ -165,6 +165,8 @@ class FocusProbe:
         self.last_input_idle_ms = None
         self.display_state = "unknown"
         self.display_event_age_ms = None
+        self.display_epoch = None
+        self.display_sequence = None
 
     def _report_error(self, stage, code):
         now = time.monotonic()
@@ -289,14 +291,22 @@ class FocusProbe:
     def _observe_display(self, sample):
         state = sample.get("display_state")
         age = sample.get("display_event_age_ms")
+        epoch = sample.get("display_epoch")
+        sequence = sample.get("display_sequence")
         if (state in ("on", "off", "dim") and type(age) is int
-                and 0 <= age <= MAX_EVENT_AGE_MS):
+                and 0 <= age <= MAX_EVENT_AGE_MS
+                and type(epoch) is str and re.fullmatch(r"[0-9a-f]{32}", epoch)
+                and type(sequence) is int and 1 <= sequence <= (1 << 63) - 1):
             self.display_state = state
             self.display_event_age_ms = age
+            self.display_epoch = epoch
+            self.display_sequence = sequence
 
     def read(self, rules):
         self.display_state = "unknown"
         self.display_event_age_ms = None
+        self.display_epoch = None
+        self.display_sequence = None
         self.last_input_idle_ms = None  # never retain a stale session reading
         self.candidate = None  # never carry identity over a failed or stale probe
         self.last_sample_time = None
