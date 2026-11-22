@@ -110,7 +110,9 @@ def decode_telemetry(payload, device_id, *, retained, wall_now):
     to UNKNOWN, not silently treated as current confirmed observations.
     """
     if (retained is not False or not isinstance(payload, (str, bytes))
-            or not 0 < len(payload) <= MAX_PACKET):
+            or not 0 < len(payload) <= MAX_PACKET
+            or (isinstance(payload, str)
+                and len(payload.encode("utf-8")) > MAX_PACKET)):
         raise ValueError("Missing non-retained unified telemetry")
     try:
         obj = json.loads(payload, object_pairs_hook=_unique_object,
@@ -223,12 +225,16 @@ class TelemetryOrder:
             return False
         if self.observed_at is not None:
             if epoch == self.epoch:
-                if sequence <= self.sequence or stamp < self.observed_at:
+                if sequence <= self.sequence or stamp <= self.observed_at:
                     return False
             elif stamp <= self.observed_at:
                 return False
             if epoch != self.epoch:
                 self.retired[self.epoch] = float("inf")
+                # The global timestamp watermark already rejects older
+                # recordings. Keep only a bounded list of retired epochs.
+                while len(self.retired) > 64:
+                    self.retired.pop(next(iter(self.retired)))
         self.epoch, self.sequence, self.observed_at = epoch, sequence, stamp
         self.received = monotonic_now
         return True
