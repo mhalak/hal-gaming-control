@@ -77,7 +77,10 @@ def effective_budget_limit(options, now, period):
     if period != "daily":
         raise ValueError("Unsupported budget period")
     base = effective_daily(options, now.weekday() >= 5)
-    return base + daily_bonus_minutes(options, now) if base >= 0 else base
+    if base < 0:
+        return base
+    from .screen_idle_bonus import screen_idle_bonus_total
+    return base + daily_bonus_minutes(options, now) + screen_idle_bonus_total(options, now)
 
 
 def inside_schedule(now, start, end):
@@ -165,6 +168,7 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True):
         parent_grants_today,
     )
 
+    from .screen_idle_bonus import screen_idle_bonus_total
     settings = DEFAULTS | options
     base = settings["daily"]
     daily_limit = effective_budget_limit(settings, now, "daily")
@@ -229,8 +233,9 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True):
         "parent_bonus_grants_today": active_grants[:12],
         "parent_bonus_activity_today": activity[:12],
         "parent_bonus_recent_action": recent_action,
-        "screen_idle_bonus_minutes": None,
-        "screen_idle_bonus_status": "pending",
+        "screen_idle_bonus_minutes": screen_idle_bonus_total(settings, now),
+        "screen_idle_bonus_status": (
+            "preview" if settings.get("screen_idle_enabled") is True else "disabled"),
         "daily_limit_minutes": daily_finite,
         "daily_used_seconds": daily_used,
         "daily_used_minutes": whole_hundredths(daily_used),
