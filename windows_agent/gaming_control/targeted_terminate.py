@@ -65,47 +65,57 @@ def _valid_candidate(candidate):
 
 def _allowed_exe(exe, root):
     """Reject system-directory and relative/UNC processes, even with valid PID."""
-    if not isinstance(exe, str) or not ntpath.isabs(exe) or exe.startswith("\\\\"):
+    if not isinstance(exe, str) or re.match(r"^[A-Za-z]:[\\/]", exe) is None:
         return False
     system = ntpath.normcase(ntpath.normpath(root)).rstrip("\\")
     target = ntpath.normcase(ntpath.normpath(exe))
     return not (target == system or target.startswith(system + "\\"))
 
 
+
+def _fresh_clock(offered_sample, current_sample, offered_at, now):
+    return (type(offered_at) in (int, float) and math.isfinite(offered_at)
+            and type(now) in (int, float) and math.isfinite(now)
+            and 0 <= now - offered_at < TARGET_TTL
+            and type(offered_sample) in (int, float)
+            and type(current_sample) in (int, float)
+            and math.isfinite(offered_sample) and math.isfinite(current_sample)
+            and offered_sample < current_sample <= now)
+
+
+def _allowed_target(candidate, session, own_pid):
+    name, pid, _, user_session, signature = candidate
+    return (session == (user_session, "unlocked")
+            and pid != (os.getpid() if own_pid is None else own_pid)
+            and name.casefold() not in _PROTECTED
+            and not (name.casefold() in ("java.exe", "javaw.exe")
+                     and signature is None))
+
+
+def _same_process(proc, candidate, session_lookup, system_root):
+    name, pid, created, user_session, signature = candidate
+    if (proc.pid != pid or proc.create_time() != created
+            or not proc.is_running() or proc.name().casefold() != name.casefold()
+            or session_lookup(pid) != user_session
+            or not _allowed_exe(proc.exe(), system_root)):
+        return False
+    return (name.casefold() not in ("java.exe", "javaw.exe")
+            or _java_identity(proc.cmdline()) == signature)
+
+
 def terminate_verified(expected, observed, *, offered_sample, current_sample,
                        offered_at, now, session, process_factory=psutil.Process,
                        session_lookup, own_pid=None, system_root=None):
-    """Terminate exactly one independently verified *currently focused* process.
-
-    Both identities come from the Windows user's trusted foreground helper,
-    not MQTT. A fresh helper sample must have been read after the offer.
-    """
-    if not _valid_candidate(expected) or expected != observed:
+    """Kill one reverified user-owned foreground process, never a supplied MQTT PID."""
+    if (not _valid_candidate(expected) or expected != observed
+            or not _fresh_clock(offered_sample, current_sample, offered_at, now)
+            or not _allowed_target(expected, session, own_pid)):
         return False
-    if (type(offered_at) not in (int, float) or not math.isfinite(offered_at)
-            or type(now) not in (int, float) or not math.isfinite(now)
-            or not 0 <= now - offered_at < TARGET_TTL
-            or type(offered_sample) not in (int, float)
-            or type(current_sample) not in (int, float)
-            or not math.isfinite(offered_sample) or not math.isfinite(current_sample)
-            or not offered_sample < current_sample <= now):
-        return False
-    name, pid, created, user_session, signature = expected
-    if (session != (user_session, "unlocked")
-            or pid == (os.getpid() if own_pid is None else own_pid)
-            or name.casefold() in _PROTECTED
-            or (name.casefold() in ("java.exe", "javaw.exe") and signature is None)):
-        return False
+    _, pid, created, _, _ = expected
     try:
         proc = process_factory(pid)
-        if (proc.pid != pid or proc.create_time() != created
-                or not proc.is_running()
-                or proc.name().casefold() != name.casefold()
-                or session_lookup(pid) != user_session
-                or not _allowed_exe(proc.exe(), system_root or os.environ.get("SystemRoot", "C:/Windows"))):
-            return False
-        if (name.casefold() in ("java.exe", "javaw.exe")
-                and _java_identity(proc.cmdline()) != signature):
+        root = system_root or os.environ.get("SystemRoot", "C:/Windows")
+        if not _same_process(proc, expected, session_lookup, root):
             return False
         if not proc.is_running() or proc.create_time() != created:
             return False
