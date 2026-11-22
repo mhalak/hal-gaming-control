@@ -3,11 +3,11 @@ import json
 
 import pytest
 
-from custom_components.parental.app_registry import identity_key
-from custom_components.parental.foreground_store import (
+from custom_components.parental_control.app_registry import identity_key
+from custom_components.parental_control.foreground_store import (
     ForegroundStore, ForegroundStoreError, validate_checkpoint,
 )
-from custom_components.parental.raw_foreground import HAOwnedForeground
+from custom_components.parental_control.raw_foreground import HAOwnedForeground
 
 pytestmark = pytest.mark.asyncio
 

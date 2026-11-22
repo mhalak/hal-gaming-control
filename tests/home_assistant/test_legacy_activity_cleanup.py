@@ -6,8 +6,8 @@ from homeassistant.components import mqtt
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.parental.const import DOMAIN
-from custom_components.parental.legacy_activity_cleanup import (
+from custom_components.parental_control.const import DOMAIN
+from custom_components.parental_control.legacy_activity_cleanup import (
     RetirementBlocked, async_retire, exact_legacy_topics, owned_direct_entities,
 )
 

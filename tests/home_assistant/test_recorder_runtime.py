@@ -19,8 +19,8 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.components.recorder.common import (
     async_block_recorder, async_wait_recording_done)
 
-from custom_components.parental.const import DOMAIN
-from custom_components.parental.coordinator import GamingCoordinator
+from custom_components.parental_control.const import DOMAIN
+from custom_components.parental_control.coordinator import GamingCoordinator
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("recorder_mock")]
 
@@ -117,7 +117,7 @@ def assert_totals(totals, daily=0, weekly=0, weekend=0, roblox=0, minecraft=0):
 
 
 NOW = at(11, 16, 12)  # Monday 2026-11-16 12:00 Europe/Zagreb
-RUNTIME_PKG = Path(__file__).resolve().parents[2] / "custom_components" / "parental"
+RUNTIME_PKG = Path(__file__).resolve().parents[2] / "custom_components" / "parental_control"
 
 
 @pytest.mark.parametrize("value", [None, "unknown", "unavailable"])
@@ -356,7 +356,7 @@ async def test_legacy_options_cannot_reenable_implicit_actions(rig, options):
 # Durable foreground accounting epoch. This increment is intentionally not
 # connected to either coordinator or migration activation.
 async def test_foreground_cutover_requires_explicit_activation(hass, freezer):
-    from custom_components.parental.foreground_cutover import (
+    from custom_components.parental_control.foreground_cutover import (
         async_read_cutover, async_activate_cutover)
     freezer.move_to(NOW)
     assert await async_read_cutover(hass, "synthetic-entry-a", "pc1") is None
@@ -365,7 +365,7 @@ async def test_foreground_cutover_requires_explicit_activation(hass, freezer):
 
 
 async def test_foreground_cutover_is_immutable_across_reload_and_rollover(hass, freezer):
-    from custom_components.parental.foreground_cutover import (
+    from custom_components.parental_control.foreground_cutover import (
         async_read_cutover, async_activate_cutover)
     freezer.move_to(NOW)
     first = await async_activate_cutover(hass, "synthetic-entry-a", "pc1")
@@ -375,7 +375,7 @@ async def test_foreground_cutover_is_immutable_across_reload_and_rollover(hass, 
 
 
 async def test_foreground_cutover_isolated_between_entries(hass, freezer):
-    from custom_components.parental.foreground_cutover import (
+    from custom_components.parental_control.foreground_cutover import (
         async_read_cutover, async_activate_cutover)
     freezer.move_to(NOW)
     first = await async_activate_cutover(hass, "synthetic-entry-a", "pc1")
@@ -388,7 +388,7 @@ async def test_foreground_cutover_isolated_between_entries(hass, freezer):
 
 
 async def test_foreground_cutover_rejects_device_identity_mismatch(hass, freezer):
-    from custom_components.parental.foreground_cutover import (
+    from custom_components.parental_control.foreground_cutover import (
         CutoverError, async_read_cutover, async_activate_cutover)
     freezer.move_to(NOW)
     first = await async_activate_cutover(hass, "synthetic-entry-a", "pc1")
@@ -401,7 +401,7 @@ async def test_foreground_cutover_rejects_device_identity_mismatch(hass, freezer
 
 async def test_foreground_cutover_concurrent_activation_is_idempotent(hass, freezer):
     import asyncio
-    from custom_components.parental.foreground_cutover import (
+    from custom_components.parental_control.foreground_cutover import (
         async_read_cutover, async_activate_cutover)
     freezer.move_to(NOW)
     first, second = await asyncio.gather(
@@ -414,7 +414,7 @@ async def test_foreground_cutover_concurrent_activation_is_idempotent(hass, free
 @pytest.mark.parametrize("invalid", [None, True, "123", -1, float("nan"), float("inf")])
 async def test_foreground_cutover_invalid_persisted_data_fails_closed(hass, freezer, invalid):
     from homeassistant.helpers.storage import Store
-    from custom_components.parental.foreground_cutover import (
+    from custom_components.parental_control.foreground_cutover import (
         CutoverError, async_read_cutover, async_activate_cutover)
     freezer.move_to(NOW)
     payload = {"device_id": "pc1", "since": invalid}
@@ -429,7 +429,7 @@ async def test_foreground_cutover_invalid_persisted_data_fails_closed(hass, free
 
 async def test_foreground_cutover_save_failure_does_not_return_success(hass, freezer):
     from homeassistant.helpers.storage import Store
-    from custom_components.parental.foreground_cutover import (
+    from custom_components.parental_control.foreground_cutover import (
         CutoverError, async_activate_cutover)
     freezer.move_to(NOW)
     with patch.object(Store, "async_load", new=AsyncMock(return_value=None)), \
@@ -441,7 +441,7 @@ async def test_foreground_cutover_save_failure_does_not_return_success(hass, fre
 @pytest.mark.parametrize("raw", ["{broken", "null", '{"version": 2, "data": {}}'])
 async def test_foreground_cutover_corrupt_file_is_never_replaced(hass, raw):
     from homeassistant.helpers.storage import Store
-    from custom_components.parental.foreground_cutover import (
+    from custom_components.parental_control.foreground_cutover import (
         CutoverError, async_read_cutover, async_activate_cutover)
     path = Path(Store(hass, 1, f"{DOMAIN}.foreground_cutover.synthetic-entry-a").path)
     await hass.async_add_executor_job(path.parent.mkdir, 0o700, True, True)
@@ -455,7 +455,7 @@ async def test_foreground_cutover_corrupt_file_is_never_replaced(hass, raw):
 
 async def test_foreground_cutover_silent_save_failure_is_rejected(hass, freezer):
     from homeassistant.helpers.storage import Store
-    from custom_components.parental.foreground_cutover import (
+    from custom_components.parental_control.foreground_cutover import (
         CutoverError, async_activate_cutover)
     freezer.move_to(NOW)
     with patch.object(Store, "async_load", new=AsyncMock(return_value=None)), \
@@ -465,7 +465,7 @@ async def test_foreground_cutover_silent_save_failure_is_rejected(hass, freezer)
 
 
 async def test_foreground_cutover_invalid_identifier_rejected(hass):
-    from custom_components.parental.foreground_cutover import (
+    from custom_components.parental_control.foreground_cutover import (
         CutoverError, async_read_cutover)
     with pytest.raises(CutoverError):
         await async_read_cutover(hass, "../outside", "pc1")

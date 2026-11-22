@@ -6,7 +6,7 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[1]
 components = root / "custom_components"
 domains = [p.name for p in components.iterdir() if p.is_dir() and not p.name.startswith(".") and p.name != "__pycache__"]
-assert domains == ["parental"], domains
+assert domains == ["parental_control"], domains
 integration = components / domains[0]
 manifest = json.loads((integration / "manifest.json").read_text())
 hacs = json.loads((root / "hacs.json").read_text())

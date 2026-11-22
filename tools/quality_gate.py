@@ -28,11 +28,11 @@ def coverage_result(report):
 
 def production_files(root):
     """Include all runtime Python files and entry points, not test/build output."""
-    files = sorted((root / "custom_components" / "parental").rglob("*.py"))
+    files = sorted((root / "custom_components" / "parental_control").rglob("*.py"))
     windows = root / "windows_agent"
     files += sorted(windows.glob("*.py"))
     files += sorted((windows / "gaming_control").rglob("*.py"))
-    if not (windows / "gaming_control").is_dir() or not (windows / "updater.py").is_file() or not files or not (root / "custom_components/parental/manifest.json").is_file():
+    if not (windows / "gaming_control").is_dir() or not (windows / "updater.py").is_file() or not files or not (root / "custom_components/parental_control/manifest.json").is_file():
         raise ValueError("Production source tree missing")
     return files
 

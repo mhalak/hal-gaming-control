@@ -1,6 +1,6 @@
 # HACS publication checklist
 
-Public product name: SmartHouse Parental Control. Proposed repository slug: smarthouse-parental-control. The internal integration domain is **`parental`** (breaking clean cut in HA 0.6.0); the MQTT wire root `SmartHouse/Gaming`, native MQTT discovery identifiers (`smarthouse_gaming_<device_id>`) and Windows service stay unchanged. An installed `smarthouse_gaming` HA config entry must be removed and re-added as `parental`; no automatic migration or retained HA registry history guarantee.
+Public product name: SmartHouse Parental Control. Proposed repository slug: smarthouse-parental-control. The internal integration domain is **`parental_control`** (breaking clean cut in HA 0.6.1); the MQTT wire root `SmartHouse/Gaming`, native MQTT discovery identifiers (`smarthouse_gaming_<device_id>`) and Windows service stay unchanged. An installed `smarthouse_gaming` HA config entry must be removed and re-added as `parental_control`; no automatic migration or retained HA registry history guarantee.
 
 ## Source-only development preview
 
@@ -20,8 +20,8 @@ Core Terminate game and Lock PC actions worked in live smoke testing. Source pub
 - Resolve the known limitations and record formal acceptance evidence.
 
 ## HACS checks
-- Prepare the icon assets for a future home-assistant/brands PR under custom_integrations/parental/. A local brand/icon.png alone does not satisfy the documented default-catalog Brands check. Verify the latest upstream requirements before submission. Do not submit either upstream PR yet.
-- One integration under custom_components/parental; runtime files and brand assets within that directory.
+- Prepare the icon assets for a future home-assistant/brands PR under custom_integrations/parental_control_control/. A local brand/icon.png alone does not satisfy the documented default-catalog Brands check. Verify the latest upstream requirements before submission. Do not submit either upstream PR yet.
+- One integration under custom_components/parental_control; runtime files and brand assets within that directory.
 - Root hacs.json and README, identifiable OSI license, useful GitHub metadata.
 - Run local packaging validation on every PR. Run official HACS validation and Hassfest without ignores once public; fix failures before publication.
 - Minimum HA version is conservatively set to 2026.10.2, the current tested deployment baseline. Validate more versions before lowering it.

@@ -6,7 +6,7 @@ SmartHouse Parental Control is still being built. Some things work in testing, b
 
 ## What can I try?
 
-- **HA 0.6.0 domain breaking change:** existing `smarthouse_gaming` entries/options are not migrated. Remove them and reinstall only `parental`; manually reconfigure tracked apps, budgets and schedules. [Instructions](domain-clean-cut.md). No dual-domain support.
+- **HA 0.6.1 domain breaking change:** existing `smarthouse_gaming` entries/options are not migrated. Remove them and reinstall only `parental_control`; manually reconfigure tracked apps, budgets and schedules. [Instructions](domain-clean-cut.md). No dual-domain support.
 
 - **Lock PC** and **Terminate game** worked in limited real-PC tests. They still need testing on your own devices.
 - **Daily and weekly budgets**, **Weekend bonus**, **Add 30 minutes** and the **Tracked applications** editor exist in preview source. What you see depends on your installed version.

@@ -2,7 +2,7 @@
 import json
 import pytest
 
-from custom_components.parental.candidate_protocol import parse_candidate
+from custom_components.parental_control.candidate_protocol import parse_candidate
 
 
 TOPIC = "SmartHouse/Gaming/pc1/state/foreground_candidate"
