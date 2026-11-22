@@ -88,6 +88,7 @@ class DirectUptime(DirectEntity, SensorEntity):
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, c):
+        self.coordinator = c
         self._unified = c.entry.options.get("unified_telemetry_enabled") is True
         super().__init__(c, "uptime", "Uptime",
                          None if self._unified else "uptime")
