@@ -160,6 +160,10 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True):
     Idle bonus before #92 exists, or report unknown/offline time as zero.
     """
     from math import ceil, floor, isfinite
+    from .parent_bonus import (
+        parent_bonus_activity_today, parent_bonus_legacy_today,
+        parent_grants_today,
+    )
 
     settings = DEFAULTS | options
     base = settings["daily"]
@@ -206,6 +210,9 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True):
             _validated_weekend_bonus(settings.get("weekend_bonus", 0))
             if base >= 0 and now.weekday() >= 5 else 0),
         "parent_bonus_minutes": daily_bonus_minutes(settings, now),
+        "parent_bonus_legacy_minutes": parent_bonus_legacy_today(settings, now),
+        "parent_bonus_grants_today": parent_grants_today(settings, now)[:50],
+        "parent_bonus_activity_today": parent_bonus_activity_today(settings, now)[:50],
         "screen_idle_bonus_minutes": None,
         "screen_idle_bonus_status": "pending",
         "daily_limit_minutes": daily_finite,
