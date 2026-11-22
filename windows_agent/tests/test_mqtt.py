@@ -3,7 +3,8 @@ from unittest.mock import Mock, patch
 import paho.mqtt.client as mqtt
 from gaming_control.mqtt_bridge import Bridge
 
-CONFIG = {'device': {'id': 'pc1', 'name': 'PC 1'}, 'mqtt': {'host': 'localhost'}}
+CONFIG = {'device': {'id': 'pc1', 'name': 'PC 1'}, 'mqtt': {'host': 'localhost'},
+          'games': [{'name': 'Game', 'process': 'game.exe'}]}
 
 
 def connected_bridge():
@@ -272,3 +273,28 @@ def test_v2_agent_retired_activity_discovery_is_exact_and_never_readvertised():
     assert any(topic.endswith('_terminate_game/config') for topic in keep)
     assert any(topic.endswith('_lock_pc/config') for topic in keep)
     assert any(topic.endswith('_uptime/config') for topic in keep)
+
+
+def test_no_rules_do_not_accept_terminate_and_retract_native_button():
+    import json
+    cfg = {**CONFIG, "games": []}
+    b = Bridge(cfg)
+    assert "terminate_game" not in b.command_topics.values()
+    assert set(b.command_topics.values()) == {"lock_pc"}
+    assert b.metadata["actions"] == ["lock_pc"]
+    b.client = Mock()
+    b.client.publish.return_value.rc = mqtt.MQTT_ERR_SUCCESS
+    b.client.publish.return_value.is_published.return_value = True
+    b.on_connect(b.client, None, None, SimpleNamespace(is_failure=False), None)
+    send(b, command="terminate_game")
+    assert list(b.drain_commands()) == []
+    assert b.publish({"in_game": "OFF", "current_game": "idle"}, 100)
+    topic = f"{b.prefix}/button/smarthouse_gaming_pc1_terminate_game/config"
+    tombstones = [c for c in b.client.publish.call_args_list if c.args[:2] == (topic, b"")]
+    assert len(tombstones) == 1
+    assert tombstones[0].kwargs == {"qos": 1, "retain": True}
+    assert topic not in b.configs
+    discovery_messages = [c for c in b.client.publish.call_args_list
+                          if c.args[0] == b.root + "/discovery"]
+    assert json.loads(discovery_messages[-1].args[1])["actions"] == ["lock_pc"]
+    assert all("pc2" not in c.args[0] for c in b.client.publish.call_args_list)
