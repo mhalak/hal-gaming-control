@@ -61,6 +61,9 @@ class Broker:
         step = topic.rsplit("/", 1)[-1]
         if step == "start":
             obj = json.loads(payload)
+            if self.transfer_id != obj["transfer_id"]:
+                self.next_index = 0
+                self.payloads = []
             self.transfer_id = obj["transfer_id"]
             status = "receiving"
         elif step == "chunk":
@@ -259,7 +262,7 @@ async def test_second_same_device_concurrent_transfer_denied(monkeypatch, archiv
     go = asyncio.Event()
     original = broker.publish
     async def slow(*args, **kwargs):
-        if args[2].endswith("/ota/start"):
+        if args[1].endswith("/ota/start"):
             ready.set()
             await go.wait()
         await original(*args, **kwargs)
