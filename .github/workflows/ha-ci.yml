@@ -22,7 +22,7 @@ jobs:
       - run: pip install pytest
       - run: python -m pytest -q tests/home_assistant/test_rules.py tests/home_assistant/test_liveness.py tests/home_assistant/test_update_protocol.py tests/home_assistant/test_foreground_accounting.py tests/home_assistant/test_raw_foreground.py
       - run: python -m compileall -q custom_components
-      - run: python -m json.tool custom_components/parental_control/manifest.json
+      - run: python -m json.tool custom_components/hal_gaming_control/manifest.json
   runtime:
     runs-on: ubuntu-latest
     steps:

@@ -69,7 +69,7 @@ def test_updater_module_stays_within_complexity_limit():
 
 
 def test_coordinator_module_stays_within_complexity_limit():
-    path = Path(__file__).resolve().parents[1] / "custom_components/parental_control/coordinator.py"
+    path = Path(__file__).resolve().parents[1] / "custom_components/hal_gaming_control/coordinator.py"
     units = list(gate.complexity_units(ast.parse(path.read_text(encoding="utf-8"))))
     assert units
     violations = [(name, score) for _, name, score, _ in units if score > gate.MAX_COMPLEXITY]

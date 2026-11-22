@@ -2,7 +2,7 @@
 branch = True
 relative_files = True
 source =
-    custom_components/parental_control
+    custom_components/hal_gaming_control
 data_file = coverage-ha-data
 
 [report]
