@@ -12,7 +12,7 @@ import socket
 from uuid import uuid4
 
 
-_ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,64}\\Z", flags=re.ASCII)
+_ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,64}\Z", flags=re.ASCII)
 _ID_FILE = "device_id"
 
 
@@ -29,7 +29,7 @@ def _persisted_id(config_path, configured_id):
         # Exclusive create: never overwrite identity owned by a previous install.
         # ProgramData protections are established by install.ps1.
         with path.open("x", encoding="ascii") as stream:
-            stream.write(candidate + "\\n")
+            stream.write(candidate + "\n")
             stream.flush()
             os.fsync(stream.fileno())
     except FileExistsError:
