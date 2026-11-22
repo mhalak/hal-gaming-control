@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.parental_control import coordinator as co
-from custom_components.parental_control.app_registry import identity_key
-from custom_components.parental_control.const import DOMAIN
+from custom_components.hal_gaming_control import coordinator as co
+from custom_components.hal_gaming_control.app_registry import identity_key
+from custom_components.hal_gaming_control.const import DOMAIN
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("recorder_mock")]
 
