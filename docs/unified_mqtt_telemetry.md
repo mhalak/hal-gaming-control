@@ -1,14 +1,11 @@
 # Unified Windows telemetry v3 — issue #176
 
-**Implementation status:** Windows publisher is implemented behind an explicit
-**OFF-by-default** compatibility gate. This is **not** an HA cutover, a deployment
-or a reason to retire old topics. See [issue #176](https://github.com/mhalak/hal-gaming-control/issues/176)
+**Implementation status:** Windows Preview 20 / agent **0.3.0** uses a **breaking clean cut**: v3 monitoring is mandatory, old retained scalar monitoring states are explicitly cleared, native Uptime discovery reads only the one `state/telemetry` JSON. **No deployment has happened.** This is not an automatic HA migration; HA 0.12.0+ must explicitly select per-PC v3 first. See [issue #176](https://github.com/mhalak/hal-gaming-control/issues/176)
 for the complete authoritative contract and HA acceptance checklist.
 
 ## Windows publisher and protocol
 
-Set `telemetry.unified_v3_enabled: true` in the locally protected Windows
-`config.yaml` **only for a supervised migration pilot**. This does not alter
+There is **no** `telemetry.unified_v3_enabled` opt-out in new Windows agent builds. Remove any old disabled `telemetry.unified_v3_enabled: false` key before testing. Use a supervised local migration pilot only. This does not alter
 Windows display power settings, enforce any gaming policy or grant a bonus.
 When enabled, the Windows service publishes:
 
@@ -92,36 +89,17 @@ PID, child name, username, full command line, window title, broker
 credentials, tokens, grants, policy or private player data is exposed.
 
 A full snapshot is schema v3 only, with no temporary `legacy` section.
-Existing v2/legacy messages stay unchanged during this compatibility
-window, while control channels remain independent: `command/*`, OTA,
+Legacy scalar and v2 foreground/display **monitoring messages are no longer published**. The exact previously retained scalar device-state topics are tombstoned on synchronization; old native Uptime `unique_id` is preserved but reads JSON with an expiry. Control channels remain independent: `command/*`, OTA,
 `update/status`, one-use terminate offers, `foreground_candidate`,
 `availability`, `discovery` and native MQTT discovery are **not
 combined** with routine telemetry.
 
-## Coordinated HA migration and rollback
+## Coordinated clean-cut HA migration and rollback
 
-1. Keep the Windows toggle **false** by default. Before piloting, deploy an
-   HA decoder that validates the complete v3 envelope and every nested
-   subfield, and explicitly negotiates the per-PC capability announced by
-   `unified_telemetry_protocol: 3` in retained discovery metadata.
-2. In a controlled pilot, enable v3 on **one** Windows PC only. Compare the
-   new snapshots with old v2 observations on that PC; verify sample freshness,
-   privacy, true active game identity, console ON/OFF, configured timeout,
-   AC/DC values, input idle and uptime, with disconnected/locked user,
-   gamepad, physical monitor OFF, multi-monitor, reconnect and clock changes.
-3. HA must select **exactly one** authoritative foreground/display source per
-   PC, preserve existing entity unique IDs and Recorder history, and never
-   double-charge time or duplicate Screen Idle bonus. Do not treat publisher
-   epoch as an OFF event ID: retain display `event_epoch:event_sequence`.
-   A missing v3 feed fails to unknown until an explicit, safe migration
-   fallback; do not silently use legacy Windows game names.
-4. A failed pilot is rolled back by disabling the Windows toggle and
-   explicitly selecting the still-available old HA source. Keep all
-   historical accounting/bonus journals intact; do not wildcard-delete
-   MQTT discovery or entity registries.
-5. Remove old Windows state publishers only **after** HA migration and
-   operator approval, in a separate review/PR. This Windows-side change
-   does not deploy to family computers, install signed binaries, change
-   updater trust, or modify Screen idle / Parent bonus policy.
+1. **BREAKING CHANGE / release hold:** Windows agent 0.3.0 is v3-only for read-only monitoring. HA 0.12.0+ supports v3 but its per-PC `unified_telemetry_enabled` option remains OFF until explicitly switched. Install/configure compatible HA v3 source **before** installing the Windows release. Old HA v2-only accounting will become unavailable (not silently fall back) with the new Windows agent. No legacy dual-publisher compatibility window.
+2. Native Uptime retains exactly `smarthouse_gaming_<device_id>_uptime` and exactly the same discovery config topic, but updates the `state_topic` to `state/telemetry`, uses a strictly bounded numeric `value_template`, and expires after 10 seconds. Direct MQTT Uptime already supports the same source while retaining its own unique ID. No duplicate sensor/entity registration.
+3. Windows continues to publish `availability`, device `discovery` capabilities, distinct command/OTA and signed update status, and short-lived tracked-app enrollment/targeted termination offers. These are security/control flows, not ordinary telemetry.
+4. A supervised Windows SYSTEM + logged-in user / HA pilot must verify exact source compatibility, screen off/on/bonus replay, gamepad and multiple monitors, uptime in native and direct MQTT modes, reconnect, ordering, Recorder, two PCs, target-offer authorization, and rollback. Maintain #56 deployment HOLD until documented acceptance; no signing or binaries are claimed by this source change.
+5. **Rollback is coordinated**, not silent: stop/revert the Windows service to a trusted older package **and** explicitly switch HA's per-PC source to v2, then verify without resetting original entity unique IDs, Recorder history or bonus journal. Do not wildcard-delete MQTT or HA registries.
 
-No HA source or entity implementation is part of this Windows-only PR.
+The Windows agent rejects an explicitly disabled legacy `telemetry.unified_v3_enabled: false` configuration and will not start rather than silently publish incompatible monitoring. This is intentionally breaking in development. Old agent-specific retained uptime/activity state topics are tombstoned with QoS 1 acknowledgments on connection. No OTA, command or availability protocol migration occurs in #176.
