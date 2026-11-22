@@ -65,6 +65,31 @@ async def _discover_devices(hass):
 
 
 
+def _preferred_discoveries(found):
+    """Prefer new hostname-scoped discoveries over retained legacy aliases.
+
+    This only affects manual candidate presentation: no MQTT tombstones, HA
+    registry/config entry mutation or implicit identity migration. An older PC
+    remains selectable when its hostname-based successor is not advertised.
+    """
+    canonical_names = {device["name"] for key, device in found.items()
+                       if key == device["name"]}
+    return {key: device for key, device in found.items()
+            if key == device["name"] or device["name"] not in canonical_names}
+
+
+def _discovery_options(devices):
+    """Keep distinct MQTT identities visible when friendly names collide."""
+    counts = {}
+    for device in devices.values():
+        name = device["name"]
+        counts[name] = counts.get(name, 0) + 1
+    return [{"value": key,
+             "label": (f"{device['name']} (MQTT: {key})"
+                       if counts[device["name"]] > 1 else device["name"])}
+            for key, device in devices.items()]
+
+
 async def _discover_foreground_candidate(hass, device_id):
     """Briefly listen for a fresh, non-retained candidate from this PC only."""
     topic = f"{ROOT}/{device_id}/state/foreground_candidate"
@@ -196,7 +221,7 @@ class GamingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input=None):
         if user_input is None:
             configured = self._async_current_ids()
-            found = await _discover_devices(self.hass)
+            found = _preferred_discoveries(await _discover_devices(self.hass))
             self._devices = {k: v for k, v in sorted(found.items()) if k not in configured}
             if not self._devices:
                 return self.async_abort(reason="no_devices_found")
@@ -207,7 +232,7 @@ class GamingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             await self.async_set_unique_id(self.device["device_id"], raise_on_progress=False)
             self._abort_if_unique_id_configured()
             return await self.async_step_confirm({})
-        options = [{"value": k, "label": v["name"]} for k, v in self._devices.items()]
+        options = _discovery_options(self._devices)
         return self.async_show_form(step_id="user", data_schema=vol.Schema({
             vol.Required("device"): selector.SelectSelector(selector.SelectSelectorConfig(options=options))}))
 
