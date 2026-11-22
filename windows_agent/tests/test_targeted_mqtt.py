@@ -65,6 +65,7 @@ def test_rules_free_pc_issues_scoped_single_use_token():
     assert len(commands) == 1 and commands[0][0] == "terminate_target"
     assert commands[0][1]["candidate"] == FOCUS
     assert commands[0][1]["sample_time"] == 100
+    assert commands[0][1]["received_at"] == 102
     with patch("gaming_control.mqtt_bridge.time.monotonic", return_value=102):
         send(b, request(data))
         assert list(b.drain_commands()) == []
