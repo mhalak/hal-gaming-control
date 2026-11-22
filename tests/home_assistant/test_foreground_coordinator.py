@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.parental import coordinator as co
+from custom_components.parental_control import coordinator as co
 from custom_components.parental_control.app_registry import identity_key
 from custom_components.parental_control.const import DOMAIN
 

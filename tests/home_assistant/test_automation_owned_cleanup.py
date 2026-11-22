@@ -6,7 +6,7 @@ from homeassistant import data_entry_flow
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.parental import _remove_legacy_statistics
+from custom_components.parental_control import _remove_legacy_statistics
 from custom_components.parental_control.const import DOMAIN
 from custom_components.parental_control.coordinator import GamingCoordinator
 

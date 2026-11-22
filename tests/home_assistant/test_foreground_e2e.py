@@ -11,7 +11,7 @@ import pytest
 from homeassistant import data_entry_flow
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.parental import config_flow as cf
+from custom_components.parental_control import config_flow as cf
 from custom_components.parental_control.app_editor import raw_label
 from custom_components.parental_control.const import DOMAIN
 from custom_components.parental_control.foreground_store import ForegroundStore

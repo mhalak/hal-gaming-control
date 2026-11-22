@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import pytest
 from homeassistant.components import mqtt
 
-from custom_components.parental import foreground_source as src
+from custom_components.parental_control import foreground_source as src
 from custom_components.parental_control.foreground_source import ForegroundSource
 
 pytestmark = pytest.mark.asyncio

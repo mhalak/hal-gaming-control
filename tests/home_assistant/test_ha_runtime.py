@@ -155,7 +155,7 @@ async def test_mqtt_manifest_subscription_dispatches_real_discovery(hass, enable
 # --- Manual onboarding when HA MQTT discovery is disabled (issue #13) ---
 from unittest.mock import MagicMock
 from pytest_homeassistant_custom_component.common import async_fire_mqtt_message
-from custom_components.parental import config_flow as cf
+from custom_components.parental_control import config_flow as cf
 
 @pytest.fixture
 def expected_lingering_timers() -> bool:
