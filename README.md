@@ -27,7 +27,7 @@ Track gaming time on Windows PCs, set limits, give bonus minutes and use parent 
     </td>
     <td valign="middle">
       <h3>🏠 100% local — the monsters stay outside. So does the cloud.</h3>
-      <p>We built our own <strong>Windows service</strong> so gaming activity and parent commands travel through <strong>your local MQTT broker and Home Assistant</strong>, not somebody else's cloud. No external control service, vendor account or subscription. The only boss battle is at home.</p>
+      <p>We built our own <strong>Windows service</strong> so gaming activity and parent commands travel through <strong>your local MQTT broker and Home Assistant</strong>, not somebody else's cloud. The only boss battle is at home.</p>
       <p><a href="https://github.com/mhalak/hal-gaming-control/blob/main/docs/features/local-mode.md">How local mode works</a></p>
     </td>
   </tr>
