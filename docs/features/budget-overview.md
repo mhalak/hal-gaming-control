@@ -27,7 +27,7 @@ So if the kids somehow have *another hour*, we can finally ask: **Did the little
 
 It's a transparent breakdown, **not an automatic cheat detector**. Unusual numbers should be easy to question, while the independent weekly budget still applies.
 
-**Implementation under review — not released yet.** The HA Budget Overview is being implemented in [issue #93](https://github.com/mhalak/hal-gaming-control/issues/93). Do not expect these new attributes until the PR has been reviewed, merged and deployed.
+**Source preview (issue #93).** The HA Budget Overview attributes and dashboard example are available only on builds that contain the merged change. Check your installed integration before using the example. Screen idle support remains a separate future feature.
 
 ## The gaming-time receipt
 
