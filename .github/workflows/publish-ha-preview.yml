@@ -1,0 +1,87 @@
+name: Publish HA preview release
+# Never publish just because a PR merged. One controlled operator action.
+on:
+  workflow_dispatch:
+  issue_comment:
+    types: [created]
+permissions:
+  contents: read
+jobs:
+  publish:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.number == 189 &&
+       github.event.issue.pull_request == null &&
+       github.event.comment.user.login == 'mhalak' &&
+       github.event.comment.body == '/publish-ha-preview 0.12.1'))
+    runs-on: ubuntu-latest
+    concurrency:
+      group: publish-ha-preview
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Verify exact source, 8/8 main CI and publish HA-only prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          SOURCE_SHA="$(git rev-parse HEAD)"
+          MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$SOURCE_SHA" == "$MAIN_SHA" ]] || { echo "Main advanced"; exit 1; }
+          python tools/release_identity.py check
+          python tools/ha_release_guard.py check --sha "$SOURCE_SHA"
+          python -m unittest discover -s tests -p test_ha_release_guard.py -q
+
+          verified=false
+          for attempt in $(seq 1 36); do
+            gh api --method GET "repos/$GITHUB_REPOSITORY/actions/runs" \
+              -f head_sha="$SOURCE_SHA" -f event=push -f per_page=100 > "$RUNNER_TEMP/ha-release-runs.json"
+            if python tools/ha_release_guard.py gate \
+              --sha "$SOURCE_SHA" --runs-file "$RUNNER_TEMP/ha-release-runs.json"; then
+              verified=true
+              break
+            fi
+            sleep 10
+          done
+          [[ "$verified" == true ]] || { echo "Required main CI not green"; exit 1; }
+          MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$SOURCE_SHA" == "$MAIN_SHA" ]] || { echo "Main advanced after CI"; exit 1; }
+
+          VERSION="$(python tools/ha_release_guard.py version)"
+          python tools/ha_release_guard.py notes \
+            --sha "$SOURCE_SHA" --output "$RUNNER_TEMP/ha-release-notes.md"
+
+          # Never move a tag or reuse a version with different HA package bytes.
+          if git show-ref --verify --quiet "refs/tags/$VERSION"; then
+            git diff --quiet "refs/tags/$VERSION" HEAD -- custom_components/hal_gaming_control || {
+              echo "HA package changed without new version"; exit 1;
+            }
+            if gh release view "$VERSION" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "Already released; unchanged HA package"
+              exit 0
+            fi
+            echo "Tag exists without Release; investigate manually"
+            exit 1
+          fi
+          if gh release view "$VERSION" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release exists without matching tag; investigate manually"
+            exit 1
+          fi
+          gh release create "$VERSION" -R "$GITHUB_REPOSITORY" \
+            --target "$SOURCE_SHA" \
+            --title "HAL Gaming Control HA $VERSION (preview)" \
+            --notes-file "$RUNNER_TEMP/ha-release-notes.md" \
+            --prerelease --latest=false
