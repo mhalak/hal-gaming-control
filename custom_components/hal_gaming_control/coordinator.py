@@ -57,7 +57,8 @@ class GamingCoordinator(DataUpdateCoordinator):
         # All gaming settings are read live. Only catalog changes need a reload.
         return {"update_catalog_url": options.get("update_catalog_url", ""),
                 "tracked_apps": json.dumps(options.get("tracked_apps", []), sort_keys=True),
-                "screen_idle_enabled": options.get("screen_idle_enabled") is True}
+                "screen_idle_enabled": options.get("screen_idle_enabled") is True,
+                "unified_telemetry_enabled": options.get("unified_telemetry_enabled") is True}
 
 
     async def async_start_foreground(self):
@@ -73,6 +74,8 @@ class GamingCoordinator(DataUpdateCoordinator):
         kwargs = {"intervals": segments}
         if screen:
             kwargs.update(screen_enabled=True, on_screen_off=self._screen_off)
+        if self.entry.options.get("unified_telemetry_enabled") is True:
+            kwargs["unified_enabled"] = True
         self.foreground = ForegroundSource(
             self.hass, self.device_id,
             self.entry.options.get("tracked_apps", []),
@@ -157,7 +160,10 @@ class GamingCoordinator(DataUpdateCoordinator):
         return {"ready": ready, "online": ready, "active_game": alias if ready else None,
                 "totals": totals if ready else {}, "recorded_totals": totals,
                 "coverage_incomplete": True, "cutover_since": self.cutover_since,
-                "reasons": reasons, "active": active}
+                "reasons": reasons, "active": active,
+                "unified_telemetry": self.foreground.unified_enabled,
+                "display_details": self.foreground.display_details,
+                "uptime_seconds": self.foreground.system_uptime}
 
     @property
     def options(self):

@@ -74,6 +74,26 @@ class ActiveGameSensor(GamingEntity, SensorEntity):
     def native_value(self):
         return (self.coordinator.data or {}).get("active_game")
 
+    @property
+    def extra_state_attributes(self):
+        # Existing Active game entity carries read-only diagnostics. No new
+        # per-field HA entities, no Windows process/window paths, no bonuses.
+        data = self.coordinator.data or {}
+        if not data.get("unified_telemetry"):
+            return {}
+        display = data.get("display_details") or {}
+        return {
+            "telemetry_protocol": 3,
+            "display_state": display.get("state", "unknown"),
+            "display_scope": display.get("scope"),
+            "display_event_age_ms": display.get("event_age_ms"),
+            "display_ac_timeout_seconds": display.get("ac_timeout_seconds"),
+            "display_dc_timeout_seconds": display.get("dc_timeout_seconds"),
+            "display_power_source": display.get("power_source"),
+            "last_input_idle_ms": display.get("last_input_idle_ms"),
+            "system_uptime_seconds": data.get("uptime_seconds"),
+        }
+
 
 class GamingTimeSensor(GamingEntity, SensorEntity):
     """Confirmed-only elapsed time; offline history is marked incomplete."""
