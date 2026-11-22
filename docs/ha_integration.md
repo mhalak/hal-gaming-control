@@ -4,7 +4,7 @@
 
 Home Assistant is the family's control panel: see gaming time, choose apps, give extra minutes and use manual controls. It can also handle reminders, which may save the family's last remaining nerve.
 
-**Development preview:** These steps describe HA 0.5.12 preview source. Always check the [release history](ha_releases.md) and the version you've installed.
+**Development preview:** These steps describe HA 0.5.13 preview source. Always check the [release history](ha_releases.md) and the version you've installed.
 
 ## Set it up
 
@@ -33,6 +33,13 @@ Open the PC device page to find **Daily budget**, **Weekly budget**, **Weekend b
 **Daily budget remaining** and **Weekly budget remaining** show remaining percentages. **Daily gaming time** and **Weekly gaming time** show explicit `h m s` text. Separate diagnostic **Daily gaming time (minutes)** and **Weekly gaming time (minutes)** sensors remain numeric durations for graphs and automations.
 
 [Gaming budgets](features/gaming-budgets.md)
+
+## Set allowed gaming hours
+
+On the PC's **Configuration** section, use **Schedule enabled**, **Allowed from**, and **Allowed until** (HA 0.5.13). The range is the daily interval when gaming is **allowed**: 16:00–20:00 allows play from 16:00 until just before 20:00. Overnight 20:00–02:00 is supported. Equal start and end mean all-day allowance. Times are interpreted in Home Assistant local time, including daylight-saving changes.
+
+Both **Gaming rules enabled** and **Schedule enabled** must be ON for an out-of-hours passive `schedule` restriction. No PC commands are sent automatically; schedule defaults to OFF.
+
 
 ## Lock the PC or close a game
 

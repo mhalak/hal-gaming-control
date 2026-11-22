@@ -37,6 +37,10 @@ For example: 180 daily minutes + 30 bonus minutes = **210 minutes today**. The w
 
 Royal generosity does not override the calendar.
 
+## Allowed gaming hours
+
+The per-PC **Configuration** section now includes **Schedule enabled** and **Allowed from** / **Allowed until** time pickers (HA 0.5.13). The window defines when gaming is allowed; both Gaming rules enabled and Schedule enabled must be ON for a passive restriction outside the window. Overnight windows are supported; equal start/end mean all day. This does not alter accrued game time or issue any Windows commands.
+
 ## Other options
 
 - **Unlimited gaming:** Bypasses applicable budgets without deleting playtime history.
