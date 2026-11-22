@@ -204,3 +204,52 @@ def test_discovery_cannot_invent_ota_install_readiness():
     assert e.ota_protocol == 1
     assert e.ota_install_capable is False
     assert e.extra_state_attributes["mqtt_ota_install_ready"] is False
+
+
+
+@pytest.mark.asyncio
+async def test_native_admin_options_flow_requires_fixed_urls_and_pinned_public_ed25519(
+        hass, enable_custom_integrations):
+    from homeassistant.data_entry_flow import FlowResultType
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives import serialization
+    from custom_components.hal_gaming_control.const import DOMAIN
+
+    saved = {"daily": 120, "tracked_apps": [{"name": "Roblox",
+                                              "process": "RobloxPlayerBeta.exe"}]}
+    entry = MockConfigEntry(domain=DOMAIN, data={
+        "device_id": PC, "name": "Windows PC", "protocol_version": 1,
+        "games": [], "actions": ["lock_pc"],
+    }, unique_id=PC, options=saved)
+    entry.add_to_hass(hass)
+    manager = hass.config_entries.options
+    menu = await manager.async_init(entry.entry_id)
+    assert "windows_updates" in menu["menu_options"]
+    form = await manager.async_configure(
+        menu["flow_id"], {"next_step_id": "windows_updates"})
+    assert form["type"] == FlowResultType.FORM
+    public = Ed25519PrivateKey.generate().public_key().public_bytes(
+        serialization.Encoding.PEM,
+        serialization.PublicFormat.SubjectPublicKeyInfo).decode("ascii")
+    invalid = await manager.async_configure(form["flow_id"], {
+        "ota_install_enabled": True,
+        "update_catalog_url": "http://insecure.example/catalog.json",
+        "ota_release_base_url": "https://releases.example.invalid/windows",
+        "ota_signer_public_key": public})
+    assert invalid["type"] == FlowResultType.FORM
+    assert invalid["errors"]["base"] == "invalid_signed_release"
+    assert entry.options == saved
+
+    values = {
+        "ota_install_enabled": True,
+        "update_catalog_url": "https://releases.example.invalid/catalog.json",
+        "ota_release_base_url": "https://releases.example.invalid/windows",
+        "ota_signer_public_key": public,
+    }
+    result = await manager.async_configure(form["flow_id"], values)
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"]["daily"] == 120
+    assert result["data"]["tracked_apps"] == saved["tracked_apps"]
+    assert result["data"]["ota_install_enabled"] is True
+    assert result["data"]["ota_signer_public_key"] == public
