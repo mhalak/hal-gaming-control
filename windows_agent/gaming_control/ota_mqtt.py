@@ -9,19 +9,23 @@ from pathlib import Path
 import time
 
 from .ota_staging import StageReceiver, decode_chunk, parse_offer
+from .ota_trust import OtaTrustError, authorize_staged
 
 
 class OtaMqttReceiver:
     """One in-memory, connection-bound stop-and-wait upload per Windows PC."""
 
-    def __init__(self, root, device_id, staging_root):
+    def __init__(self, root, device_id, staging_root, *, public_key=None):
         self.root = root
         self.device_id = device_id
         self.staging_root = Path(staging_root)
+        self.public_key = public_key  # Pinned from local updater.json, never MQTT.
         # Fail at provisioning, not halfway through a transfer.
         StageReceiver(self.staging_root, self.device_id)
         self.topics = {
             f"{root}/ota/start", f"{root}/ota/chunk", f"{root}/ota/finish"}
+        if public_key is not None:
+            self.topics.add(f"{root}/ota/auth")
         self.active = None
 
     def reset(self):
@@ -53,6 +57,8 @@ class OtaMqttReceiver:
             return self._chunk(payload, now)
         if suffix == "finish":
             return self._finish(payload, now)
+        if suffix == "auth" and self.public_key is not None:
+            return self._auth(payload, now)
         return None
 
     def _start(self, payload, now):
@@ -90,6 +96,17 @@ class OtaMqttReceiver:
             # Never expose a byte sequence or a user-controlled filename.
             return self._ack(active, "receiving")
         return self._ack(active, "receiving")
+
+    def _auth(self, payload, now):
+        active = self.active
+        if not active.completed:
+            return None
+        try:
+            authorize_staged(active, payload, self.public_key, now=now)
+        except (OtaTrustError, OSError, ValueError):
+            # A bad signature must never make the ZIP installable.
+            return self._ack(active, "rejected")
+        return self._ack(active, "authenticated")
 
     def _finish(self, payload, now):
         active = self.active

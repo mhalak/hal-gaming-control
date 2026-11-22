@@ -28,6 +28,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from gaming_control.update_control import atomic_json, parse_request, version_tuple
+from gaming_control.ota_trust import load_approved_staged, OtaTrustError
 
 try:
     import msvcrt
@@ -379,11 +380,44 @@ class StatusReporter:
             pass
 
 
+# ---------------------------------------------------------------- signed Windows binary trust
+def verify_authenticode(executable, pinned_thumbprint):
+    """Require a Windows-valid signature from the pre-provisioned publisher.
+
+    The script is fixed code, not a string from MQTT. The path and pinned
+    thumbprint are passed through private child-process environment values.
+    Ed25519 additionally authenticates the *entire* ZIP, including DLLs/PYD.
+    """
+    if os.name != 'nt':
+        raise ValueError('Windows Authenticode verification requires Windows')
+    if (not isinstance(pinned_thumbprint, str)
+            or not re.fullmatch(r'[A-Fa-f0-9]{40}', pinned_thumbprint)):
+        raise ValueError('Pinned Authenticode signer thumbprint required')
+    executable = Path(executable)
+    if not executable.is_file() or executable.is_symlink():
+        raise ValueError('Signed service executable is missing')
+    script = ("$ErrorActionPreference='Stop';"
+              "$s=Get-AuthenticodeSignature -LiteralPath $env:HAL_OTA_EXE;"
+              "if($s.Status -ne 'Valid' -or $null -eq $s.SignerCertificate"
+              " -or $s.SignerCertificate.Thumbprint -ne $env:HAL_OTA_CERT)"
+              "{exit 2}")
+    env = os.environ.copy()
+    env['HAL_OTA_EXE'] = str(executable)
+    env['HAL_OTA_CERT'] = pinned_thumbprint.upper()
+    powershell = (Path(os.environ['SystemRoot']) / 'System32' /
+                  'WindowsPowerShell' / 'v1.0' / 'powershell.exe')
+    subprocess.run([str(powershell), '-NoProfile', '-NonInteractive',
+                    '-Command', script], env=env, capture_output=True,
+                   timeout=30, check=True)
+    return True
+
+
 # ---------------------------------------------------------------- transaction
 class Updater:
     """Update transaction with injectable collaborators (service, download, clock, health)."""
 
-    def __init__(self, data, target, service, download, reporter, health, clock=time.time, hook=None):
+    def __init__(self, data, target, service, download, reporter, health, clock=time.time, hook=None,
+                 authenticode=None):
         self.data, self.target = Path(data), Path(target)
         self.backup = self.target.with_name(NAME + '.rollback')
         self.stage = self.target.with_name(NAME + '.staging')
@@ -394,6 +428,7 @@ class Updater:
         self.service, self.download, self.reporter = service, download, reporter
         self.health, self.clock = health, clock
         self.hook = hook or (lambda name: None)
+        self.authenticode = authenticode or verify_authenticode
         self.request_id = None
         self.version = None
         self.record = None
@@ -492,6 +527,9 @@ class Updater:
         self.stage.mkdir()
         self.hook('staged')
         payload = self.fetch_and_verify(cfg, version)
+        if cfg.get('mqtt_install_enabled') is True:
+            self.authenticode(payload / (NAME + '.exe'),
+                              cfg.get('authenticode_thumbprint'))
         self.hook('verified')
         self.status('stopping')
         self.phase('swap')
@@ -515,12 +553,37 @@ class Updater:
     def fetch_and_verify(self, cfg, version):
         self.status('downloading')
         raw, sig, package = [self.stage / name for name in ('manifest.json', 'manifest.sig', 'package.zip')]
-        base = cfg['base_url']
-        self.download(base, f'windows-agent-{version}.json', raw, 4096)
-        self.download(base, f'windows-agent-{version}.sig', sig, 256)
-        self.status('verifying')
-        manifest = verify_manifest(raw.read_bytes(), sig.read_bytes(), cfg['public_key_pem'].encode(), version)
-        self.download(base, manifest['filename'], package, MAX_PACKAGE)
+        if cfg.get('mqtt_install_enabled') is True:
+            device_file = self.data / 'device_id'
+            if device_file.is_symlink() or not device_file.is_file():
+                raise ValueError('Persisted device ID required for MQTT OTA')
+            device_id = device_file.read_text(encoding='ascii').strip()
+            if not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', device_id):
+                raise ValueError('Invalid persisted device ID')
+            source, manifest_raw, signature, marker = load_approved_staged(
+                self.data / 'ota-staging', device_id, version,
+                cfg['public_key_pem'], now=self.clock())
+            raw.write_bytes(manifest_raw)
+            sig.write_bytes(signature)
+            self.status('verifying')
+            manifest = verify_manifest(
+                manifest_raw, signature, cfg['public_key_pem'].encode(), version)
+            shutil.copyfile(source, package)
+            # Persist only a validated opaque transfer ID, never an MQTT path.
+            # Crash recovery can then clean the quarantined evidence *after*
+            # a verified commit without losing the journal's exact ownership.
+            transfer_id = marker.name[len('ota-'):-len('.approved.json')]
+            if not re.fullmatch(r'[0-9a-f]{32}', transfer_id):
+                raise ValueError('Invalid authenticated OTA transfer ID')
+            self.record['ota_transfer_id'] = transfer_id
+            atomic_json(self.journal_path, self.record)
+        else:
+            base = cfg['base_url']
+            self.download(base, f'windows-agent-{version}.json', raw, 4096)
+            self.download(base, f'windows-agent-{version}.sig', sig, 256)
+            self.status('verifying')
+            manifest = verify_manifest(raw.read_bytes(), sig.read_bytes(), cfg['public_key_pem'].encode(), version)
+            self.download(base, manifest['filename'], package, MAX_PACKAGE)
         with package.open('rb') as handle:
             digest = hashlib.file_digest(handle, 'sha256').hexdigest()
         if package.stat().st_size != manifest['size'] or digest != manifest['sha256']:
@@ -548,6 +611,18 @@ class Updater:
             if self.stage.exists():
                 shutil.rmtree(self.stage)
             self.hook('cleanup_stage')
+            transfer_id = (self.record or {}).get('ota_transfer_id')
+            if transfer_id is not None:
+                if not isinstance(transfer_id, str) or not re.fullmatch(r'[0-9a-f]{32}', transfer_id):
+                    raise ValueError('Invalid OTA journal transfer ID')
+                root = self.data / 'ota-staging'
+                if not root.is_dir() or root.is_symlink():
+                    raise ValueError('Protected OTA quarantine unavailable')
+                for extension in ('.approved.json', '.staged'):
+                    path = root / f'ota-{transfer_id}{extension}'
+                    if path.is_symlink():
+                        raise ValueError('OTA quarantine symlink is unsafe')
+                    path.unlink(missing_ok=True)
             self.journal_path.unlink(missing_ok=True)
             return True
         except Exception as err:

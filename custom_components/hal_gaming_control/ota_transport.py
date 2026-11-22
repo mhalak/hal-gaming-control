@@ -5,6 +5,7 @@ network download and no authorization to run a received Windows executable.
 Only a future pinned-signature release pipeline may invoke this transport.
 """
 import asyncio
+import base64
 from functools import partial
 import json
 import secrets
@@ -20,7 +21,7 @@ ACK_TIMEOUT = 3.0
 RETRIES = 3
 TRANSFER_TTL = 110
 _ACK_FIELDS = {"protocol", "device_id", "transfer_id", "next_index", "status"}
-_STATUSES = {"receiving", "staged", "rejected"}
+_STATUSES = {"receiving", "staged", "authenticated", "rejected"}
 
 
 class OtaTransferError(Exception):
@@ -64,13 +65,16 @@ def _next_frame(generator):
 
 
 class _Transfer:
-    def __init__(self, hass, package, *, ack_timeout, retries, on_progress):
+    def __init__(self, hass, package, *, ack_timeout, retries, on_progress,
+                 signed_manifest=None, signed_signature=None):
         self.hass = hass
         self.package = package
         self.base = f"{ROOT}/{package.device_id}/ota"
         self.ack_timeout = ack_timeout
         self.retries = retries
         self.on_progress = on_progress
+        self.signed_manifest = signed_manifest
+        self.signed_signature = signed_signature
         self.queue = asyncio.Queue(maxsize=32)
 
     def _receive_ack(self, message):
@@ -104,7 +108,9 @@ class _Transfer:
                 continue  # Delayed duplicate ACK from a previous block.
             if data["status"] == status:
                 return
-            if data["status"] == "staged" or status == "receiving":
+            if status == "authenticated" and data["status"] == "staged":
+                continue  # Delayed FINISH ACK, not authorization.
+            if data["status"] in ("staged", "authenticated") or status == "receiving":
                 raise OtaTransferError("Unexpected OTA staging state")
             # A late receiving ACK is possible while waiting for staged.
 
@@ -143,10 +149,20 @@ class _Transfer:
                 raise OtaTransferError("OTA source unexpectedly grew")
             await self._step("finish", self.package.finish(),
                              self.package.chunk_count, "staged", can_retry=False)
+            if self.signed_manifest is not None:
+                envelope = json.dumps({
+                    "protocol": 2, "device_id": self.package.device_id,
+                    "transfer_id": self.package.transfer_id,
+                    "manifest_b64": base64.b64encode(self.signed_manifest).decode("ascii"),
+                    "signature_b64": base64.b64encode(self.signed_signature).decode("ascii"),
+                }, separators=(",", ":")).encode("ascii")
+                await self._step("auth", envelope, self.package.chunk_count,
+                                 "authenticated")
             return {"transfer_id": self.package.transfer_id,
                     "version": self.package.version,
                     "chunks": self.package.chunk_count,
-                    "status": "staged_unverified"}
+                    "status": ("authenticated_staged" if self.signed_manifest is not None
+                               else "staged_unverified")}
         finally:
             unsub()
 
@@ -166,10 +182,19 @@ class HaOtaTransport:
     async def async_stage_package(self, path, *, device_id, version,
                                   transfer_id=None, ack_timeout=ACK_TIMEOUT,
                                   retries=RETRIES, on_progress=None,
-                                  expected_sha256=None, expected_size=None):
+                                  expected_sha256=None, expected_size=None,
+                                  signed_manifest=None, signed_signature=None):
         if (type(ack_timeout) not in (float, int) or not 0 < ack_timeout <= 30
                 or type(retries) is not int or not 0 <= retries <= 5):
             raise ValueError("Invalid OTA transport retry limits")
+        if (signed_manifest is None) != (signed_signature is None):
+            raise ValueError("Signed OTA needs both manifest and signature")
+        if signed_manifest is not None and (
+                not isinstance(signed_manifest, bytes)
+                or not 0 < len(signed_manifest) <= 4096
+                or not isinstance(signed_signature, bytes)
+                or len(signed_signature) != 64):
+            raise ValueError("Invalid signed OTA release evidence")
         lock = self._locks.setdefault(device_id, asyncio.Lock())
         if lock.locked():
             raise OtaTransferError("OTA transfer already active for device")
@@ -191,4 +216,6 @@ class HaOtaTransport:
                 raise OtaTransferError("OTA bytes differ from signed manifest size")
             return await _Transfer(
                 self.hass, package, ack_timeout=ack_timeout,
-                retries=retries, on_progress=on_progress).run()
+                retries=retries, on_progress=on_progress,
+                signed_manifest=signed_manifest,
+                signed_signature=signed_signature).run()

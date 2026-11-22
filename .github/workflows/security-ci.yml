@@ -41,7 +41,7 @@ jobs:
         run: go install github.com/zricethezav/gitleaks/v8@v8.30.0
       - name: Scan checked-out Git history with fully redacted findings
         run: |
-          "${{ runner.temp }}/gitleaks-ci/gitleaks" git --redact=100 --no-banner --log-opts="--all" .
+          "${{ runner.temp }}/gitleaks-ci/gitleaks" git --verbose --redact=100 --no-banner --log-opts="--all" .
 
   python-sast:
     name: Bandit
