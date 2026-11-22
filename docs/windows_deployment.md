@@ -1,5 +1,13 @@
 # Windows deployment guide
 
+## Windows 0.2.7 Preview 6 — automatic PC identity (issue #155, first safe increment)
+
+The Windows agent now derives its discovery name from the **current Windows computer name**. Do not type or maintain `device.name`. On a fresh installation without `device.id`, it generates a random, stable per-install ID and saves it as `%ProgramData%\\SmartHouseGamingControl\\device_id` in the same administrator/SYSTEM-protected directory as `config.yaml`. It reuses this ID after service restart, PC renaming, or binary update. Keep this file with the ProgramData directory across reinstalls, because a lost ID creates a new HA device and MQTT topic root. Do not copy the identity file between PCs.
+
+**Upgrade:** if the installed `config.yaml` still specifies `device.id`, the existing ID is kept and written to `device_id` the first time this version starts. You may then remove the entire legacy `device` section; the identity stays the same. If a stored ID and explicit configured ID disagree, the service deliberately fails to start rather than silently creating a second identity. Back up both before making manual changes. The old `device.name` value is ignored; rename the device in Home Assistant to your preferred visible label. User-defined HA device names take precedence over the default discovered name.
+
+**Not yet zero-config:** the legacy `games` list is still required for safe manual `Terminate game` support. Foreground app enrollment and display names are configured in HA, but we must migrate the termination command before removing Windows rules. This is tracked in #155. No forced shutdown and no remote updater are enabled by this change.
+
 ## Windows 0.2.6 Preview 5 — retire native agent-derived activity discovery
 
 This source prepares the native MQTT discovery side of issue #67: new Windows agents
@@ -36,7 +44,7 @@ Home Assistant (HA) and HACS run independently of the Windows companion. HACS in
 
 - Windows 10/11 x64; administrator access on the target PC.
 - Running HA with MQTT and Recorder, and a reachable MQTT 5 broker.
-- A unique device ID, name and restricted MQTT account per PC; follow [MQTT setup](mqtt_setup.md).
+- A unique restricted MQTT account per PC; the Windows name and stable device ID are generated/resolved automatically (see above). Follow [MQTT setup](mqtt_setup.md).
 - A trusted Windows build machine with Python 3.12 x64 when building from source.
 - Disable automatic restrictions during installation, upgrade and testing. Close valuable game sessions.
 
@@ -72,12 +80,9 @@ Copy-Item .\config.example.yaml .\config.yaml
 notepad .\config.yaml
 ```
 
-Set the unique device ID, name, MQTT host/port and credentials. The following is a TLS example; the broker needs TLS enabled on its configured port. Adjust rules for actual game installations.
+Set the MQTT host/port and credentials. No manual device ID or device name is needed. The following is a TLS example; the broker needs TLS enabled on its configured port. Adjust the transitional termination rules for actual game installations.
 
 ```yaml
-device:
-  id: gaming_pc_01
-  name: Gaming PC 1
 mqtt:
   host: BROKER_HOST
   port: 8883
@@ -110,6 +115,7 @@ Get-Service SmartHouseGamingControl
 Get-CimInstance Win32_Service -Filter "Name='SmartHouseGamingControl'" |
   Select-Object Name, State, StartMode, StartName, PathName
 Get-Content "$env:ProgramFiles\SmartHouseGamingControl\version.txt"
+Get-Content "$env:ProgramData\SmartHouseGamingControl\device_id"
 ```
 
 Expected: Running, Automatic, LocalSystem. The installer places binaries in Program Files and config/logs in protected ProgramData. It deliberately refuses an already installed service. Remove temporary copies of config.yaml after verifying the protected installed copy.
@@ -117,7 +123,7 @@ Expected: Running, Automatic, LocalSystem. The installer places binaries in Prog
 ## Pair and validate
 
 1. Confirm the HA MQTT connection and running Windows service.
-2. In HA MQTT's topic listener, observe the exact device root SmartHouse/Gaming/gaming_pc_01/discovery, availability, state/uptime, state/in_game and state/current_game. Uptime advances roughly every 60 seconds; availability must transition online after a fresh snapshot. Metadata includes agent_version.
+2. In HA MQTT's topic listener, observe `SmartHouse/Gaming/<device_id>/discovery`, availability, state/uptime, state/in_game and state/current_game, using the saved `device_id` file value (not an assumed hostname). Uptime advances roughly every 60 seconds; availability must transition online after a fresh snapshot. Metadata includes agent_version.
 3. Install the HA integration (manually, or via HACS when validated). Restart HA, go to Settings → Devices & services → Add integration and select HAL Gaming Control and the advertised PC.
 4. Verify raw telemetry, budget controls and Windows agent version on the device. Keep Current game and Uptime in Recorder with at least eight days' retention.
 5. Launch and close a disposable game. Current preview behavior reports matching running processes, even in the background; do not confuse that with actual foreground play.
@@ -130,7 +136,7 @@ Edit the protected installed config as an administrator:
 
 `$env:ProgramData\SmartHouseGamingControl\config.yaml`
 
-Keep its device ID and ACL unchanged. Restart the service after authorized edits. Do not change HA's shared broker or another PC's credentials merely to change one PC.
+Preserve the protected `device_id` file, and keep any legacy `device.id` consistent with it. Do not change its ACL. Restart the service after authorized edits. Do not change HA's shared broker or another PC's credentials merely to change one PC.
 
 ## Manual upgrade and rollback
 

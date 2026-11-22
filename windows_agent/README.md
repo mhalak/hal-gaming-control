@@ -6,7 +6,7 @@ The Windows service reports five sensors and executes two explicit actions. All 
 
 ## MQTT contract
 
-Root: SmartHouse/Gaming/<device_id>/. States and availability are retained; commands must be non-retained. MQTT 5 required (e.g. Mosquitto 2.x), clean start, no persistent command session. Use a separate device ID and broker credentials per PC.
+Root: SmartHouse/Gaming/<device_id>/. States and availability are retained; commands must be non-retained. MQTT 5 required (e.g. Mosquitto 2.x), clean start, no persistent command session. Use a separate broker account per PC. The stable device ID is generated automatically and stored in protected ProgramData as `device_id` (or migrated from a legacy `device.id`); the discovery name comes from the current Windows computer name. Do not copy the ID file between PCs.
 
 | Relative topic | Payload | Purpose |
 |---|---|---|
@@ -46,9 +46,9 @@ Lock uses the active console if available, otherwise a single active remote sess
 
 ## Build/install (Windows 10/11 x64)
 
-1. Install Python 3.12 on the build PC and run ./build.ps1 -Version 0.2.1 (PowerShell). The standalone onedir build is under dist/SmartHouseGamingControl/. Target PC does not need Python.
-2. Copy config.example.yaml to config.yaml and set broker/credentials; never commit secrets. Confirm game names, paths and arguments on actual installations. Run from elevated PowerShell: Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'javaw|minecraft|roblox' } | Select-Object Name,ExecutablePath,CommandLine. Don't share command lines containing credentials.
-3. Close valuable game sessions. Run ./install.ps1 as Administrator. Service runs as LocalSystem (required for WTSQueryUserToken); program in Program Files and config/logs in protected ProgramData. Installer expects a fresh install.
+1. Install Python 3.12 on the build PC and run ./build.ps1 -Version 0.2.7 (PowerShell). The standalone onedir build is under dist/SmartHouseGamingControl/. Target PC does not need Python.
+2. Copy config.example.yaml to config.yaml and set broker/credentials; never commit secrets. `device.id` and `device.name` are no longer user-entered fields. The legacy game rules are **still required** until the safe manual termination protocol is migrated (#155); confirm game names, paths and arguments on actual installations. Run from elevated PowerShell: Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'javaw|minecraft|roblox' } | Select-Object Name,ExecutablePath,CommandLine. Don't share command lines containing credentials.
+3. Close valuable game sessions. Run ./install.ps1 as Administrator. Service runs as LocalSystem (required for WTSQueryUserToken); program in Program Files and config/logs/identity file in protected ProgramData. Keep `device_id` during upgrades and reinstallations. If upgrading a legacy configuration, its existing `device.id` is persisted and preserved; subsequent host renames affect only the reported default name, not HA identity or MQTT topics. Installer expects a fresh install.
 4. Check the native MQTT device has seven advertised entities (five telemetry entities, two actions); scoped HA onboarding still uses the legacy telemetry contract. Verify sensors, terminate on a disposable game session, lock, reboot, reconnect. No autonomous restrictions should occur. See docs/acceptance.md.
 5. Stop-Service SmartHouseGamingControl stops the agent; ./uninstall.ps1 removes service registration and preserves config/logs.
 

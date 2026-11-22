@@ -128,6 +128,15 @@ def runtime(tmp_path):
         yield path, bridge, focus
 
 
+def test_run_advertises_os_hostname_and_preserves_generated_identity(runtime):
+    path, _, _ = runtime
+    with patch("gaming_control.identity.socket.gethostname", return_value="DESKTOP-LUCIJA"):
+        A.run(path, Stop())
+    resolved = A.Bridge.call_args.args[0]
+    assert resolved["device"]["name"] == "DESKTOP-LUCIJA"
+    assert resolved["device"]["id"] == (path.parent / "device_id").read_text().strip()
+
+
 def test_run_dispatches_commands_and_publishes_telemetry(runtime):
     path, bridge, focus = runtime
     request = {"request_id": "synthetic"}

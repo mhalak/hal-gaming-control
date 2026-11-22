@@ -1,6 +1,10 @@
 # Windows agent acceptance checklist
 
 - [ ] Fresh install starts automatically under LocalSystem, no visible window, no user account provisioning.
+- [ ] Without a manual device section, service reports the actual Windows computer name; it generates a per-install ID in protected ProgramData/device_id and reuses it after restart and Windows computer rename.
+- [ ] Legacy config device.id is preserved verbatim and saved into the ID file; removing the legacy device section later does not create another HA device or reset budgets/history.
+- [ ] Two PCs on the same broker have distinct identities and device-scoped topics. A mismatch/corrupted persisted identity prevents startup instead of silently re-enrolling; never share identity files.
+- [ ] In HA, override the default discovered PC name with a user-defined friendly name; subsequent service restart/hostname changes must not replace a name_by_user override or create duplicate entities.
 - [ ] HA discovers exactly three sensors and two buttons; device availability follows broker connection and last will.
 - [ ] Uptime is machine uptime, not service uptime; it advances across service restart and resets on full Windows reboot (Windows Fast Startup may preserve kernel uptime).
 - [ ] Idle reports OFF / idle, launch and exit report promptly (default poll 1 s); minimized game remains active.
