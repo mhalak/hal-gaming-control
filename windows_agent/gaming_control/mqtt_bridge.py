@@ -134,12 +134,15 @@ class Bridge:
         self.id = dev['id']
         if not re.fullmatch(r'[a-zA-Z0-9_-]+', self.id):
             raise ValueError('Invalid device id')
+        # Breaking #176 clean cut: all ordinary monitoring is v3-only.
+        # Explicit old opt-out cannot silently leave HA with stale v2 data.
         settings = config.get('telemetry', {})
         if (not isinstance(settings, dict)
-                or type(settings.get('unified_v3_enabled', False)) is not bool):
-            raise ValueError('Invalid unified telemetry configuration')
-        self.unified_enabled = settings.get('unified_v3_enabled', False)
-        if self.unified_enabled and len(self.id) > 64:
+                or ('unified_v3_enabled' in settings
+                    and settings['unified_v3_enabled'] is not True)):
+            raise ValueError('Unified v3 is mandatory; remove the old disabled gate')
+        self.unified_enabled = True
+        if len(self.id) > 64:
             raise ValueError('Unified telemetry device ID exceeds v3 limit')
         self.root = f'SmartHouse/Gaming/{self.id}'
         self.prefix = cfg.get('discovery_prefix', 'homeassistant')
@@ -212,9 +215,8 @@ class Bridge:
             self.metadata['mqtt_ota_protocol'] = 2 if install_requested else 1
             self.metadata['mqtt_ota_install_ready'] = bool(install_requested)
         self.metadata['focus_protocol'] = 1
-        if self.unified_enabled:
-            # A capability advertisement is NOT authorization for HA cutover.
-            self.metadata['unified_telemetry_protocol'] = 3
+        # Native MQTT and HA must see the same v3-only capability.
+        self.metadata['unified_telemetry_protocol'] = 3
         if self.updates_enabled:
             self.command_topics[self.root + '/command/update'] = 'update'
 
@@ -422,12 +424,31 @@ class Bridge:
                 self.last_full = now
         return True
 
-    def publish(self, game_values, uptime):
-        """Return True only while current telemetry is synchronized.
+    def _clear_legacy_retained(self, generation):
+        """Tombstone only exact agent-owned historical scalar state topics."""
+        for key in ('uptime', 'in_game', 'current_game',
+                    'gaming_active', 'active_game', 'focus_availability'):
+            if not self._same_connection(generation):
+                return False
+            try:
+                info = self.client.publish(
+                    self.root + '/state/' + key, b'', qos=1, retain=True)
+                if info.rc != mqtt.MQTT_ERR_SUCCESS:
+                    return False
+                info.wait_for_publish(timeout=STATE_ACK_TIMEOUT)
+                if not info.is_published():
+                    return False
+            except (RuntimeError, ValueError, OSError):
+                return False
+        return self._same_connection(generation)
 
-        On a fresh connection hide any retained previous state before publishing
-        a complete, acknowledged live snapshot. Never announce availability
-        after merely queueing unacknowledged sensor messages.
+    def publish(self, game_values, uptime):
+        """Synchronize only discovery and availability; no legacy telemetry.
+
+        Keep this call as the existing connection barrier for OTA and target
+        command guards. An online announcement is allowed only after the
+        exact retained old scalar states are deleted and discovery refreshed;
+        the v3 QoS0 source itself is sent after this acknowledgement.
         """
         with self.lock:
             if not self.connected:
@@ -436,24 +457,25 @@ class Bridge:
             initial = self.synced_generation != generation
             refresh = self.refresh_requested
             self.refresh_requested = False
-        if initial:
-            if not self._retained(self.root + '/availability', 'offline', generation):
-                self._invalidate(generation)
-                return False
+        if initial and not self._retained(
+                self.root + '/availability', 'offline', generation):
+            self._invalidate(generation)
+            return False
         if refresh or initial:
             self._refresh_discovery()
-        now = time.monotonic()
-        full = now - self.last_full >= UPTIME_PERIOD
-        values = self._snapshot_values(game_values, uptime, full)
-        changed = any(self.last.get(k) != v for k, v in values.items())
-        if full or changed:
-            if not self._publish_snapshot(values, generation, full, now):
+            if not self._clear_legacy_retained(generation):
+                self._invalidate(generation)
                 return False
-            if initial:
-                LOG.info('MQTT initial snapshot acknowledged: game=%s in_game=%s uptime=%s',
-                         game_values.get('current_game'), game_values.get('in_game'), uptime)
+        if initial:
+            if not self._retained(
+                    self.root + '/availability', 'online', generation):
+                self._invalidate(generation)
+                return False
+            with self.lock:
+                if not self.connected or self.generation != generation:
+                    return False
+                self.synced_generation = generation
         return self._same_connection(generation)
-
 
     def capture_foreground_context(self):
         """Capture connection identity and clocks before examining foreground."""
