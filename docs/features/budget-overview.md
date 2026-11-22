@@ -47,7 +47,7 @@ Here is what a parent's daily budget might look like:
 
 ## Parent bonus history and Undo (HA 0.9.0 source candidate, #165)
 
-Every **new** click of **Add 30 minutes** becomes a separate, timestamped Parent bonus grant. The daily sensor exposes today's active grants (`parent_bonus_grants_today`) and both active/cancelled records (`parent_bonus_activity_today`). Cancelled grants stay in the 90-day audit; no past gaming time is erased.
+Every **new** click of **Add 30 minutes** becomes a separate, timestamped Parent bonus grant. The daily sensor exposes the **12 most recent** active grants (`parent_bonus_grants_today`) and active/cancelled records (`parent_bonus_activity_today`) to keep Recorder attributes compact. The full 90-day audit remains in the per-PC config entry, and the native select can list all active grants for today. The sensor also exposes `parent_bonus_recent_action` (latest add or cancellation), so the dashboard gives immediate visible feedback after a change. Cancelled grants remain in the audit; no past gaming time is erased.
 
 Previous bonuses were just an anonymous `bonus_minutes` total. These remain as a **Legacy Parent bonus** row, with unknown individual grant times. We never invent earlier clicks.
 
@@ -170,7 +170,13 @@ cards:
       {% set e = 'sensor.example_pc_daily_budget_remaining' %}
       {% set entries = state_attr(e, 'parent_bonus_activity_today') or [] %}
       {% set legacy = state_attr(e, 'parent_bonus_legacy_minutes') | int(0) %}
+      {% set last = state_attr(e, 'parent_bonus_recent_action') %}
       **Parent bonus today: +{{ state_attr(e, 'parent_bonus_minutes') | int(0) }} min**
+      {% if last %}
+
+      **Latest action:** {{ as_local(as_datetime(last.at_utc)).strftime('%H:%M') }} ·
+      {% if last.action == 'cancelled' %}↩️ −{{ last.minutes }} min cancelled{% else %}✅ +{{ last.minutes }} min added{% endif %}
+      {% endif %}
       {% if legacy > 0 %}
 
       Legacy bonus (time unknown): **+{{ legacy }} min**
