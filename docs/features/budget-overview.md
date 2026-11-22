@@ -45,6 +45,16 @@ Here is what a parent's daily budget might look like:
 
 *Illustrative values, not live measurements.* The Screen idle bonus remains **pending** until [Smart Idle #92](screen-idle-bonus.md) delivers a verified event ledger. Pending does not mean zero eligible time and must not be guessed.
 
+## Parent bonus history — backend preview (#165)
+
+A follow-up draft implementation records each **new** click of **Add 30 minutes** as a stable, time-stamped Parent bonus grant. The receipt sensor can show today's active entries in `parent_bonus_grants_today` and today's active/cancelled audit entries in `parent_bonus_activity_today` (up to 50 most recent entries in state attributes). The complete retained journal lives in the per-device Home Assistant config entry. The existing `bonus_minutes` remains a compatibility mirror used by current budget consumers.
+
+**Migration is honest:** Any cumulative Parent bonus already present before this feature is retained as `parent_bonus_legacy_minutes`, a single unattributed total. Its individual clicks and times cannot be reconstructed, so they must not be displayed as fabricated historical grants.
+
+**Undo is not yet a user-facing control in this backend increment.** The stored record supports safe, ID-specific cancellation, but the actual selectable, confirmation-protected Android/Home Assistant dashboard workflow still needs its own reviewed UI implementation under [#165](https://github.com/mhalak/hal-gaming-control/issues/165). Do not add inert Undo buttons to Markdown. Only a valid, authorized current-day grant should ever be revoked; never change recorded Daily/Weekly Gaming time.
+
+The audit retains up to 90 days of new grants, with a hard storage cap. An over-full or malformed journal must fail rather than silently erase active history.
+
 ## Add a Home Assistant dashboard card
 
 This is a **native Home Assistant vertical-stack dashboard**, not a custom frontend. The large number and status appear first, followed by a horizontal daily remaining bar, the itemized receipt and a separate weekly bar. The dashboard does not issue commands or silently change your rules.
