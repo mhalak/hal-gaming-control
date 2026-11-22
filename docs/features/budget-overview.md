@@ -17,7 +17,15 @@
   </tr>
 </table>
 
-**Budget Review — DO NOT DISTURB.** Dad has the numbers. Mum has questions. No one is allowed to interrupt the audit.
+## Where did all those minutes come from?
+
+The Budget Overview is the family's gaming-time receipt. It shows the **regular daily budget**, each **extra bonus**, the **gaming time already used**, and **what's left**. No guessing, no mental arithmetic, and no digging through a dozen Home Assistant sensors.
+
+Some extra minutes come **directly from a parent** — yes, Dad, pressing **Add 30 minutes** counts. Others can be **awarded automatically**, based on parent-approved rules and verified activity, such as eligible screen-idle time. The **Weekend bonus** has its own line too. Every bonus has a source, and none of them secretly erases time already played.
+
+So if the kids somehow have *another hour*, we can finally ask: **Did the little rascals find a loophole, or has Dad been handing out bonus minutes like candy?** Mum wants the receipts.
+
+It's a transparent breakdown, **not an automatic cheat detector**. Unusual numbers should be easy to question, while the independent weekly budget still applies.
 
 **Planned — not implemented.** The itemized Budget Overview isn't available in Home Assistant yet. [Design issue #93](https://github.com/mhalak/smarthouse-parental-control/issues/93).
 
