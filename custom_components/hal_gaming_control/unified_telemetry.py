@@ -60,16 +60,8 @@ def _foreground(value):
         raise ValueError("Invalid foreground state")
 
 
-def _display(value):
-    if not isinstance(value, dict) or value.keys() != DISPLAY:
-        raise ValueError("Invalid display fields")
+def _display_event(value):
     state = value["state"]
-    if state not in ("on", "dim", "off", "unknown") or value["scope"] != "windows_console":
-        raise ValueError("Invalid console display state")
-    age = value["sample_age_ms"]
-    _age(age, nullable=True)
-    if state != "unknown" and age is None:
-        raise ValueError("Console evidence requires a sample")
     receipt = (value["event_epoch"], value["event_sequence"],
                value["event_age_ms"])
     if state == "unknown":
@@ -81,6 +73,9 @@ def _display(value):
           or type(receipt[2]) is not int
           or not 0 <= receipt[2] <= MAX_EVENT_AGE_MS):
         raise ValueError("Invalid console notification receipt")
+
+
+def _display_policy(value):
     for key in ("ac_timeout_seconds", "dc_timeout_seconds"):
         v = value[key]
         if v is not None and (type(v) is not int or not 0 <= v <= 0xffffffff):
@@ -88,6 +83,22 @@ def _display(value):
     if value["power_source"] not in ("ac", "battery", "unknown"):
         raise ValueError("Invalid display power source")
     _age(value["last_input_idle_ms"], nullable=True)
+
+
+def _display(value):
+    if not isinstance(value, dict) or value.keys() != DISPLAY:
+        raise ValueError("Invalid display fields")
+    state = value["state"]
+    if state not in ("on", "dim", "off", "unknown"):
+        raise ValueError("Invalid console display state")
+    if value["scope"] != "windows_console":
+        raise ValueError("Invalid console display scope")
+    age = value["sample_age_ms"]
+    _age(age, nullable=True)
+    if state != "unknown" and age is None:
+        raise ValueError("Console evidence requires a sample")
+    _display_event(value)
+    _display_policy(value)
 
 
 def _system(value):
@@ -103,64 +114,91 @@ def _system(value):
         raise ValueError("Invalid build SHA")
 
 
-def decode_telemetry(payload, device_id, *, retained, wall_now):
-    """Decode one complete v3 snapshot; reject foreign, retained and stale data.
-
-    Subfield samples that were valid but have since aged out are normalized
-    to UNKNOWN, not silently treated as current confirmed observations.
-    """
+def _parse_packet(payload, retained):
     if (retained is not False or not isinstance(payload, (str, bytes))
             or not 0 < len(payload) <= MAX_PACKET
             or (isinstance(payload, str)
                 and len(payload.encode("utf-8")) > MAX_PACKET)):
         raise ValueError("Missing non-retained unified telemetry")
     try:
-        obj = json.loads(payload, object_pairs_hook=_unique_object,
-                         parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
+        return json.loads(
+            payload, object_pairs_hook=_unique_object,
+            parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
     except (ValueError, TypeError, UnicodeError, RecursionError) as exc:
         raise ValueError("Malformed unified telemetry") from exc
-    if (not isinstance(obj, dict) or not
-            (obj.keys() == OUTER or obj.keys() == OUTER | {"legacy"})
-            or type(obj["version"]) is not int or obj["version"] != 3
-            or not isinstance(obj["device_id"], str)
-            or not DEVICE.fullmatch(obj["device_id"])
-            or obj["device_id"] != device_id
-            or not isinstance(obj["epoch"], str)
-            or not EPOCH.fullmatch(obj["epoch"])
-            or type(obj["sequence"]) is not int
-            or not 1 <= obj["sequence"] <= MAX_SEQUENCE
-            or not _finite(obj["observed_at"]) or obj["observed_at"] < 0
-            or not _finite(wall_now) or not
-            -MAX_FUTURE <= wall_now - obj["observed_at"] < MAX_AGE):
-        raise ValueError("Invalid unified telemetry envelope")
-    _foreground(obj["foreground"])
-    _display(obj["display"])
-    _system(obj["system"])
-    if "legacy" in obj:
-        legacy = obj["legacy"]
-        if (not isinstance(legacy, dict) or legacy.keys() != LEGACY
-                or not all(isinstance(v, str) and len(v) <= 128
-                           for v in legacy.values())):
-            raise ValueError("Invalid temporary legacy diagnostics")
-    fg, display = dict(obj["foreground"]), dict(obj["display"])
-    # The upstream helper may have stopped providing fresh evidence while the
-    # agent keeps reporting its own new uptime; no extrapolation is allowed.
-    if (fg["sample_age_ms"] is None
-            or fg["sample_age_ms"] >= MAX_FOREGROUND_AGE_MS
-            or wall_now - (obj["observed_at"] - fg["sample_age_ms"] / 1000)
-               >= MAX_AGE):
+
+
+def _validate_identity(packet, device_id):
+    if (not isinstance(packet, dict)
+            or not (packet.keys() == OUTER
+                    or packet.keys() == OUTER | {"legacy"})
+            or type(packet["version"]) is not int or packet["version"] != 3
+            or not isinstance(packet["device_id"], str)
+            or not DEVICE.fullmatch(packet["device_id"])
+            or packet["device_id"] != device_id):
+        raise ValueError("Invalid unified telemetry identity")
+
+
+def _validate_stamp(packet, wall_now):
+    if (not isinstance(packet["epoch"], str)
+            or not EPOCH.fullmatch(packet["epoch"])
+            or type(packet["sequence"]) is not int
+            or not 1 <= packet["sequence"] <= MAX_SEQUENCE):
+        raise ValueError("Invalid unified telemetry ordering")
+    stamp = packet["observed_at"]
+    if (not _finite(stamp) or stamp < 0 or not _finite(wall_now)
+            or not -MAX_FUTURE <= wall_now - stamp < MAX_AGE):
+        raise ValueError("Invalid unified telemetry timestamp")
+
+
+def _validate_legacy(packet):
+    if "legacy" not in packet:
+        return
+    legacy = packet["legacy"]
+    if (not isinstance(legacy, dict) or legacy.keys() != LEGACY
+            or not all(isinstance(v, str) and len(v) <= 128
+                       for v in legacy.values())):
+        raise ValueError("Invalid temporary legacy diagnostics")
+
+
+def _foreground_stale(packet, wall_now):
+    age = packet["foreground"]["sample_age_ms"]
+    return (age is None or age >= MAX_FOREGROUND_AGE_MS
+            or wall_now - (packet["observed_at"] - age / 1000) >= MAX_AGE)
+
+
+def _display_stale(packet, wall_now):
+    display = packet["display"]
+    age, event = display["sample_age_ms"], display["event_age_ms"]
+    return (age is None or age >= MAX_DISPLAY_AGE_MS
+            or (event is not None and event >= STATE_TTL * 1000)
+            or (age is not None and
+                wall_now - (packet["observed_at"] - age / 1000)
+                >= MAX_DISPLAY_AGE_MS / 1000))
+
+
+def _normalized_packet(packet, wall_now):
+    fg, display = dict(packet["foreground"]), dict(packet["display"])
+    # Fresh uptime must not manufacture a newer helper sample.
+    if _foreground_stale(packet, wall_now):
         fg.update(state="unknown", process=None, signature=None,
                   sample_age_ms=None)
-    if (display["sample_age_ms"] is None
-            or display["sample_age_ms"] >= MAX_DISPLAY_AGE_MS
-            or (display["event_age_ms"] is not None
-                and display["event_age_ms"] >= STATE_TTL * 1000)
-            or (display["sample_age_ms"] is not None
-                and wall_now - (obj["observed_at"]
-                                - display["sample_age_ms"] / 1000) >= MAX_DISPLAY_AGE_MS / 1000)):
+    if _display_stale(packet, wall_now):
         display.update(state="unknown", event_epoch=None,
                        event_sequence=None, event_age_ms=None)
-    return {**obj, "foreground": fg, "display": display}
+    return {**packet, "foreground": fg, "display": display}
+
+
+def decode_telemetry(payload, device_id, *, retained, wall_now):
+    """One complete device-scoped, timestamped, non-retained v3 snapshot."""
+    packet = _parse_packet(payload, retained)
+    _validate_identity(packet, device_id)
+    _validate_stamp(packet, wall_now)
+    _foreground(packet["foreground"])
+    _display(packet["display"])
+    _system(packet["system"])
+    _validate_legacy(packet)
+    return _normalized_packet(packet, wall_now)
 
 
 def foreground_v2(packet):
