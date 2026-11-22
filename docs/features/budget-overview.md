@@ -63,7 +63,7 @@ cards:
       {% set d = 'sensor.example_pc_daily_budget_remaining' %}
       {% set r = 'binary_sensor.example_pc_gaming_restriction' %}
       {% set mode = state_attr(d, 'daily_budget_status') %}
-      {% set left = state_attr(d, 'daily_remaining_minutes') %}
+      {% set left = state_attr(d, 'daily_remaining_seconds') %}
       {% if mode is none %}
       **⚪ Budget data unavailable** — check the integration and PC.
       {% elif mode == 'disabled' %}
@@ -79,7 +79,11 @@ cards:
       {% endif %}
       {% if mode == 'limited' %}
 
-      # {{ left if left is number else 'Unknown' }} min remaining today
+      {% if left is number %}
+      # {{ (left // 60) | int }}m {{ (left % 60) | int }}s remaining today
+      {% else %}
+      # Remaining gaming time unknown
+      {% endif %}
       {% endif %}
 
   - type: tile
@@ -111,11 +115,13 @@ cards:
       | Screen idle bonus | {{ ('+' ~ idle ~ ' min') if idle is number else 'Not available yet' }} |
       | **Total daily allowance** | **{{ state_attr(e, 'daily_limit_minutes') }}** |
       | Measured gaming time | {{ ('−' ~ state_attr(e, 'daily_used_minutes') ~ ' min') if state_attr(e, 'daily_used_minutes') is number else 'Unknown' }} |
-      | **Remaining today** | **{{ (state_attr(e, 'daily_remaining_minutes') ~ ' min') if state_attr(e, 'daily_remaining_minutes') is number else 'Unknown' }}** |
+      {% set left = state_attr(e, 'daily_remaining_seconds') %}
+      | **Remaining today** | **{{ ((left // 60) | int) ~ 'm ' ~ ((left % 60) | int) ~ 's' if left is number else 'Unknown' }}** |
       {% endif %}
       {% if state_attr(e, 'weekly_budget_status') == 'limited' %}
 
-      **Weekly remaining:** {{ state_attr(e, 'weekly_remaining_minutes') if state_attr(e, 'weekly_remaining_minutes') is number else 'Unknown' }} / {{ state_attr(e, 'weekly_limit_minutes') }} min
+      {% set weekly_left = state_attr(e, 'weekly_remaining_seconds') %}
+      **Weekly remaining:** {{ (((weekly_left // 60) | int) ~ 'm ' ~ ((weekly_left % 60) | int) ~ 's') if weekly_left is number else 'Unknown' }} / {{ state_attr(e, 'weekly_limit_minutes') }} min
       {% elif state_attr(e, 'weekly_budget_status') == 'unlimited' %}
 
       **Weekly limit:** Unlimited
