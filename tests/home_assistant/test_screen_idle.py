@@ -132,6 +132,24 @@ def test_gate_arms_after_on_and_only_fresh_ordered_off_counts():
     assert gate.current(14+STATE_TTL+1) == "unknown"
 
 
+def test_same_display_receipt_must_not_change_from_on_to_off():
+    gate = _gate()
+    ok, event = gate.observe(display(T0, "on", seq=2), retained=False,
+                             wall_now=T0, monotonic_now=10)
+    assert ok and event is None
+    ok, event = gate.observe(display(T0+1, "off", seq=2), retained=False,
+                             wall_now=T0+1, monotonic_now=11)
+    assert not ok and event is None
+    assert gate.current(11) == "unknown"
+    # An unchanged old ON after the invalidation must not re-arm a bonus.
+    ok, event = gate.observe(display(T0+2, "on", seq=2), retained=False,
+                             wall_now=T0+2, monotonic_now=12)
+    assert ok and event is None
+    ok, event = gate.observe(display(T0+3, "off", seq=3), retained=False,
+                             wall_now=T0+3, monotonic_now=13)
+    assert ok and event is None
+
+
 def test_gate_restart_unknown_and_unsupported_epoch_fails_closed():
     gate = _gate()
     gate.observe(display(T0, "on", 1), retained=False,
