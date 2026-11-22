@@ -4,7 +4,7 @@ The HAL Gaming Control banner and both integration icon variants are AI-generate
 
 | Asset | Project purpose | Origin and redistribution |
 | --- | --- | --- |
-| `docs/assets/banner.jpg` | README banner | ChatGPT-generated; owner-authorized redistribution |
+| `docs/assets/banner.png` | README banner | ChatGPT-generated; owner-authorized redistribution |
 | `custom_components/hal_gaming_control/brand/icon.png` | Integration icon (256 px) | ChatGPT-generated; owner-authorized redistribution |
 | `custom_components/hal_gaming_control/brand/icon@2x.png` | High-resolution integration icon (512 px) | ChatGPT-generated; owner-authorized redistribution |
 
