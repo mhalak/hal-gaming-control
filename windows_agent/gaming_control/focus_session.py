@@ -271,6 +271,11 @@ class FocusProbe:
         elif sample.get("status") == "idle":
             self.foreground_state = "idle"
 
+    def _observe_input_idle(self, sample):
+        value = sample.get("last_input_idle_ms")
+        if type(value) is int and 0 <= value <= MAX_INPUT_IDLE_MS:
+            self.last_input_idle_ms = value
+
     def read(self, rules):
         self.last_input_idle_ms = None  # never retain a stale session reading
         self.candidate = None  # never carry identity over a failed or stale probe
@@ -311,9 +316,7 @@ class FocusProbe:
                 return dict(IDLE if state in ("idle", "locked") else UNKNOWN)
             if isinstance(sample, dict) and isinstance(sample.get("time"), (int, float)) and now - sample["time"] <= MAX_SAMPLE_AGE:
                 self.started = now
-                input_ms = sample.get("last_input_idle_ms")
-                if type(input_ms) is int and 0 <= input_ms <= MAX_INPUT_IDLE_MS:
-                    self.last_input_idle_ms = input_ms
+                self._observe_input_idle(sample)
                 self._observe_raw(sample, result, session, now)
             return result
         except Exception as err:
