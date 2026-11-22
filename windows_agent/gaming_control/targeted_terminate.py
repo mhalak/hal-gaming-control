@@ -15,8 +15,8 @@ import psutil
 from .foreground import _java_identity
 
 TARGET_TTL = 4.0
-_TOKEN = re.compile(r"[0-9a-f]{32}\\Z", re.ASCII)
-_EXE = re.compile(r"[A-Za-z0-9][A-Za-z0-9 _.'()+-]*\\.exe\\Z", re.IGNORECASE | re.ASCII)
+_TOKEN = re.compile(r"[0-9a-f]{32}\Z", re.ASCII)
+_EXE = re.compile(r"[A-Za-z0-9][A-Za-z0-9 _.'()+-]*\.exe\Z", re.IGNORECASE | re.ASCII)
 _PROTECTED = frozenset((
     "explorer.exe", "winlogon.exe", "csrss.exe", "smss.exe", "services.exe",
     "lsass.exe", "svchost.exe", "dwm.exe", "taskmgr.exe", "sihost.exe",
@@ -67,9 +67,9 @@ def _allowed_exe(exe, root):
     """Reject system-directory and relative/UNC processes, even with valid PID."""
     if not isinstance(exe, str) or not ntpath.isabs(exe) or exe.startswith("\\\\"):
         return False
-    system = ntpath.normcase(ntpath.normpath(root)).rstrip("\\\\")
+    system = ntpath.normcase(ntpath.normpath(root)).rstrip("\\")
     target = ntpath.normcase(ntpath.normpath(exe))
-    return not (target == system or target.startswith(system + "\\\\"))
+    return not (target == system or target.startswith(system + "\\"))
 
 
 def terminate_verified(expected, observed, *, offered_sample, current_sample,
