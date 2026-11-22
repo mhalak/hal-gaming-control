@@ -1,0 +1,30 @@
+{
+  "version": 3,
+  "device_id": "pc1",
+  "epoch": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "sequence": 1,
+  "observed_at": 1790000000,
+  "foreground": {
+    "state": "foreground",
+    "process": "RobloxPlayerBeta.exe",
+    "signature": null,
+    "sample_age_ms": 100
+  },
+  "display": {
+    "state": "on",
+    "scope": "windows_console",
+    "event_epoch": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "event_sequence": 1,
+    "event_age_ms": 200,
+    "sample_age_ms": 100,
+    "ac_timeout_seconds": 600,
+    "dc_timeout_seconds": 300,
+    "power_source": "ac",
+    "last_input_idle_ms": 12100
+  },
+  "system": {
+    "uptime_seconds": 45630,
+    "agent_version": "0.3.0",
+    "agent_build_sha": "ffffffffffffffffffffffffffffffffffffffff"
+  }
+}
