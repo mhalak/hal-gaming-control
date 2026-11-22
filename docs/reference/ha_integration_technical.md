@@ -22,7 +22,7 @@ HA 0.5.8 also fixes missing Configure menu labels caused by omitted `menu_option
 
 **Visual-only editor refresh in HA 0.5.9:** The Currently detected application preview emphasizes the tracked HA name above its safe raw executable within a Markdown blockquote. An unregistered foreground executable is labeled `Not tracked` **only in the editor**, while the Active game sensor continues to report `idle` for untracked apps; explicit `Idle` and `Unavailable` are distinct states. A short Note separates the preview from the Application List. Frontend blockquote appearance is theme/renderer-dependent (background and border are not guaranteed); no custom frontend was added. Existing app mapping persistence, snapshot timing and the requirement to close/reopen the editor to recapture remain unchanged.
 
-Install custom_components/parental through manual installation or HACS where available. Restart HA. MQTT and Recorder must be enabled. Add one config entry per PC using scoped or native MQTT discovery. Restrictions are disabled by default.
+Install custom_components/parental_control through manual installation or HACS where available. Restart HA. MQTT and Recorder must be enabled. Add one config entry per PC using scoped or native MQTT discovery. Restrictions are disabled by default.
 
 ## Planned device controls — after the 0.5.0 preview
 
