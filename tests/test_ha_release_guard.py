@@ -41,9 +41,17 @@ class HaReleaseTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 module.ci_gate(modified, SHA)
 
+    def test_marketplace_release_not_hidden_as_prerelease(self):
+        workflow = (SOURCE.parents[1] / ".github/workflows/publish-ha-preview.yml").read_text(encoding="utf-8")
+        self.assertIn("'/publish-ha-release 0.12.1'", workflow)
+        self.assertIn('gh release edit "$VERSION"', workflow)
+        self.assertIn('--prerelease=false', workflow)
+        self.assertIn('git diff --quiet "refs/tags/$VERSION" HEAD -- custom_components/hal_gaming_control', workflow)
+        self.assertNotIn('--prerelease --latest=false', workflow)
+
     def test_preview_notes_never_promote_windows_or_deploy(self):
         notes = module.build_notes("0.12.1", "A fix.", SHA)
-        for fragment in ("source-only prerelease", "0.12.1", "issue #56", "Redownload"):
+        for fragment in ("source-only development preview", "0.12.1", "issue #56", "Redownload"):
             self.assertIn(fragment, notes)
         with self.assertRaises(ValueError):
             module.build_notes("0.12.1", "A fix.", "not-a-sha")
