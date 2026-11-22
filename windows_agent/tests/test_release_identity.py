@@ -8,8 +8,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 SHA = "1234567890abcdef" * 2 + "12345678"
-RELEASE = {"release": "HAL Gaming Control Preview 21", "windows_agent": "0.4.0",
-           "home_assistant": "0.12.0"}
+RELEASE = {"release": "HAL Gaming Control Preview 22", "windows_agent": "0.4.0",
+           "home_assistant": "0.12.1"}
 
 
 def release_tool():
@@ -73,7 +73,7 @@ def test_release_missing_file_is_not_a_legacy_default(checkout):
         release_tool().read_release(checkout)
 
 
-@pytest.mark.parametrize("component,version", [("windows_agent", "0.4.0"), ("home_assistant", "0.12.0")])
+@pytest.mark.parametrize("component,version", [("windows_agent", "0.4.0"), ("home_assistant", "0.12.1")])
 def test_build_identity_is_bound_to_clean_revision(checkout, component, version):
     tool = release_tool()
     with patch.object(tool, "_git", side_effect=lambda root, *args:
