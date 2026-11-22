@@ -112,6 +112,7 @@ class ForegroundSource:
                 self.system_uptime = self.system_status = self.display_details = None
                 self.v3_capable = False
                 self._needs_post_on = False
+                self._post_on_sequence = self._post_on_timestamp = None
             if self.display is not None:
                 self.display.invalidate()
         self.on_update()
