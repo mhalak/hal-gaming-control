@@ -68,10 +68,10 @@ cards:
       **⚪ Budget data unavailable** — check the integration and PC.
       {% elif mode == 'disabled' %}
       **⚪ Gaming rules disabled** — no restrictions are applied.
-      {% elif mode == 'unlimited' %}
-      **♾️ Unlimited gaming** — no finite daily countdown.
       {% elif is_state(r, 'on') %}
       **🔴 Gaming restricted** — {{ state_attr(r, 'reasons') | join(', ') if state_attr(r, 'reasons') else 'check active rules' }}.
+      {% elif mode == 'unlimited' and is_state(r, 'off') %}
+      **♾️ Unlimited daily gaming** — weekly, schedule and per-game policy still apply.
       {% elif is_state(r, 'off') %}
       **🟢 Gaming permitted by active rules**.
       {% else %}
