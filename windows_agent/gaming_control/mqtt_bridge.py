@@ -93,6 +93,25 @@ def _valid_target_sample(sample_time, now, captured_at):
             and 0 <= now - sample_time <= 1.5
             and 0 <= now - captured_at < TARGET_TTL)
 
+def _provisioned_ota(config, *, root, device_id, ota_root, ota_public_key,
+                     updater_enabled):
+    """Keep the bridge constructor simple and v2 trust opt-in explicit."""
+    settings = config.get('update', {})
+    requested = settings.get('mqtt_staging_enabled') is True
+    signed = settings.get('mqtt_install_enabled') is True
+    if signed and (not requested or not ota_public_key):
+        raise ValueError('Signed MQTT OTA install requires pinned local updater and staging')
+    if requested and not updater_enabled:
+        raise ValueError('MQTT OTA staging requires provisioned updater')
+    if requested and ota_root is None:
+        raise ValueError('MQTT OTA staging requires protected staging directory')
+    if not requested:
+        return None, False
+    receiver = OtaMqttReceiver(
+        root, device_id, ota_root, public_key=ota_public_key if signed else None)
+    return receiver, signed
+
+
 class Bridge:
     def __init__(self, config, *, ota_root=None, ota_public_key=None):
         dev, cfg = config['device'], config['mqtt']
@@ -154,18 +173,9 @@ class Bridge:
             self.command_topics[self.root + '/command/terminate_target'] = 'terminate_target'
             self.metadata['targeted_terminate_protocol'] = 1
         self.updates_enabled = config.get('update', {}).get('enabled') is True
-        ota_requested = config.get('update', {}).get('mqtt_staging_enabled') is True
-        install_requested = config.get('update', {}).get('mqtt_install_enabled') is True
-        if install_requested and (not ota_requested or not ota_public_key):
-            raise ValueError('Signed MQTT OTA install requires pinned local updater and staging')
-        if ota_requested and not self.updates_enabled:
-            raise ValueError('MQTT OTA staging requires provisioned updater')
-        if ota_requested and ota_root is None:
-            raise ValueError('MQTT OTA staging requires protected staging directory')
-        self.ota = (OtaMqttReceiver(
-            self.root, self.id, ota_root,
-            public_key=ota_public_key if install_requested else None)
-                    if ota_requested else None)
+        self.ota, install_requested = _provisioned_ota(
+            config, root=self.root, device_id=self.id, ota_root=ota_root,
+            ota_public_key=ota_public_key, updater_enabled=self.updates_enabled)
         self.metadata['agent_version'] = installed_version()
         self.metadata['agent_build_sha'] = installed_build_sha(self.metadata['agent_version'])
         self.metadata['remote_update'] = self.updates_enabled
