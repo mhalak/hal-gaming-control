@@ -16,7 +16,7 @@ def test_only_hal_gaming_control_integration_is_installed():
     assert not (COMPONENTS / "parental_control").exists()
     manifest = json.loads((COMPONENTS / "hal_gaming_control" / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["domain"] == "hal_gaming_control"
-    assert manifest["version"] == "0.10.0"
+    assert manifest["version"] == "0.11.0"
 
 
 def test_mqtt_wire_protocol_and_device_identifiers_are_intentionally_unchanged():
