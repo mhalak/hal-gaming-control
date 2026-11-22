@@ -19,7 +19,7 @@ def _valid_seconds(value):
 
 def _has_verified_policy_data(data):
     """Require authoritative day/week totals and the current active-game scope."""
-    if not isinstance(data, dict) or data.get("ready") is not True:
+    if not isinstance(data, dict) or data.get("ready") is not True or data.get("online") is not True:
         return False
     totals = data.get("totals")
     active = data.get("active")
@@ -49,7 +49,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class GamingRestriction(GamingEntity, BinarySensorEntity):
     """ON when a verified budget/schedule/per-game restriction applies."""
 
-    _attr_icon = "mdi:gamepad-off-outline"
+    _attr_icon = "mdi:gamepad-off"
 
     def __init__(self, coordinator):
         super().__init__(coordinator, "gaming_restriction", "Gaming restriction")
