@@ -29,8 +29,7 @@ def discovery(device_id, name, prefix='homeassistant', *, terminate_enabled=True
                 "if value_json is mapping and value_json.version == 3 "
                 "and value_json.device_id == '" + device_id + "' "
                 "and value_json.system is mapping "
-                "and value_json.system.uptime_seconds is number "
-                "and value_json.system.uptime_seconds is not boolean "
+                "and value_json.system.uptime_seconds is integer "
                 "and 0 <= value_json.system.uptime_seconds <= 9223372036854775807 "
                 "else 'unavailable' }}"
             )
