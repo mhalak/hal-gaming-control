@@ -2,7 +2,7 @@
 
 **Not a transparent upgrade.** From Windows **0.4.0**, both the MQTT routing ID and discovery `name` are the current Windows computer name, for example `DESKTOP-F29J1R1`. The agent no longer uses or creates a random/persisted `device_id`; neither `device.id` nor `device.name` can override the OS name. **An existing `device:` section in `config.yaml` is rejected at startup.** The existing ProgramData `device_id` file is ignored (not deleted automatically, so rollback remains possible).
 
-**HA 0.12.2 follow-up:** The Add gaming PC selector now prefers the Windows hostname identity when a retained legacy discovery advertises the same name. This only cleans up the HA choice list; retained broker topics, configured legacy entries and Recorder data remain unchanged until explicit scoped migration.
+**HA 0.12.2 follow-up:** The Add gaming PC selector now shows each validated MQTT candidate as `name (device_id)`, e.g. `DESKTOP-9KHJGVL (desktop_lucija)` and `DESKTOP-9KHJGVL (DESKTOP-9KHJGVL)`. It deliberately leaves both choices visible to help identify stale retained aliases. Existing broker topics, configured entries, and Recorder data remain unchanged until explicit scoped migration.
 
 **Before installing on each PC (one-PC pilot first):**
 
