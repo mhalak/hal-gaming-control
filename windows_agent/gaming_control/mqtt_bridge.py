@@ -654,59 +654,64 @@ class Bridge:
             self._display_last_state = (state, epoch, seq)
         return True
 
-    def publish_unified_telemetry(self, focus, policy, uptime):
-        """Publish one coherent v3 observation from the current helper cycle.
+    def _prepare_unified(self, focus, policy, uptime, now, wall):
+        """Prepare exactly one fully sanitized sample while self.lock is held."""
+        if (not self.connected or self.synced_generation != self.generation
+                or self._telemetry_epoch is None):
+            return None
+        previous_clock = self._telemetry_last_clock
+        if (not math.isfinite(now) or not math.isfinite(wall) or wall < 0
+                or (previous_clock is not None
+                    and (wall <= previous_clock[0]
+                         or now <= previous_clock[1]
+                         or abs((wall - previous_clock[0])
+                                - (now - previous_clock[1])) > FOREGROUND_CLOCK_SKEW))):
+            # Neither clock regression nor wall/monotonic drift is trusted.
+            return None
+        sample_age = sample_age_ms(
+            getattr(focus, 'last_observation_time', None), now)
+        raw_state = getattr(focus, 'foreground_state', 'unknown')
+        candidate = getattr(focus, 'candidate', None)
+        foreground = foreground_fields(
+            raw_state, _raw_identity_parts(raw_state, candidate), sample_age)
+        display = display_fields(focus, policy, now)
+        try:
+            system = system_fields(
+                uptime, self.metadata['agent_version'],
+                self.metadata.get('agent_build_sha'))
+        except ValueError:
+            return None
+        change = transition_key(
+            {'foreground': foreground, 'display': display},
+            candidate if foreground['state'] == 'foreground' else None)
+        if (change == self._telemetry_last
+                and now - self._telemetry_sent < TELEMETRY_PERIOD):
+            return None
+        if self._telemetry_sequence >= TELEMETRY_MAX_SEQUENCE:
+            return None  # No sequence wrap inside a connection epoch.
+        sequence = self._telemetry_sequence + 1
+        try:
+            payload = make_snapshot(self.id, self._telemetry_epoch,
+                                    sequence, wall, foreground, display, system)
+        except ValueError:
+            return None
+        self._telemetry_sequence = sequence
+        return payload, change, self.generation
 
-        This opt-in parallel publisher NEVER consumes the existing v2 snapshot,
-        modifies HA policy, or changes command/OTA paths. MQTT5 QoS0 means
-        loss is possible: the next 2s *new* full sample supplies resync.
+    def publish_unified_telemetry(self, focus, policy, uptime):
+        """One new MQTT v3 snapshot; retained v2 remains authoritative in HA.
+
+        A QoS0 drop is not retried from cache. A fresh new observation provides
+        an ordered resync at the next polling deadline.
         """
         if not self.unified_enabled:
             return False
         now, wall = time.monotonic(), time.time()
         with self.lock:
-            if (not self.connected or self.synced_generation != self.generation
-                    or self._telemetry_epoch is None):
-                return False
-            generation, epoch = self.generation, self._telemetry_epoch
-            previous_clock = self._telemetry_last_clock
-            if (not math.isfinite(now) or not math.isfinite(wall) or wall < 0
-                    or (previous_clock is not None
-                        and (wall <= previous_clock[0]
-                             or now <= previous_clock[1]
-                             or abs((wall - previous_clock[0])
-                                    - (now - previous_clock[1])) > FOREGROUND_CLOCK_SKEW))):
-                # No fabricated ordered observation after a clock anomaly.
-                return False
-            sample_age = sample_age_ms(
-                getattr(focus, 'last_observation_time', None), now)
-            raw_state = getattr(focus, 'foreground_state', 'unknown')
-            candidate = getattr(focus, 'candidate', None)
-            parts = _raw_identity_parts(raw_state, candidate)
-            foreground = foreground_fields(raw_state, parts, sample_age)
-            display = display_fields(focus, policy, now)
-            try:
-                system = system_fields(
-                    uptime, self.metadata['agent_version'],
-                    self.metadata.get('agent_build_sha'))
-            except ValueError:
-                return False
-            change = transition_key(
-                {'foreground': foreground, 'display': display},
-                candidate if foreground['state'] == 'foreground' else None)
-            if (change == self._telemetry_last
-                    and now - self._telemetry_sent < TELEMETRY_PERIOD):
-                return False
-            if self._telemetry_sequence >= TELEMETRY_MAX_SEQUENCE:
-                # Never wrap sequence within an epoch.
-                return False
-            seq = self._telemetry_sequence + 1
-            try:
-                payload = make_snapshot(
-                    self.id, epoch, seq, wall, foreground, display, system)
-            except ValueError:
-                return False
-            self._telemetry_sequence = seq
+            prepared = self._prepare_unified(focus, policy, uptime, now, wall)
+        if prepared is None:
+            return False
+        payload, change, generation = prepared
         if not self._same_connection(generation):
             return False
         try:
