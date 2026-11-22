@@ -1,3 +1,9 @@
+## 0.11.0 — Experimental Screen Idle source implementation (#92; hardware acceptance pending)
+
+- **Preview 18**, HA **0.11.0** and Windows **0.2.12**. #180 merged replay-safe console display event ingestion, fail-closed foreground accounting and opt-in daily Screen Idle bonus. The feature remains **disabled by default** and has not been validated on physical gaming PCs; no automatic changes to quotas or usage until the option is deliberately enabled after hardware testing.
+- Windows 0.2.12 corrects OTA status correlation to the stable per-install device ID stored in ProgramData, while preserving YAML-only legacy installations and refusing conflicting or invalid identities. Signed MQTT OTA #166 remains separately opt-in and requires real publisher trust, local bootstrap and a one-PC pilot.
+- These are **source allocation identifiers**, not evidence that either HA or Windows components are installed or that any valid Authenticode-signed release exists. The integrated [deployment HOLD](https://github.com/mhalak/hal-gaming-control/issues/56) remains in force.
+
 ## 0.10.0 — Signed Windows MQTT OTA Install orchestration (#166; source candidate)
 
 - **Preview 17**, HA **0.10.0** and Windows **0.2.11**. Adds a separate, optional, default-OFF native HA "Windows updates (advanced)" configuration section for the fixed approved-version catalog, signed release HTTPS directory, operator-pinned public Ed25519 key and a guarded MQTT Install enable switch.
