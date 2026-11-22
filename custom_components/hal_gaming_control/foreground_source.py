@@ -15,7 +15,7 @@ from .protocol import parse_discovery
 from .raw_foreground import HAOwnedForeground, decode_raw_identity
 from .screen_idle import DisplayGate
 from .unified_telemetry import (
-    TelemetryOrder, decode_telemetry, display_v2, foreground_v2,
+    MAX_AGE, TelemetryOrder, decode_telemetry, display_v2, foreground_v2,
 )
 
 
@@ -271,6 +271,18 @@ class ForegroundSource:
         if not (self._connected and self._online) or self._closed:
             return None
         observed = monotonic() if monotonic_now is None else monotonic_now
+        if self.telemetry_order is not None:
+            last = self.telemetry_order.received
+            if (not self.v3_capable or last is None
+                    or not 0 <= observed - last < MAX_AGE):
+                # A cached OFF cannot appear to be freshly confirmed idle
+                # after v3 telemetry stops; do not extrapolate across gaps.
+                self.last_raw = None
+                self.ledger.invalidate()
+                self.system_uptime = self.system_status = self.display_details = None
+                if self.display is not None:
+                    self.display.invalidate()
+                return None
         if self.display is not None and self.display.current(observed) == "off":
             return "idle"
         return self.ledger.current(observed)
