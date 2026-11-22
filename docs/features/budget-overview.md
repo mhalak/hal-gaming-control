@@ -47,7 +47,7 @@ Here is what a parent's daily budget might look like:
 
 ## Add a Home Assistant dashboard card
 
-This is a **native Home Assistant vertical-stack dashboard**, not a custom frontend. The large number and status appear first, followed by a daily remaining-percentage gauge, the itemized receipt and a separate weekly gauge. The dashboard does not issue commands or silently change your rules.
+This is a **native Home Assistant vertical-stack dashboard**, not a custom frontend. The large number and status appear first, followed by a horizontal daily remaining bar, the itemized receipt and a separate weekly bar. The dashboard does not issue commands or silently change your rules.
 
 1. In **Settings → Devices & services → HAL Gaming Control**, open the target PC. Find the real entity IDs for **Daily budget remaining**, **Weekly budget remaining** and **Gaming restriction**.
 2. Open an editable dashboard, choose **Add card → Manual** and paste the full YAML below.
@@ -82,15 +82,13 @@ cards:
       # {{ left if left is number else 'Unknown' }} min remaining today
       {% endif %}
 
-  - type: gauge
+  - type: tile
     entity: sensor.example_pc_daily_budget_remaining
     name: "Daily budget remaining (%)"
-    min: 0
-    max: 100
-    severity:
-      red: 0
-      yellow: 20
-      green: 50
+    features:
+      - type: bar-gauge
+        min: 0
+        max: 100
 
   - type: markdown
     title: "🧾 Today's allowance"
@@ -127,18 +125,16 @@ cards:
       ⚠️ **Coverage incomplete:** only verified gaming time is counted; gaps may exist.
       {% endif %}
 
-  - type: gauge
+  - type: tile
     entity: sensor.example_pc_weekly_budget_remaining
     name: "Weekly budget remaining (%)"
-    min: 0
-    max: 100
-    severity:
-      red: 0
-      yellow: 20
-      green: 50
+    features:
+      - type: bar-gauge
+        min: 0
+        max: 100
 ```
 
-The gauges display **percentage remaining**, not elapsed minutes. They may be unknown when rules are disabled, a limit is unlimited, or the data is unavailable. This is expected and different from 0%.
+The horizontal bars display **percentage remaining**, not elapsed minutes. They may be unknown when rules are disabled, a limit is unlimited, or the data is unavailable. This is expected and different from 0%.
 
 For the activity status we deliberately read the existing **Gaming restriction** sensor, because daily remaining minutes alone cannot say whether the weekly budget, playing hours or a per-game limit currently blocks gaming. When its reading is unavailable, the card explicitly says *unknown* rather than claiming that play is allowed.
 
