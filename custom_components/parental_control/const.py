@@ -1,4 +1,4 @@
-DOMAIN = "parental"
+DOMAIN = "parental_control"
 ROOT = "SmartHouse/Gaming"
 SCAN_SECONDS = 5
 RETRY_SECONDS = 15
