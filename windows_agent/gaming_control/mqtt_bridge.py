@@ -17,6 +17,12 @@ from .targeted_terminate import TARGET_TTL, parse_target_request
 from .ota_mqtt import OtaMqttReceiver
 from .update_control import parse_request, installed_version, installed_build_sha
 from .discovery import discovery, obsolete_discovery_topics, terminate_discovery_topic
+from .unified_telemetry import (
+    PERIOD_S as TELEMETRY_PERIOD, EXPIRY_S as TELEMETRY_EXPIRY,
+    MAX_SEQUENCE as TELEMETRY_MAX_SEQUENCE, sample_age_ms,
+    foreground_fields, display_fields, system_fields, make_snapshot,
+    transition_key,
+)
 
 LOG = logging.getLogger(__name__)
 UPTIME_PERIOD = 60
@@ -128,6 +134,13 @@ class Bridge:
         self.id = dev['id']
         if not re.fullmatch(r'[a-zA-Z0-9_-]+', self.id):
             raise ValueError('Invalid device id')
+        settings = config.get('telemetry', {})
+        if (not isinstance(settings, dict)
+                or type(settings.get('unified_v3_enabled', False)) is not bool):
+            raise ValueError('Invalid unified telemetry configuration')
+        self.unified_enabled = settings.get('unified_v3_enabled', False)
+        if self.unified_enabled and len(self.id) > 64:
+            raise ValueError('Unified telemetry device ID exceeds v3 limit')
         self.root = f'SmartHouse/Gaming/{self.id}'
         self.prefix = cfg.get('discovery_prefix', 'homeassistant')
         self.config = cfg
@@ -152,6 +165,11 @@ class Bridge:
         self._raw_candidate = self._raw_receipt = self._target_offer = None
         self._display_sent = float('-inf')
         self._display_last_state = None
+        self._telemetry_epoch = None
+        self._telemetry_sequence = 0
+        self._telemetry_last = None
+        self._telemetry_sent = float('-inf')
+        self._telemetry_last_clock = None
         # MQTT 5 preserves the retain flag even on live deliveries.
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f'gaming-{self.id}',
                                   protocol=mqtt.MQTTv5)
@@ -194,6 +212,9 @@ class Bridge:
             self.metadata['mqtt_ota_protocol'] = 2 if install_requested else 1
             self.metadata['mqtt_ota_install_ready'] = bool(install_requested)
         self.metadata['focus_protocol'] = 1
+        if self.unified_enabled:
+            # A capability advertisement is NOT authorization for HA cutover.
+            self.metadata['unified_telemetry_protocol'] = 3
         if self.updates_enabled:
             self.command_topics[self.root + '/command/update'] = 'update'
 
@@ -225,6 +246,11 @@ class Bridge:
             self._raw_candidate = self._raw_receipt = self._target_offer = None
             self._display_sent = float('-inf')
             self._display_last_state = None
+            self._telemetry_epoch = uuid4().hex
+            self._telemetry_sequence = 0
+            self._telemetry_last = None
+            self._telemetry_sent = float('-inf')
+            self._telemetry_last_clock = None
         # Do not receive stored retained actions; reject any live retained action as well.
         options = mqtt.SubscribeOptions(qos=0, retainAsPublished=True, retainHandling=2)
         for topic in self.command_topics:
@@ -249,6 +275,10 @@ class Bridge:
             self._raw_candidate = self._raw_receipt = self._target_offer = None
             self._display_sent = float('-inf')
             self._display_last_state = None
+            self._telemetry_epoch = None
+            self._telemetry_last = None
+            self._telemetry_sent = float('-inf')
+            self._telemetry_last_clock = None
             if self.ota is not None:
                 self.ota.reset()
         
@@ -623,6 +653,84 @@ class Bridge:
             self._display_sent = now
             self._display_last_state = (state, epoch, seq)
         return True
+
+    def _prepare_unified(self, focus, policy, uptime, now, wall):
+        """Prepare exactly one fully sanitized sample while self.lock is held."""
+        if (not self.connected or self.synced_generation != self.generation
+                or self._telemetry_epoch is None):
+            return None
+        previous_clock = self._telemetry_last_clock
+        if (not math.isfinite(now) or not math.isfinite(wall) or wall < 0
+                or (previous_clock is not None
+                    and (wall <= previous_clock[0]
+                         or now <= previous_clock[1]
+                         or abs((wall - previous_clock[0])
+                                - (now - previous_clock[1])) > FOREGROUND_CLOCK_SKEW))):
+            # Neither clock regression nor wall/monotonic drift is trusted.
+            return None
+        sample_age = sample_age_ms(
+            getattr(focus, 'last_observation_time', None), now)
+        raw_state = getattr(focus, 'foreground_state', 'unknown')
+        candidate = getattr(focus, 'candidate', None)
+        foreground = foreground_fields(
+            raw_state, _raw_identity_parts(raw_state, candidate), sample_age)
+        display = display_fields(focus, policy, now)
+        try:
+            system = system_fields(
+                uptime, self.metadata['agent_version'],
+                self.metadata.get('agent_build_sha'))
+        except ValueError:
+            return None
+        change = transition_key(
+            {'foreground': foreground, 'display': display},
+            candidate if foreground['state'] == 'foreground' else None)
+        if (change == self._telemetry_last
+                and now - self._telemetry_sent < TELEMETRY_PERIOD):
+            return None
+        if self._telemetry_sequence >= TELEMETRY_MAX_SEQUENCE:
+            return None  # No sequence wrap inside a connection epoch.
+        sequence = self._telemetry_sequence + 1
+        try:
+            payload = make_snapshot(self.id, self._telemetry_epoch,
+                                    sequence, wall, foreground, display, system)
+        except ValueError:
+            return None
+        self._telemetry_sequence = sequence
+        return payload, change, self.generation
+
+    def publish_unified_telemetry(self, focus, policy, uptime):
+        """One new MQTT v3 snapshot; retained v2 remains authoritative in HA.
+
+        A QoS0 drop is not retried from cache. A fresh new observation provides
+        an ordered resync at the next polling deadline.
+        """
+        if not self.unified_enabled:
+            return False
+        now, wall = time.monotonic(), time.time()
+        with self.lock:
+            prepared = self._prepare_unified(focus, policy, uptime, now, wall)
+        if prepared is None:
+            return False
+        payload, change, generation = prepared
+        if not self._same_connection(generation):
+            return False
+        try:
+            properties = Properties(PacketTypes.PUBLISH)
+            properties.MessageExpiryInterval = TELEMETRY_EXPIRY
+            info = self.client.publish(
+                self.root + '/state/telemetry', payload,
+                qos=0, retain=False, properties=properties)
+            sent = info.rc == mqtt.MQTT_ERR_SUCCESS
+        except (RuntimeError, ValueError, OSError):
+            sent = False
+        with self.lock:
+            if not self.connected or generation != self.generation:
+                return False
+            if sent:
+                self._telemetry_last = change
+                self._telemetry_sent = now
+                self._telemetry_last_clock = (wall, now)
+        return sent
 
     def publish_target_offer(self, candidate, context, *, sample_time):
         """Offer one short-lived capability for the privately verified foreground.

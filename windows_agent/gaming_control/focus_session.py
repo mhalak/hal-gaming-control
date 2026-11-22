@@ -162,6 +162,9 @@ class FocusProbe:
         self.last_error_report = float('-inf')
         # Only a newly verified helper sample may authorize a targeted action.
         self.last_sample_time = None
+        # Same authenticated helper observation cycle for v3 idle and display.
+        # Never infer a confirmed idle state from Windows session lock alone.
+        self.last_observation_time = None
         self.last_input_idle_ms = None
         self.display_state = "unknown"
         self.display_event_age_ms = None
@@ -303,6 +306,7 @@ class FocusProbe:
             self.display_sequence = sequence
 
     def read(self, rules):
+        self.last_observation_time = None
         self.display_state = "unknown"
         self.display_event_age_ms = None
         self.display_epoch = None
@@ -345,6 +349,7 @@ class FocusProbe:
                 self.close()
                 return dict(IDLE if state in ("idle", "locked") else UNKNOWN)
             if (_valid_sample(sample, session, now)):
+                self.last_observation_time = sample["time"]
                 self.started = now
                 self._observe_input_idle(sample)
                 self._observe_display(sample)

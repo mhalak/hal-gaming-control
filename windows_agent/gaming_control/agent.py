@@ -259,7 +259,8 @@ def run(config_path, stop_event):
             foreground_context = bridge.capture_foreground_context()
             active = focus.read(rules)
             values = game_state(name for _, name, _ in games) | active
-            synchronized = bridge.publish(values, system_uptime())
+            uptime = system_uptime()
+            synchronized = bridge.publish(values, uptime)
             if synchronized:
                 # Power plan values are read-only and polled at 30s intervals;
                 # input age is sampled only inside the interactive user helper.
@@ -278,6 +279,10 @@ def run(config_path, stop_event):
                 bridge.publish_raw_foreground(
                     getattr(focus, "foreground_state", "unknown"),
                     getattr(focus, "candidate", None), foreground_context)
+                # Deliberate parallel v3 migration gate: keep v2 telemetry
+                # authoritative for HA until its per-PC cutover is ready.
+                if config.get("telemetry", {}).get("unified_v3_enabled") is True:
+                    bridge.publish_unified_telemetry(focus, display_policy, uptime)
                 if not rules:
                     bridge.publish_target_offer(
                         getattr(focus, "candidate", None), foreground_context,

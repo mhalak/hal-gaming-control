@@ -313,3 +313,33 @@ def test_targeted_execution_requires_sample_after_command_receipt():
         assert not A.execute_targeted(offer, focus)
     assert verify.call_args.kwargs["offered_sample"] == 102.0
     assert verify.call_args.kwargs["current_sample"] == 101.5
+
+
+def test_v3_publisher_disabled_by_default_in_production_loop(runtime):
+    path, bridge, focus = runtime
+    A.run(path, Stop())
+    bridge.publish_unified_telemetry.assert_not_called()
+
+
+def test_v3_opt_in_uses_same_verified_focus_cycle_and_uptime(runtime):
+    path, bridge, focus = runtime
+    contents = yaml.safe_load(path.read_text(encoding="utf-8"))
+    contents["telemetry"] = {"unified_v3_enabled": True}
+    path.write_text(yaml.safe_dump(contents), encoding="utf-8")
+    A.run(path, Stop())
+    bridge.publish_raw_foreground.assert_called_once()
+    bridge.publish_unified_telemetry.assert_called_once()
+    args = bridge.publish_unified_telemetry.call_args.args
+    assert args[0] is focus
+    assert args[2] == 123
+    assert args[1]["power_source"] in ("ac", "battery", "unknown")
+
+
+def test_v3_opt_in_never_publishes_before_legacy_transport_sync(runtime):
+    path, bridge, _ = runtime
+    contents = yaml.safe_load(path.read_text(encoding="utf-8"))
+    contents["telemetry"] = {"unified_v3_enabled": True}
+    path.write_text(yaml.safe_dump(contents), encoding="utf-8")
+    bridge.publish.return_value = False
+    A.run(path, Stop())
+    bridge.publish_unified_telemetry.assert_not_called()
