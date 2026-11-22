@@ -1,6 +1,10 @@
 # Windows agent acceptance checklist
 
 - [ ] Fresh install starts automatically under LocalSystem, no visible window, no user account provisioning.
+- [ ] New PC with only MQTT connection settings starts with no local `games`, sends uptime and raw v2 foreground identity, provides Lock PC and never subscribes to the legacy terminate command.
+- [ ] Rule-free PC publishes only exact agent-owned native terminate button tombstone; scoped/direct HA stale terminate action is unavailable when the agent revokes it, even if HA entry still lists the old action.
+- [ ] Existing PC with legacy games keeps the same manual Terminate game behavior and verified process constraints after upgrade; removing games is explicitly optional.
+- [ ] Malformed or cross-device discovery cannot reactivate a disabled direct terminate button; no other PC command topics or entity registry entries are removed.
 - [ ] Without a manual device section, service reports the actual Windows computer name; it generates a per-install ID in protected ProgramData/device_id and reuses it after restart and Windows computer rename.
 - [ ] Legacy config device.id is preserved verbatim and saved into the ID file; removing the legacy device section later does not create another HA device or reset budgets/history.
 - [ ] Two PCs on the same broker have distinct identities and device-scoped topics. A mismatch/corrupted persisted identity prevents startup instead of silently re-enrolling; never share identity files.

@@ -14,7 +14,7 @@ from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.properties import Properties
 from .core import COMMANDS
 from .update_control import parse_request, installed_version, installed_build_sha
-from .discovery import discovery, obsolete_discovery_topics
+from .discovery import discovery, obsolete_discovery_topics, terminate_discovery_topic
 
 LOG = logging.getLogger(__name__)
 UPTIME_PERIOD = 60
@@ -108,11 +108,18 @@ class Bridge:
         self.client.on_connect = self.on_connect
         self.client.on_disconnect = self.on_disconnect
         self.client.on_message = self.on_message
-        self.configs = discovery(self.id, dev['name'], self.prefix)
+        # Until HA->Windows termination is migrated, a rule-free PC must not
+        # accept the legacy fixed PRESS command (which targets local rules).
+        self._termination_enabled = bool(config.get('games', []))
+        self.advertised_commands = (list(COMMANDS) if self._termination_enabled
+                                    else ['lock_pc'])
+        self.configs = discovery(self.id, dev['name'], self.prefix,
+                                 terminate_enabled=self._termination_enabled)
         self.metadata = {'protocol_version': 1, 'device_id': self.id,
                          'name': dev['name'], 'games': sorted({r['name'] for r in config.get('games', [])}),
-                         'actions': list(COMMANDS)}
-        self.command_topics = {self.root + '/command/' + key: key for key in COMMANDS}
+                         'actions': list(self.advertised_commands)}
+        self.command_topics = {self.root + '/command/' + key: key
+                               for key in self.advertised_commands}
         self.updates_enabled = config.get('update', {}).get('enabled') is True
         self.metadata['agent_version'] = installed_version()
         self.metadata['agent_build_sha'] = installed_build_sha(self.metadata['agent_version'])
@@ -228,6 +235,11 @@ class Bridge:
         self.last.clear()
         self.last_full = float('-inf')
         for topic in obsolete_discovery_topics(self.id, self.prefix):
+            self.client.publish(topic, b'', qos=1, retain=True)
+        if not self._termination_enabled:
+            # Retire only our exact previously advertised native MQTT button.
+            # Never wildcard-delete discovery or another PC's entities.
+            topic = terminate_discovery_topic(self.id, self.prefix)
             self.client.publish(topic, b'', qos=1, retain=True)
         self.client.publish(self.root + '/discovery', json.dumps(self.metadata), qos=1, retain=True)
         for topic, data in self.configs.items():

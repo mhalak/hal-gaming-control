@@ -20,7 +20,7 @@ def test_game_state():
         'in_game': 'ON', 'current_game': 'Minecraft Java | Roblox'}
 
 
-@pytest.mark.parametrize('rules', [[], [{'name': 'All Java', 'process': 'javaw.exe'}],
+@pytest.mark.parametrize('rules', [[{'name': 'All Java', 'process': 'javaw.exe'}],
     [{'name': 'idle', 'process': 'game.exe'}], [{'name': 'bad | delimiter', 'process': 'game.exe'}],
     [{'name': 'Bad', 'process': 'game.exe', 'path_contains': ''}]])
 def test_invalid_rules(rules):
@@ -30,6 +30,7 @@ def test_invalid_rules(rules):
 
 def test_valid_rules():
     assert validate_rules(RULES) == RULES
+    assert validate_rules([]) == []
 
 
 def test_session_selection():

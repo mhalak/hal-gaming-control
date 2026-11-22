@@ -6,8 +6,8 @@ COMMANDS = ('terminate_game', 'lock_pc')
 
 
 def validate_rules(rules):
-    if not isinstance(rules, list) or not rules:
-        raise ValueError('games must be a non-empty list')
+    if not isinstance(rules, list):
+        raise ValueError('games must be a list')
     for rule in rules:
         if not isinstance(rule, dict) or set(rule) - {'name', 'process', 'command_line_arg', 'path_contains'}:
             raise ValueError('Invalid game rule keys')
