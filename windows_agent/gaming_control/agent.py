@@ -135,6 +135,17 @@ def confirm_health(bridge, data):
     return True
 
 
+def dispatch_command(command, config_path, bridge, focus, rules):
+    """Keep command handling separate from the telemetry polling state machine."""
+    if isinstance(command, tuple) and command[0] == 'update':
+        submit_request(Path(config_path).parent, command[1], installed_version())
+    elif isinstance(command, tuple) and command[0] == 'terminate_target':
+        success = execute_targeted(command[1], focus)
+        bridge.publish_target_result(command[2], success)
+    else:
+        execute(command, rules)
+
+
 def run(config_path, stop_event):
     config = yaml.safe_load(Path(config_path).read_text(encoding='utf-8'))
     interval = float(config.get('gaming', {}).get('check_interval_seconds', 1))
@@ -154,13 +165,7 @@ def run(config_path, stop_event):
                 if stop_event.is_set():
                     break
                 try:
-                    if isinstance(command, tuple) and command[0] == 'update':
-                        submit_request(Path(config_path).parent, command[1], installed_version())
-                    elif isinstance(command, tuple) and command[0] == 'terminate_target':
-                        success = execute_targeted(command[1], focus)
-                        bridge.publish_target_result(command[2], success)
-                    else:
-                        execute(command, rules)
+                    dispatch_command(command, config_path, bridge, focus, rules)
                 except Exception:
                     LOG.exception('Command failed: %s', command)
             if stop_event.is_set():
