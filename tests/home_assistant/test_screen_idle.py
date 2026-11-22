@@ -148,7 +148,7 @@ def test_gate_restart_unknown_and_unsupported_epoch_fails_closed():
 
 
 def test_bonus_only_measured_before_off_with_timeout_evidence():
-    options = {"screen_idle_enabled": True, "daily": 180, "weekly": 300}
+    options = {"enabled": True, "screen_idle_enabled": True, "daily": 180, "weekly": 300}
     event = receipt()
     granted = maybe_add_screen_idle_grant(options, DEV, event, segments(), now())
     assert granted is not options
@@ -158,7 +158,7 @@ def test_bonus_only_measured_before_off_with_timeout_evidence():
     assert effective_budget_limit(granted, now(), "weekly") == 300
     assert maybe_add_screen_idle_grant(granted, DEV, event, segments(), now()) is granted
     assert len(granted[KEY]["events"]) == 1
-    assert options == {"screen_idle_enabled": True, "daily": 180, "weekly": 300}
+    assert options == {"enabled": True, "screen_idle_enabled": True, "daily": 180, "weekly": 300}
     receipt_attrs = budget_overview(granted, {"daily": 120, "weekly": 120}, now(),
                                     ready=True)
     assert receipt_attrs["screen_idle_bonus_minutes"] == 9
