@@ -46,7 +46,7 @@ The PC's Configuration section has **Schedule enabled** plus two independent all
 - **Unlimited gaming:** Bypasses applicable budgets without deleting playtime history.
 - **Weekend bonus:** Configure 0–600 extra minutes (10-minute steps), added to the Daily budget on each Saturday and Sunday. For example, 120 daily + 60 weekend = 180 min on each weekend day. Weekly budget is unchanged. The obsolete **Weekend daily limit** replacement rule is retired; old stored values are ignored and the new bonus starts at 0 until you change it.
 - **Screen idle bonus:** [Planned](screen-idle-bonus.md). Eligible inactive time before screen-off could earn extra daily minutes.
-- **Budget Overview:** [Planned](budget-overview.md). One clear receipt for the family's gaming-time accountant.
+- **Budget Overview:** [Source preview](budget-overview.md) (#93). Native dashboard receipt with daily/weekly gauges and itemized bonuses; only available after the corresponding HA integration update.
 
 ## Good to know
 
