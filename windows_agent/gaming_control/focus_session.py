@@ -305,6 +305,8 @@ class FocusProbe:
     def read(self, rules):
         self.display_state = "unknown"
         self.display_event_age_ms = None
+        self.display_epoch = None
+        self.display_sequence = None
         self.last_input_idle_ms = None  # never retain a stale session reading
         self.candidate = None  # never carry identity over a failed or stale probe
         self.last_sample_time = None
