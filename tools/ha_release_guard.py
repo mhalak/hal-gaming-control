@@ -62,8 +62,8 @@ def build_notes(version: str, body: str, sha: str) -> str:
     if not SHA.fullmatch(sha):
         raise ValueError("Invalid SHA")
     return (f"# HAL Gaming Control HA {version} (preview)\n\n"
-            f"**HA integration source-only prerelease** pinned to commit " + chr(96) + sha + chr(96) + ". "
-            "This is not a Windows release and contains no Windows executable or signed updater. "
+            f"**HA integration source-only development preview (GitHub regular release for Marketplace version discovery)** pinned to commit " + chr(96) + sha + chr(96) + ". "
+            "This GitHub release is not a production certification or a Windows release and contains no Windows executable or signed updater. "
             "Publishing it does not install, update, reload or enable anything in Home Assistant or on a gaming PC.\n\n"
             "**Compatibility:** Windows 0.3.0+ uses MQTT v3-only telemetry; HA's unified telemetry "
             "option must be enabled for the relevant PC before an integrated rollout. "
@@ -75,8 +75,8 @@ def build_notes(version: str, body: str, sha: str) -> str:
             "Local-agent updates remain the development deployment path; HACS publishing is separate.\n\n"
             "**First release after commit-based Marketplace installation:** Some existing installs "
             "may not automatically offer the transition from a commit SHA. When authorized "
-            "to update a test HA, use the custom repository's pre-release option and "
-            "Redownload → select the version, then restart HA as appropriate. "
+            "to update a test HA, refresh the custom repository metadata and, if needed, use "
+            "Redownload → select the version, then restart HA as appropriate. A custom repository may refresh from GitHub on a delayed schedule. "
             "Never force an update on the live installation during HOLD.\n\n"
             "## Changes\n\n" + body + "\n")
 
