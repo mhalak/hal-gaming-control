@@ -2,7 +2,9 @@
 
 **Not a transparent upgrade.** From Windows **0.4.0**, both the MQTT routing ID and discovery `name` are the current Windows computer name, for example `DESKTOP-F29J1R1`. The agent no longer uses or creates a random/persisted `device_id`; neither `device.id` nor `device.name` can override the OS name. **An existing `device:` section in `config.yaml` is rejected at startup.** The existing ProgramData `device_id` file is ignored (not deleted automatically, so rollback remains possible).
 
-**HA 0.12.2 follow-up:** The Add gaming PC selector now prefers the Windows hostname identity when a retained legacy discovery advertises the same name. This only cleans up the HA choice list; retained broker topics, configured legacy entries and Recorder data remain unchanged until explicit scoped migration.\n\n**Before installing on each PC (one-PC pilot first):**
+**HA 0.12.2 follow-up:** The Add gaming PC selector now prefers the Windows hostname identity when a retained legacy discovery advertises the same name. This only cleans up the HA choice list; retained broker topics, configured legacy entries and Recorder data remain unchanged until explicit scoped migration.
+
+**Before installing on each PC (one-PC pilot first):**
 
 1. Confirm the Windows OS name using `$env:COMPUTERNAME` and record the **old** exact MQTT prefix (e.g. `SmartHouse/Gaming/desktop_lucija`), HA device/config entry, tracked applications, budgets, bonus state, automations and Recorder history. Make a HA backup and a protected ProgramData backup. **Renaming the Windows PC later is another breaking identity migration.**
 2. Verify HA **0.12.0+** and its Unified MQTT v3 support. Prepare broker ACLs permitting that PC's MQTT account to publish/subscribe under the **new, hostname-based** prefix. Ensure hostnames are unique; if this is not possible, do not deploy. Do not disable broker access control to work around an ACL mismatch.
