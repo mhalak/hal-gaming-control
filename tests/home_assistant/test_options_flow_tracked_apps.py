@@ -266,27 +266,48 @@ async def test_raw_snapshot_rejects_stale_retained_foreign_and_unsafe_packets(
     assert view["description_placeholders"]["preview_name"] == "Not tracked"
 
 
-def v3_roblox_packet(*, device="pc1", observed_at, state="foreground", age_ms=50):
-    return {
-        "version": 3, "device_id": device, "epoch": "c" * 32,
-        "sequence": 1, "observed_at": observed_at,
-        "foreground": {
-            "state": state,
-            "process": "RobloxPlayerBeta.exe" if state == "foreground" else None,
-            "signature": None, "sample_age_ms": age_ms,
-        },
-        "display": {
-            "state": "unknown", "scope": "windows_console",
-            "event_epoch": None, "event_sequence": None,
-            "event_age_ms": None, "sample_age_ms": None,
-            "ac_timeout_seconds": None, "dc_timeout_seconds": None,
-            "power_source": "unknown", "last_input_idle_ms": None,
-        },
-        "system": {
-            "uptime_seconds": 1234, "agent_version": "0.3.0",
-            "agent_build_sha": None,
-        },
-    }
+def load_contract(version, filename):
+    """Read immutable wire examples shared with the real Windows publisher tests."""
+    path = (Path(__file__).resolve().parents[2] / "tests" / "contracts"
+            / version / filename)
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def v3_roblox_packet(*, device="pc1", observed_at,
+                     state="foreground", age_ms=50):
+    """Fresh copy of the shared v3 fixture; never invent its message shape."""
+    packet = load_contract("v3", "telemetry-foreground.json")
+    packet["device_id"] = device
+    packet["observed_at"] = observed_at
+    packet["foreground"].update(
+        state=state,
+        process="RobloxPlayerBeta.exe" if state == "foreground" else None,
+        sample_age_ms=age_ms,
+    )
+    return packet
+
+
+async def test_shared_golden_wire_fixtures_decode_with_real_ha_parsers():
+    """Schema and full message envelope are owned by the shared contracts."""
+    from custom_components.hal_gaming_control.unified_telemetry import (
+        decode_telemetry)
+    from custom_components.hal_gaming_control.candidate_protocol import (
+        parse_candidate)
+
+    v3 = load_contract("v3", "telemetry-foreground.json")
+    decoded = decode_telemetry(
+        json.dumps(v3), "pc1", retained=False,
+        wall_now=v3["observed_at"])
+    assert decoded["foreground"]["process"] == "RobloxPlayerBeta.exe"
+    assert decoded["system"]["agent_version"] == "0.3.0"
+
+    candidate = load_contract("v1", "foreground-candidate.json")
+    decoded_candidate = parse_candidate(
+        "SmartHouse/Gaming/pc1/state/foreground_candidate",
+        json.dumps(candidate), "pc1", retained=False,
+        now=candidate["observed_at"])
+    assert decoded_candidate["process"] == decoded["foreground"]["process"]
+    assert decoded_candidate["token"] == candidate["token"]
 
 
 async def test_v3_only_windows_agent_shows_detected_app_in_editor(
@@ -366,12 +387,10 @@ async def test_windows_v3_only_mqtt_capture_add_save_roundtrip(
     async def subscribe(_hass, topic, cb, qos=0):
         subscribed.append(topic)
         if topic == root + "foreground_candidate":
+            candidate = load_contract("v1", "foreground-candidate.json")
+            candidate["observed_at"] = now
             cb(SimpleNamespace(topic=topic, retain=False,
-                               payload=json.dumps({
-                                   "version": 1, "device_id": "pc1",
-                                   "process": ROBLOX["process"], "signature": None,
-                                   "token": ROBLOX["token"], "observed_at": now,
-                               })))
+                               payload=json.dumps(candidate)))
         elif topic == root + "telemetry":
             cb(SimpleNamespace(topic=topic, retain=False,
                                payload=json.dumps(v3_roblox_packet(observed_at=now))))
