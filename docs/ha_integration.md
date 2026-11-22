@@ -39,6 +39,8 @@ Open the PC device page to find **Daily budget**, **Weekly budget**, **Weekend b
 
 **Daily budget remaining** and **Weekly budget remaining** show remaining percentages. **Daily gaming time** and **Weekly gaming time** show explicit `h m s` text. Separate diagnostic **Daily gaming time (minutes)** and **Weekly gaming time (minutes)** sensors remain numeric durations for graphs and automations.
 
+**Parent bonus history is a separate in-review enhancement (#165).** Until that work is deployed, Add 30 minutes still uses the existing cumulative option. Future per-grant Undo must not be represented by a decorative Markdown button.
+
 [Gaming budgets](features/gaming-budgets.md) · [Budget Overview dashboard example](features/budget-overview.md)
 
 ## Set allowed gaming hours
