@@ -414,3 +414,60 @@ async def test_stale_cached_off_never_presents_confirmed_idle_forever(hass):
     assert s.display_details is None
     assert bonus.call_count == 1
     s.close()
+
+
+async def test_post_on_requires_helper_sample_after_actual_console_edge(hass):
+    """A newer MQTT envelope must not resurrect pre-ON foreground activity.
+
+    The Windows publisher can report fresh event evidence and the last helper
+    sample in the same snapshot; the latter may still predate console ON.
+    """
+    watcher, cb, _, bonus, _ = await start(hass)
+    root = "SmartHouse/Gaming/pc1"
+    deliver(cb, root + "/availability", "online", ts=99)
+    for ts, sequence in ((100, 1), (102, 2), (104, 3)):
+        deliver(cb, root + "/state/telemetry",
+                v3(ts=ts, seq=sequence), ts=ts)
+    previous = total(watcher)
+    assert previous == 2
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=106, seq=4, screen="off", event=2), ts=106)
+    assert watcher.current(10106) == "idle"
+    # First ON notification represents a console edge at wall clock 111.9 s.
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=112, seq=5, screen="on", event=3,
+               event_age=100, fg_age=200), ts=112)
+    assert watcher.current(10112) is None
+    # Later MQTT packet, still with pre-ON foreground helper sample (111.8s).
+    # Must stay UNKNOWN, rather than charge time or authorize targeted actions.
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=113, seq=6, screen="on", event=3,
+               event_age=1100, fg_age=1200), ts=113)
+    assert watcher.current(10113) is None
+    assert watcher.last_raw is None
+    assert total(watcher) == previous
+    # A genuinely post-ON helper sample at 113.7 s arms foreground accounting.
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=114, seq=7, screen="on", event=3,
+               event_age=2100, fg_age=300), ts=114)
+    assert watcher.current(10114) == "Roblox"
+    assert total(watcher) == previous
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=116, seq=8, screen="on", event=3,
+               event_age=4100, fg_age=100), ts=116)
+    assert total(watcher) > previous
+    assert bonus.call_count == 1
+    watcher.close()
+
+
+async def test_offline_resets_post_on_freshness_watermark(hass):
+    watcher, cb, _, _, _ = await start(hass)
+    root = "SmartHouse/Gaming/pc1"
+    deliver(cb, root + "/availability", "online", ts=99)
+    deliver(cb, root + "/state/telemetry", v3(ts=100, seq=1), ts=100)
+    assert watcher._needs_post_on
+    deliver(cb, root + "/availability", "offline", ts=101)
+    assert watcher._needs_post_on is False
+    assert watcher._post_on_sequence is None
+    assert watcher._post_on_timestamp is None
+    watcher.close()
