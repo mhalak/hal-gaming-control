@@ -10,7 +10,8 @@ from homeassistant.util import dt as dt_util
 from .direct_mqtt import DirectAction
 from .action_registry import ACTION_REGISTRY
 from .entity import GamingEntity
-from .rule_engine import effective_daily, daily_bonus_minutes
+from .rule_engine import effective_daily
+from .parent_bonus import add_parent_grant
 from .const import ROOT
 from .targeted_protocol import parse_offer, offer_matches_raw
 
