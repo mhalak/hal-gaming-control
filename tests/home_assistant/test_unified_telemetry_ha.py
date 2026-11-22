@@ -56,6 +56,14 @@ async def start(hass, device="pc1", *, screen=True):
                                    screen_enabled=screen, on_screen_off=bonuses,
                                    unified_enabled=True)
         await watcher.async_start()
+    # The matching Windows publisher advertises this capability on a
+    # retained discovery topic; the parent toggle alone is insufficient.
+    watcher._v3_discovery(SimpleNamespace(
+        topic=f"SmartHouse/Gaming/{device}/discovery",
+        payload=json.dumps({
+            "protocol_version": 1, "device_id": device, "name": "Gaming PC",
+            "games": [], "actions": [], "unified_telemetry_protocol": 3})))
+    assert watcher.v3_capable
     return watcher, callbacks, changed, bonuses, unsubscribed
 
 
@@ -74,7 +82,8 @@ def total(source, ts=150):
 async def test_v3_subscribes_single_read_only_source_and_ignores_legacy(hass):
     s, cb, changed, _, unsub = await start(hass, screen=True)
     root = "SmartHouse/Gaming/pc1"
-    assert set(cb) == {root + "/availability", root + "/state/telemetry"}
+    assert set(cb) == {
+        root + "/availability", root + "/discovery", root + "/state/telemetry"}
     assert cb[root + "/state/telemetry"][1] == 0
     deliver(cb, root + "/availability", "online", ts=99)
     deliver(cb, root + "/state/telemetry", v3(ts=100, seq=1), ts=100)
@@ -88,7 +97,7 @@ async def test_v3_subscribes_single_read_only_source_and_ignores_legacy(hass):
     assert s.last_raw["process"] == APP["process"]
     assert changed.call_count >= 3
     s.close()
-    assert len(unsub) == 3
+    assert len(unsub) == 4
 
 
 async def test_off_and_repeated_raw_focus_never_fabricate_game_time_or_bonus(hass):
@@ -161,6 +170,11 @@ async def test_replay_wrong_pc_stale_retained_and_reconnect_fail_closed(hass):
     assert s.current(10110) is None
     s._connection(True)
     deliver(cb, root + "/availability", "online", ts=111)
+    s._v3_discovery(SimpleNamespace(
+        topic=root + "/discovery",
+        payload=json.dumps({"protocol_version": 1, "device_id": "pc1",
+                            "name": "PC", "games": [], "actions": [],
+                            "unified_telemetry_protocol": 3})))
     deliver(cb, root + "/state/telemetry", v3(ts=112, seq=8), ts=112)
     assert s.current(10112) is None  # old epoch retired
     deliver(cb, root + "/state/telemetry",
@@ -216,6 +230,7 @@ async def test_direct_uptime_preserves_unique_id_and_rejects_bad_v3(hass):
     c.device_id = "pc1"
     c.entry.options = {"unified_telemetry_enabled": True}
     c.entry.data = {"name": "PC"}
+    c.foreground.v3_capable = True
     direct = DirectUptime(c)
     direct.async_write_ha_state = Mock()
     assert direct.unique_id == "pc1_uptime"
