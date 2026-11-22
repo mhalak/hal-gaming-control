@@ -43,7 +43,12 @@ class HaReleaseTests(unittest.TestCase):
 
     def test_marketplace_release_not_hidden_as_prerelease(self):
         workflow = (SOURCE.parents[1] / ".github/workflows/publish-ha-preview.yml").read_text(encoding="utf-8")
-        self.assertIn("'/publish-ha-release 0.12.1'", workflow)
+        self.assertIn("startsWith(github.event.comment.body, '/publish-ha-release ')", workflow)
+        self.assertIn("github.event.issue.number == 189", workflow)
+        self.assertIn("github.event.comment.user.login == 'mhalak'", workflow)
+        self.assertIn('RELEASE_COMMAND: ${{ github.event.comment.body }}', workflow)
+        self.assertIn('[[ "$RELEASE_COMMAND" == "/publish-ha-release $VERSION" ]]', workflow)
+        self.assertNotIn("github.event.comment.body == '/publish-ha-release 0.12.1'", workflow)
         self.assertIn('gh release edit "$VERSION"', workflow)
         self.assertIn('--prerelease=false', workflow)
         self.assertIn('git diff --quiet "refs/tags/$VERSION" HEAD -- custom_components/hal_gaming_control', workflow)
