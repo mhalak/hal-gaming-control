@@ -5,6 +5,7 @@ from pathlib import Path
 import psutil
 import yaml
 from .core import game_state, match_game, validate_rules
+from .identity import resolve_identity
 from .focus_session import FocusProbe
 from .mqtt_bridge import Bridge
 from .windows import system_uptime, lock_active_session, process_session_id
@@ -117,6 +118,7 @@ def run(config_path, stop_event):
     if not 0.25 <= interval <= 5:
         raise ValueError('Interval must be between 0.25 and 5 seconds')
     rules = validate_rules(config['games'])
+    config = resolve_identity(config, config_path)
     bridge = Bridge(config)
     last_health = float('-inf')
     previous_games = None
