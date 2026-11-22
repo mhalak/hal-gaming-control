@@ -268,7 +268,9 @@ def run(config_path, stop_event):
                     last_power_poll = time.perf_counter()
                 bridge.publish_display_context(
                     display_policy, getattr(focus, "last_input_idle_ms", None),
-                    foreground_context)
+                    foreground_context,
+                    display_state=getattr(focus, "display_state", "unknown"),
+                    display_event_age_ms=getattr(focus, "display_event_age_ms", None))
                 # Raw v2 identity is independent of legacy Windows game rules.
                 # The old snapshot remains available during a safe HA cutover.
                 bridge.publish_raw_foreground(

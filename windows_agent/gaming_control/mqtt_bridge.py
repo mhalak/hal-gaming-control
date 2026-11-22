@@ -88,6 +88,14 @@ def _display_context_fields(policy, input_idle_ms):
     return ac, dc, source, input_idle_ms
 
 
+def _display_event_fields(state, age_ms):
+    """Only authenticated, fresh interactive-helper state can leave the agent."""
+    if (type(state) is str and state in ("on", "off", "dim")
+            and type(age_ms) is int and 0 <= age_ms <= 86400000):
+        return state, age_ms
+    return "unknown", None
+
+
 def _valid_target_sample(sample_time, now, captured_at):
     return (type(sample_time) in (int, float) and math.isfinite(sample_time)
             and 0 <= now - sample_time <= 1.5
@@ -141,6 +149,7 @@ class Bridge:
         self._raw_sent = float('-inf')
         self._raw_candidate = self._raw_receipt = self._target_offer = None
         self._display_sent = float('-inf')
+        self._display_last_state = None
         # MQTT 5 preserves the retain flag even on live deliveries.
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f'gaming-{self.id}',
                                   protocol=mqtt.MQTTv5)
@@ -212,6 +221,8 @@ class Bridge:
             self._raw_last = None
             self._raw_sent = float('-inf')
             self._raw_candidate = self._raw_receipt = self._target_offer = None
+            self._display_sent = float('-inf')
+            self._display_last_state = None
         # Do not receive stored retained actions; reject any live retained action as well.
         options = mqtt.SubscribeOptions(qos=0, retainAsPublished=True, retainHandling=2)
         for topic in self.command_topics:
@@ -234,6 +245,8 @@ class Bridge:
             self._raw_last = None
             self._raw_sent = float('-inf')
             self._raw_candidate = self._raw_receipt = self._target_offer = None
+            self._display_sent = float('-inf')
+            self._display_last_state = None
             if self.ota is not None:
                 self.ota.reset()
         
@@ -554,7 +567,7 @@ class Bridge:
             }
         return True
 
-    def _can_send_display_context(self, context, now, wall):
+    def _can_send_display_context(self, context, now, wall, state):
         """Require the exact current foreground/MQTT connection snapshot."""
         with self.lock:
             if context is None or context is not self._foreground_context:
@@ -566,18 +579,22 @@ class Bridge:
                     and 0 <= age < FOREGROUND_MAX_AGE
                     and math.isfinite(observed)
                     and abs((wall - observed) - age) <= FOREGROUND_CLOCK_SKEW
-                    and now - self._display_sent >= DISPLAY_CONTEXT_PERIOD)
+                    and (state != self._display_last_state
+                         or now - self._display_sent >= DISPLAY_CONTEXT_PERIOD))
 
-    def publish_display_context(self, policy, input_idle_ms, context):
-        """Publish untrusted display context, never a confirmed screen-OFF."""
+    def publish_display_context(self, policy, input_idle_ms, context, *,
+                                display_state="unknown", display_event_age_ms=None):
+        """Publish console display notifications, never physical-monitor proof."""
         fields = _display_context_fields(policy, input_idle_ms)
+        state, age_ms = _display_event_fields(display_state, display_event_age_ms)
         now, wall = time.monotonic(), time.time()
-        if fields is None or not self._can_send_display_context(context, now, wall):
+        if fields is None or not self._can_send_display_context(context, now, wall, state):
             return False
         ac, dc, source, input_idle_ms = fields
         payload = json.dumps({
             "version": 1, "device_id": self.id, "observed_at": wall,
-            "display_state": "unknown",  # no OFF notification implemented yet
+            "display_state": state, "display_event_age_ms": age_ms,
+            "display_scope": "windows_console",
             "ac_timeout_seconds": ac, "dc_timeout_seconds": dc,
             "power_source": source, "last_input_idle_ms": input_idle_ms,
         }, separators=(",", ":"))
@@ -598,6 +615,7 @@ class Bridge:
             if not self.connected or self.generation != generation:
                 return False
             self._display_sent = now
+            self._display_last_state = state
         return True
 
     def publish_target_offer(self, candidate, context, *, sample_time):
