@@ -18,7 +18,7 @@ Our robot is enthusiastic. We're a little more careful.
 ## What's not ready?
 
 - The **Gaming restriction** signal and a default-off **Gaming rules enabled** switch are implemented in HA 0.5.12 source, but **automatic game closing or locking** is not validated or enabled by default.
-- **AFK / Screen idle bonuses** are still planned. The **Budget Overview** is now available in HA 0.8.0 source as a **read-only native dashboard**; it is not an embedded Device info view. Per-grant Parent bonus history/Undo (#165) and Unlimited bonus compensation (#164) remain separate planned features. Verify the installed HA version before using the dashboard YAML.
+- **AFK / Screen idle bonuses** are still planned. The **Budget Overview** is now available in HA 0.8.0 source as a **read-only native dashboard**; it is not an embedded Device info view. Parent bonus history/Undo is present in **HA 0.9.0 source** (#165), but still needs a real HA/Android acceptance test. Unlimited bonus compensation (#164) remains planned. Verify the installed HA version before using the dashboard YAML.
 - **Windows installation:** There is no verified signed public installer. Windows Smart App Control has blocked an unsigned build. **Don't turn off Smart App Control, Defender or other protections** to make it run.
 - **Updates:** The trusted Windows updater and stable release are still being tested.
 - **Platforms:** The Windows companion targets **64-bit Windows 10/11**. Other systems and individual browser-tab tracking aren't supported.

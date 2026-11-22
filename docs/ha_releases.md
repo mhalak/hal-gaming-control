@@ -5,7 +5,7 @@
 - SYSTEM updater independently checks protected ProgramData approval, pinned manifest Ed25519 signature, SHA/size/version, safe archive and Windows Authenticode signer before using the existing durable transaction/rollback/health pipeline. The old HTTPS updater path remains separate and default-OFF.
 - **Not a production release:** no real Authenticode-signed artifact, trusted publishing infrastructure, independently pinned local PC bootstrap or physical Smart App Control acceptance has been demonstrated. The #56 integrated deployment HOLD remains in effect; source readiness and actual rollout must be reported separately.
 
-## 0.9.0 — Parent bonus history and admin-confirmed Undo (#165; review candidate)
+## 0.9.0 — Parent bonus history and admin-confirmed Undo (#165; merged source, device acceptance pending)
 
 - Every new **Add 30 minutes** click creates a UTC-timestamped grant with an opaque stable ID, device and HA-local date. The date-scoped legacy `bonus_minutes` is mirrored without inventing history for old anonymous grants. The daily/weekly gaming-time history stays unchanged.
 - Budget Overview shows today's active/cancelled Parent bonus records. The native **Parent bonus to undo** dropdown and two explicit **Prepare Undo / Confirm Undo** admin-only HA actions can revoke one selected grant after the standard HA confirmation dialog. No fake Markdown action or custom HACS JavaScript is needed.

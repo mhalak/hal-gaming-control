@@ -170,3 +170,76 @@ def test_budget_overview_recorder_attrs_bounded_and_cancel_receipt_is_latest():
     assert len(parent_grants_today(opts, now())) == 29
     assert overview["parent_bonus_minutes"] == 29 * 30
     assert "daily_used" not in opts
+
+
+@pytest.mark.asyncio
+async def test_add_30_refuses_to_report_success_if_ha_rejects_save():
+    """A failed write must never imply a new confirmed bonus."""
+    from types import SimpleNamespace
+    from unittest.mock import Mock, patch
+    from homeassistant.exceptions import HomeAssistantError
+    from custom_components.hal_gaming_control.button import AddDailyBudget
+    from custom_components.hal_gaming_control.const import DEFAULTS
+
+    old = {"enabled": True, "daily": 120, "weekly": 300}
+    entry = SimpleNamespace(data={"device_id": "pc1", "name": "One PC"},
+                            options=old.copy())
+    coordinator = Mock(device_id="pc1", entry=entry, options=DEFAULTS | old)
+    button = AddDailyBudget(coordinator)
+    def decline(*args, **kwargs):
+        return False
+    button.hass = SimpleNamespace(
+        config_entries=SimpleNamespace(async_update_entry=decline))
+    with patch("custom_components.hal_gaming_control.button.dt_util.now",
+               return_value=now()), pytest.raises(
+                   HomeAssistantError, match="not saved"):
+        await button.async_press()
+    assert entry.options == old
+    assert parent_bonus_total(entry.options, now()) == 0
+
+
+@pytest.mark.asyncio
+async def test_concurrent_parent_buttons_on_one_pc_preserve_both_grants():
+    """Both explicit +30 presses must be recorded, not silently coalesced."""
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import Mock, patch
+    from custom_components.hal_gaming_control.button import AddDailyBudget
+    from custom_components.hal_gaming_control.const import DEFAULTS
+
+    opts = {"enabled": True, "daily": 120, "weekly": 300}
+    entry = SimpleNamespace(data={"device_id": "pc1", "name": "One PC"},
+                            options=opts)
+    coordinator = Mock(device_id="pc1", entry=entry)
+    coordinator.options = DEFAULTS | opts
+    def save(_entry, *, options):
+        entry.options = options
+        coordinator.options = DEFAULTS | options
+        return True
+    hass = SimpleNamespace(config_entries=SimpleNamespace(async_update_entry=save))
+    parent_a = AddDailyBudget(coordinator)
+    parent_b = AddDailyBudget(coordinator)
+    parent_a.hass = parent_b.hass = hass
+    with patch("custom_components.hal_gaming_control.button.dt_util.now",
+               return_value=now()):
+        await asyncio.gather(parent_a.async_press(), parent_b.async_press())
+    grants = parent_grants_today(entry.options, now())
+    assert len(grants) == 2
+    assert len({grant["id"] for grant in grants}) == 2
+    assert parent_bonus_total(entry.options, now()) == 60
+    assert effective_budget_limit(entry.options, now(), "weekly") == 300
+
+
+def test_revoking_consumed_grant_rechecks_daily_policy_without_erasing_time():
+    """Undo may activate a daily restriction; it must not mutate usage totals."""
+    from custom_components.hal_gaming_control.rule_engine import violations
+    options = {"enabled": True, "daily": 60, "weekly": 300,
+               "unlimited": False, "schedule_enabled": False, "per_game": {}}
+    options = add_parent_grant(options, "pc1", now(), 30)
+    grant = parent_grants_today(options, now())[0]
+    totals = {"daily": 75 * 60, "weekly": 75 * 60, "per_game": {}}
+    assert violations(options, totals, now(), []) == []
+    updated = revoke_parent_grant(options, "pc1", grant["id"], now(minute=2))
+    assert violations(updated, totals, now(), []) == ["daily"]
+    assert totals == {"daily": 75 * 60, "weekly": 75 * 60, "per_game": {}}
+    assert effective_budget_limit(updated, now(), "weekly") == 300

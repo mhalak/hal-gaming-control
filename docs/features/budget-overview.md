@@ -45,7 +45,7 @@ Here is what a parent's daily budget might look like:
 
 *Illustrative values, not live measurements.* The Screen idle bonus remains **pending** until [Smart Idle #92](screen-idle-bonus.md) delivers a verified event ledger. Pending does not mean zero eligible time and must not be guessed.
 
-## Parent bonus history and Undo (HA 0.9.0 source candidate, #165)
+## Parent bonus history and Undo (HA 0.9.0, #165)
 
 Every **new** click of **Add 30 minutes** becomes a separate, timestamped Parent bonus grant. The daily sensor exposes the **12 most recent** active grants (`parent_bonus_grants_today`) and active/cancelled records (`parent_bonus_activity_today`) to keep Recorder attributes compact. The full 90-day audit remains in the per-PC config entry, and the native select can list all active grants for today. The sensor also exposes `parent_bonus_recent_action` (latest add or cancellation), so the dashboard gives immediate visible feedback after a change. Cancelled grants remain in the audit; no past gaming time is erased.
 
@@ -64,7 +64,7 @@ The actions are admin-only, require an authenticated HA user and a specific sele
 
 **Important:** Selecting a grant is shared HA state, but each prepared confirmation belongs to the acting administrator. Never confirm a grant without rechecking the select's `prepared_grant`. The state is transient, so a Home Assistant reload also cancels pending confirmations.
 
-**Release status:** source candidate only; until PR #169 is reviewed, merged, installed, and tested on Android, the live Undo workflow is not verified. HA 0.8.0 does not include it.
+**Release status:** PR #169 has been merged and the implementation is in HA **0.9.0 source**. It has **not** been deployed or verified on the family's actual HA/Android installation. HA 0.8.0 does not include Undo. The native dashboard YAML is a manual opt-in card; it is not automatically injected into the Device info screen.
 
 ## Add a Home Assistant dashboard card
 
