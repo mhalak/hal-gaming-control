@@ -116,7 +116,8 @@ def test_separate_client_id_and_topic(reporter_factory):
     assert payload == STATUS and payload['request_id'] == 'a-b'
 
 
-def test_windows_computer_name_is_used_for_updater_status(tmp_path):
+def test_windows_computer_name_is_used_for_updater_status(tmp_path, monkeypatch):
+    monkeypatch.setattr('gaming_control.identity.socket.gethostname', lambda: 'NEW-PC')
     """Minimal new install has no YAML device section, but must report progress."""
     from gaming_control.identity import resolve_identity
 
