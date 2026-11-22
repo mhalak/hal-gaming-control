@@ -25,7 +25,7 @@
 
 ## Set the basic limits
 
-1. In Home Assistant, go to **Settings → Devices & services → SmartHouse Parental Control** and open the **device page for the desired PC**.
+1. In Home Assistant, go to **Settings → Devices & services → HAL Gaming Control** and open the **device page for the desired PC**.
 2. Locate **Daily limit** and **Weekly limit**. They are separate quotas; setting a daily allowance doesn't remove a stricter weekly limit.
 3. Set the allowances and check the current **Daily gaming time**, **Weekly gaming time**, **Daily budget**, and **Weekly budget** entities where available in your installed preview.
 4. Confirm the behavior with a short real-device test before enabling any restrictions or external automation. **No automatic enforcement should be enabled just because a budget sensor exists.**

@@ -1,6 +1,6 @@
 # Internal release identity
 
-`release.json` declares independent Windows and Home Assistant component versions. Current source allocation is **Parental Control Preview 10**: Windows agent **0.2.6** (unchanged) and HA integration **0.7.0**. This HA preview uses the *single* `custom_components/hal_gaming_control` package after a [breaking clean-cut reinstall](domain-clean-cut.md), not an in-place migration from the old HA domains.
+`release.json` declares independent Windows and Home Assistant component versions. Current source allocation is **HAL Gaming Control Preview 10**: Windows agent **0.2.6** (unchanged) and HA integration **0.7.0**. This HA preview uses the *single* `custom_components/hal_gaming_control` package after a [breaking clean-cut reinstall](domain-clean-cut.md), not an in-place migration from the old HA domains.
 
 Version declaration, CI, package build and successful deployment on the actual host are **separate facts**. A changed Git file or manifest does not prove that any HA instance or Windows PC installed it. Record the exact reviewed source SHA, package hash, previously working release, and real device smoke-test results before deploying. Never reuse a release tag or silently overwrite a published artifact.
 

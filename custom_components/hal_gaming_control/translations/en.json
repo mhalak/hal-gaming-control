@@ -23,7 +23,7 @@
   "options": {
     "step": {
       "settings_menu": {
-        "title": "Parental control",
+        "title": "HAL Gaming Control",
         "description": "Review MQTT connection information or manage tracked applications for this PC.",
         "menu_options": {
           "mqtt_settings": "MQTT configuration",

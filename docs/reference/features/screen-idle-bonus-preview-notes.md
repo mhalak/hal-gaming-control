@@ -6,7 +6,7 @@
 
 [← Documentation](../../README.md) · [← Project home](../../../README.md)
 
-**Status: planned; not implemented.** See [design issue #92](https://github.com/mhalak/smarthouse-parental-control/issues/92). There is currently no Screen idle bonus setting to turn on, no automatic award on deployed PCs, and no released screen-off telemetry guarantee.
+**Status: planned; not implemented.** See [design issue #92](https://github.com/mhalak/hal-gaming-control/issues/92). There is currently no Screen idle bonus setting to turn on, no automatic award on deployed PCs, and no released screen-off telemetry guarantee.
 
 <table>
   <tr>
@@ -79,4 +79,4 @@ The [planned itemized Budget overview](../../features/budget-overview.md) will s
 These are **future screenshots**, not images of a working current feature. Follow the [sanitized screenshot guide](../../assets/screenshots/README.md).
 
 ### Related
-[Gaming budgets](../../features/gaming-budgets.md) · [Budget overview](../../features/budget-overview.md) · [Product direction](../../product_direction.md) · [Issue #92](https://github.com/mhalak/smarthouse-parental-control/issues/92)
+[Gaming budgets](../../features/gaming-budgets.md) · [Budget overview](../../features/budget-overview.md) · [Product direction](../../product_direction.md) · [Issue #92](https://github.com/mhalak/hal-gaming-control/issues/92)

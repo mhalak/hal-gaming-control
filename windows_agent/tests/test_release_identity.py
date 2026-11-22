@@ -8,7 +8,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 SHA = "1234567890abcdef" * 2 + "12345678"
-RELEASE = {"release": "Parental Control Preview 10", "windows_agent": "0.2.6",
+RELEASE = {"release": "HAL Gaming Control Preview 10", "windows_agent": "0.2.6",
            "home_assistant": "0.7.0"}
 
 

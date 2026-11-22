@@ -22,7 +22,7 @@ Even royal decrees have rules: bonus time goes to the child's PC you choose, not
 
 ## Set the gaming budgets
 
-1. In Home Assistant, open **Settings → Devices & services → SmartHouse Parental Control**.
+1. In Home Assistant, open **Settings → Devices & services → HAL Gaming Control**.
 2. Open your child's **PC device page**.
 3. Set **Daily budget** (0–600 min, 10-minute steps) and **Weekly budget** (0–4200 min, 60-minute steps).
 4. Check the gaming-time readings with a short game session.

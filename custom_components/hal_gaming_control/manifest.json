@@ -1,6 +1,6 @@
 {
   "domain": "hal_gaming_control",
-  "name": "SmartHouse Parental Control",
+  "name": "HAL Gaming Control",
   "codeowners": [
     "@mhalak"
   ],
@@ -9,10 +9,10 @@
     "mqtt",
     "recorder"
   ],
-  "documentation": "https://github.com/mhalak/smarthouse-parental-control",
+  "documentation": "https://github.com/mhalak/hal-gaming-control",
   "integration_type": "device",
   "iot_class": "local_push",
-  "issue_tracker": "https://github.com/mhalak/smarthouse-parental-control/issues",
+  "issue_tracker": "https://github.com/mhalak/hal-gaming-control/issues",
   "mqtt": [
     "SmartHouse/Gaming/+/discovery"
   ],

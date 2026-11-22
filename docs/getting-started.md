@@ -2,7 +2,7 @@
 
 [← All guides](README.md) · [← Project home](../README.md)
 
-SmartHouse Parental Control connects your child's Windows PC to Home Assistant, so you can see gaming time, set limits and give extra minutes when you choose.
+HAL Gaming Control connects your child's Windows PC to Home Assistant, so you can see gaming time, set limits and give extra minutes when you choose.
 
 **This is a development preview, not a one-click installer.** You'll need to be comfortable testing software built from source.
 

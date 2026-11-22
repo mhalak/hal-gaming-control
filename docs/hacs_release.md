@@ -1,10 +1,10 @@
 # HACS publication checklist
 
-Public product name: SmartHouse Parental Control. GitHub repository: `mhalak/smarthouse-parental-control`. **Canonical HA 0.7.0 domain and package: `hal_gaming_control`**, in `custom_components/hal_gaming_control`. Only the HA package changes: MQTT root `SmartHouse/Gaming`, existing `smarthouse_gaming_<device_id>` native discovery wire IDs and Windows agent **0.2.6** are unchanged. Earlier HA entries under `smarthouse_gaming`, `parental` or `parental_control` must be removed and re-enrolled via the [clean-cut guide](domain-clean-cut.md); no automatic migration is provided.
+Public product name: HAL Gaming Control. GitHub repository: `mhalak/hal-gaming-control`. **Canonical HA 0.7.0 domain and package: `hal_gaming_control`**, in `custom_components/hal_gaming_control`. Only the HA package changes: MQTT root `SmartHouse/Gaming`, existing `smarthouse_gaming_<device_id>` native discovery wire IDs and Windows agent **0.2.6** are unchanged. Earlier HA entries under `smarthouse_gaming`, `parental` or `parental_control` must be removed and re-enrolled via the [clean-cut guide](domain-clean-cut.md); no automatic migration is provided.
 
 ## Marketplace domain identity
 
-HA 0.6.1's former `parental_control` domain collided with [cesbron-dev/ha-parental-control](https://github.com/cesbron-dev/ha-parental-control), causing the wrong Marketplace icon and an installation collision. Source preview HA **0.7.0** adopts the distinct domain `hal_gaming_control` ([issue #146](https://github.com/mhalak/smarthouse-parental-control/issues/146)). The existing HAL artwork is packaged at `custom_components/hal_gaming_control/brand/icon.png` and `icon@2x.png`.
+HA 0.6.1's former `parental_control` domain collided with [cesbron-dev/ha-parental-control](https://github.com/cesbron-dev/ha-parental-control), causing the wrong Marketplace icon and an installation collision. Source preview HA **0.7.0** adopts the distinct domain `hal_gaming_control` ([issue #146](https://github.com/mhalak/hal-gaming-control/issues/146)). The existing HAL artwork is packaged at `custom_components/hal_gaming_control/brand/icon.png` and `icon@2x.png`.
 
 **Do not claim the public Marketplace listing or pre-install icon is already fixed.** Catalog/release icon indexing and a fresh Marketplace install still need external checks on HA 2026.11. If the Marketplace Download dialog suggests any directory other than `hal_gaming_control`, **cancel**. Stable catalog submission remains gated on official validation, physical smoke testing and release requirements.
 

@@ -32,7 +32,7 @@ Check [known limitations](known_limitations.md), [release history](ha_releases.m
 
 ## For contributors
 
-This is a source-only preview. Feedback and reproducible bugs are welcome through [GitHub issues](https://github.com/mhalak/smarthouse-parental-control/issues). Please share versions and what happened, not private family or network data.
+This is a source-only preview. Feedback and reproducible bugs are welcome through [GitHub issues](https://github.com/mhalak/hal-gaming-control/issues). Please share versions and what happened, not private family or network data.
 
 ## For developers
 

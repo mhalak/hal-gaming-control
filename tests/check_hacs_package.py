@@ -15,6 +15,7 @@ hacs = json.loads((root / "hacs.json").read_text())
 assert manifest["domain"] == integration.name
 assert all(manifest.get(k) for k in ("documentation", "issue_tracker", "codeowners", "name", "version"))
 assert manifest["name"] == hacs["name"]
+assert manifest["documentation"] == "https://github.com/mhalak/hal-gaming-control" and manifest["issue_tracker"] == "https://github.com/mhalak/hal-gaming-control/issues"
 assert set(hacs) <= {"name", "homeassistant", "hacs", "content_in_root", "zip_release", "filename", "hide_default_branch", "country", "persistent_directory", "render_readme"}
 assert (integration / "__init__.py").is_file()
 assert (integration / "brand/icon.png").read_bytes().startswith(b"\x89PNG\r\n\x1a\n")

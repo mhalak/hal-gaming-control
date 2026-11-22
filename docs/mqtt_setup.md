@@ -1,11 +1,11 @@
 # MQTT setup and configuration
 
-SmartHouse Parental Control intentionally uses the built-in Home Assistant MQTT integration as its transport. There is one HA broker connection, shared by all enrolled PCs.
+HAL Gaming Control intentionally uses the built-in Home Assistant MQTT integration as its transport. There is one HA broker connection, shared by all enrolled PCs.
 
 ## Home Assistant
 Open **Settings → Devices & services → MQTT → Configure** to configure or reconfigure the broker address, port, authentication and TLS. The exact dialogs depend on the HA version. Changing this connection can affect other MQTT devices; do not change it merely to add a gaming PC.
 
-In **SmartHouse Parental Control → Configure → MQTT configuration**, view connection status, the shared broker host, port and TLS yes/no, device ID, scoped topics and onboarding mode. If disconnected, use the shown path to check **Settings → Devices & services → MQTT**, then review the Home Assistant log. This screen is informational: it never copies or displays credentials, certificate paths or keys, edits the global MQTT entry, creates another broker client or writes Windows configuration.
+In **HAL Gaming Control → Configure → MQTT configuration**, view connection status, the shared broker host, port and TLS yes/no, device ID, scoped topics and onboarding mode. If disconnected, use the shown path to check **Settings → Devices & services → MQTT**, then review the Home Assistant log. This screen is informational: it never copies or displays credentials, certificate paths or keys, edits the global MQTT entry, creates another broker client or writes Windows configuration.
 
 Home Assistant and each Windows agent have separate connection configuration. The integration uses HA's existing MQTT integration; each agent uses its protected local `config.yaml`. Changing one does not change the other. If different brokers per PC are needed, that is a separate transport/bridging feature.
 

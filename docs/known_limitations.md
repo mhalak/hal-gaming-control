@@ -2,7 +2,7 @@
 
 [← All guides](README.md) · [← Project home](../README.md)
 
-SmartHouse Parental Control is still being built. Some things work in testing, but this is **not a finished 1.0 release**.
+HAL Gaming Control is still being built. Some things work in testing, but this is **not a finished 1.0 release**.
 
 ## What can I try?
 
