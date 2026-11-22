@@ -35,7 +35,7 @@ Press **Add 30 minutes** for the chosen PC to grant **30 more minutes today**.
 
 For example: 180 daily minutes + 30 bonus minutes = **210 minutes today**. The weekly budget stays the same, and time already played is still recorded. The bonus resets at the next Home Assistant local midnight.
 
-The [Parent bonus history work (#165)](budget-overview.md#parent-bonus-history--backend-preview-165) adds individually identifiable grants and a visible ledger in source preview. Cancelling a grant through the HA interface is **not available yet** in that backend-only increment; no new bonus is inferred from the old anonymous total.
+HA 0.9.0 source candidate [Parent bonus history and Undo](budget-overview.md#parent-bonus-history-and-undo-ha-090-source-candidate-165) records each new +30-minute grant. A parent administrator can select one grant and use **Prepare Undo → Confirm Undo** on the dashboard. Old anonymous bonuses remain as one legacy aggregate, not fabricated historical clicks. This is a reviewed-source candidate, not evidence of an installed UI.
 
 Royal generosity does not override the calendar.
 
