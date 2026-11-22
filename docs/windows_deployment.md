@@ -1,6 +1,6 @@
 # Windows deployment guide
 
-## Automatic PC identity (issue #155, first safe increment)
+## Windows 0.2.7 Preview 6 — automatic PC identity (issue #155, first safe increment)
 
 The Windows agent now derives its discovery name from the **current Windows computer name**. Do not type or maintain `device.name`. On a fresh installation without `device.id`, it generates a random, stable per-install ID and saves it as `%ProgramData%\\SmartHouseGamingControl\\device_id` in the same administrator/SYSTEM-protected directory as `config.yaml`. It reuses this ID after service restart, PC renaming, or binary update. Keep this file with the ProgramData directory across reinstalls, because a lost ID creates a new HA device and MQTT topic root. Do not copy the identity file between PCs.
 
