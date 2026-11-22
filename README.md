@@ -12,11 +12,26 @@ Heard “just five more minutes” again? Let Home Assistant keep track while yo
 
 Track gaming time on Windows PCs, set limits, give bonus minutes and use parent controls when needed.
 
-**🏠 Local-first. Your home, your data.** The Windows companion reports activity to **your MQTT broker and Home Assistant**. Core tracking, budgets and parent controls need **no vendor cloud account, external activity-processing service or parental-control subscription**. Internet access may still be needed for software updates or optional online data sources.
+**🏠 Local-first. Your home, your data.** We built our own Windows service so PCs report activity and receive controls through **your MQTT broker and Home Assistant**, with no third-party cloud service in the control loop. Core tracking, budgets and manual controls run on your local network; internet access may still be used for installation, updates or optional online data sources. [See how local mode works](docs/features/local-mode.md).
 
 *Emotionally off duty, not legally. Please don't actually outsource parenting to a YAML file.*
 
 ## What can it do?
+
+<a name="feature-local-mode"></a>
+
+<table>
+  <tr>
+    <td width="132" valign="middle">
+      <a href="https://github.com/mhalak/hal-gaming-control/blob/main/docs/features/local-mode.md"><img src="https://raw.githubusercontent.com/mhalak/hal-gaming-control/main/docs/assets/illustrations/local-mode.png" width="120" alt="HAL family house glowing in the dark, with children safe inside and game monsters beyond the fence"></a>
+    </td>
+    <td valign="middle">
+      <h3>🏠 100% local — the monsters stay outside. So does the cloud.</h3>
+      <p>We built our own <strong>Windows service</strong> so gaming activity and parent commands travel through <strong>your local MQTT broker and Home Assistant</strong>, not somebody else's cloud. No external control service, vendor account or subscription. The only boss battle is at home.</p>
+      <p><a href="https://github.com/mhalak/hal-gaming-control/blob/main/docs/features/local-mode.md">How local mode works</a></p>
+    </td>
+  </tr>
+</table>
 
 <a name="feature-gaming-budgets"></a>
 
