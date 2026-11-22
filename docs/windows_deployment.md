@@ -1,3 +1,18 @@
+## Agent 0.4.0 Preview 21 — 🚨 BREAKING: hostname-only device identity
+
+**Not a transparent upgrade.** From Windows **0.4.0**, both the MQTT routing ID and discovery `name` are the current Windows computer name, for example `DESKTOP-F29J1R1`. The agent no longer uses or creates a random/persisted `device_id`; neither `device.id` nor `device.name` can override the OS name. **An existing `device:` section in `config.yaml` is rejected at startup.** The existing ProgramData `device_id` file is ignored (not deleted automatically, so rollback remains possible).
+
+**Before installing on each PC (one-PC pilot first):**
+
+1. Confirm the Windows OS name using `$env:COMPUTERNAME` and record the **old** exact MQTT prefix (e.g. `SmartHouse/Gaming/desktop_lucija`), HA device/config entry, tracked applications, budgets, bonus state, automations and Recorder history. Make a HA backup and a protected ProgramData backup. **Renaming the Windows PC later is another breaking identity migration.**
+2. Verify HA **0.12.0+** and its Unified MQTT v3 support. Prepare broker ACLs permitting that PC's MQTT account to publish/subscribe under the **new, hostname-based** prefix. Ensure hostnames are unique; if this is not possible, do not deploy. Do not disable broker access control to work around an ACL mismatch.
+3. From the protected `%ProgramData%\SmartHouseGamingControl\config.yaml`, **remove the entire legacy `device:` block**. Keep only the broker details and other supported options. The old `device_id` file may be kept for rollback but **has no effect** on 0.4.0. Do not copy/delete it as a way to rename the device.
+4. Install the **reviewed** Windows 0.4.0 build using the normal supervised deployment method. Expect discovery under `SmartHouse/Gaming/<WINDOWS_COMPUTERNAME>/discovery` and v3 observations under `.../state/telemetry`, with matching `device_id` and `name` values. Check live MQTT traffic, no unauthorized cross-device messages and the actual reported agent version.
+5. Home Assistant sees a **new device identity**, not an update to the old one. Enroll it, enable the v3 telemetry source **for the new HA config entry**, and restore/review the necessary app mappings, quotas, schedules, controls and automations before any enforcement. Test verified live foreground, Uptime and availability. The new device's Recorder history is **not** automatically joined to the old device's history.
+6. Only after verifying the replacement, remove the **old HA entry** and, if needed, clear **exact old project-owned retained discovery/availability/config topics** on the broker with authorized tools. Do not delete broad `SmartHouse/Gaming/#` trees, unrelated MQTT discovery or Recorder data. If cleanup fails, keep the old retained topics documented and do not enable enforcement on stale entities. Retain the backed-up identity file until rollback is no longer needed.
+
+**Rollback:** restore the previous Windows binary/config, old device-scoped broker ACLs and compatible HA config/source selection together. Never rely on the new hostname namespace to receive an old-device update command. Signed OTA and on-device acceptance remain separately gated; this changelog does **not** mean deployment was completed.
+
 ## Windows agent 0.2.12 Preview 18 — stable updater status identity (#166 follow-up)
 
 Fixes the separate Windows SYSTEM updater's MQTT status client for the default minimal Windows configuration: the auto-generated per-installation `device_id` is persisted in protected ProgramData, while `config.yaml` contains no `device.id`. Update progress now uses the persisted ID and stays device-scoped, rejects symlinks, malformed IDs and conflicting YAML/persisted identities, and preserves legacy YAML-only installations. Adds regressions for all four paths. Screen Idle bonus support (#92) in HA 0.11.0 is also opt-in and still needs a physical Windows acceptance test. Signed OTA activation remains default OFF and the [integrated deployment gate](https://github.com/mhalak/hal-gaming-control/issues/56) remains HOLD pending authentic signed artifacts, bootstrap, backups and one-PC Smart App Control acceptance.
@@ -143,7 +158,7 @@ Get-Service SmartHouseGamingControl
 Get-CimInstance Win32_Service -Filter "Name='SmartHouseGamingControl'" |
   Select-Object Name, State, StartMode, StartName, PathName
 Get-Content "$env:ProgramFiles\SmartHouseGamingControl\version.txt"
-Get-Content "$env:ProgramData\SmartHouseGamingControl\device_id"
+$env:COMPUTERNAME  # Windows 0.4.0+ uses this as both MQTT identity and discovery name
 ```
 
 Expected: Running, Automatic, LocalSystem. The installer places binaries in Program Files and config/logs in protected ProgramData. It deliberately refuses an already installed service. Remove temporary copies of config.yaml after verifying the protected installed copy.
