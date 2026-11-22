@@ -242,8 +242,33 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
             menu_options={
                 "mqtt_settings": "MQTT configuration",
                 "tracked_apps": "Tracked applications",
+                "screen_idle": "Screen idle (experimental)",
                 "windows_updates": "Windows updates (advanced)",
             },
+        )
+
+    async def async_step_screen_idle(self, user_input=None):
+        """Explicit per-device opt-in; no silent changes to active enforcement."""
+        errors = {}
+        if user_input is not None:
+            enabled = user_input.get("screen_idle_enabled") is True
+            if enabled and user_input.get("screen_idle_acknowledged") is not True:
+                errors["base"] = "screen_idle_preview_unconfirmed"
+            else:
+                # Never overwrite concurrently edited budgets or bonus journals.
+                options = dict(self.config_entry.options)
+                options["screen_idle_enabled"] = enabled
+                return self.async_create_entry(title="", data=options)
+        return self.async_show_form(
+            step_id="screen_idle", errors=errors,
+            data_schema=vol.Schema({
+                vol.Required("screen_idle_enabled",
+                             default=self.config_entry.options.get(
+                                 "screen_idle_enabled", False)):
+                    selector.BooleanSelector(),
+                vol.Required("screen_idle_acknowledged", default=False):
+                    selector.BooleanSelector(),
+            }),
         )
 
     async def async_step_mqtt_settings(self, user_input=None):
