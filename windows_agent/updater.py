@@ -286,6 +286,30 @@ def claim_request_id(path, request, now):
 
 
 # ------------------------------------------------------------ status over MQTT
+def updater_device_id(data, config):
+    """Use the same stable identity as the live agent, never a guessed MQTT ID.
+
+    Fresh installations do not contain device.id in config.yaml. The agent
+    persists its ID in ProgramData/device_id; legacy installations may still
+    use the YAML ID. Reject disagreement to prevent cross-device status.
+    """
+    from gaming_control.identity import _valid_id
+
+    data = Path(data)
+    declared = (config.get('device') or {}).get('id')
+    file = data / 'device_id'
+    if file.is_symlink():
+        raise ValueError('Persisted device ID cannot be a symlink')
+    if file.exists():
+        if not file.is_file():
+            raise ValueError('Persisted device ID must be a regular file')
+        stored = _valid_id(file.read_text(encoding='ascii').strip())
+        if declared is not None and _valid_id(declared) != stored:
+            raise ValueError('Configured and persisted device identities disagree')
+        return stored
+    return _valid_id(declared)
+
+
 class StatusReporter:
     """Separate MQTT client (own client id) so status is visible while the agent is stopped.
 
@@ -304,7 +328,7 @@ class StatusReporter:
         self.flush_wait = flush_wait
         try:
             config = yaml.safe_load((Path(data) / 'config.yaml').read_text(encoding='utf-8'))
-            cfg, device = config['mqtt'], config['device']['id']
+            cfg, device = config['mqtt'], updater_device_id(data, config)
             if not re.fullmatch(r'[a-zA-Z0-9_-]+', device):
                 raise ValueError('Invalid device id')
             self.topic = f'SmartHouse/Gaming/{device}/update/status'
