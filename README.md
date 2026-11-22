@@ -136,4 +136,10 @@ We follow trunk-based development, use automated tests and CI, and validate Wind
 
 In short: we automated the parenting, then automated part of the programming. Writing this disclaimer was, naturally, also AI-assisted.
 
+**Curious how much AI it takes to build a tool that limits screen time?**
+
+Apparently, quite a lot of screen time. And about **440 million tokens**. The irony is not lost on us.
+
+[See the AI development cost report](docs/ai-development-cost.md).
+
 Not affiliated with Home Assistant, HACS, Microsoft, Roblox or Minecraft. [Development and contribution details](docs/README.md#for-contributors).
