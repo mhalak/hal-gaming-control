@@ -266,8 +266,13 @@ class WindowsAgentUpdate(GamingEntity, UpdateEntity):
                 self.result = "preparing_signed_ota"
                 self.async_write_ha_state()
                 try:
-                    await self._async_stage_signed_ota_candidate(
+                    receipt = await self._async_stage_signed_ota_candidate(
                         chosen, signed_handoff=True)
+                    if (not isinstance(receipt, dict)
+                            or receipt.get("status") != "authenticated_staged"
+                            or receipt.get("version") != chosen):
+                        raise HomeAssistantError(
+                            "Windows did not authenticate the exact approved ZIP")
                 except Exception:
                     self.result = "ota_preflight_failed"
                     self.async_write_ha_state()
