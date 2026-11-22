@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 import time
 
-from .ota_staging import StageReceiver
+from .ota_staging import StageReceiver, decode_chunk, parse_offer
 
 
 class OtaMqttReceiver:
@@ -58,8 +58,14 @@ class OtaMqttReceiver:
     def _start(self, payload, now):
         if self.active is not None and not self.active.completed:
             if now < self.active.offer["expires_at"]:
-                # In-flight transfer is not overwritten by another start.
-                return self._ack(self.active, "receiving")
+                # Do not disclose the active transfer ID to invalid/foreign
+                # reoffers. Only an identical live offer is idempotent.
+                try:
+                    current = parse_offer(payload, self.device_id, now=now)
+                except ValueError:
+                    return None
+                return (self._ack(self.active, "receiving")
+                        if current == self.active.offer else None)
             self.reset()  # Reclaim expired partial data before fresh start.
         candidate = StageReceiver(self.staging_root, self.device_id)
         try:
@@ -72,6 +78,12 @@ class OtaMqttReceiver:
 
     def _chunk(self, payload, now):
         active = self.active
+        try:
+            transfer_id, _, _ = decode_chunk(payload)
+        except ValueError:
+            return None
+        if transfer_id != active.offer["transfer_id"]:
+            return None  # Never disclose active ID to a foreign upload.
         try:
             active.receive(payload, now=now)
         except (ValueError, OSError):
