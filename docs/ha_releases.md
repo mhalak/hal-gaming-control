@@ -1,4 +1,4 @@
-## 0.9.0 — Parent bonus history and admin-confirmed Undo (#165; review candidate)
+## 0.9.0 — Parent bonus history and admin-confirmed Undo (#165; merged source, device acceptance pending)
 
 - Every new **Add 30 minutes** click creates a UTC-timestamped grant with an opaque stable ID, device and HA-local date. The date-scoped legacy `bonus_minutes` is mirrored without inventing history for old anonymous grants. The daily/weekly gaming-time history stays unchanged.
 - Budget Overview shows today's active/cancelled Parent bonus records. The native **Parent bonus to undo** dropdown and two explicit **Prepare Undo / Confirm Undo** admin-only HA actions can revoke one selected grant after the standard HA confirmation dialog. No fake Markdown action or custom HACS JavaScript is needed.
