@@ -9,6 +9,7 @@ import pytest
 
 from custom_components.smarthouse_gaming.binary_sensor import GamingRestriction
 from custom_components.smarthouse_gaming.const import DEFAULTS
+from custom_components.smarthouse_gaming.switch import GamingRulesSwitch
 
 
 TZ = ZoneInfo("Europe/Zagreb")
@@ -21,7 +22,7 @@ def at(day, hour=12):
 class StubCoordinator:
     def __init__(self, *, options=None, data=None, device_id="pc1"):
         self.device_id = device_id
-        self.entry = SimpleNamespace(data={"name": "Gaming PC"})
+        self.entry = SimpleNamespace(data={"name": "Gaming PC"}, options=dict(options or {}))
         self.last_update_success = True
         self.options = DEFAULTS | (options or {})
         self.data = data if data is not None else {
@@ -154,3 +155,33 @@ def test_device_isolation_and_game_evidence():
     assert not a.available
     cb.data["totals"]["daily"] = 3600
     assert b.is_on
+
+
+@pytest.mark.asyncio
+async def test_rules_enabled_has_explicit_parent_opt_in_and_never_publishes():
+    """Switch defaults off and changes only HA-local options, even if PC is offline."""
+    entity, c = restriction(options={"daily": 60, "actions": ["terminate_game"]})
+    c.data["ready"] = False
+    toggle = GamingRulesSwitch(c)
+    assert toggle.unique_id == "pc1_gaming_rules_enabled"
+    assert toggle.name == "Gaming rules enabled"
+    assert toggle.available
+    assert toggle.is_on is False
+    changes = []
+
+    def save(entry, *, options):
+        changes.append(dict(options))
+        entry.options = dict(options)
+        c.options = DEFAULTS | entry.options
+
+    toggle.hass = SimpleNamespace(config_entries=SimpleNamespace(async_update_entry=save))
+    with patch.object(toggle, "async_write_ha_state"):
+        await toggle.async_turn_on()
+        assert toggle.is_on is True
+        assert c.entry.options["actions"] == ["terminate_game"]
+        assert c.entry.options["daily"] == 60
+        await toggle.async_turn_on()  # no duplicate option write
+        await toggle.async_turn_off()
+        assert toggle.is_on is False
+        assert len(changes) == 2
+    assert entity.is_on is None  # offline stays unknown regardless of switch

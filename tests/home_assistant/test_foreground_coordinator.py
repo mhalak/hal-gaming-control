@@ -54,7 +54,7 @@ async def test_production_uses_v2_only_and_maps_stable_keys_to_ha_names(hass):
     assert result["totals"]["daily"] == 2
     assert result["totals"]["per_game"] == {"Minecraft": 2}
     assert result["coverage_incomplete"] is True
-    assert result["reasons"] is None  # never auto-enforce incomplete coverage
+    assert result["reasons"] == []  # passive policy evaluation never sends commands
     c.close()
 
 
