@@ -323,6 +323,8 @@ class ForegroundSource:
 
     def invalidate(self):
         self.last_raw = None
+        self._needs_post_on = False
+        self._post_on_sequence = self._post_on_timestamp = None
         self.ledger.invalidate()
         self.system_uptime = self.system_status = self.display_details = None
         if self.display is not None:
@@ -337,6 +339,8 @@ class ForegroundSource:
         self._unsub.clear()
         self._online = self._connected = False
         self.v3_capable = False
+        self._needs_post_on = False
+        self._post_on_sequence = self._post_on_timestamp = None
         self.last_raw = None
         self.ledger.invalidate()
         if self.display is not None:
