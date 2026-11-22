@@ -233,7 +233,9 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True):
         "parent_bonus_grants_today": active_grants[:12],
         "parent_bonus_activity_today": activity[:12],
         "parent_bonus_recent_action": recent_action,
-        "screen_idle_bonus_minutes": screen_idle_bonus_total(settings, now),
+        "screen_idle_bonus_minutes": (
+            screen_idle_bonus_total(settings, now)
+            if settings.get("screen_idle_enabled") is True else None),
         "screen_idle_bonus_status": (
             "preview" if settings.get("screen_idle_enabled") is True else "disabled"),
         "daily_limit_minutes": daily_finite,
