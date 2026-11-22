@@ -15,7 +15,7 @@ jobs:
        github.event.issue.number == 189 &&
        github.event.issue.pull_request == null &&
        github.event.comment.user.login == 'mhalak' &&
-       startsWith(github.event.comment.body, '/publish-ha-release '))))
+       startsWith(github.event.comment.body, '/publish-ha-release ')))
     runs-on: ubuntu-latest
     concurrency:
       group: publish-ha-preview
