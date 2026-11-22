@@ -280,7 +280,7 @@ def test_no_rules_do_not_accept_terminate_and_retract_native_button():
     cfg = {**CONFIG, "games": []}
     b = Bridge(cfg)
     assert "terminate_game" not in b.command_topics.values()
-    assert set(b.command_topics.values()) == {"lock_pc"}
+    assert set(b.command_topics.values()) == {"lock_pc", "terminate_target"}
     assert b.metadata["actions"] == ["lock_pc"]
     b.client = Mock()
     b.client.publish.return_value.rc = mqtt.MQTT_ERR_SUCCESS

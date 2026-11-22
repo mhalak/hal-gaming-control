@@ -1,5 +1,15 @@
 # Windows deployment guide
 
+## Windows 0.2.9 Preview 8 — safe HA-targeted manual termination (#155)
+
+A **new PC still needs only MQTT broker details** in its Windows config; its ID and name are automatic. Together with **HA 0.7.2**, it offers an HA-owned **Terminate active game** button without a Windows `games` catalog. The button is available only when the selected PC has a recently verified **tracked foreground app** and an expiring agent-issued one-use token for that exact observation. Windows reads a fresh interactive-user foreground sample after the command, checks private PID/process start/session/signature and system-process protections, and terminates **one** verified process. A change of window or session, stale state, generic unidentifiable Java, missing sample, replay or reconnection causes a safe refusal. This is *manual* only; gaming restrictions never automatically kill apps.
+
+Existing PCs with a legacy `games` block keep the original native MQTT **Terminate game** button and its previously limited allowlist-based behaviour. No targeted offer is issued in that mode. You may keep that block through upgrade. Only a deliberate move to a rule-free config enables the new HA-controlled targeted button; the old native button is then withdrawn and a stale direct-mode legacy button remains unavailable. No registry purge, recorder reset or new device ID is required.
+
+**Pilot checklist before deployment:** back up the protected ProgramData config and `device_id` file, keep automatic enforcement disabled, upgrade HA first, then agent on one PC. Confirm raw foreground identity and HA Tracked applications are correct; verify the new control is unavailable when idle/offline/untracked or when another window is focused. Use a disposable game session for an explicitly authorized manual terminate, and check that *only that exact process* stops. Verify lock still works, reboot/reconnect, and use the complete binary rollback if a service/session/security check fails. The CI pipeline cannot substitute for the physical LocalSystem-to-interactive-session test.
+
+See [targeted MQTT protocol](mqtt_protocol.md) and [acceptance checklist](acceptance.md). **No physical pilot or public signed installer is claimed.**
+
 ## Windows 0.2.8 Preview 7 — MQTT-only setup, safe manual-control compatibility (#155)
 
 A **new Windows installation no longer needs a local `games` catalog**. Configure only `mqtt.host`, `mqtt.username` and `mqtt.password` (and TLS/port when needed). Agent ID remains stable in protected `device_id`; its advertised name comes from Windows. App enrollment/naming, budgets and limits remain in Home Assistant; raw v2 foreground telemetry works without Windows rules.

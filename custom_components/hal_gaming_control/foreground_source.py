@@ -10,7 +10,7 @@ from homeassistant.components import mqtt
 from homeassistant.core import callback
 
 from .const import ROOT
-from .raw_foreground import HAOwnedForeground
+from .raw_foreground import HAOwnedForeground, decode_raw_identity
 
 
 class ForegroundSource:
@@ -26,6 +26,7 @@ class ForegroundSource:
         self._online = False
         self._unsub = []
         self._closed = False
+        self.last_raw = None  # most recent independently verified live v2 packet
 
     async def async_start(self):
         """Subscribe to the same scoped MQTT topics in both discovery modes."""
@@ -49,6 +50,7 @@ class ForegroundSource:
         self._connected = connected is True
         if not self._connected:
             self._online = False
+            self.last_raw = None
             self.ledger.invalidate()
         self.on_update()
 
@@ -60,6 +62,7 @@ class ForegroundSource:
         self._online = (message.topic == self.root + "/availability"
                         and value in ("online", b"online"))
         if not self._online:
+            self.last_raw = None
             self.ledger.invalidate()
         self.on_update()
 
@@ -69,12 +72,21 @@ class ForegroundSource:
             return
         if (message.topic != self.root + "/state/foreground_identity"
                 or not self._connected or not self._online):
+            self.last_raw = None
             self.ledger.invalidate()
             self.on_update()
             return
-        self.ledger.observe(
+        accepted = self.ledger.observe(
             message.payload, retained=getattr(message, "retain", None),
             wall_now=time(), monotonic_now=monotonic())
+        self.last_raw = None
+        if accepted:
+            try:
+                raw = decode_raw_identity(message.payload, self.device_id)
+                if raw["state"] == "foreground":
+                    self.last_raw = raw
+            except (ValueError, TypeError, RecursionError):
+                self.ledger.invalidate()
         self.on_update()
 
     def current(self, monotonic_now=None):
@@ -92,6 +104,7 @@ class ForegroundSource:
         return self.ledger.export_segments()
 
     def invalidate(self):
+        self.last_raw = None
         self.ledger.invalidate()
         if not self._closed:
             self.on_update()
@@ -102,4 +115,5 @@ class ForegroundSource:
             unsubscribe()
         self._unsub.clear()
         self._online = self._connected = False
+        self.last_raw = None
         self.ledger.invalidate()
