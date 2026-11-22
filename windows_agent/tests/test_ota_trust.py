@@ -150,3 +150,57 @@ def test_trusted_mqtt_mode_fails_closed_without_package_or_authenticode(tmp_path
     env.assert_settled("1.0.0", "failed")
     assert env.service.calls == []
     assert env.downloads == []
+
+
+
+def test_pinned_bootstrap_refuses_unsigned_updater_configuration(tmp_path):
+    from gaming_control.agent import pinned_ota_key
+    key = Ed25519PrivateKey.generate()
+    conf = tmp_path / "config.yaml"
+    conf.write_text("mqtt: {}\n")
+    (tmp_path / "ota-staging").mkdir()
+    opts = {"update": {"enabled": True, "mqtt_staging_enabled": True,
+                       "mqtt_install_enabled": True}}
+    path = tmp_path / "updater.json"
+    path.write_text(json.dumps({"mqtt_install_enabled": True,
+                                "public_key_pem": pem(key).decode()}))
+    with pytest.raises(ValueError, match="Authenticode"):
+        pinned_ota_key(conf, opts)
+    path.write_text(json.dumps({"mqtt_install_enabled": True,
+                                "public_key_pem": pem(key).decode(),
+                                "authenticode_thumbprint": "A" * 40}))
+    # CI's non-Windows pure-input path exercises the out-of-band pin check;
+    # Windows itself also checks the real signed updater executable/task.
+    import os
+    if os.name != "nt":
+        assert pinned_ota_key(conf, opts) == pem(key).decode()
+    (tmp_path / "ota-staging").rmdir()
+    with pytest.raises(ValueError, match="staging"):
+        pinned_ota_key(conf, opts)
+
+
+def test_signed_ota_crash_after_commit_recovers_and_cleans_quarantine(tmp_path):
+    from updater_fakes import Env, SimulatedCrash, signed_release
+    env = Env(tmp_path)
+    env.data.joinpath("device_id").write_text(PC)
+    data = signed_release(env.key, VERSION)[f"windows-agent-{VERSION}.zip"]
+    stage_dir = env.data / "ota-staging"
+    stage_dir.mkdir()
+    stage = staged(stage_dir, data)
+    authorize_staged(stage, signed_auth(data, env.key), pem(env.key), now=999)
+    marker = stage_dir / f"ota-{TID}.approved.json"
+    cfg = json.loads((env.data / "updater.json").read_text()) | {
+        "mqtt_install_enabled": True, "authenticode_thumbprint": "A" * 40,
+    }
+    (env.data / "updater.json").write_text(json.dumps(cfg))
+    env.request(VERSION)
+    env.crash_at = "journal:committed"
+    with pytest.raises(SimulatedCrash):
+        env.updater(authenticode=lambda *_: True).run()
+    assert marker.exists()
+    env.crash_at = None
+    env.updater(authenticode=lambda *_: True).run()
+    env.assert_settled(VERSION, "success")
+    assert not marker.exists()
+    assert not stage.staged.exists()
+    assert not env.journal_path.exists()
