@@ -154,12 +154,14 @@ async def test_replay_wrong_pc_stale_retained_and_reconnect_fail_closed(hass):
     assert s.current(10107) is None
     assert bonus.call_count == 0
     deliver(cb, root + "/state/telemetry", v3(ts=110, seq=6), ts=110)
-    assert s.current(10110) == "Roblox"  # new verified observation
+    assert s.current(10110) is None  # must re-arm after unknown display
+    deliver(cb, root + "/state/telemetry", v3(ts=111, seq=7), ts=111)
+    assert s.current(10111) == "Roblox"
     s._connection(False)
     assert s.current(10110) is None
     s._connection(True)
     deliver(cb, root + "/availability", "online", ts=111)
-    deliver(cb, root + "/state/telemetry", v3(ts=112, seq=7), ts=112)
+    deliver(cb, root + "/state/telemetry", v3(ts=112, seq=8), ts=112)
     assert s.current(10112) is None  # old epoch retired
     deliver(cb, root + "/state/telemetry",
             v3(ts=114, seq=1, epoch="c" * 32), ts=114)
