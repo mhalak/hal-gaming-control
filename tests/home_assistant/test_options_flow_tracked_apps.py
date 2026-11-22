@@ -259,7 +259,9 @@ async def test_raw_snapshot_rejects_stale_retained_foreign_and_unsafe_packets(
         view = await manager.async_init(entry.entry_id)
         view = await manager.async_configure(
             view["flow_id"], {"next_step_id": "tracked_apps"})
-    assert captured == [(device_topic, 0), ("unsubscribed", 0)]
+    assert captured == [(device_topic, 0),
+                        ("SmartHouse/Gaming/pc1/state/telemetry", 0),
+                        ("unsubscribed", 0), ("unsubscribed", 0)]
     assert view["description_placeholders"]["raw_value"] == "chrome.exe"
     assert view["description_placeholders"]["preview_name"] == "Not tracked"
 
