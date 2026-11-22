@@ -44,6 +44,8 @@ class ForegroundSource:
         self.system_status = None
         self.display_details = None
         self._needs_post_on = False
+        self._post_on_sequence = None
+        self._post_on_timestamp = None
 
     async def async_start(self):
         """Subscribe to the same scoped MQTT topics in both discovery modes."""
@@ -90,6 +92,7 @@ class ForegroundSource:
                 self.system_uptime = self.system_status = self.display_details = None
                 self.v3_capable = False
                 self._needs_post_on = False
+                self._post_on_sequence = self._post_on_timestamp = None
             if self.display is not None:
                 self.display.invalidate()
         self.on_update()
@@ -180,14 +183,32 @@ class ForegroundSource:
         current = self.display.current(mono)
         if previous != current and current == "on":
             self._needs_post_on = True
+            self._post_on_sequence = packet["sequence"]
+            # The helper event predates envelope capture by its age. A later
+            # MQTT packet can still carry an older helper foreground sample.
+            self._post_on_timestamp = (
+                packet["observed_at"] - packet["display"]["event_age_ms"] / 1000)
         elif current != "on":
             self._needs_post_on = False
+            self._post_on_sequence = self._post_on_timestamp = None
         return current
 
-    def _v3_effective_foreground(self, packet, display_state):
+    def _post_on_ready(self, packet, display_state):
+        if self.display is None:
+            return True
+        if display_state != "on":
+            return False
+        if not self._needs_post_on:
+            return True
+        fg = packet["foreground"]
+        age = fg["sample_age_ms"]
+        return (age is not None and fg["state"] in ("foreground", "idle")
+                and packet["sequence"] > self._post_on_sequence
+                and packet["observed_at"] - age / 1000 > self._post_on_timestamp)
+
+    def _v3_effective_foreground(self, packet, display_state, ready):
         raw = foreground_v2(packet)
-        if (self.display is None or
-                (display_state == "on" and not self._needs_post_on)):
+        if ready:
             return raw
         adjusted = json.loads(raw)
         adjusted.update(
@@ -196,16 +217,17 @@ class ForegroundSource:
         return json.dumps(adjusted)
 
     def _v3_foreground(self, packet, wall, mono, display_state):
-        effective = self._v3_effective_foreground(packet, display_state)
+        ready = self._post_on_ready(packet, display_state)
+        effective = self._v3_effective_foreground(packet, display_state, ready)
         accepted = self.ledger.observe(
             effective, retained=False, wall_now=wall, monotonic_now=mono)
         self.last_raw = None
-        if (accepted and packet["foreground"]["state"] == "foreground"
-                and (self.display is None or
-                     (display_state == "on" and not self._needs_post_on))):
+        if (accepted and ready and
+                packet["foreground"]["state"] == "foreground"):
             self.last_raw = json.loads(foreground_v2(packet))
-        if self._needs_post_on and display_state == "on":
-            self._needs_post_on = False  # Next packet must confirm focus again.
+        if accepted and ready and self._needs_post_on:
+            self._needs_post_on = False
+            self._post_on_sequence = self._post_on_timestamp = None
 
     @callback
     def _telemetry_snapshot(self, message):
