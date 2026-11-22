@@ -1,6 +1,6 @@
 # Artwork provenance and redistribution
 
-The SmartHouse Parental Control banner and both integration icon variants are AI-generated artwork commissioned/created by the project owner using ChatGPT. The owner confirms this origin and authorizes public redistribution of these three assets as part of the source-only development preview and its MIT-licensed repository materials.
+The HAL Gaming Control banner and both integration icon variants are AI-generated artwork commissioned/created by the project owner using ChatGPT. The owner confirms this origin and authorizes public redistribution of these three assets as part of the source-only development preview and its MIT-licensed repository materials.
 
 | Asset | Project purpose | Origin and redistribution |
 | --- | --- | --- |

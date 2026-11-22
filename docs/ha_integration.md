@@ -25,7 +25,7 @@ Home Assistant is the family's control panel: see gaming time, choose apps, give
 
 ## Track an app
 
-Open **Settings → Devices & services → SmartHouse Parental Control**, choose the PC and select **Configure → Tracked applications**.
+Open **Settings → Devices & services → HAL Gaming Control**, choose the PC and select **Configure → Tracked applications**.
 
 Home Assistant shows the app detected when the editor opened. It's a **snapshot**, not a live display. If the child switches apps, close and reopen the editor to see the new one.
 
