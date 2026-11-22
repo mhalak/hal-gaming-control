@@ -24,7 +24,7 @@ def bridge():
 
 
 def offer(b, candidate=FOCUS, sample_time=100):
-    with patch("gaming_control.mqtt_bridge.time.monotonic", return_value=101), \\
+    with patch("gaming_control.mqtt_bridge.time.monotonic", return_value=101), \
          patch("gaming_control.mqtt_bridge.time.time", return_value=2000):
         context = b.capture_foreground_context()
         assert b.publish_raw_foreground("foreground", candidate, context)
