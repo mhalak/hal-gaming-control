@@ -171,3 +171,11 @@ def test_disallow_second_concurrent_start_and_safe_abort(tmp_path):
     receiver.abort()
     assert not list(tmp_path.iterdir())
     receiver.abort()
+
+
+def test_one_completed_staging_artifact_per_device_prevents_disk_exhaustion(tmp_path):
+    (tmp_path / ("ota-" + "f" * 32 + ".staged")).write_bytes(b"already staged")
+    receiver = StageReceiver(tmp_path, DEVICE)
+    with pytest.raises((FileExistsError, ValueError)):
+        receiver.start(json.dumps(offer()), now=10)
+    assert not list(tmp_path.glob("*.part"))
