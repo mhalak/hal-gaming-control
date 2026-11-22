@@ -101,7 +101,7 @@ def test_malformed_binary_packet_and_size_limit(tmp_path):
     receiver = StageReceiver(tmp_path, DEVICE)
     receiver.start(json.dumps(offer(data)), now=10)
     for frame in (b"", b"\x00"*5, b"x" * (CHUNK_SIZE + 21),
-                  encode_chunk(TID, 0, b""), encode_chunk(TID, 0, b"x"*8)):
+                  bytes.fromhex(TID) + (0).to_bytes(4, "big"), encode_chunk(TID, 0, b"x"*8)):
         with pytest.raises(ValueError):
             receiver.receive(frame, now=10)
     assert receiver.receive(encode_chunk(TID, 0, data), now=11) == 1
