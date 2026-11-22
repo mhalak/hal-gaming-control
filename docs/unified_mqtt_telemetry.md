@@ -3,6 +3,8 @@
 **Implementation status:** Windows Preview 20 / agent **0.3.0** uses a **breaking clean cut**: v3 monitoring is mandatory, old retained scalar monitoring states are explicitly cleared, native Uptime discovery reads only the one `state/telemetry` JSON. **No deployment has happened.** This is not an automatic HA migration; HA 0.12.0+ must explicitly select per-PC v3 first. See [issue #176](https://github.com/mhalak/hal-gaming-control/issues/176)
 for the complete authoritative contract and HA acceptance checklist.
 
+> **Preview 21 / Windows 0.4.0 identity cutover:** MQTT v3 monitoring remains unchanged, but its `<device_id>` is now the **actual Windows computer name**. Upgrading from a persisted or manually configured ID changes the full per-PC MQTT namespace, HA entity/config-entry identity, broker ACL and OTA scope. Follow the [separate mandatory hostname-only migration](windows_deployment.md#agent-040-preview-21--breaking-hostname-only-device-identity) before applying the v3 protocol upgrade. No automatic migration or physical deployment is claimed.
+
 ## Windows publisher and protocol
 
 There is **no** `telemetry.unified_v3_enabled` opt-out in new Windows agent builds. Remove any old disabled `telemetry.unified_v3_enabled: false` key before testing. Use a supervised local migration pilot only. This does not alter
