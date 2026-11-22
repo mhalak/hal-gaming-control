@@ -71,6 +71,23 @@ def _raw_identity_parts(state, candidate):
     return None
 
 
+def _display_context_fields(policy, input_idle_ms):
+    """Validate untrusted helper metadata before putting it on MQTT."""
+    if not isinstance(policy, dict):
+        return None
+    ac, dc, source = (policy.get("ac_timeout_seconds"),
+                      policy.get("dc_timeout_seconds"), policy.get("power_source"))
+    for seconds in (ac, dc):
+        if seconds is not None and (type(seconds) is not int
+                                    or not 0 <= seconds <= 0xffffffff):
+            return None
+    if source not in ("ac", "battery", "unknown"):
+        return None
+    if type(input_idle_ms) is not int or not 0 <= input_idle_ms <= 86400000:
+        input_idle_ms = None
+    return ac, dc, source, input_idle_ms
+
+
 def _valid_target_sample(sample_time, now, captured_at):
     return (type(sample_time) in (int, float) and math.isfinite(sample_time)
             and 0 <= now - sample_time <= 1.5
@@ -521,49 +538,41 @@ class Bridge:
             }
         return True
 
-    def publish_display_context(self, policy, input_idle_ms, context):
-        """Read-only, device-scoped telemetry, NOT proof of screen-off.
-
-        The Windows helper supplies session-specific input age; the SYSTEM
-        service supplies only current power-policy settings. HA must not award
-        bonuses based on this context alone.
-        """
-        if not isinstance(policy, dict):
-            return False
-        ac, dc, source = (policy.get("ac_timeout_seconds"),
-                          policy.get("dc_timeout_seconds"), policy.get("power_source"))
-        if (any(type(x) is not int and x is not None for x in (ac, dc))
-                or any(x is not None and not 0 <= x <= 0xffffffff for x in (ac, dc))
-                or source not in ("ac", "battery", "unknown")):
-            return False
-        if type(input_idle_ms) is not int or not 0 <= input_idle_ms <= 86400000:
-            input_idle_ms = None
+    def _can_send_display_context(self, context, now, wall):
+        """Require the exact current foreground/MQTT connection snapshot."""
         with self.lock:
             if context is None or context is not self._foreground_context:
                 return False
             generation, observed, captured = context
-            now, wall = time.monotonic(), time.time()
             age = now - captured
-            if (not self.connected or self.generation != generation
-                    or self.synced_generation != generation
-                    or not 0 <= age < FOREGROUND_MAX_AGE
-                    or not math.isfinite(observed)
-                    or abs((wall - observed) - age) > FOREGROUND_CLOCK_SKEW
-                    or now - self._display_sent < DISPLAY_CONTEXT_PERIOD):
-                return False
-        packet = json.dumps({
+            return (self.connected and self.generation == generation
+                    and self.synced_generation == generation
+                    and 0 <= age < FOREGROUND_MAX_AGE
+                    and math.isfinite(observed)
+                    and abs((wall - observed) - age) <= FOREGROUND_CLOCK_SKEW
+                    and now - self._display_sent >= DISPLAY_CONTEXT_PERIOD)
+
+    def publish_display_context(self, policy, input_idle_ms, context):
+        """Publish untrusted display context, never a confirmed screen-OFF."""
+        fields = _display_context_fields(policy, input_idle_ms)
+        now, wall = time.monotonic(), time.time()
+        if fields is None or not self._can_send_display_context(context, now, wall):
+            return False
+        ac, dc, source, input_idle_ms = fields
+        payload = json.dumps({
             "version": 1, "device_id": self.id, "observed_at": wall,
             "display_state": "unknown",  # no OFF notification implemented yet
             "ac_timeout_seconds": ac, "dc_timeout_seconds": dc,
             "power_source": source, "last_input_idle_ms": input_idle_ms,
         }, separators=(",", ":"))
+        generation = context[0]
         if not self._same_connection(generation):
             return False
         try:
             properties = Properties(PacketTypes.PUBLISH)
             properties.MessageExpiryInterval = DISPLAY_CONTEXT_EXPIRY
             info = self.client.publish(
-                self.root + "/state/display_context", packet,
+                self.root + "/state/display_context", payload,
                 qos=0, retain=False, properties=properties)
         except (RuntimeError, ValueError, OSError):
             return False
