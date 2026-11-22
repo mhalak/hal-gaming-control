@@ -125,6 +125,10 @@ def test_unknown_measurements_are_never_reported_as_off_or_on():
     c.data["recorded_totals"] = {"daily": 1800, "weekly": 1800}
     assert not entity.available  # old history cannot prove current policy
     c.data["ready"] = True
+    c.data["online"] = False
+    assert not entity.available  # offline Recorder data alone is not a live verdict
+    assert entity.is_on is None
+    c.data["online"] = True
     for bad in (
         {}, {"daily": 0}, {"daily": None, "weekly": 0, "per_game": {}},
         {"daily": float("nan"), "weekly": 0, "per_game": {}},
