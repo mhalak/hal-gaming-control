@@ -171,3 +171,54 @@ async def test_no_success_when_save_fails():
             entity.confirm("parent-A")
         assert parent_bonus_total(entry.options, at()) == 90
         assert "Cancelled" not in entity.extra_state_attributes.get("undo_status", "")
+
+
+@pytest.mark.asyncio
+async def test_ha_services_are_admin_only_target_one_real_select(hass):
+    from homeassistant.auth.const import GROUP_ID_ADMIN
+    from homeassistant.core import Context
+    from homeassistant.exceptions import Unauthorized
+    from custom_components.hal_gaming_control.const import DOMAIN
+    from custom_components.hal_gaming_control.services import async_setup_services
+
+    entity, entry, committed = setup_select()
+    entity.hass = hass
+    def save(_entry, *, options):
+        entry.options = options
+        committed.append(options)
+
+    with patch.object(hass.config_entries, "async_update_entry", side_effect=save):
+        hass.data[DOMAIN] = {"parent_bonus_undo_selects": {
+            "select.pc1_parent_bonus_to_undo": entity,
+        }}
+        async_setup_services(hass)
+        admin = await hass.auth.async_create_user(
+            "Parent admin", group_ids=[GROUP_ID_ADMIN])
+        other = await hass.auth.async_create_user("Child")
+
+        with patch("custom_components.hal_gaming_control.select.dt_util.now",
+                   return_value=at()), patch(
+                       "custom_components.hal_gaming_control.select.monotonic",
+                       return_value=250.0), patch.object(entity, "async_write_ha_state"):
+            await entity.async_select_option(entity.options[1])
+            target = {"entity_id": "select.pc1_parent_bonus_to_undo"}
+            for who in (other.id, None):
+                with pytest.raises((Unauthorized, HomeAssistantError)):
+                    await hass.services.async_call(
+                        DOMAIN, "prepare_parent_bonus_undo", target,
+                        blocking=True, context=Context(user_id=who))
+            assert not committed
+            await hass.services.async_call(
+                DOMAIN, "prepare_parent_bonus_undo", target, blocking=True,
+                context=Context(user_id=admin.id))
+            with pytest.raises(HomeAssistantError):
+                await hass.services.async_call(
+                    DOMAIN, "confirm_parent_bonus_undo",
+                    {"entity_id": "select.other_pc_parent_bonus_to_undo"},
+                    blocking=True, context=Context(user_id=admin.id))
+            assert not committed
+            await hass.services.async_call(
+                DOMAIN, "confirm_parent_bonus_undo", target, blocking=True,
+                context=Context(user_id=admin.id))
+        assert len(committed) == 1
+        assert parent_bonus_total(entry.options, at()) == 60
