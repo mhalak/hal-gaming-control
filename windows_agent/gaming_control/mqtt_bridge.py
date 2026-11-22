@@ -481,6 +481,86 @@ class Bridge:
             }
         return True
 
+    def publish_target_offer(self, candidate, context, *, sample_time):
+        """Offer one short-lived capability for the privately verified foreground.
+
+        Only a rules-free agent issues it. No PID, path, session, command line,
+        credentials or other local process details cross the MQTT broker.
+        """
+        if not self._target_enabled:
+            return False
+        with self.lock:
+            receipt = self._raw_receipt
+            if (not self.connected or self.synced_generation != self.generation
+                    or context is not self._foreground_context or receipt is None
+                    or candidate is None or candidate != receipt['candidate']
+                    or receipt['generation'] != self.generation
+                    or type(sample_time) not in (float, int)
+                    or not math.isfinite(sample_time)):
+                self._target_offer = None
+                return False
+            now = time.monotonic()
+            if (not 0 <= now - sample_time <= 1.5
+                    or not 0 <= now - receipt['captured_at'] < TARGET_TTL):
+                self._target_offer = None
+                return False
+            if (self._target_offer is not None
+                    and self._target_offer['sequence'] == receipt['sequence']):
+                return False
+            generation, token = self.generation, secrets.token_hex(16)
+            offer = {
+                'token': token, 'candidate': candidate,
+                'sample_time': sample_time, 'offered_at': now,
+                'sequence': receipt['sequence'], 'generation': generation,
+            }
+            payload = json.dumps({
+                'version': 1, 'device_id': self.id, 'epoch': receipt['epoch'],
+                'sequence': receipt['sequence'],
+                'observed_at': receipt['observed_at'],
+                'process': candidate[0], 'signature': candidate[4],
+                'token': token,
+            })
+        if not self._same_connection(generation):
+            return False
+        try:
+            props = Properties(PacketTypes.PUBLISH)
+            props.MessageExpiryInterval = math.ceil(TARGET_TTL)
+            info = self.client.publish(self.root + '/state/terminate_offer',
+                                       payload, qos=0, retain=False,
+                                       properties=props)
+        except (RuntimeError, ValueError, OSError):
+            return False
+        if info.rc != mqtt.MQTT_ERR_SUCCESS:
+            return False
+        with self.lock:
+            if (not self.connected or self.generation != generation
+                    or self._raw_receipt is not receipt):
+                return False
+            self._target_offer = offer
+        return True
+
+    def publish_target_result(self, request_id, success):
+        """An expiring, non-sensitive command outcome, never retained."""
+        if not isinstance(request_id, str) or not re.fullmatch(r'[0-9a-f]{32}', request_id):
+            return False
+        with self.lock:
+            if not self.connected or self.synced_generation != self.generation:
+                return False
+            generation = self.generation
+        payload = json.dumps({'version': 1, 'device_id': self.id,
+                              'request_id': request_id,
+                              'outcome': 'terminated' if success else 'rejected'})
+        if not self._same_connection(generation):
+            return False
+        try:
+            props = Properties(PacketTypes.PUBLISH)
+            props.MessageExpiryInterval = 5
+            return self.client.publish(
+                self.root + '/state/terminate_result', payload, qos=0,
+                retain=False, properties=props).rc == mqtt.MQTT_ERR_SUCCESS
+        except (RuntimeError, ValueError, OSError):
+            return False
+
     def publish_candidate(self, candidate):
         """Publish basename, safe signature and opaque token, never PID/path.
 
