@@ -68,6 +68,15 @@ async def test_scoped_entities_and_safe_controls(hass, enable_custom_integration
         assert not publish.called
         await hass.services.async_call("button","press",{"entity_id":ids["lock_pc"]},blocking=True)
         publish.assert_awaited_once_with(hass,ROOT+"/command/lock_pc","PRESS",qos=0,retain=False)
+        # An upgraded rules-free PC revokes terminate even if HA has the
+        # previously registered button. No command may reach MQTT.
+        async_fire_mqtt_message(hass, ROOT+"/discovery", json.dumps(DATA | {
+            "games": [], "actions": ["lock_pc"]}))
+        await hass.async_block_till_done()
+        assert hass.states.get(ids["terminate_game"]).state == "unavailable"
+        await hass.services.async_call("button", "press",
+                                       {"entity_id": ids["terminate_game"]}, blocking=True)
+        assert publish.await_count == 1
         async_fire_mqtt_message(hass, ROOT+"/availability","offline")
         await hass.async_block_till_done()
         assert all(hass.states.get(eid).state == "unavailable" for eid in ids.values())
@@ -535,45 +544,29 @@ async def test_rules_opt_in_switch_only_controls_passive_signal(
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_legacy_terminate_button_requires_live_legacy_catalog_capability(
-        hass, enable_custom_integrations, mqtt_mock):
-    # An existing HA config entry still advertises terminate; the Windows PC
-    # has migrated to rules-free mode, and its new MQTT metadata revokes it.
-    entry = MockConfigEntry(domain=DOMAIN, title=DATA["name"], unique_id="pc1", data=DATA)
-    entry.add_to_hass(hass)
-    with patch("custom_components.hal_gaming_control.coordinator.direct_mode", return_value=True):
-        assert await hass.config_entries.async_setup(entry.entry_id)
-        await hass.async_block_till_done()
-    eid = er.async_get(hass).async_get_entity_id("button", DOMAIN, "pc1_terminate_game")
-    lock_id = er.async_get(hass).async_get_entity_id("button", DOMAIN, "pc1_lock_pc")
-    assert eid and lock_id
-    with patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish:
-        async_fire_mqtt_message(hass, ROOT + "/discovery", json.dumps(DATA | {
-            "games": [], "actions": ["lock_pc"]}))
-        for suffix, payload in [
-            ("availability", "online"), ("state/uptime", "100"),
-            ("state/in_game", "ON"), ("state/current_game", "Roblox"),
-        ]:
-            async_fire_mqtt_message(hass, ROOT + "/" + suffix, payload)
-        await hass.async_block_till_done()
-        assert hass.states.get(lock_id).state != "unavailable", "MQTT connection/availability not established"
-        assert hass.states.get(eid).state == "unavailable"
-        # Home Assistant must refuse instead of publishing a command that
-        # would silently do nothing or hit a legacy connected agent.
-        # HA silently skips service calls targeting unavailable buttons; the
-        # important invariant is that nothing reaches MQTT.
-        await hass.services.async_call("button", "press",
-                                       {"entity_id": eid}, blocking=True)
-        publish.assert_not_awaited()
-        async_fire_mqtt_message(hass, "SmartHouse/Gaming/pc2/discovery",
-                                json.dumps(DATA | {"device_id": "pc2", "actions": ["terminate_game"]}))
-        await hass.async_block_till_done()
-        assert hass.states.get(eid).state == "unavailable"
-        async_fire_mqtt_message(hass, ROOT + "/discovery", json.dumps(DATA))
-        await hass.async_block_till_done()
-        assert hass.states.get(eid).state != "unavailable"
-        await hass.services.async_call("button", "press",
-                                       {"entity_id": eid}, blocking=True)
-        publish.assert_awaited_once_with(
-            hass, ROOT + "/command/terminate_game", "PRESS", qos=0, retain=False)
-    assert await hass.config_entries.async_unload(entry.entry_id)
+async def test_direct_terminate_capability_requires_matching_live_agent_metadata():
+    from types import SimpleNamespace
+    from custom_components.hal_gaming_control.direct_mqtt import DirectAction
+
+    c = SimpleNamespace(device_id="pc1", entry=SimpleNamespace(data={"name": "PC 1"}))
+    action = DirectAction(c, "terminate_game")
+    action._connected = action._online = True
+    assert not action.available  # No metadata received yet: fail closed.
+
+    def report(topic, data):
+        with patch.object(action, "async_write_ha_state") as write:
+            action._capabilities(SimpleNamespace(topic=topic, payload=json.dumps(data)))
+            return write.called
+
+    assert report(ROOT + "/discovery", DATA | {"games": [], "actions": ["lock_pc"]})
+    assert not action.available
+    assert not report("SmartHouse/Gaming/pc2/discovery", DATA | {"device_id": "pc2"})
+    assert not action.available
+    assert report(ROOT + "/discovery", DATA)
+    assert action.available  # Existing legacy allowlist keeps manual kill.
+    assert report(ROOT + "/discovery", DATA | {"actions": ["lock_pc"]})
+    assert not action.available
+    assert report(ROOT + "/discovery", DATA | {"games": []})
+    assert not action.available
+    assert report(ROOT + "/discovery", DATA | {"protocol_version": 99})
+    assert not action.available
