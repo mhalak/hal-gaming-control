@@ -61,6 +61,9 @@ def effective_daily(options, weekend):
 
 def daily_bonus_minutes(options, now):
     """Only today's bonus is active (local calendar date, not rolling 24h)."""
+    if "parent_bonus_journal" in options:
+        from .parent_bonus import parent_bonus_total
+        return parent_bonus_total(options, now)
     if options.get("bonus_date") != now.date().isoformat():
         return 0
     value = options.get("bonus_minutes", 0)
