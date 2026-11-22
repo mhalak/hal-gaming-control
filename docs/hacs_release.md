@@ -20,13 +20,13 @@ HA 0.6.1's former `parental_control` domain collided with [cesbron-dev/ha-parent
 
 ## Source-only development preview
 
-Core Terminate game and Lock PC actions worked in live smoke testing. Source publication does not certify stable release acceptance. Keep personal data, credentials, private diagnostics and development history out of the public repository. Do not distribute unsigned executables as trusted releases. This preview has no active Windows binary build, artifact upload or release workflow. Windows CI runs source tests and compilation checks only; local packaging remains available for development. The [disabled design reference](examples/windows-release.yml.disabled) is retained for development only; it signs the update manifest, not the executable, and must never be enabled in this repository.
+Core Terminate game and Lock PC actions worked in live smoke testing. Source publication does not certify stable release acceptance. Keep personal data, credentials, private diagnostics and development history out of the public repository. Do not distribute unsigned executables as trusted releases. This preview has no approved Windows binary build, signed Windows artifact upload or Windows distribution release workflow. An independently gated **HA-only source prerelease** workflow exists for HACS; it never packages or installs Windows binaries. Windows CI runs source tests and compilation checks only; local packaging remains available for development. The [disabled design reference](examples/windows-release.yml.disabled) is retained for development only; it signs the update manifest, not the executable, and must never be enabled in this repository.
 
 ## Source-preview gates
 
 - The owner confirmed the three branding assets' AI-generated origin and authorized redistribution; see [asset provenance](../ASSETS.md). Verify that the published files match that record.
 - All active GitHub Action references are pinned to reviewed upstream commit SHAs; all active workflows specify read-only contents permissions and checkout does not persist credentials. Both upstream actions still invoke mutable container tags; SHA pinning does not make the full toolchain immutable. Review the resolved images or use digest-pinned validation before claiming reproducible validation. HACS PR commenting is disabled and workflow token permissions remain read-only.
-- Hosted CI and official validation have not yet passed. Record these as outstanding, not successful; no stable release or listing is authorized by source publication.
+- Hosted CI and HACS validation must pass on the exact current main SHA before any HA prerelease; a past green run does not certify future commits. No stable 1.0 or official catalog listing is authorized by source-only publication.
 
 ## Before stable release
 
