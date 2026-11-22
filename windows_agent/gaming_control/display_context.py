@@ -5,7 +5,6 @@ monitor actually powered down. No changes to Windows power settings occur.
 GetLastInputInfo MUST run in the interactive user session, not Session 0.
 """
 import ctypes
-from ctypes import wintypes
 import uuid
 
 VIDEO_SUBGROUP = "7516b95f-f776-4464-8c53-06167f40cc99"
@@ -15,21 +14,21 @@ MAX_INPUT_IDLE_MS = 24 * 60 * 60 * 1000
 
 class GUID(ctypes.Structure):
     _fields_ = [
-        ("Data1", wintypes.DWORD), ("Data2", wintypes.WORD),
-        ("Data3", wintypes.WORD), ("Data4", ctypes.c_ubyte * 8),
+        ("Data1", ctypes.c_uint32), ("Data2", ctypes.c_uint16),
+        ("Data3", ctypes.c_uint16), ("Data4", ctypes.c_ubyte * 8),
     ]
 
 
 class SystemPowerStatus(ctypes.Structure):
     _fields_ = [
-        ("ACLineStatus", wintypes.BYTE), ("BatteryFlag", wintypes.BYTE),
-        ("BatteryLifePercent", wintypes.BYTE), ("SystemStatusFlag", wintypes.BYTE),
-        ("BatteryLifeTime", wintypes.DWORD), ("BatteryFullLifeTime", wintypes.DWORD),
+        ("ACLineStatus", ctypes.c_uint8), ("BatteryFlag", ctypes.c_uint8),
+        ("BatteryLifePercent", ctypes.c_uint8), ("SystemStatusFlag", ctypes.c_uint8),
+        ("BatteryLifeTime", ctypes.c_uint32), ("BatteryFullLifeTime", ctypes.c_uint32),
     ]
 
 
 class LastInputInfo(ctypes.Structure):
-    _fields_ = [("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD)]
+    _fields_ = [("cbSize", ctypes.c_uint32), ("dwTime", ctypes.c_uint32)]
 
 
 def _guid(identifier):
@@ -42,14 +41,14 @@ def _native_display_policy():
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
     get_scheme = power.PowerGetActiveScheme
     get_scheme.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.POINTER(GUID))]
-    get_scheme.restype = wintypes.DWORD
+    get_scheme.restype = ctypes.c_uint32
     ac = power.PowerReadACValueIndex
     dc = power.PowerReadDCValueIndex
     for read in (ac, dc):
         read.argtypes = [ctypes.c_void_p, ctypes.POINTER(GUID),
                          ctypes.POINTER(GUID), ctypes.POINTER(GUID),
-                         ctypes.POINTER(wintypes.DWORD)]
-        read.restype = wintypes.DWORD
+                         ctypes.POINTER(ctypes.c_uint32)]
+        read.restype = ctypes.c_uint32
     free = kernel.LocalFree
     free.argtypes = [ctypes.c_void_p]
     free.restype = ctypes.c_void_p
@@ -58,7 +57,7 @@ def _native_display_policy():
         raise OSError("Unable to identify Windows active power plan")
     try:
         group, setting = _guid(VIDEO_SUBGROUP), _guid(VIDEO_IDLE)
-        ac_index, dc_index = wintypes.DWORD(), wintypes.DWORD()
+        ac_index, dc_index = ctypes.c_uint32(), ctypes.c_uint32()
         if ac(None, scheme, ctypes.byref(group),
               ctypes.byref(setting), ctypes.byref(ac_index)) != 0:
             raise OSError("Windows AC video timeout unavailable")
@@ -71,7 +70,7 @@ def _native_display_policy():
     status = SystemPowerStatus()
     get_power = kernel.GetSystemPowerStatus
     get_power.argtypes = [ctypes.POINTER(SystemPowerStatus)]
-    get_power.restype = wintypes.BOOL
+    get_power.restype = ctypes.c_int
     source = "unknown"
     if get_power(ctypes.byref(status)):
         source = {0: "battery", 1: "ac"}.get(status.ACLineStatus, "unknown")
@@ -110,7 +109,7 @@ def read_interactive_input_idle_ms():
         kernel = ctypes.WinDLL("kernel32", use_last_error=True)
         get_last = user.GetLastInputInfo
         get_last.argtypes = [ctypes.POINTER(LastInputInfo)]
-        get_last.restype = wintypes.BOOL
+        get_last.restype = ctypes.c_int
         ticks = kernel.GetTickCount64
         ticks.argtypes = []
         ticks.restype = ctypes.c_ulonglong
