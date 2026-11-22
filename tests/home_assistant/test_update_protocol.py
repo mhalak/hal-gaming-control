@@ -1,6 +1,6 @@
 import json
 import pytest
-from custom_components.parental_control.update_protocol import catalog_url, catalog_version, make_request, parse_status
+from custom_components.hal_gaming_control.update_protocol import catalog_url, catalog_version, make_request, parse_status
 
 def test_catalog():
     assert catalog_url("https://server.example/updates/approved.json")
