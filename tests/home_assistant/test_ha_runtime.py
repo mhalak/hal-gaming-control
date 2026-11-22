@@ -41,7 +41,8 @@ async def test_options_menu_adds_advanced_windows_updates_without_losing_legacy_
     assert result["type"] == data_entry_flow.FlowResultType.MENU
     assert result["menu_options"] == {"mqtt_settings": "MQTT configuration",
                                        "tracked_apps": "Tracked applications",
-                                       "windows_updates": "Windows updates (advanced)"}
+                                       "windows_updates": "Windows updates (advanced)",
+                                       "screen_idle": "Screen idle (experimental)"}
     # Removed UI paths must not erase persisted limits, update settings or actions.
     assert entry.options == saved
 
