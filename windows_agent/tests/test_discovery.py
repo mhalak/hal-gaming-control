@@ -46,3 +46,48 @@ def test_explicit_terminate_tombstone_is_device_scoped():
     from gaming_control.discovery import terminate_discovery_topic
     assert terminate_discovery_topic("pc1", "homeassistant") == (
         "homeassistant/button/smarthouse_gaming_pc1_terminate_game/config")
+
+
+
+def test_v3_remaps_exact_existing_uptime_discovery_without_new_entity():
+    legacy = discovery('pc1', 'PC 1')
+    unified = discovery('pc1', 'PC 1', unified_enabled=True)
+    assert legacy.keys() == unified.keys()
+    assert len(unified) == 3
+    topic = 'homeassistant/sensor/smarthouse_gaming_pc1_uptime/config'
+    before, after = legacy[topic], unified[topic]
+    assert before['unique_id'] == after['unique_id']
+    assert before['device'] == after['device']
+    assert before['availability_topic'] == after['availability_topic']
+    assert before['state_topic'] == 'SmartHouse/Gaming/pc1/state/uptime'
+    assert after['state_topic'] == 'SmartHouse/Gaming/pc1/state/telemetry'
+    assert 'value_template' not in before and 'expire_after' not in before
+    assert 'value_template' in after and after['expire_after'] == 10
+    assert "value_json.version == 3" in after['value_template']
+    assert "value_json.device_id == 'pc1'" in after['value_template']
+    assert "value_json.system.uptime_seconds" in after['value_template']
+    assert all(legacy[t] == unified[t] for t in legacy if t != topic)
+    assert set(unified).isdisjoint(obsolete_discovery_topics('pc1', 'homeassistant'))
+
+
+def test_v3_and_v2_native_uptime_reconfiguration_is_reversible():
+    from gaming_control.discovery import _uptime_v3_template
+    new = discovery('pc2', 'PC 2', 'ha_custom',
+                    terminate_enabled=False, unified_enabled=True)
+    old = discovery('pc2', 'PC 2', 'ha_custom',
+                    terminate_enabled=False, unified_enabled=False)
+    topic = 'ha_custom/sensor/smarthouse_gaming_pc2_uptime/config'
+    assert set(new) == set(old) and len(new) == 2
+    assert new[topic]['state_topic'].endswith('/pc2/state/telemetry')
+    assert old[topic]['state_topic'].endswith('/pc2/state/uptime')
+    assert new[topic]['unique_id'] == old[topic]['unique_id']
+    assert 'expire_after' not in old[topic]
+    assert 'pc1' not in _uptime_v3_template('pc2')
+    assert set(new).isdisjoint(obsolete_discovery_topics('pc2', 'ha_custom'))
+
+
+def test_untrusted_device_id_never_reaches_native_template():
+    import pytest
+    for bad in ("", "pc/1", "pc' or true", "a" * 65, "../../pc2", None):
+        with pytest.raises(ValueError):
+            discovery(bad, 'PC', unified_enabled=True)
