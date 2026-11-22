@@ -1,9 +1,8 @@
-## 0.12.2 — Prefer hostname-only gaming PC discovery in HA onboarding (#198)
+## 0.12.2 — Show device name and MQTT identity when adding a gaming PC (#198)
 
-- Fix **Add gaming PC** showing the same PC twice after Windows agent 0.4.0's breaking hostname-only identity migration: both the old retained `SmartHouse/Gaming/desktop_*` discovery and the new `SmartHouse/Gaming/DESKTOP-*/discovery` can report an identical Windows computer `name`, even though their MQTT routing IDs differ.
-- If a fully matching new discovery exists (`device_id == name`), the manual PC selector displays only the hostname-scoped candidate for that name. The preference is applied **before** filtering already-enrolled HA config entries; old alias discovery cannot make a configured new PC reappear. It does **not** delete retained messages, migrate entries/Recorder, alter Windows or enforce gaming rules.
-- Older agents with no hostname successor remain selectable. If distinct IDs advertise the same friendly name and no exact hostname candidate exists, options show the MQTT identity as a disambiguator; no accidental merging. Users should still validate live telemetry and broker ACLs, then explicitly clean exact obsolete retained records after safe cutover.
-- **HA-only** 0.12.2 / Preview 23, Windows remains **0.4.0**. Source fix and tests are not a deployment; [#56 HOLD](https://github.com/mhalak/hal-gaming-control/issues/56) still applies.
+- **Add gaming PC** now displays every candidate as `name (device_id)`, including both current Windows hostname-scoped entries and old retained discovery aliases. Example: `DESKTOP-9KHJGVL (desktop_lucija)` versus `DESKTOP-9KHJGVL (DESKTOP-9KHJGVL)`. This lets the operator identify which MQTT namespace belongs to each choice.
+- Keep valid candidates separate by their actual MQTT `device_id`. No implicit alias deduplication, no forced migration and no guessing which device is live. Already-configured IDs are still excluded; an unconfigured legacy ID may remain listed until its exact retained discovery is explicitly cleaned.
+- No MQTT publishing, tombstones, HA entity/config-entry migration, Windows service change, Recorder deletion, gaming quota/action change or automated deployment. HA-only **0.12.2** (Preview 23); Windows stays **0.4.0**. Deployment HOLD #56 remains active.
 
 ## 0.12.1 — Tracked applications preview works with Windows v3-only telemetry (#192)
 
