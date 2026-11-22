@@ -18,6 +18,7 @@ from .direct_mqtt import direct_mode
 from .foreground_source import ForegroundSource
 from .foreground_store import ForegroundStore, ForegroundStoreError
 from .foreground_cutover import async_activate_cutover
+from .screen_idle_bonus import maybe_add_screen_idle_grant
 from .rule_engine import calculate, violations, windows
 
 _LOGGER = logging.getLogger(__name__)
@@ -55,7 +56,8 @@ class GamingCoordinator(DataUpdateCoordinator):
     def policy_snapshot(options):
         # All gaming settings are read live. Only catalog changes need a reload.
         return {"update_catalog_url": options.get("update_catalog_url", ""),
-                "tracked_apps": json.dumps(options.get("tracked_apps", []), sort_keys=True)}
+                "tracked_apps": json.dumps(options.get("tracked_apps", []), sort_keys=True),
+                "screen_idle_enabled": options.get("screen_idle_enabled") is True}
 
 
     async def async_start_foreground(self):
@@ -67,16 +69,42 @@ class GamingCoordinator(DataUpdateCoordinator):
         self.foreground_store = store
         self._saved_segments = segments
         self.storage_healthy = True
+        screen = self.entry.options.get("screen_idle_enabled") is True
+        kwargs = {"intervals": segments}
+        if screen:
+            kwargs.update(screen_enabled=True, on_screen_off=self._screen_off)
         self.foreground = ForegroundSource(
             self.hass, self.device_id,
             self.entry.options.get("tracked_apps", []),
-            self._live_foreground_changed, intervals=segments)
+            self._live_foreground_changed, **kwargs)
         try:
             await self.foreground.async_start()
         except BaseException:
             self.foreground.close()
             self.foreground = None
             raise
+
+    @callback
+    def _screen_off(self, event, confirmed_segments):
+        """Offer an idempotent daily grant only from verified measured game time."""
+        if (not self.storage_healthy or self.foreground is None
+                or self.entry.options.get("screen_idle_enabled") is not True):
+            return
+        try:
+            updated = maybe_add_screen_idle_grant(
+                self.entry.options, self.device_id, event,
+                confirmed_segments, dt_util.now())
+        except (ValueError, TypeError):
+            _LOGGER.warning("Invalid Screen idle bonus receipt for device %s",
+                            self.device_id)
+            return
+        if updated is not self.entry.options:
+            # Synchronous HA config-entry write: no queued overlapping OFF
+            # callbacks and no separate unsynchronized local cache.
+            if self.hass.config_entries.async_update_entry(
+                    self.entry, options=updated) is False:
+                _LOGGER.error("Screen idle bonus could not be persisted for %s",
+                              self.device_id)
 
     @callback
     def _live_foreground_changed(self):
