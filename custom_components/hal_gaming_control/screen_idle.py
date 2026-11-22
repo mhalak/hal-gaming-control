@@ -130,13 +130,17 @@ class DisplayGate:
             if epoch != self._epoch:
                 self._armed_epoch = None
             is_new = epoch != self._epoch or sequence > self._sequence
+            if not is_new and self.state not in ("unknown", state):
+                # Same event receipt cannot be both ON and OFF.
+                self.invalidate()
+                return False, None
             self._epoch, self._sequence = epoch, sequence
         else:
             is_new = False
         previous = self.current(monotonic_now)
         self.state = state
         self._received = monotonic_now
-        if state == "on":
+        if state == "on" and is_new:
             self._armed_epoch = epoch
         event = None
         if (state == "off" and is_new and self._armed_epoch == epoch
