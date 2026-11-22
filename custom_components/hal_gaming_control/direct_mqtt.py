@@ -10,6 +10,7 @@ from homeassistant.helpers.entity import Entity, EntityCategory
 
 from .const import ROOT
 from .action_registry import ACTION_REGISTRY
+from .protocol import parse_discovery
 
 
 def direct_mode(hass):
@@ -95,6 +96,30 @@ class DirectAction(DirectEntity, ButtonEntity):
         if action not in ACTION_REGISTRY:
             raise ValueError("Unsupported gaming action")
         super().__init__(c, action, ACTION_REGISTRY[action].label)
+        # Old entries can retain the legacy terminate capability after the
+        # agent migrates to an empty game catalog. Require fresh agent metadata.
+        self._terminate_capable = False
+
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
+        if self._key == "terminate_game":
+            self.async_on_remove(await mqtt.async_subscribe(
+                self.hass, self._root + "/discovery", self._capabilities, qos=1))
+
+    @callback
+    def _capabilities(self, message):
+        try:
+            metadata = parse_discovery(message.topic, message.payload)
+            self._terminate_capable = (
+                bool(metadata["games"]) and "terminate_game" in metadata["actions"])
+        except (ValueError, TypeError, KeyError):
+            self._terminate_capable = False
+        self.async_write_ha_state()
+
+    @property
+    def available(self):
+        return (super().available and
+                (self._key != "terminate_game" or self._terminate_capable))
 
     async def async_press(self):
         if not self.available or not mqtt.is_connected(self.hass):
