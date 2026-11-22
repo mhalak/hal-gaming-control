@@ -201,19 +201,24 @@ class Bridge:
             if self.ota is not None:
                 self.ota.reset()
         
+    def _route_ota(self, client, msg):
+        """Keep binary staging off the ordinary manual-command dispatcher."""
+        if self.ota is None or msg.topic not in self.ota.topics:
+            return False
+        if not self.connected or msg.retain:
+            return True
+        reply = self.ota.handle(msg.topic, msg.payload)
+        if reply is not None:
+            client.publish(self.root + '/ota/ack', reply, qos=1, retain=False)
+        return True
+
     def on_message(self, client, userdata, msg):
         with self.lock:
             if msg.topic == self.prefix + '/status':
                 if msg.payload == b'online':
                     self.refresh_requested = True
                 return
-            if self.ota is not None and msg.topic in self.ota.topics:
-                if not self.connected or msg.retain:
-                    return
-                reply = self.ota.handle(msg.topic, msg.payload)
-                if reply is not None:
-                    client.publish(self.root + '/ota/ack', reply,
-                                   qos=1, retain=False)
+            if self._route_ota(client, msg):
                 return
             command = self.command_topics.get(msg.topic)
             if not self.connected or not command or msg.retain:
