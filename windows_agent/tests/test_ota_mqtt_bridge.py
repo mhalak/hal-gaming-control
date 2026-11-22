@@ -76,7 +76,7 @@ def test_opted_receiver_subscribes_exact_topics_and_advertises_capability(tmp_pa
         if "/ota/" in c.args[0]:
             assert c.kwargs["options"].retainAsPublished is True
             assert c.kwargs["options"].retainHandling == 2
-            assert c.kwargs["options"].qos == 1
+            assert c.kwargs["options"].QoS == 1
     assert ROOT + "/command/update" in b.command_topics
 
 
