@@ -31,7 +31,8 @@ The beauty of **Home Assistant automations**? Parents make the rules, choose the
 3. Choose an action:
 
    - **Lock PC:** Locks Windows. The child can unlock it normally; the game may keep running.
-   - **Terminate active game (Windows 0.2.9 + HA 0.7.2):** Targets one currently foreground, HA-tracked application using a short-lived verified Windows capability. If the PC is idle, offline, untracked or its foreground changed, the control is unavailable. It never accepts an arbitrary process name or PID from HA. **Unsaved progress may be lost.**\n   - **Terminate game (legacy):** On PCs retaining a local `games` allowlist, closes configured matching processes. This legacy button may remain unavailable after moving to the new catalog-free mode; use the new active-game control instead.
+   - **Terminate active game (Windows 0.2.9 + HA 0.7.2):** Targets one currently foreground, HA-tracked application using a short-lived verified Windows capability. If the PC is idle, offline, untracked or its foreground changed, the control is unavailable. It never accepts an arbitrary process name or PID from HA. **Unsaved progress may be lost.**
+   - **Terminate game (legacy):** On PCs retaining a local `games` allowlist, closes configured matching processes. This legacy button may remain unavailable after moving to the new catalog-free mode; use the new active-game control instead.
 
 Adding a game to the tracked list never closes it by itself. The new manual targeted control is not an automation or a silent enforcement engine: a parent explicitly presses the button, then Windows performs another identity/focus check before killing exactly one process. A successful MQTT publish is not proof of termination. Keep the child's unsaved progress in mind.
 
