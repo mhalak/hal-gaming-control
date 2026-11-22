@@ -118,6 +118,12 @@ Windows agent **0.2.10** automatically reports the PC's real Windows computer na
 
 **[Browse the guides](docs/README.md)** for setup and everyday use. Need more detail? See [Windows setup](docs/windows_deployment.md) and [Home Assistant setup](docs/ha_integration.md).
 
+## Changelog — patch notes and occasional boss fights
+
+Kids call it a new level. Developers call it a **BREAKING CHANGE**. Parents call it *“Why did this stop working?”*
+
+[Read the version-by-version changelog](docs/changelog.md) — with upgrade warnings before the next boss fight.
+
 ## The fine print (someone has to be the adult)
 
 This is a family tool, **not** unbreakable security or a replacement for parenting. Missing data can leave gaps in playtime history; closing a game can lose unsaved progress. Keep your home network secure. **Never turn off Windows security protections** just to install it. [Known limitations](docs/known_limitations.md) · [Privacy details](docs/mqtt_protocol.md).

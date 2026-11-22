@@ -23,6 +23,7 @@ OLD_PRODUCT = re.compile(r"Parental [Cc]ontrol")
 HISTORICAL_DOCUMENTS = {
     "docs/domain-clean-cut.md": "migration: old HA entries/repository name an operator must recognise",
     "docs/ha_releases.md": "HA release-note history (0.5.x / 0.6.x preview names)",
+    "docs/changelog.md": "public historical changelog documenting older preview branding",
     "docs/foreground_migration.md": "historical foreground cutover record (issue #4 / #67)",
     "docs/reference/known_limitations_history.md": "archived known-limitations snapshot",
 }

@@ -29,7 +29,7 @@ Every feature starts with one of our family cartoons. **The jokes are real; the 
 
 ## Need help?
 
-Check [known limitations](known_limitations.md), [release history](ha_releases.md) or the [real screenshot plan](assets/screenshots/README.md). Please keep children's names and home-network details out of bug reports.
+Check the [version-by-version changelog](changelog.md) (**breaking changes highlighted**), [known limitations](known_limitations.md), [technical HA release history](ha_releases.md) or the [real screenshot plan](assets/screenshots/README.md). Please keep children's names and home-network details out of bug reports.
 
 ## For contributors
 
