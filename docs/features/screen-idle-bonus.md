@@ -18,7 +18,7 @@
 
 As responsible parents, we want our kids to succeed. And the loot isn't going to mine itself. The game can work the night shift — the gaming budget shouldn't have to.
 
-**Planned — not implemented.** There is no Screen idle bonus setting or validated screen-off tracking to turn on today. [Design issue #92](https://github.com/mhalak/smarthouse-parental-control/issues/92).
+**Planned — not implemented.** There is no Screen idle bonus setting or validated screen-off tracking to turn on today. [Design issue #92](https://github.com/mhalak/hal-gaming-control/issues/92).
 
 ## How would it work?
 

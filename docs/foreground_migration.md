@@ -73,7 +73,7 @@ upgrade, restart or reading this document.
    entities are gone, verify and optionally rename the new entity in HA
    to the desired friendly ID. No old Recorder continuity is required.
 8. For each PC's first new setup, open **Settings → Devices & services →
-   SmartHouse Parental Control → Configure → Tracked applications**.
+   HAL Gaming Control → Configure → Tracked applications**.
    Remove obsolete test aliases if any. Run Minecraft/Roblox (or any
    desired game), select its **fresh** raw executable + vetted Java
    class/JAR/module discriminator, then add a friendly HA name. **Never**

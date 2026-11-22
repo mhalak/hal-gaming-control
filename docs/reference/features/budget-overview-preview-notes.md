@@ -6,7 +6,7 @@
 
 [← Documentation](../../README.md) · [← Project home](../../../README.md)
 
-**Status: planned; not implemented.** See [design issue #93](https://github.com/mhalak/smarthouse-parental-control/issues/93). The existing daily/weekly entities are not yet an itemized Budget overview.
+**Status: planned; not implemented.** See [design issue #93](https://github.com/mhalak/hal-gaming-control/issues/93). The existing daily/weekly entities are not yet an itemized Budget overview.
 
 <table>
   <tr>
@@ -74,4 +74,4 @@ Bonus grants need an event ledger to avoid duplicates on reconnect, restart or r
 No mocked screenshot should be presented as proof of a shipped feature. See [screenshot checklist](../../assets/screenshots/README.md).
 
 ### Related
-[Gaming budgets](../../features/gaming-budgets.md) · [Screen idle bonus](../../features/screen-idle-bonus.md) · [Issue #93](https://github.com/mhalak/smarthouse-parental-control/issues/93)
+[Gaming budgets](../../features/gaming-budgets.md) · [Screen idle bonus](../../features/screen-idle-bonus.md) · [Issue #93](https://github.com/mhalak/hal-gaming-control/issues/93)

@@ -27,7 +27,7 @@ So if the kids somehow have *another hour*, we can finally ask: **Did the little
 
 It's a transparent breakdown, **not an automatic cheat detector**. Unusual numbers should be easy to question, while the independent weekly budget still applies.
 
-**Planned — not implemented.** The itemized Budget Overview isn't available in Home Assistant yet. [Design issue #93](https://github.com/mhalak/smarthouse-parental-control/issues/93).
+**Planned — not implemented.** The itemized Budget Overview isn't available in Home Assistant yet. [Design issue #93](https://github.com/mhalak/hal-gaming-control/issues/93).
 
 ## Where did the time go?
 

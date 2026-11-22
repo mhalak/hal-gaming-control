@@ -23,7 +23,7 @@ The watchlist is yours to manage. If a new game appears, open **Tracked applicat
 ## Add an app
 
 1. Open the app on your child's PC and bring it to the front.
-2. In Home Assistant, open **Settings → Devices & services → SmartHouse Parental Control**, then select the PC.
+2. In Home Assistant, open **Settings → Devices & services → HAL Gaming Control**, then select the PC.
 3. Choose **Configure → Tracked applications** and check **Currently detected application**.
 4. Under **Application List**, press **Add**, enter a friendly name and confirm the small dialog.
 5. **Press Save changes in the main window too.** The first Add only changes the draft list.
