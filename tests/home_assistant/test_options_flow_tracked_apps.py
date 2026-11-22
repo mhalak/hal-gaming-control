@@ -264,6 +264,93 @@ async def test_raw_snapshot_rejects_stale_retained_foreign_and_unsafe_packets(
     assert view["description_placeholders"]["preview_name"] == "Not tracked"
 
 
+def v3_roblox_packet(*, device="pc1", observed_at, state="foreground", age_ms=50):
+    return {
+        "version": 3, "device_id": device, "epoch": "c" * 32,
+        "sequence": 1, "observed_at": observed_at,
+        "foreground": {
+            "state": state,
+            "process": "RobloxPlayerBeta.exe" if state == "foreground" else None,
+            "signature": None, "sample_age_ms": age_ms,
+        },
+        "display": {
+            "state": "unknown", "scope": "windows_console",
+            "event_epoch": None, "event_sequence": None,
+            "event_age_ms": None, "sample_age_ms": None,
+            "ac_timeout_seconds": None, "dc_timeout_seconds": None,
+            "power_source": "unknown", "last_input_idle_ms": None,
+        },
+        "system": {
+            "uptime_seconds": 1234, "agent_version": "0.3.0",
+            "agent_build_sha": None,
+        },
+    }
+
+
+async def test_v3_only_windows_agent_shows_detected_app_in_editor(
+        hass, enable_custom_integrations):
+    """Preview must work without old v2 MQTT, even if v3 accounting is disabled."""
+    entry = add_device(hass, DATA1)
+    now = cf.dt_util.utcnow().timestamp()
+    v3_topic = "SmartHouse/Gaming/pc1/state/telemetry"
+    subscriptions = []
+
+    async def subscribe(_hass, topic, cb, qos=0):
+        subscriptions.append(topic)
+        if topic == v3_topic:
+            cb(SimpleNamespace(topic=topic, retain=False,
+                               payload=json.dumps(v3_roblox_packet(observed_at=now))))
+        return lambda: None
+
+    with patch.object(cf.mqtt, "async_subscribe", side_effect=subscribe), \\
+            patch.object(cf, "_listen_window", new=AsyncMock()), \\
+            patch.object(cf, "_discover_foreground_candidate",
+                         new=AsyncMock(return_value=ROBLOX)):
+        manager = hass.config_entries.options
+        menu = await manager.async_init(entry.entry_id)
+        result = await manager.async_configure(
+            menu["flow_id"], {"next_step_id": "tracked_apps"})
+
+    assert v3_topic in subscriptions
+    assert result["description_placeholders"]["raw_value"] == "RobloxPlayerBeta.exe"
+    assert result["description_placeholders"]["preview_name"] == "Not tracked"
+    assert rows(result) == []
+    field = next(iter(result["data_schema"].schema.values()))
+    assert field.config["fields"]["detected"]["default"] == "RobloxPlayerBeta.exe"
+
+
+async def test_v3_rejects_retained_foreign_stale_and_unsafe_preview(
+        hass, enable_custom_integrations):
+    entry = add_device(hass, DATA1)
+    now = cf.dt_util.utcnow().timestamp()
+    v3_topic = "SmartHouse/Gaming/pc1/state/telemetry"
+
+    async def subscribe(_hass, topic, cb, qos=0):
+        if topic == v3_topic:
+            valid = v3_roblox_packet(observed_at=now)
+            for packet, retained in (
+                    (valid, True),
+                    (valid | {"device_id": "pc2"}, False),
+                    (valid | {"observed_at": now - 90}, False),
+                    (valid | {"foreground": valid["foreground"] |
+                              {"process": "C:/unsafe.exe"}}, False)):
+                cb(SimpleNamespace(topic=topic, retain=retained,
+                                   payload=json.dumps(packet)))
+        return lambda: None
+
+    with patch.object(cf.mqtt, "async_subscribe", side_effect=subscribe), \\
+            patch.object(cf, "_listen_window", new=AsyncMock()), \\
+            patch.object(cf, "_discover_foreground_candidate",
+                         new=AsyncMock(return_value=None)):
+        manager = hass.config_entries.options
+        menu = await manager.async_init(entry.entry_id)
+        result = await manager.async_configure(
+            menu["flow_id"], {"next_step_id": "tracked_apps"})
+
+    assert result["description_placeholders"]["raw_value"] == "unavailable"
+    assert result["description_placeholders"]["preview_name"] == "Unavailable"
+
+
 async def test_add_detected_game_once_in_same_form_preserves_limits(
         hass, enable_custom_integrations):
     entry = add_device(hass, DATA1, {"daily": 90, "per_game": {"Roblox": 40},
