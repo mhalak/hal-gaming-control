@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from custom_components.smarthouse_gaming.raw_foreground import (
+from custom_components.parental.raw_foreground import (
     HAOwnedForeground, decode_raw_identity,
 )
 
