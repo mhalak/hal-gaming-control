@@ -8,7 +8,7 @@ This is the **human-readable development changelog**. For full technical release
 
 > **Preview software, not a deployment log.** Version numbers below describe changes recorded in source; they do **not** prove that a tagged GitHub Release, a signed Windows installer or an update on any real PC/HA instance exists. Always check the deployed build and the [current compatibility/deployment instructions](known_limitations.md).
 
-**Source snapshot (22 November 2026):** [`release.json`](../release.json) lists **Home Assistant 0.12.0** and **Windows agent 0.3.0** (Preview 20). They are **independently versioned**; a newer HA version does not imply a Windows update and vice versa.
+**Source snapshot (Preview 21, 22 November 2026):** **Home Assistant 0.12.0** and **Windows agent 0.4.0**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
 
 **🚨 BREAKING CHANGE** means an upgrade can require manual action or break compatibility with prior configs, entity IDs or MQTT payloads. Follow the linked migration instructions before updating; do not assume a normal in-place upgrade is safe.
 
@@ -133,6 +133,12 @@ This is the **human-readable development changelog**. For full technical release
 ## Windows agent
 
 Windows agent version numbers are **separate** from HA versions, even when they share a number.
+
+### 0.4.0 — 🚨 BREAKING CHANGE: Windows hostname is the only device identity (Preview 21, #191)
+- The **actual Windows computer name** is now mandatory for *both* the MQTT routing `device_id` and the discovered `name`. The agent reads the OS hostname at runtime: neither value can be overridden by `config.yaml`, and the previously persisted `device_id` file is ignored.
+- **Required action:** remove any old `device:` section from the protected Windows `config.yaml` before starting 0.4.0; otherwise the service deliberately fails to start. Prepare the MQTT broker's **per-PC ACL** for the new Windows-hostname topic prefix and keep a backup of the old configuration.
+- **🚨 New HA device:** existing prefixes such as `SmartHouse/Gaming/desktop_lucija` are **not** automatically renamed to the current hostname. Re-enroll each PC in HA, enable Unified MQTT v3 for the new entry, and review tracked apps, limits, bonuses, schedules and automations. Previous Recorder history is **not** automatically merged. Clear *only* exact obsolete retained MQTT entries after the replacement works; do not wipe shared topics or Recorder history.
+- **Windows computer renames change MQTT identity again.** No automatic identity migration, physical rollout, trusted signed package or OTA acceptance is implied. Follow the [supervised hostname migration](windows_deployment.md#agent-040-preview-21--breaking-hostname-only-device-identity) and [MQTT v3 upgrade guide](unified_mqtt_telemetry.md).
 
 ### 0.3.0 — 🚨 BREAKING CHANGE: v3-only monitoring (Preview 20, #176)
 - Replaces legacy read-only MQTT monitoring state publishers with one scoped **Unified MQTT telemetry v3** JSON packet per PC.
