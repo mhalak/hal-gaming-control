@@ -294,8 +294,8 @@ def test_targeted_execution_requires_new_user_foreground_sample():
     offer = {"candidate": ("RobloxPlayerBeta.exe", 410, 1000.5, 3, None),
              "sample_time": 100.0, "offered_at": 101.0}
     focus = Mock(candidate=offer["candidate"], last_sample_time=102.0)
-    with patch.object(A, "selected_session", return_value=(3, "unlocked")), \\
-         patch.object(A, "terminate_verified", return_value=True) as verified, \\
+    with patch.object(A, "selected_session", return_value=(3, "unlocked")), \
+         patch.object(A, "terminate_verified", return_value=True) as verified, \
          patch.object(A.time, "monotonic", return_value=102.1):
         assert A.execute_targeted(offer, focus)
     focus.read.assert_called_once_with([])
