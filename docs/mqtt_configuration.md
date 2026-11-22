@@ -21,3 +21,7 @@ Since HA 0.5.6, **Configure** exposes only **MQTT configuration** and **Tracked 
 The Windows agent reads the **actual OS computer name** at service startup and uses it as the default discovery label. There is no separate Windows-side display-name setting. The `device_id` is a different concept: it is a persistent random ID stored under protected ProgramData (or preserved from an existing legacy `device.id`) and remains unchanged if Windows is renamed.
 
 Rename the device in **Home Assistant → Settings → Devices & services → Devices** to show any preferred friendly name. HA's user-specified device name (`name_by_user`) takes precedence over the discovered name; do not alter the Windows computer name or the stable MQTT device ID to customize the HA UI. Existing integration config-entry titles may retain their previous label until changed manually. For complete installation and upgrade guidance, see [Windows deployment](windows_deployment.md).
+
+## Windows 0.2.8 minimal configuration
+
+Only MQTT connection settings are required for a new PC. Application detection, display names and limits belong in HA. Without local legacy `games` rules, manual Lock PC works but Terminate game is not exposed by the agent; this prevents an unaudited arbitrary process-kill command. Existing PCs can retain their local rules until a future HA-authoritative targeted termination protocol is reviewed. Native discovery retracts its own obsolete button; direct mode guards a stale existing button against use. See [Windows deployment](windows_deployment.md) and issue #155.

@@ -68,6 +68,15 @@ async def test_scoped_entities_and_safe_controls(hass, enable_custom_integration
         assert not publish.called
         await hass.services.async_call("button","press",{"entity_id":ids["lock_pc"]},blocking=True)
         publish.assert_awaited_once_with(hass,ROOT+"/command/lock_pc","PRESS",qos=0,retain=False)
+        # An upgraded rules-free PC revokes terminate even if HA has the
+        # previously registered button. No command may reach MQTT.
+        async_fire_mqtt_message(hass, ROOT+"/discovery", json.dumps(DATA | {
+            "games": [], "actions": ["lock_pc"]}))
+        await hass.async_block_till_done()
+        assert hass.states.get(ids["terminate_game"]).state == "unavailable"
+        await hass.services.async_call("button", "press",
+                                       {"entity_id": ids["terminate_game"]}, blocking=True)
+        assert publish.await_count == 1
         async_fire_mqtt_message(hass, ROOT+"/availability","offline")
         await hass.async_block_till_done()
         assert all(hass.states.get(eid).state == "unavailable" for eid in ids.values())
@@ -533,3 +542,31 @@ async def test_rules_opt_in_switch_only_controls_passive_signal(
         assert hass.states.get(restricted).state == "off"
         publish.assert_not_awaited()
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_direct_terminate_capability_requires_matching_live_agent_metadata():
+    from types import SimpleNamespace
+    from custom_components.hal_gaming_control.direct_mqtt import DirectAction
+
+    c = SimpleNamespace(device_id="pc1", entry=SimpleNamespace(data={"name": "PC 1"}))
+    action = DirectAction(c, "terminate_game")
+    action._connected = action._online = True
+    assert not action.available  # No metadata received yet: fail closed.
+
+    def report(topic, data):
+        with patch.object(action, "async_write_ha_state") as write:
+            action._capabilities(SimpleNamespace(topic=topic, payload=json.dumps(data)))
+            return write.called
+
+    assert report(ROOT + "/discovery", DATA | {"games": [], "actions": ["lock_pc"]})
+    assert not action.available
+    assert not report("SmartHouse/Gaming/pc2/discovery", DATA | {"device_id": "pc2"})
+    assert not action.available
+    assert report(ROOT + "/discovery", DATA)
+    assert action.available  # Existing legacy allowlist keeps manual kill.
+    assert report(ROOT + "/discovery", DATA | {"actions": ["lock_pc"]})
+    assert not action.available
+    assert report(ROOT + "/discovery", DATA | {"games": []})
+    assert not action.available
+    assert report(ROOT + "/discovery", DATA | {"protocol_version": 99})
+    assert not action.available

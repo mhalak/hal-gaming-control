@@ -1,4 +1,4 @@
-def discovery(device_id, name, prefix='homeassistant'):
+def discovery(device_id, name, prefix='homeassistant', *, terminate_enabled=True):
     root = f'SmartHouse/Gaming/{device_id}'
     device = {'identifiers': [f'smarthouse_gaming_{device_id}'], 'name': name,
               'manufacturer': 'SmartHouse', 'model': 'Windows Gaming Agent'}
@@ -7,6 +7,8 @@ def discovery(device_id, name, prefix='homeassistant'):
         'terminate_game': ('button', 'Terminate game', {}),
         'lock_pc': ('button', 'Lock PC', {}),
     }
+    if not terminate_enabled:
+        del specs['terminate_game']
     result = {}
     for key, (component, label, extra) in specs.items():
         uid = f'smarthouse_gaming_{device_id}_{key}'
@@ -30,3 +32,8 @@ def obsolete_discovery_topics(device_id, prefix):
            'button': ('add15', 'add30', 'add60', 'reset')}
     return [f'{prefix}/{component}/smarthouse_gaming_{device_id}_{key}/config'
             for component, keys in old.items() for key in keys]
+
+
+def terminate_discovery_topic(device_id, prefix):
+    """Exact native MQTT discovery topic owned by this agent's old button."""
+    return f'{prefix}/button/smarthouse_gaming_{device_id}_terminate_game/config'

@@ -1,3 +1,15 @@
+## 0.7.2 — HA-owned targeted manual Terminate active game (#155)
+
+- New HA-native **Terminate active game** button in both MQTT installation modes. It is available only with a fresh non-retained agent termination offer bound to the exact accepted HA-tracked raw foreground sample. No tracked game, idle, unknown, offline, stale token, or session change => unavailable. Pressing consumes the token and sends one fixed, device-scoped, non-retained command; no automated action or policy trigger.
+- Compatible Windows **0.2.9** exposes the new short-lived token protocol only when local legacy `games` rules are absent. PCs that retain their old rules continue using existing manual Terminate game; no silent reconfiguration or process list migration. The HA-owned action has a separate unique ID to prevent registry conflicts; an obsolete direct legacy button can remain unavailable until users hide it.
+- Includes strict process/session validation on Windows, Java discriminator and OS-process protection. **Physical one-PC pilot is not complete**; this is a reviewed-source candidate, not a stable public installer. No automatic termination, mandatory remote updates or broker changes.
+
+## 0.7.1 — safe scoped MQTT manual-action capability (#155)
+
+- Existing HA config entries keep their device IDs, entity IDs, tracked apps and budgets. The scoped/direct MQTT `Terminate game` button now requires verified current PC discovery metadata advertising a nonempty legacy `games` catalog and the terminate capability; if a PC upgrades to rule-free Windows 0.2.8, a stale previously created button becomes unavailable instead of sending a misleading command.
+- New rule-free Windows installs advertise only `Lock PC` and still send raw v2 foreground identity and uptime. Native MQTT discovery retracts only the exact obsolete agent-owned terminate button when rules are absent. No automatic or arbitrary process termination and no cloud dependency.
+- Windows companion 0.2.8 adds opt-in-free minimal MQTT-only setup; old Windows `games` rules can remain for legacy Terminate game. This HA-only version update is compatible with existing `hal_gaming_control` 0.7.0 entries; it is **not** a clean-cut domain migration. Physical one-PC pilot and review are required before deployment.
+
 ## 0.7.0 — unique `hal_gaming_control` HA domain (#146)
 
 - **BREAKING development preview:** The single supported HA package and manifest domain is now `custom_components/hal_gaming_control` / `hal_gaming_control`. It avoids the confirmed collision between HA 0.6.1 `parental_control` and the unrelated `cesbron-dev/ha-parental-control` Marketplace integration. Public product name is now **HAL Gaming Control** (formerly SmartHouse Parental Control; the GitHub repository is `mhalak/hal-gaming-control`), with the existing HAL artwork. The rename changes no version, HA domain, MQTT topic or wire identifier.

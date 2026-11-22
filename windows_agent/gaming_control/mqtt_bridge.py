@@ -13,8 +13,9 @@ import paho.mqtt.client as mqtt
 from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.properties import Properties
 from .core import COMMANDS
+from .targeted_terminate import TARGET_TTL, parse_target_request
 from .update_control import parse_request, installed_version, installed_build_sha
-from .discovery import discovery, obsolete_discovery_topics
+from .discovery import discovery, obsolete_discovery_topics, terminate_discovery_topic
 
 LOG = logging.getLogger(__name__)
 UPTIME_PERIOD = 60
@@ -66,6 +67,12 @@ def _raw_identity_parts(state, candidate):
         return None, None
     return None
 
+
+def _valid_target_sample(sample_time, now, captured_at):
+    return (type(sample_time) in (int, float) and math.isfinite(sample_time)
+            and 0 <= now - sample_time <= 1.5
+            and 0 <= now - captured_at < TARGET_TTL)
+
 class Bridge:
     def __init__(self, config):
         dev, cfg = config['device'], config['mqtt']
@@ -93,6 +100,7 @@ class Bridge:
         self._raw_sequence = 0
         self._raw_last = None
         self._raw_sent = float('-inf')
+        self._raw_candidate = self._raw_receipt = self._target_offer = None
         # MQTT 5 preserves the retain flag even on live deliveries.
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f'gaming-{self.id}',
                                   protocol=mqtt.MQTTv5)
@@ -108,11 +116,22 @@ class Bridge:
         self.client.on_connect = self.on_connect
         self.client.on_disconnect = self.on_disconnect
         self.client.on_message = self.on_message
-        self.configs = discovery(self.id, dev['name'], self.prefix)
+        # Until HA->Windows termination is migrated, a rule-free PC must not
+        # accept the legacy fixed PRESS command (which targets local rules).
+        self._termination_enabled = bool(config.get('games', []))
+        self._target_enabled = not self._termination_enabled
+        self.advertised_commands = (list(COMMANDS) if self._termination_enabled
+                                    else ['lock_pc'])
+        self.configs = discovery(self.id, dev['name'], self.prefix,
+                                 terminate_enabled=self._termination_enabled)
         self.metadata = {'protocol_version': 1, 'device_id': self.id,
                          'name': dev['name'], 'games': sorted({r['name'] for r in config.get('games', [])}),
-                         'actions': list(COMMANDS)}
-        self.command_topics = {self.root + '/command/' + key: key for key in COMMANDS}
+                         'actions': list(self.advertised_commands)}
+        self.command_topics = {self.root + '/command/' + key: key
+                               for key in self.advertised_commands}
+        if self._target_enabled:
+            self.command_topics[self.root + '/command/terminate_target'] = 'terminate_target'
+            self.metadata['targeted_terminate_protocol'] = 1
         self.updates_enabled = config.get('update', {}).get('enabled') is True
         self.metadata['agent_version'] = installed_version()
         self.metadata['agent_build_sha'] = installed_build_sha(self.metadata['agent_version'])
@@ -146,6 +165,7 @@ class Bridge:
             self._raw_sequence = 0
             self._raw_last = None
             self._raw_sent = float('-inf')
+            self._raw_candidate = self._raw_receipt = self._target_offer = None
         # Do not receive stored retained actions; reject any live retained action as well.
         options = mqtt.SubscribeOptions(qos=0, retainAsPublished=True, retainHandling=2)
         for topic in self.command_topics:
@@ -162,6 +182,7 @@ class Bridge:
             self._candidate_key = self._candidate_token = None
             self._raw_last = None
             self._raw_sent = float('-inf')
+            self._raw_candidate = self._raw_receipt = self._target_offer = None
         
     def on_message(self, client, userdata, msg):
         with self.lock:
@@ -178,6 +199,27 @@ class Bridge:
                 except (ValueError, TypeError):
                     LOG.warning('Invalid update request rejected')
                     return
+            elif command == 'terminate_target':
+                try:
+                    request = parse_target_request(msg.payload, self.id, self._foreground_epoch)
+                except (ValueError, TypeError):
+                    LOG.warning('Invalid targeted terminate request rejected')
+                    return
+                offer = self._target_offer
+                now = time.monotonic()
+                if (offer is None or offer['generation'] != self.generation
+                        or not 0 <= now - offer['offered_at'] < TARGET_TTL
+                        or not secrets.compare_digest(offer['token'], request['token'])):
+                    return
+                # Consume BEFORE queuing; replay, duplicated requests and queue
+                # overflow never give a second chance to kill a process.
+                self._target_offer = None
+                command = ('terminate_target', {
+                    'candidate': offer['candidate'],
+                    'sample_time': offer['sample_time'],
+                    'offered_at': offer['offered_at'],
+                    'received_at': now,
+                }, request['request_id'])
             elif msg.payload != b'PRESS':
                 return
             try:
@@ -228,6 +270,11 @@ class Bridge:
         self.last.clear()
         self.last_full = float('-inf')
         for topic in obsolete_discovery_topics(self.id, self.prefix):
+            self.client.publish(topic, b'', qos=1, retain=True)
+        if not self._termination_enabled:
+            # Retire only our exact previously advertised native MQTT button.
+            # Never wildcard-delete discovery or another PC's entities.
+            topic = terminate_discovery_topic(self.id, self.prefix)
             self.client.publish(topic, b'', qos=1, retain=True)
         self.client.publish(self.root + '/discovery', json.dumps(self.metadata), qos=1, retain=True)
         for topic, data in self.configs.items():
@@ -397,15 +444,22 @@ class Bridge:
                 return False
             process, signature = parts
             identity = (state, process, json.dumps(signature, sort_keys=True))
-            if identity == self._raw_last and now - self._raw_sent < RAW_FOREGROUND_PERIOD:
+            if candidate != self._raw_candidate:
+                # A foreground switch to another PID with the same .exe must
+                # invalidate the prior process capability immediately.
+                self._target_offer = self._raw_receipt = None
+            if (identity == self._raw_last and candidate == self._raw_candidate
+                    and now - self._raw_sent < RAW_FOREGROUND_PERIOD):
                 return False
+            self._target_offer = self._raw_receipt = None
             expiry = math.floor(FOREGROUND_MAX_AGE - max(age, wall - observed))
             if expiry < 1:
                 return False
             self._raw_sequence += 1
+            packet_epoch, packet_seq = self._foreground_epoch, self._raw_sequence
             payload = json.dumps({
                 "version": 2, "device_id": self.id,
-                "epoch": self._foreground_epoch, "sequence": self._raw_sequence,
+                "epoch": packet_epoch, "sequence": packet_seq,
                 "observed_at": observed, "state": state,
                 "process": process, "signature": signature,
             })
@@ -426,7 +480,90 @@ class Bridge:
                 return False
             self._raw_last = identity
             self._raw_sent = now
+            self._raw_candidate = candidate
+            self._raw_receipt = {
+                'candidate': candidate, 'generation': generation,
+                'epoch': packet_epoch, 'sequence': packet_seq,
+                'observed_at': observed, 'captured_at': captured,
+            }
         return True
+
+    def publish_target_offer(self, candidate, context, *, sample_time):
+        """Offer one short-lived capability for the privately verified foreground.
+
+        Only a rules-free agent issues it. No PID, path, session, command line,
+        credentials or other local process details cross the MQTT broker.
+        """
+        if not self._target_enabled:
+            return False
+        with self.lock:
+            receipt = self._raw_receipt
+            if (not self.connected or self.synced_generation != self.generation
+                    or context is not self._foreground_context or receipt is None
+                    or candidate is None or candidate != receipt['candidate']
+                    or receipt['generation'] != self.generation):
+                self._target_offer = None
+                return False
+            now = time.monotonic()
+            if not _valid_target_sample(sample_time, now, receipt['captured_at']):
+                self._target_offer = None
+                return False
+            if (self._target_offer is not None
+                    and self._target_offer['sequence'] == receipt['sequence']):
+                return False
+            generation, token = self.generation, secrets.token_hex(16)
+            offer = {
+                'token': token, 'candidate': candidate,
+                'sample_time': sample_time, 'offered_at': now,
+                'sequence': receipt['sequence'], 'generation': generation,
+            }
+            payload = json.dumps({
+                'version': 1, 'device_id': self.id, 'epoch': receipt['epoch'],
+                'sequence': receipt['sequence'],
+                'observed_at': receipt['observed_at'],
+                'process': candidate[0], 'signature': candidate[4],
+                'token': token,
+            })
+        if not self._same_connection(generation):
+            return False
+        try:
+            props = Properties(PacketTypes.PUBLISH)
+            props.MessageExpiryInterval = math.ceil(TARGET_TTL)
+            info = self.client.publish(self.root + '/state/terminate_offer',
+                                       payload, qos=0, retain=False,
+                                       properties=props)
+        except (RuntimeError, ValueError, OSError):
+            return False
+        if info.rc != mqtt.MQTT_ERR_SUCCESS:
+            return False
+        with self.lock:
+            if (not self.connected or self.generation != generation
+                    or self._raw_receipt is not receipt):
+                return False
+            self._target_offer = offer
+        return True
+
+    def publish_target_result(self, request_id, success):
+        """An expiring, non-sensitive command outcome, never retained."""
+        if not isinstance(request_id, str) or not re.fullmatch(r'[0-9a-f]{32}', request_id):
+            return False
+        with self.lock:
+            if not self.connected or self.synced_generation != self.generation:
+                return False
+            generation = self.generation
+        payload = json.dumps({'version': 1, 'device_id': self.id,
+                              'request_id': request_id,
+                              'outcome': 'terminated' if success else 'rejected'})
+        if not self._same_connection(generation):
+            return False
+        try:
+            props = Properties(PacketTypes.PUBLISH)
+            props.MessageExpiryInterval = 5
+            return self.client.publish(
+                self.root + '/state/terminate_result', payload, qos=0,
+                retain=False, properties=props).rc == mqtt.MQTT_ERR_SUCCESS
+        except (RuntimeError, ValueError, OSError):
+            return False
 
     def publish_candidate(self, candidate):
         """Publish basename, safe signature and opaque token, never PID/path.

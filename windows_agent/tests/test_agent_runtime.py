@@ -137,6 +137,29 @@ def test_run_advertises_os_hostname_and_preserves_generated_identity(runtime):
     assert resolved["device"]["id"] == (path.parent / "device_id").read_text().strip()
 
 
+def test_no_catalog_starts_and_keeps_raw_foreground_telemetry(runtime):
+    path, bridge, focus = runtime
+    path.write_text(yaml.safe_dump({"mqtt": {"host": "broker"}}), encoding="utf-8")
+    A.run(path, Stop())
+    A.scan.assert_called_once_with([])
+    focus.read.assert_called_once_with([])
+    bridge.publish_raw_foreground.assert_called_once()
+    A.execute.assert_not_called()
+
+
+def test_no_catalog_rejects_manual_terminate_without_scanning():
+    with patch.object(A, "stop_games") as stop:
+        with pytest.raises(ValueError, match="unavailable"):
+            A.execute("terminate_game", [])
+    stop.assert_not_called()
+
+
+def test_empty_rules_do_not_scan_process_list():
+    with patch.object(A.psutil, "pids") as pids:
+        assert A.scan([]) == []
+    pids.assert_not_called()
+
+
 def test_run_dispatches_commands_and_publishes_telemetry(runtime):
     path, bridge, focus = runtime
     request = {"request_id": "synthetic"}
@@ -251,3 +274,42 @@ def test_run_captures_foreground_before_probe_and_publishes_only_when_synced(run
         bridge.publish_foreground.assert_called_once_with(values, context)
     else:
         bridge.publish_foreground.assert_not_called()
+
+
+def test_targeted_command_does_not_execute_legacy_mass_kill(runtime):
+    path, bridge, _ = runtime
+    path.write_text(yaml.safe_dump({"mqtt": {"host": "broker"}}), encoding="utf-8")
+    offer = {"candidate": ("RobloxPlayerBeta.exe", 410, 1000.5, 3, None),
+             "sample_time": 100.0, "offered_at": 101.0}
+    bridge.drain_commands.return_value = [("terminate_target", offer, "e" * 32)]
+    with patch.object(A, "execute_targeted", return_value=True) as target:
+        A.run(path, Stop())
+    target.assert_called_once_with(offer, A.FocusProbe.return_value)
+    bridge.publish_target_result.assert_called_once_with("e" * 32, True)
+    A.execute.assert_not_called()
+    bridge.publish_target_offer.assert_called_once()
+
+
+def test_targeted_execution_requires_new_user_foreground_sample():
+    offer = {"candidate": ("RobloxPlayerBeta.exe", 410, 1000.5, 3, None),
+             "sample_time": 100.0, "offered_at": 101.0}
+    focus = Mock(candidate=offer["candidate"], last_sample_time=102.0)
+    with patch.object(A, "selected_session", return_value=(3, "unlocked")), \
+         patch.object(A, "terminate_verified", return_value=True) as verified, \
+         patch.object(A.time, "monotonic", return_value=102.1):
+        assert A.execute_targeted(offer, focus)
+    focus.read.assert_called_once_with([])
+    assert verified.call_args.kwargs["current_sample"] == 102.0
+    assert verified.call_args.kwargs["session"] == (3, "unlocked")
+
+
+def test_targeted_execution_requires_sample_after_command_receipt():
+    offer = {"candidate": ("RobloxPlayerBeta.exe", 410, 1000.5, 3, None),
+             "sample_time": 100.0, "offered_at": 101.0, "received_at": 102.0}
+    focus = Mock(candidate=offer["candidate"], last_sample_time=101.5)
+    with patch.object(A, "selected_session", return_value=(3, "unlocked")), \
+         patch.object(A, "terminate_verified", return_value=False) as verify, \
+         patch.object(A.time, "monotonic", return_value=102.3):
+        assert not A.execute_targeted(offer, focus)
+    assert verify.call_args.kwargs["offered_sample"] == 102.0
+    assert verify.call_args.kwargs["current_sample"] == 101.5

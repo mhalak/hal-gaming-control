@@ -148,6 +148,8 @@ class FocusProbe:
         self.started = 0
         self.retry_after = 0
         self.last_error_report = float('-inf')
+        # Only a newly verified helper sample may authorize a targeted action.
+        self.last_sample_time = None
 
     def _report_error(self, stage, code):
         now = time.monotonic()
@@ -259,12 +261,14 @@ class FocusProbe:
         self.candidate = candidate_from_sample(
             sample, session, now, session_lookup=process_session_id)
         if self.candidate is not None:
+            self.last_sample_time = sample["time"]
             self.foreground_state = "foreground"
         elif sample.get("status") == "idle":
             self.foreground_state = "idle"
 
     def read(self, rules):
         self.candidate = None  # never carry identity over a failed or stale probe
+        self.last_sample_time = None
         self.foreground_state = "unknown"
         try:
             session, status = selected_session()

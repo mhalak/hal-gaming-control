@@ -9,28 +9,23 @@ In **HAL Gaming Control → Configure → MQTT configuration**, view connection 
 
 Home Assistant and each Windows agent have separate connection configuration. The integration uses HA's existing MQTT integration; each agent uses its protected local `config.yaml`. Changing one does not change the other. If different brokers per PC are needed, that is a separate transport/bridging feature.
 
-In **Configure → Tracked applications**, view the applications reported in the selected PC's discovery data. The list is read-only. Live enrollment, rename and removal are not implemented and remain tracked in issue #7.
+In **Configure → Tracked applications**, enroll the selected PC's freshly observed foreground application and manage its display name entirely in Home Assistant. No app catalogue or display-name mapping needs to be written to the Windows service. The agent only publishes validated raw process identity, and Home Assistant owns the user-facing name.
 
 ## Windows
 Copy `windows_agent/config.example.yaml` to a private `config.yaml`, then edit the MQTT section before installation:
 ```yaml
 mqtt:
   host: BROKER_HOST
-  port: 1883
   username: UNIQUE_ACCOUNT_FOR_THIS_PC
   password: REPLACE_WITH_SECRET
-  tls: false
-  discovery_prefix: homeassistant
-
-# Transitional: required only until manual termination is migrated to HA
-games:
-  - name: Roblox
-    process: RobloxPlayerBeta.exe
+  # Optional: port defaults to 1883, TLS defaults to false.
+  # port: 8883
+  # tls: true
 ```
-This illustrates a local test broker; prefer authenticated TLS and the appropriate port/CA configuration for a production broker. The Windows agent now reports the real Windows computer name as its default discovery name. On initial launch it generates a stable ID in protected `%ProgramData%\\SmartHouseGamingControl\\device_id`, or preserves the ID already present in legacy `config.yaml`. Never delete or copy this identity file between PCs. HA is responsible for user-visible renaming. Existing local `games` rules remain temporarily necessary for manual `Terminate game`; see [Windows deployment](windows_deployment.md) and issue #155. Store the real configuration in protected ProgramData, not Git. Restart the Windows service after an authorized configuration change. Do not disable Windows security policies.
+This illustrates a local test broker; prefer authenticated TLS and the appropriate port/CA configuration for a production broker. The Windows agent now reports the real Windows computer name as its default discovery name. On initial launch it generates a stable ID in protected `%ProgramData%\\SmartHouseGamingControl\\device_id`, or preserves the ID already present in legacy `config.yaml`. Never delete or copy this identity file between PCs. HA is responsible for user-visible renaming. The local `games` list is now optional: a new PC works without it, but legacy `Terminate game` is unavailable when no local allowlist exists; `Lock PC` and Home Assistant's live application tracking still work. With Windows 0.2.9 + HA 0.7.2, rule-free PCs also get a separate HA-owned **Terminate active game** button for exactly the verified, tracked foreground app. The old legacy `Terminate game` button remains disabled on rule-free PCs; legacy PCs keeping `games` retain the old behaviour. These newer versions still require an authorized physical pilot before use; see [Windows deployment](windows_deployment.md) and issue #155. Store the real configuration in protected ProgramData, not Git. Restart the Windows service after an authorized configuration change. Do not disable Windows security policies.
 
 ## Broker permissions
-Generate the device ID before locking broker ACLs to the exact topic root, and allow only that ID; new IDs are not derived from hostnames. Each agent needs publish access to its own `SmartHouse/Gaming/<device_id>/discovery`, `state/#`, `availability` and (if enabled) `update/status`, and subscribe access to its own fixed `command/#` and the HA birth topic. With native discovery, allow its own fixed discovery config topics and the documented obsolete config cleanup only. HA needs read access to relevant PC telemetry and write access to the intended non-retained command topics. Do not grant a PC access to another PC's commands. Exact ACL syntax is broker-specific. Check the [wire contract](mqtt_protocol.md) for topic names.
+Generate the device ID before locking broker ACLs to the exact topic root, and allow only that ID; new IDs are not derived from hostnames. Each agent needs publish access to its own `SmartHouse/Gaming/<device_id>/discovery`, `state/#`, `availability` and (if enabled) `update/status`, and subscribe access to its own fixed `command/#` and the HA birth topic. With native discovery, allow its own fixed discovery config topics and the documented obsolete config cleanup only. In the rule-free mode, the agent publishes one additional exact retained empty config on its own old `terminate_game` button topic to retire an obsolete native button; never grant wildcard deletion of other devices. HA needs read access to relevant PC telemetry, including the nonretained, expiring `state/terminate_offer` packets, and write access to the intended non-retained command topics (`command/terminate_target` only for the selected PC). The agent writes non-retained `state/terminate_result` outcomes. Do not permit other gaming PCs or child accounts to publish target commands. Do not grant a PC access to another PC's commands. Exact ACL syntax is broker-specific. Check the [wire contract](mqtt_protocol.md) for topic names.
 
 ## Discovery disabled?
 The scoped Add integration flow subscribes to `SmartHouse/Gaming/+/discovery` and lists valid retained metadata. It can create its own raw entities without enabling global MQTT discovery. Do not switch native/scoped modes without a migration plan; history and entity IDs may differ.

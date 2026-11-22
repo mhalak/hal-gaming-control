@@ -8,7 +8,7 @@ HAL Gaming Control is still being built. Some things work in testing, but this i
 
 - **HA 0.7.0 domain breaking change:** uninstall any earlier `smarthouse_gaming`, `parental` or `parental_control` project entry and install only `hal_gaming_control`; re-enter tracked apps, budgets and schedules. [Clean-cut instructions](domain-clean-cut.md). No dual-domain support. The previous `parental_control` domain collided with an unrelated Marketplace integration.
 
-- **Lock PC** and **Terminate game** worked in limited real-PC tests. They still need testing on your own devices.
+- **Lock PC** and legacy **Terminate game** worked in limited real-PC tests. The new HA 0.7.2 / Windows 0.2.9 **Terminate active game** protocol is implemented in preview source but **has not been validated on a physical Windows service**; do not deploy it as a proven enforcement mechanism.
 - **Daily and weekly budgets**, **Weekend bonus**, **Add 30 minutes** and the **Tracked applications** editor exist in preview source. What you see depends on your installed version.
 - Windows reports app activity to Home Assistant, but **full foreground-only tracking still needs end-to-end testing**.
 
