@@ -396,3 +396,30 @@ async def test_v2_foreground_is_device_scoped_and_resets_on_disconnect(
     assert hass.states.get(ids["pc1"]).state == "idle"
     for entry in entries:
         assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_live_ha_duration_display_is_exact_hms_and_numeric_history_remains(
+        hass, enable_custom_integrations, mqtt_mock):
+    entry = MockConfigEntry(domain=DOMAIN, title=DATA["name"], unique_id="pc1", data=DATA)
+    entry.add_to_hass(hass)
+    with patch("custom_components.smarthouse_gaming.coordinator.direct_mode", return_value=True):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    registry = er.async_get(hass)
+    pretty = registry.async_get_entity_id("sensor", DOMAIN, "pc1_gaming_time_display_daily")
+    numeric = registry.async_get_entity_id("sensor", DOMAIN, "pc1_gaming_time_daily")
+    weekly_pretty = registry.async_get_entity_id("sensor", DOMAIN, "pc1_gaming_time_display_weekly")
+    assert all((pretty, numeric, weekly_pretty))
+    entry.runtime_data.async_set_updated_data({
+        "ready": True, "online": False, "active_game": "idle",
+        "recorded_totals": {"daily": 711 * 60 + 3, "weekly": 12 * 3600 + 9},
+        "totals": {"daily": 711 * 60 + 3, "weekly": 12 * 3600 + 9},
+    })
+    await hass.async_block_till_done()
+    assert hass.states.get(pretty).state == "11h 51m 3s"
+    assert hass.states.get(weekly_pretty).state == "12h 0m 9s"
+    assert hass.states.get(pretty).attributes.get("device_class") is None
+    assert hass.states.get(pretty).attributes.get("unit_of_measurement") is None
+    assert float(hass.states.get(numeric).state) == 711.05
+    assert hass.states.get(numeric).attributes["unit_of_measurement"] == "min"
+    assert await hass.config_entries.async_unload(entry.entry_id)
