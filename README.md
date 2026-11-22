@@ -102,13 +102,13 @@ Track gaming time on Windows PCs, set limits, give bonus minutes and use parent 
     </td>
     <td valign="middle">
       <h3>🧾 Budget overview — the gaming-time audit.</h3>
-      <p><strong>Planned.</strong> Daily allowance + bonuses − time played = time left. Dad has the receipts. Mum would like the audit to end.</p>
+      <p><strong>Source preview (#93).</strong> Daily allowance + bonuses − time played = time left. A native HA dashboard receipt is available in source once the corresponding PR is merged and installed. Dad has the receipts. Mum would like the audit to end.</p>
       <p><a href="https://github.com/mhalak/hal-gaming-control/blob/main/docs/features/budget-overview.md">See the proposed Budget overview</a></p>
     </td>
   </tr>
 </table>
 
-**Development preview.** Features depend on the installed version. Screen idle bonuses and the itemized Budget Overview are **not implemented**. Don't enable automatic game closing or locking before testing on your PC. [What's ready and what's missing](docs/known_limitations.md).
+**Development preview.** Features depend on the installed version. Screen idle bonuses are **not implemented**. The itemized Budget Overview requires a build containing #93; it is not part of older installed versions. Don't enable automatic game closing or locking before testing on your PC. [What's ready and what's missing](docs/known_limitations.md).
 
 ## Windows setup (simpler, safer)
 
