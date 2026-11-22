@@ -11,6 +11,7 @@ from homeassistant.components import mqtt
 from homeassistant.core import callback
 
 from .const import ROOT
+from .protocol import parse_discovery
 from .raw_foreground import HAOwnedForeground, decode_raw_identity
 from .screen_idle import DisplayGate
 from .unified_telemetry import (
@@ -38,6 +39,7 @@ class ForegroundSource:
         self.on_screen_off = on_screen_off
         self.unified_enabled = unified_enabled
         self.telemetry_order = TelemetryOrder() if unified_enabled else None
+        self.v3_capable = False
         self.system_uptime = None
         self.system_status = None
         self.display_details = None
@@ -52,6 +54,11 @@ class ForegroundSource:
             self._unsub.append(await mqtt.async_subscribe(
                 self.hass, self.root + "/availability", self._availability, qos=1))
             if self.unified_enabled:
+                # Require the exact per-PC Windows v3 discovery capability;
+                # a parent setting or old retained availability is not proof.
+                self._unsub.append(await mqtt.async_subscribe(
+                    self.hass, self.root + "/discovery",
+                    self._v3_discovery, qos=1))
                 # Strict either/or migration: never subscribe v2 and v3
                 # accounting sources at the same time for one PC.
                 self._unsub.append(await mqtt.async_subscribe(
@@ -81,6 +88,7 @@ class ForegroundSource:
             if self.telemetry_order is not None:
                 self.telemetry_order.suspend()
                 self.system_uptime = self.system_status = self.display_details = None
+                self.v3_capable = False
                 self._needs_post_on = False
             if self.display is not None:
                 self.display.invalidate()
@@ -99,6 +107,7 @@ class ForegroundSource:
             if self.telemetry_order is not None:
                 self.telemetry_order.suspend()
                 self.system_uptime = self.system_status = self.display_details = None
+                self.v3_capable = False
                 self._needs_post_on = False
             if self.display is not None:
                 self.display.invalidate()
@@ -141,9 +150,33 @@ class ForegroundSource:
         self.on_update()
 
     @callback
+    def _v3_discovery(self, message):
+        if self._closed or not self.unified_enabled:
+            return
+        capable = False
+        if message.topic == self.root + "/discovery":
+            try:
+                parse_discovery(message.topic, message.payload)
+                raw = json.loads(message.payload)
+                capable = (
+                    raw.get("device_id") == self.device_id
+                    and type(raw.get("unified_telemetry_protocol")) is int
+                    and raw["unified_telemetry_protocol"] == 3
+                )
+            except (ValueError, TypeError, RecursionError):
+                pass
+        if capable != self.v3_capable:
+            self.v3_capable = capable
+            if not capable:
+                self.invalidate()
+            else:
+                self.on_update()
+
+    @callback
     def _telemetry_snapshot(self, message):
         """Apply one ordered, atomic v3 observation; display BEFORE foreground."""
-        if self._closed or self.telemetry_order is None:
+        if (self._closed or self.telemetry_order is None
+                or not self.v3_capable):
             return
         if (message.topic != self.root + "/state/telemetry"
                 or not self._connected or not self._online):
@@ -264,6 +297,7 @@ class ForegroundSource:
             unsubscribe()
         self._unsub.clear()
         self._online = self._connected = False
+        self.v3_capable = False
         self.last_raw = None
         self.ledger.invalidate()
         if self.display is not None:
