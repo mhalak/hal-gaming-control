@@ -62,12 +62,15 @@ class OtaStagingPipeline:
 
     async def async_stage_approved(self, *, device_id, installed, approved,
                                    version, online, remote_update, ota_protocol,
-                                   base_url, pinned_public_key, on_progress=None):
+                                   base_url, pinned_public_key, on_progress=None,
+                                   signed_handoff=False):
         require_candidate(
             device_id=device_id, installed=installed, approved=approved,
             version=version, online=online, remote_update=remote_update,
             ota_protocol=ota_protocol, base_url=base_url,
             pinned_public_key=pinned_public_key)
+        if signed_handoff and ota_protocol != 2:
+            raise OtaPreflightError("Signed Windows OTA handoff requires v2 capability")
         if self._lock.locked():
             raise OtaPreflightError("OTA staging already running for this entity")
         async with self._lock:
@@ -80,12 +83,16 @@ class OtaStagingPipeline:
             # The sender independently hashes the ZIP before sending. Passing
             # these values pins the byte stream to the SIGNED manifest, not
             # merely a sender-chosen digest.
+            extra = ({"signed_manifest": archive.manifest,
+                      "signed_signature": archive.signature}
+                     if signed_handoff else {})
             receipt = await self._transport.async_stage_package(
                 archive.path, device_id=device_id, version=version,
                 expected_sha256=archive.sha256, expected_size=archive.size,
-                on_progress=on_progress)
+                on_progress=on_progress, **extra)
             if (not isinstance(receipt, dict)
-                    or receipt.get("status") != "staged_unverified"
+                    or receipt.get("status") != ("authenticated_staged"
+                        if signed_handoff else "staged_unverified")
                     or receipt.get("version") != version
                     or not isinstance(receipt.get("transfer_id"), str)):
                 raise OtaPreflightError("MQTT receiver did not confirm staging")
