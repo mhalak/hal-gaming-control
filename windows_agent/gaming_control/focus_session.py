@@ -17,6 +17,7 @@ import time
 
 from .foreground import classify, candidate_from_sample, sample_window, IDLE, UNKNOWN, MAX_SAMPLE_AGE
 from .windows import process_session_id
+from .display_context import read_interactive_input_idle_ms, MAX_INPUT_IDLE_MS
 
 LOG = logging.getLogger(__name__)
 PIPE_PREFIX = r"\\.\pipe\SmartHouseGamingFocus-"
@@ -128,7 +129,10 @@ def helper_main(pipe_name, parent_pid):
             return helper_error(stage)
         while True:
             stage = 4
-            payload = json.dumps(sample_window(), separators=(",", ":")).encode("ascii")
+            sample = sample_window()
+            # This executes inside the selected user session, not in SYSTEM.
+            sample["last_input_idle_ms"] = read_interactive_input_idle_ms()
+            payload = json.dumps(sample, separators=(",", ":")).encode("ascii")
             stage = 5
             win32file.WriteFile(handle, payload)
             time.sleep(SAMPLE_PERIOD)
@@ -150,6 +154,7 @@ class FocusProbe:
         self.last_error_report = float('-inf')
         # Only a newly verified helper sample may authorize a targeted action.
         self.last_sample_time = None
+        self.last_input_idle_ms = None
 
     def _report_error(self, stage, code):
         now = time.monotonic()
@@ -267,6 +272,7 @@ class FocusProbe:
             self.foreground_state = "idle"
 
     def read(self, rules):
+        self.last_input_idle_ms = None  # never retain a stale session reading
         self.candidate = None  # never carry identity over a failed or stale probe
         self.last_sample_time = None
         self.foreground_state = "unknown"
@@ -305,6 +311,9 @@ class FocusProbe:
                 return dict(IDLE if state in ("idle", "locked") else UNKNOWN)
             if isinstance(sample, dict) and isinstance(sample.get("time"), (int, float)) and now - sample["time"] <= MAX_SAMPLE_AGE:
                 self.started = now
+                input_ms = sample.get("last_input_idle_ms")
+                if type(input_ms) is int and 0 <= input_ms <= MAX_INPUT_IDLE_MS:
+                    self.last_input_idle_ms = input_ms
                 self._observe_raw(sample, result, session, now)
             return result
         except Exception as err:
