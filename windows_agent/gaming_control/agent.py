@@ -1,4 +1,5 @@
 """Poll sensors, execute explicit commands; never enforce a local quota."""
+import json
 import logging
 import time
 from pathlib import Path
@@ -150,6 +151,30 @@ def dispatch_command(command, config_path, bridge, focus, rules):
         execute(command, rules)
 
 
+def pinned_ota_key(config_path, config):
+    """Only the protected, independently provisioned updater.json may pin trust."""
+    cfg = config.get('update', {})
+    if cfg.get('mqtt_install_enabled') is not True:
+        return None
+    if cfg.get('enabled') is not True or cfg.get('mqtt_staging_enabled') is not True:
+        raise ValueError('Signed OTA install requires explicitly enabled updater and staging')
+    path = Path(config_path).parent / 'updater.json'
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 8192:
+        raise ValueError('Trusted Windows updater is not provisioned')
+    data = json.loads(path.read_text(encoding='utf-8'))
+    if data.get('mqtt_install_enabled') is not True:
+        raise ValueError('SYSTEM updater is not enabled for signed MQTT handoff')
+    key = data.get('public_key_pem')
+    if not isinstance(key, str) or 'BEGIN PUBLIC KEY' not in key or len(key) > 8000:
+        raise ValueError('Pinned Ed25519 key must be provisioned out of band')
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    loaded = serialization.load_pem_public_key(key.encode('ascii'))
+    if not isinstance(loaded, Ed25519PublicKey):
+        raise ValueError('Signed OTA requires pinned Ed25519 key')
+    return key
+
+
 def run(config_path, stop_event):
     config = yaml.safe_load(Path(config_path).read_text(encoding='utf-8'))
     interval = float(config.get('gaming', {}).get('check_interval_seconds', 1))
@@ -160,7 +185,9 @@ def run(config_path, stop_event):
     # The staging directory must be provisioned under protected ProgramData
     # before this explicit, default-off capability can be enabled.
     if config.get('update', {}).get('mqtt_staging_enabled') is True:
-        bridge = Bridge(config, ota_root=Path(config_path).parent / 'ota-staging')
+        bridge = Bridge(
+            config, ota_root=Path(config_path).parent / 'ota-staging',
+            ota_public_key=pinned_ota_key(config_path, config))
     else:
         bridge = Bridge(config)
     last_health = float('-inf')
