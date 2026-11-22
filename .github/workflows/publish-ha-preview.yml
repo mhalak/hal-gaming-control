@@ -1,4 +1,4 @@
-name: Publish HA preview release
+name: Publish HA Marketplace version
 # Never publish just because a PR merged. One controlled operator action.
 on:
   workflow_dispatch:
@@ -15,7 +15,7 @@ jobs:
        github.event.issue.number == 189 &&
        github.event.issue.pull_request == null &&
        github.event.comment.user.login == 'mhalak' &&
-       github.event.comment.body == '/publish-ha-preview 0.12.1'))
+       github.event.comment.body == '/publish-ha-release 0.12.1'))
     runs-on: ubuntu-latest
     concurrency:
       group: publish-ha-preview
@@ -32,7 +32,7 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
-      - name: Verify exact source, 8/8 main CI and publish HA-only prerelease
+      - name: Verify exact source, 8/8 main CI and publish HA-only version
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -61,27 +61,48 @@ jobs:
           [[ "$SOURCE_SHA" == "$MAIN_SHA" ]] || { echo "Main advanced after CI"; exit 1; }
 
           VERSION="$(python tools/ha_release_guard.py version)"
-          python tools/ha_release_guard.py notes \
-            --sha "$SOURCE_SHA" --output "$RUNNER_TEMP/ha-release-notes.md"
-
-          # Never move a tag or reuse a version with different HA package bytes.
+          # GitHub prereleases are excluded from the default Marketplace channel.
+          # Promote the *existing* 0.12.1 source tag; never move/rebuild a tag.
           if git show-ref --verify --quiet "refs/tags/$VERSION"; then
+            TAG_SHA="$(git rev-parse "refs/tags/$VERSION^{commit}")"
+            git merge-base --is-ancestor "$TAG_SHA" "$SOURCE_SHA" || {
+              echo "Release tag does not precede current main"; exit 1;
+            }
             git diff --quiet "refs/tags/$VERSION" HEAD -- custom_components/hal_gaming_control || {
               echo "HA package changed without new version"; exit 1;
             }
-            if gh release view "$VERSION" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-              echo "Already released; unchanged HA package"
-              exit 0
+            if ! gh release view "$VERSION" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "Tag exists without Release; investigate manually"
+              exit 1
             fi
-            echo "Tag exists without Release; investigate manually"
-            exit 1
+            RELEASE_TARGET="$(gh release view "$VERSION" -R "$GITHUB_REPOSITORY" --json targetCommitish --jq '.targetCommitish')"
+            [[ "$RELEASE_TARGET" == "$TAG_SHA" ]] || {
+              echo "Existing release target differs from immutable tag"; exit 1;
+            }
+            IS_PRERELEASE="$(gh release view "$VERSION" -R "$GITHUB_REPOSITORY" --json isPrerelease --jq '.isPrerelease')"
+            if [[ "$IS_PRERELEASE" == "true" ]]; then
+              python tools/ha_release_guard.py notes \
+                --sha "$TAG_SHA" --output "$RUNNER_TEMP/ha-release-notes.md"
+              gh release edit "$VERSION" -R "$GITHUB_REPOSITORY" \
+                --prerelease=false --latest \
+                --notes-file "$RUNNER_TEMP/ha-release-notes.md"
+              [[ "$(gh release view "$VERSION" -R "$GITHUB_REPOSITORY" --json isPrerelease --jq '.isPrerelease')" == "false" ]] || {
+                echo "Release was not promoted"; exit 1;
+              }
+              echo "Existing HA $VERSION version now visible to regular Marketplace channel"
+            else
+              echo "Existing regular release unchanged"
+            fi
+            exit 0
           fi
           if gh release view "$VERSION" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release exists without matching tag; investigate manually"
             exit 1
           fi
+          python tools/ha_release_guard.py notes \
+            --sha "$SOURCE_SHA" --output "$RUNNER_TEMP/ha-release-notes.md"
           gh release create "$VERSION" -R "$GITHUB_REPOSITORY" \
             --target "$SOURCE_SHA" \
-            --title "HAL Gaming Control HA $VERSION (preview)" \
+            --title "HAL Gaming Control HA $VERSION (development preview)" \
             --notes-file "$RUNNER_TEMP/ha-release-notes.md" \
-            --prerelease --latest=false
+            --latest
