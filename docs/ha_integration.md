@@ -39,7 +39,7 @@ Open the PC device page to find **Daily budget**, **Weekly budget**, **Weekend b
 
 **Daily budget remaining** and **Weekly budget remaining** show remaining percentages. **Daily gaming time** and **Weekly gaming time** show explicit `h m s` text. Separate diagnostic **Daily gaming time (minutes)** and **Weekly gaming time (minutes)** sensors remain numeric durations for graphs and automations.
 
-**Parent bonus history is a separate in-review enhancement (#165).** Until that work is deployed, Add 30 minutes still uses the existing cumulative option. Future per-grant Undo must not be represented by a decorative Markdown button.
+**Parent bonus history and guarded Undo are available in the HA 0.9.0 source candidate (#165).** New Add 30 presses get unique grants; the dashboard includes a native selection and two administrator-only actions for confirmed cancellation. Existing 0.8.0 installations do not have Undo. See the [Budget Overview walkthrough](features/budget-overview.md#parent-bonus-history-and-undo-ha-090-source-candidate-165).
 
 [Gaming budgets](features/gaming-budgets.md) · [Budget Overview dashboard example](features/budget-overview.md)
 
