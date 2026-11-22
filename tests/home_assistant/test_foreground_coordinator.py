@@ -6,8 +6,8 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.parental import coordinator as co
-from custom_components.parental.app_registry import identity_key
-from custom_components.parental.const import DOMAIN
+from custom_components.parental_control.app_registry import identity_key
+from custom_components.parental_control.const import DOMAIN
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("recorder_mock")]
 

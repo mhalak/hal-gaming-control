@@ -7,8 +7,8 @@ from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.parental import _remove_legacy_statistics
-from custom_components.parental.const import DOMAIN
-from custom_components.parental.coordinator import GamingCoordinator
+from custom_components.parental_control.const import DOMAIN
+from custom_components.parental_control.coordinator import GamingCoordinator
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("recorder_mock")]
 
@@ -29,7 +29,7 @@ async def test_options_menu_has_no_legacy_action_editors(hass, enable_custom_int
     assert not {"add_action", "remove_action", "move_action"} & set(result["menu_options"])
     # Opening Configure and saving an unchanged HA app list must not erase
     # the stored actions or limits; no automatic action is triggered.
-    with patch("custom_components.parental.config_flow._discover_foreground_candidate",
+    with patch("custom_components.parental_control.config_flow._discover_foreground_candidate",
                new=AsyncMock(return_value=None)):
         form = await manager.async_configure(
             result["flow_id"], {"next_step_id": "tracked_apps"})
@@ -64,7 +64,7 @@ async def test_legacy_configured_actions_never_publish_automatically(hass, direc
     entry = MockConfigEntry(domain=DOMAIN, data=DATA, unique_id="pc1", options={
         "enabled": True, "daily": 0, "actions": ["terminate_game", "lock_pc"]})
     entry.add_to_hass(hass)
-    with patch("custom_components.parental.coordinator.direct_mode", return_value=direct):
+    with patch("custom_components.parental_control.coordinator.direct_mode", return_value=direct):
         c = GamingCoordinator(hass, entry)
     states = {("sensor", "current_game"): "sensor.test_game",
               ("binary_sensor", "in_game"): "binary_sensor.test_in_game",

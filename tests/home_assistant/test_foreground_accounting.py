@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-from custom_components.parental.foreground_accounting import ForegroundLedger
+from custom_components.parental_control.foreground_accounting import ForegroundLedger
 
 UTC = timezone.utc
 LOCAL = ZoneInfo("Europe/Zagreb")
