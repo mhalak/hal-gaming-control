@@ -106,7 +106,7 @@ async def test_add_30_button_produces_visible_distinct_entries_without_windows_c
     from custom_components.hal_gaming_control.rule_engine import budget_overview
 
     entry = SimpleNamespace(data={"device_id": "pc1", "name": "Test PC"},
-                            options={"daily": 180, "weekly": 300})
+                            options={"enabled": True, "daily": 180, "weekly": 300})
     c = Mock()
     c.device_id = "pc1"
     c.entry = entry
