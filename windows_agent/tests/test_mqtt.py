@@ -306,3 +306,52 @@ def test_invalid_or_missing_target_receipt_does_not_create_offer():
     assert not b.prime_target_receipt(valid, context, sample_time=0.0)
     assert not b.publish_target_offer(valid, context, sample_time=time.monotonic())
     b.client.publish.assert_not_called()
+
+
+def test_broker_rejects_legacy_retained_tombstone_without_announcing_online():
+    b = connected_bridge()
+    ack = b.client.publish.return_value
+    rejected = Mock(rc=4)
+    b.client.publish.side_effect = (
+        lambda topic, *args, **kwargs: rejected
+        if topic == b.root + "/state/uptime" else ack)
+    assert not b.publish({}, 12)
+    assert b.synced_generation is None
+    assert b.refresh_requested
+    assert not any(c.args[:2] == (b.root + "/availability", "online")
+                   for c in b.client.publish.call_args_list)
+
+
+def test_tombstone_publish_exception_fails_closed_and_retries():
+    b = connected_bridge()
+    ack = b.client.publish.return_value
+    def fail(topic, *args, **kwargs):
+        if topic == b.root + "/state/uptime":
+            raise OSError("synthetic broker outage")
+        return ack
+    b.client.publish.side_effect = fail
+    assert not b.publish({}, 12)
+    assert b.synced_generation is None
+    assert b.refresh_requested
+    b.client.publish.side_effect = None
+    assert b.publish({}, 13)
+    assert b.synced_generation == b.generation
+
+
+def test_target_receipt_requires_same_authenticated_current_context():
+    import time
+    b = Bridge({**CONFIG, "games": []})
+    b.client = Mock()
+    b.client.publish.return_value.rc = mqtt.MQTT_ERR_SUCCESS
+    b.client.publish.return_value.is_published.return_value = True
+    b.on_connect(b.client, None, None, SimpleNamespace(is_failure=False), None)
+    assert b.publish({}, 12)
+    first = b.capture_foreground_context()
+    second = b.capture_foreground_context()
+    candidate = ("RobloxPlayerBeta.exe", 321, 456.0, 2, None)
+    assert not b.prime_target_receipt(candidate, first, sample_time=time.monotonic())
+    assert not b.prime_target_receipt(
+        candidate, second, sample_time=float("nan"))
+    assert b.prime_target_receipt(candidate, second, sample_time=time.monotonic())
+    b.on_disconnect(b.client, None, None, None, None)
+    assert not b.publish_target_offer(candidate, second, sample_time=time.monotonic())
