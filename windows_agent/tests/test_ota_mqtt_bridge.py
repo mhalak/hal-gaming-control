@@ -139,3 +139,29 @@ def test_no_status_contains_local_paths_secrets_or_archive_bytes(tmp_path):
     for item in raw:
         assert "path" not in item and "password" not in item
         assert str(tmp_path) not in item and "ota-package" not in item
+
+
+def test_expired_transfer_releases_staging_slot_for_new_id(tmp_path):
+    import time
+    from gaming_control.ota_mqtt import OtaMqttReceiver
+    adapter = OtaMqttReceiver(ROOT, DEVICE, tmp_path)
+    current = int(time.time())
+    first = json.loads(offer()) | {"expires_at": current + 4}
+    assert json.loads(adapter.handle(ROOT + "/ota/start",
+                                    json.dumps(first), now=current))["status"] == "receiving"
+    assert list(tmp_path.glob("*.part"))
+    second = json.loads(offer(transfer_id="c" * 32)) | {"expires_at": current + 50}
+    ack = adapter.handle(ROOT + "/ota/start", json.dumps(second), now=current + 5)
+    assert json.loads(ack)["transfer_id"] == "c" * 32
+    assert json.loads(ack)["next_index"] == 0
+    assert not (tmp_path / f"ota-{TID}.part").exists()
+    adapter.reset()
+    assert not list(tmp_path.glob("*.part"))
+
+
+def test_stop_cancels_unfinished_upload(tmp_path):
+    b = connected(tmp_path)
+    packet(b, "start", offer())
+    assert list(tmp_path.glob("*.part"))
+    b.stop()
+    assert not list(tmp_path.glob("*.part"))
