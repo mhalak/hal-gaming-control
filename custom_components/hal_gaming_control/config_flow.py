@@ -243,6 +243,7 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
                 "mqtt_settings": "MQTT configuration",
                 "tracked_apps": "Tracked applications",
                 "screen_idle": "Screen idle (experimental)",
+                "windows_updates": "Windows updates (advanced)",
             },
         )
 
@@ -292,6 +293,64 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
                 "root": root,
                 "mode": "Scoped discovery" if direct_mode(self.hass) else "Native MQTT discovery",
             })
+
+    async def async_step_windows_updates(self, user_input=None):
+        """Admin-only Options Flow: pin one trusted Windows release channel.
+
+        No credentials, URLs, private signing keys or executable paths are
+        passed to MQTT; the public verification key is entered out of band.
+        The optional MQTT install mode is always OFF until configured.
+        """
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+        from .update_protocol import catalog_url
+        from .ota_release import release_url
+
+        old = dict(self.config_entry.options)
+        errors = {}
+        if user_input is not None:
+            catalog = user_input.get("update_catalog_url", "").strip()
+            base = user_input.get("ota_release_base_url", "").strip()
+            public_key = user_input.get("ota_signer_public_key", "").strip()
+            enabled = user_input.get("ota_install_enabled") is True
+            try:
+                if catalog:
+                    catalog_url(catalog)
+                if base:
+                    release_url(base, "windows-agent-0.0.0.json")
+                if public_key:
+                    if len(public_key) > 8192:
+                        raise ValueError("Public signing key too large")
+                    key = serialization.load_pem_public_key(public_key.encode("ascii"))
+                    if not isinstance(key, Ed25519PublicKey):
+                        raise ValueError("Expected pinned Ed25519 public key")
+                if enabled and not (catalog and base and public_key):
+                    raise ValueError("All trusted release details must be configured")
+            except (ValueError, TypeError, UnicodeError):
+                errors["base"] = "invalid_signed_release"
+            if not errors:
+                new = old | {
+                    "ota_install_enabled": enabled,
+                    "update_catalog_url": catalog,
+                    "ota_release_base_url": base,
+                    "ota_signer_public_key": public_key,
+                }
+                return self.async_create_entry(title="", data=new)
+
+        values = user_input if user_input is not None else old
+        schema = vol.Schema({
+            vol.Optional("ota_install_enabled",
+                         default=values.get("ota_install_enabled", False)): bool,
+            vol.Optional("update_catalog_url",
+                         default=values.get("update_catalog_url", "")): str,
+            vol.Optional("ota_release_base_url",
+                         default=values.get("ota_release_base_url", "")): str,
+            vol.Optional("ota_signer_public_key",
+                         default=values.get("ota_signer_public_key", "")): selector.TextSelector(
+                             selector.TextSelectorConfig(multiline=True)),
+        })
+        return self.async_show_form(
+            step_id="windows_updates", data_schema=schema, errors=errors)
 
     def _apps(self):
         """Only this PC's HA-owned applications, never old Windows rules."""

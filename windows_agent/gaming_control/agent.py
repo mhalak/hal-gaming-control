@@ -1,5 +1,9 @@
 """Poll sensors, execute explicit commands; never enforce a local quota."""
+import json
 import logging
+import os
+import re
+import subprocess
 import time
 from pathlib import Path
 import psutil
@@ -150,6 +154,79 @@ def dispatch_command(command, config_path, bridge, focus, rules):
         execute(command, rules)
 
 
+def pinned_ota_key(config_path, config):
+    """Only the protected, independently provisioned updater.json may pin trust."""
+    cfg = config.get('update', {})
+    if cfg.get('mqtt_install_enabled') is not True:
+        return None
+    if cfg.get('enabled') is not True or cfg.get('mqtt_staging_enabled') is not True:
+        raise ValueError('Signed OTA install requires explicitly enabled updater and staging')
+    staging = Path(config_path).parent / 'ota-staging'
+    if not staging.is_dir() or staging.is_symlink():
+        raise ValueError('Protected signed OTA staging directory missing')
+    path = Path(config_path).parent / 'updater.json'
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 8192:
+        raise ValueError('Trusted Windows updater is not provisioned')
+    data = json.loads(path.read_text(encoding='utf-8'))
+    if data.get('mqtt_install_enabled') is not True:
+        raise ValueError('SYSTEM updater is not enabled for signed MQTT handoff')
+    key = data.get('public_key_pem')
+    if not isinstance(key, str) or 'BEGIN PUBLIC KEY' not in key or len(key) > 8000:
+        raise ValueError('Pinned Ed25519 key must be provisioned out of band')
+    cert = data.get('authenticode_thumbprint')
+    if not isinstance(cert, str) or re.fullmatch(r'[0-9a-fA-F]{40}', cert) is None:
+        raise ValueError('Pinned Windows Authenticode publisher must be provisioned')
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    loaded = serialization.load_pem_public_key(key.encode('ascii'))
+    if not isinstance(loaded, Ed25519PublicKey):
+        raise ValueError('Signed OTA requires pinned Ed25519 key')
+    # The updater is a separately provisioned, elevated binary. MQTT cannot
+    # install this task, replace its executable or choose a signer.
+    if os.name == 'nt':
+        updater = (Path(os.environ['ProgramFiles']) /
+                   'SmartHouseGamingUpdater' / 'SmartHouseGamingUpdater.exe')
+        if not updater.is_file() or updater.is_symlink():
+            raise ValueError('Trusted SYSTEM updater executable is missing')
+        task = (Path(os.environ['SystemRoot']) / 'System32' / 'schtasks.exe')
+        subprocess.run(
+            [str(task), '/Query', '/TN', r'\SmartHouseGamingControlUpdate'],
+            capture_output=True, timeout=15, check=True)
+        # Refuse to advertise v2 if the independently provisioned updater is
+        # not already validly Authenticode signed by the pinned publisher.
+        ps = (Path(os.environ['SystemRoot']) / 'System32' /
+              'WindowsPowerShell' / 'v1.0' / 'powershell.exe')
+        command = ("$ErrorActionPreference='Stop';"
+                   "$s=Get-AuthenticodeSignature -LiteralPath $env:HAL_OTA_EXE;"
+                   "if($s.Status -ne 'Valid' -or $null -eq $s.SignerCertificate"
+                   " -or $s.SignerCertificate.Thumbprint -ne $env:HAL_OTA_CERT)"
+                   "{exit 2}")
+        env = os.environ.copy()
+        env['HAL_OTA_EXE'] = str(updater)
+        env['HAL_OTA_CERT'] = cert.upper()
+        subprocess.run([str(ps), '-NoProfile', '-NonInteractive',
+                        '-Command', command], env=env, capture_output=True,
+                       timeout=30, check=True)
+    return key
+
+
+def _build_mqtt_bridge(config_path, config):
+    """Fail closed on incomplete OTA provisioning but preserve normal telemetry."""
+    if config.get('update', {}).get('mqtt_staging_enabled') is not True:
+        return Bridge(config)
+    try:
+        pinned = pinned_ota_key(config_path, config)
+    except (ValueError, OSError, KeyError, subprocess.SubprocessError) as err:
+        LOG.error('Signed OTA disabled (bootstrap incomplete): %s',
+                  type(err).__name__)
+        safe = dict(config)
+        safe['update'] = dict(config.get('update', {})) | {
+            'mqtt_install_enabled': False, 'mqtt_staging_enabled': False}
+        return Bridge(safe)
+    return Bridge(config, ota_root=Path(config_path).parent / 'ota-staging',
+                  ota_public_key=pinned)
+
+
 def run(config_path, stop_event):
     config = yaml.safe_load(Path(config_path).read_text(encoding='utf-8'))
     interval = float(config.get('gaming', {}).get('check_interval_seconds', 1))
@@ -157,12 +234,7 @@ def run(config_path, stop_event):
         raise ValueError('Interval must be between 0.25 and 5 seconds')
     rules = validate_rules(config.get('games', []))
     config = resolve_identity(config, config_path)
-    # The staging directory must be provisioned under protected ProgramData
-    # before this explicit, default-off capability can be enabled.
-    if config.get('update', {}).get('mqtt_staging_enabled') is True:
-        bridge = Bridge(config, ota_root=Path(config_path).parent / 'ota-staging')
-    else:
-        bridge = Bridge(config)
+    bridge = _build_mqtt_bridge(config_path, config)
     last_health = float('-inf')
     last_power_poll = float('-inf')
     display_policy = {"ac_timeout_seconds": None, "dc_timeout_seconds": None,

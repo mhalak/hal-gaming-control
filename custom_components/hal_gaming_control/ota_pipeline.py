@@ -17,10 +17,11 @@ class OtaPreflightError(ValueError):
     """Safe refusal to stage untrusted, mismatched or ineligible release."""
 
 
-def _stage_capable(device_id, online, remote_update, ota_protocol):
+def _stage_capable(device_id, online, remote_update, ota_protocol, signed_handoff=False):
     return (isinstance(device_id, str) and bool(device_id)
             and online is True and remote_update is True
-            and type(ota_protocol) is int and ota_protocol == 1)
+            and type(ota_protocol) is int
+            and ota_protocol == (2 if signed_handoff else 1))
 
 
 def _source_configured(base_url, pinned_public_key):
@@ -30,9 +31,11 @@ def _source_configured(base_url, pinned_public_key):
 
 
 def require_candidate(*, device_id, installed, approved, version, online,
-                      remote_update, ota_protocol, base_url, pinned_public_key):
+                      remote_update, ota_protocol, base_url, pinned_public_key,
+                      signed_handoff=False):
     """Only a newer, fixed-catalog release for a live stage-capable PC."""
-    if not _stage_capable(device_id, online, remote_update, ota_protocol):
+    if not _stage_capable(device_id, online, remote_update, ota_protocol,
+                          signed_handoff=signed_handoff):
         raise OtaPreflightError("Windows PC is not online and explicitly OTA-capable")
     if not isinstance(version, str) or version != approved:
         raise OtaPreflightError("Only the fixed approved catalog release may be staged")
@@ -62,12 +65,15 @@ class OtaStagingPipeline:
 
     async def async_stage_approved(self, *, device_id, installed, approved,
                                    version, online, remote_update, ota_protocol,
-                                   base_url, pinned_public_key, on_progress=None):
+                                   base_url, pinned_public_key, on_progress=None,
+                                   signed_handoff=False):
         require_candidate(
             device_id=device_id, installed=installed, approved=approved,
             version=version, online=online, remote_update=remote_update,
             ota_protocol=ota_protocol, base_url=base_url,
-            pinned_public_key=pinned_public_key)
+            pinned_public_key=pinned_public_key, signed_handoff=signed_handoff)
+        if signed_handoff and ota_protocol != 2:
+            raise OtaPreflightError("Signed Windows OTA handoff requires v2 capability")
         if self._lock.locked():
             raise OtaPreflightError("OTA staging already running for this entity")
         async with self._lock:
@@ -80,12 +86,16 @@ class OtaStagingPipeline:
             # The sender independently hashes the ZIP before sending. Passing
             # these values pins the byte stream to the SIGNED manifest, not
             # merely a sender-chosen digest.
+            extra = ({"signed_manifest": archive.manifest,
+                      "signed_signature": archive.signature}
+                     if signed_handoff else {})
             receipt = await self._transport.async_stage_package(
                 archive.path, device_id=device_id, version=version,
                 expected_sha256=archive.sha256, expected_size=archive.size,
-                on_progress=on_progress)
+                on_progress=on_progress, **extra)
             if (not isinstance(receipt, dict)
-                    or receipt.get("status") != "staged_unverified"
+                    or receipt.get("status") != ("authenticated_staged"
+                        if signed_handoff else "staged_unverified")
                     or receipt.get("version") != version
                     or not isinstance(receipt.get("transfer_id"), str)):
                 raise OtaPreflightError("MQTT receiver did not confirm staging")

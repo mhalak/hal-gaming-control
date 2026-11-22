@@ -24,10 +24,11 @@
     "step": {
       "settings_menu": {
         "title": "HAL Gaming Control",
-        "description": "Review MQTT connection information or manage tracked applications for this PC.",
+        "description": "Manage tracked applications, MQTT connection or a separately provisioned, trusted Windows update channel.",
         "menu_options": {
           "mqtt_settings": "MQTT configuration",
           "tracked_apps": "Tracked applications",
+          "windows_updates": "Windows updates (advanced)",
           "screen_idle": "Screen idle (experimental)"
         }
       },
@@ -42,6 +43,17 @@
           "applications": "Application List"
         },
         "submit": "Save changes"
+      },
+      "windows_updates": {
+        "title": "Trusted Windows update channel",
+        "description": "ADMIN ONLY. A fixed HTTPS catalog provides the approved version; a separate fixed HTTPS release directory provides signed Windows archives. Pin the Ed25519 PUBLIC key directly from your supervised local provisioning (never from MQTT). MQTT Install remains disabled until explicitly enabled AND the Windows PC advertises signed v2 capability. The Windows updater must also have a trusted Authenticode signer, protected task and rollback. Never paste private signing keys, passwords or child details here. Updating this form does not deploy, install or activate any Windows agent.",
+        "data": {
+          "ota_install_enabled": "Enable signed MQTT Install (after trusted PC bootstrap)",
+          "update_catalog_url": "Approved version catalog HTTPS URL",
+          "ota_release_base_url": "Signed Windows release HTTPS directory",
+          "ota_signer_public_key": "Operator-pinned Ed25519 PUBLIC key (PEM)"
+        },
+        "submit": "Save trusted update settings"
       },
       "screen_idle": {
         "title": "Screen idle bonus (experimental)",
@@ -58,6 +70,7 @@
       "configuration_changed": "The HA application list changed while this form was open. Reopen the flow before editing.",
       "invalid_application": "Invalid application row, duplicate process, or invalid name. Only the verified foreground process can be added.",
       "no_tracked_apps": "No HA-managed applications to modify yet.",
+      "invalid_signed_release": "Use a fixed HTTPS catalog and release directory, a valid Ed25519 PUBLIC PEM key, and all required fields when enabling updates. No settings were changed.",
       "screen_idle_preview_unconfirmed": "Confirm the experimental limitations before enabling. No settings were changed."
     },
     "abort": {
