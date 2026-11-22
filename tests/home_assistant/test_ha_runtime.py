@@ -30,7 +30,7 @@ async def test_invalid_discovery(hass, enable_custom_integrations):
     assert result["type"] == data_entry_flow.FlowResultType.ABORT
     assert result["reason"] == "invalid_discovery"
 
-async def test_options_menu_only_has_mqtt_and_apps_and_keeps_legacy_options(
+async def test_options_menu_adds_advanced_windows_updates_without_losing_legacy_options(
         hass, enable_custom_integrations):
     saved = {"actions": ["terminate_game"], "daily": 60,
              "update_catalog_url": "https://example.com/catalog.json"}
@@ -40,7 +40,8 @@ async def test_options_menu_only_has_mqtt_and_apps_and_keeps_legacy_options(
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["type"] == data_entry_flow.FlowResultType.MENU
     assert result["menu_options"] == {"mqtt_settings": "MQTT configuration",
-                                       "tracked_apps": "Tracked applications"}
+                                       "tracked_apps": "Tracked applications",
+                                       "windows_updates": "Windows updates (advanced)"}
     # Removed UI paths must not erase persisted limits, update settings or actions.
     assert entry.options == saved
 
@@ -417,7 +418,8 @@ async def test_legacy_limit_values_survive_opening_configure(
     entry.add_to_hass(hass)
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["menu_options"] == {"mqtt_settings": "MQTT configuration",
-                                       "tracked_apps": "Tracked applications"}
+                                       "tracked_apps": "Tracked applications",
+                                       "windows_updates": "Windows updates (advanced)"}
     assert entry.options == old
 
 
@@ -455,7 +457,8 @@ async def test_per_game_editor_hidden_preserving_existing_settings(hass, enable_
     result = await manager.async_init(entry.entry_id)
     assert result["type"] == data_entry_flow.FlowResultType.MENU
     assert result["menu_options"] == {"mqtt_settings": "MQTT configuration",
-                                       "tracked_apps": "Tracked applications"}
+                                       "tracked_apps": "Tracked applications",
+                                       "windows_updates": "Windows updates (advanced)"}
     # Preserve concurrent changes to a hidden legacy setting when the active
     # Tracked applications editor (not the removed Save page) commits.
     hass.config_entries.async_update_entry(entry, options=dict(entry.options) | {
