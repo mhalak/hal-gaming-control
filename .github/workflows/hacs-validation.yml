@@ -21,6 +21,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: python tests/check_hacs_package.py
+      - name: Test guarded HA release policy (#189)
+        run: python -m unittest discover -s tests -p test_ha_release_guard.py -q
   validate-hacs:
     if: github.event.repository.private == false
     runs-on: ubuntu-latest
