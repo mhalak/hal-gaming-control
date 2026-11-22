@@ -1,3 +1,7 @@
+## Windows agent 0.2.12 Preview 18 — stable updater status identity (#166 follow-up)
+
+Fixes the separate Windows SYSTEM updater's MQTT status client for the default minimal Windows configuration: the auto-generated per-installation `device_id` is persisted in protected ProgramData, while `config.yaml` contains no `device.id`. Update progress now uses the persisted ID and stays device-scoped, rejects symlinks, malformed IDs and conflicting YAML/persisted identities, and preserves legacy YAML-only installations. Adds regressions for all four paths. Signed OTA activation remains default OFF and the [integrated deployment gate](https://github.com/mhalak/hal-gaming-control/issues/56) remains HOLD pending authentic signed artifacts, bootstrap, backups and one-PC Smart App Control acceptance.
+
 ## Windows agent 0.2.11 Preview 17 — signed MQTT OTA Install handoff (#166)
 
 This is **source code readiness**, not proof of a safe production installation. The optional v2 receiver requires all of `update.enabled`, `update.mqtt_staging_enabled`, and `update.mqtt_install_enabled` to be explicitly true plus a protected ProgramData `updater.json` with `mqtt_install_enabled: true`, a locally pinned Ed25519 PUBLIC key and a preapproved Authenticode signer thumbprint. The directory `ota-staging` must exist and be protected. Without this supervised bootstrap the receiver remains v1 stage-only or disabled and the HA Install button must not start MQTT installs. Never disable Smart App Control/Defender or rerun the fresh-service installer over an existing installation.
