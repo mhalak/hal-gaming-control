@@ -161,6 +161,9 @@ def pinned_ota_key(config_path, config):
         return None
     if cfg.get('enabled') is not True or cfg.get('mqtt_staging_enabled') is not True:
         raise ValueError('Signed OTA install requires explicitly enabled updater and staging')
+    staging = Path(config_path).parent / 'ota-staging'
+    if not staging.is_dir() or staging.is_symlink():
+        raise ValueError('Protected signed OTA staging directory missing')
     path = Path(config_path).parent / 'updater.json'
     if path.is_symlink() or not path.is_file() or path.stat().st_size > 8192:
         raise ValueError('Trusted Windows updater is not provisioned')
