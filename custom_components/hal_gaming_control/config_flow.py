@@ -16,6 +16,7 @@ from .app_editor import (apply_app_editor, editor_choices, editor_rows,
 from .direct_mqtt import direct_mode
 from .protocol import parse_discovery
 from .raw_foreground import decode_raw_identity
+from .unified_telemetry import decode_telemetry, foreground_v2
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -93,34 +94,51 @@ async def _discover_foreground_candidate(hass, device_id):
 
 
 async def _discover_raw_foreground_snapshot(hass, device_id):
-    """Read only a current, device-scoped v2 raw identity; never cache old samples."""
-    topic = f"{ROOT}/{device_id}/state/foreground_identity"
+    """Capture fresh v2 or v3 foreground for display, never for accounting.
+
+    The 0.3.0 Windows clean cut no longer emits v2 identities; the native
+    application editor must still work before a parent enables v3 accounting.
+    A validated v3 packet wins when both are seen; no legacy state can
+    overwrite its current foreground preview.
+    """
+    root = f"{ROOT}/{device_id}/state/"
+    v2_topic, v3_topic = root + "foreground_identity", root + "telemetry"
     found = {}
-    unsubscribe = None
+    unsubscribes = []
 
     def collect(message):
-        if message.topic != topic or getattr(message, "retain", None) is not False:
+        if (message.topic not in (v2_topic, v3_topic)
+                or getattr(message, "retain", None) is not False):
             return
+        now = dt_util.utcnow().timestamp()
         try:
-            packet = decode_raw_identity(message.payload, device_id)
-            age = dt_util.utcnow().timestamp() - packet["observed_at"]
+            if message.topic == v3_topic:
+                telemetry = decode_telemetry(
+                    message.payload, device_id, retained=False, wall_now=now)
+                packet = decode_raw_identity(
+                    foreground_v2(telemetry), device_id)
+            else:
+                packet = decode_raw_identity(message.payload, device_id)
+            age = now - packet["observed_at"]
         except (ValueError, TypeError, KeyError):
             return
         if -RAW_SNAPSHOT_FUTURE_SKEW <= age < RAW_SNAPSHOT_MAX_AGE:
-            found["packet"] = packet
+            found["v3" if message.topic == v3_topic else "v2"] = packet
 
     try:
-        unsubscribe = await mqtt.async_subscribe(hass, topic, collect, qos=0)
+        for topic in (v2_topic, v3_topic):
+            unsubscribes.append(
+                await mqtt.async_subscribe(hass, topic, collect, qos=0))
         await _listen_window()
     except asyncio.CancelledError:
         raise
-    except Exception as err:  # noqa: BLE001 - absent data is unavailable, never idle
-        _LOGGER.debug("Raw foreground snapshot unavailable (%s)", type(err).__name__)
+    except Exception as err:  # noqa: BLE001 - absent data is unavailable
+        _LOGGER.debug("Raw foreground snapshot unavailable (%s)",
+                      type(err).__name__)
     finally:
-        if unsubscribe is not None:
+        for unsubscribe in unsubscribes:
             unsubscribe()
-    return found.get("packet")
-
+    return found.get("v3") or found.get("v2")
 
 def _raw_foreground_labels(snapshot, apps):
     """Show the HA alias, or a distinct UI-only snapshot state and raw identity."""
