@@ -49,6 +49,8 @@ class DisplayStateTracker:
 
     def __init__(self, clock=None):
         self.clock = clock or time.monotonic
+        self.epoch = secrets.token_hex(16)  # stable per interactive helper lifetime
+        self.sequence = 0
         self.invalidate()
 
     def invalidate(self):
@@ -62,18 +64,23 @@ class DisplayStateTracker:
         if state == "unknown":
             self.invalidate()
             return True
+        # Every real OS notification gets a unique event receipt, even if
+        # an ON transition was missed between two OFF samples.
+        self.sequence += 1
         self.state = state
         self.changed = self.clock()
         return True
 
     def snapshot(self):
         if self.changed is None or self.state == "unknown":
-            return {"display_state": "unknown", "display_event_age_ms": None}
+            return {"display_state": "unknown", "display_event_age_ms": None,
+                    "display_epoch": None, "display_sequence": None}
         elapsed = (self.clock() - self.changed) * 1000
         if not math.isfinite(elapsed) or not 0 <= elapsed <= MAX_EVENT_AGE_MS:
             self.invalidate()
             return {"display_state": "unknown", "display_event_age_ms": None}
-        return {"display_state": self.state, "display_event_age_ms": int(elapsed)}
+        return {"display_state": self.state, "display_event_age_ms": int(elapsed),
+                "display_epoch": self.epoch, "display_sequence": self.sequence}
 
 
 class DisplayObserver:
@@ -148,7 +155,8 @@ class DisplayObserver:
 
     def sample(self):
         return self.tracker.snapshot() if self.notification else {
-            "display_state": "unknown", "display_event_age_ms": None}
+            "display_state": "unknown", "display_event_age_ms": None,
+            "display_epoch": None, "display_sequence": None}
 
     def close(self):
         # Cleanup is always called in the user helper thread.
