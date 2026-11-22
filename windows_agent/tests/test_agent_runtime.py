@@ -301,3 +301,15 @@ def test_targeted_execution_requires_new_user_foreground_sample():
     focus.read.assert_called_once_with([])
     assert verified.call_args.kwargs["current_sample"] == 102.0
     assert verified.call_args.kwargs["session"] == (3, "unlocked")
+
+
+def test_targeted_execution_requires_sample_after_command_receipt():
+    offer = {"candidate": ("RobloxPlayerBeta.exe", 410, 1000.5, 3, None),
+             "sample_time": 100.0, "offered_at": 101.0, "received_at": 102.0}
+    focus = Mock(candidate=offer["candidate"], last_sample_time=101.5)
+    with patch.object(A, "selected_session", return_value=(3, "unlocked")), \
+         patch.object(A, "terminate_verified", return_value=False) as verify, \
+         patch.object(A.time, "monotonic", return_value=102.3):
+        assert not A.execute_targeted(offer, focus)
+    assert verify.call_args.kwargs["offered_sample"] == 102.0
+    assert verify.call_args.kwargs["current_sample"] == 101.5
