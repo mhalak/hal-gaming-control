@@ -14,6 +14,7 @@ from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.properties import Properties
 from .core import COMMANDS
 from .targeted_terminate import TARGET_TTL, parse_target_request
+from .ota_mqtt import OtaMqttReceiver
 from .update_control import parse_request, installed_version, installed_build_sha
 from .discovery import discovery, obsolete_discovery_topics, terminate_discovery_topic
 
@@ -74,7 +75,7 @@ def _valid_target_sample(sample_time, now, captured_at):
             and 0 <= now - captured_at < TARGET_TTL)
 
 class Bridge:
-    def __init__(self, config):
+    def __init__(self, config, *, ota_root=None):
         dev, cfg = config['device'], config['mqtt']
         self.id = dev['id']
         if not re.fullmatch(r'[a-zA-Z0-9_-]+', self.id):
@@ -133,9 +134,18 @@ class Bridge:
             self.command_topics[self.root + '/command/terminate_target'] = 'terminate_target'
             self.metadata['targeted_terminate_protocol'] = 1
         self.updates_enabled = config.get('update', {}).get('enabled') is True
+        ota_requested = config.get('update', {}).get('mqtt_staging_enabled') is True
+        if ota_requested and not self.updates_enabled:
+            raise ValueError('MQTT OTA staging requires provisioned updater')
+        if ota_requested and ota_root is None:
+            raise ValueError('MQTT OTA staging requires protected staging directory')
+        self.ota = (OtaMqttReceiver(self.root, self.id, ota_root)
+                    if ota_requested else None)
         self.metadata['agent_version'] = installed_version()
         self.metadata['agent_build_sha'] = installed_build_sha(self.metadata['agent_version'])
         self.metadata['remote_update'] = self.updates_enabled
+        if self.ota is not None:
+            self.metadata['mqtt_ota_protocol'] = 1
         self.metadata['focus_protocol'] = 1
         if self.updates_enabled:
             self.command_topics[self.root + '/command/update'] = 'update'
@@ -170,6 +180,11 @@ class Bridge:
         options = mqtt.SubscribeOptions(qos=0, retainAsPublished=True, retainHandling=2)
         for topic in self.command_topics:
             client.subscribe(topic, options=options)
+        if self.ota is not None:
+            ota_options = mqtt.SubscribeOptions(
+                qos=1, retainAsPublished=True, retainHandling=2)
+            for topic in self.ota.topics:
+                client.subscribe(topic, options=ota_options)
         client.subscribe(self.prefix + '/status', qos=0)
 
     def on_disconnect(self, client, userdata, disconnect_flags, reason_code, properties):
@@ -183,12 +198,22 @@ class Bridge:
             self._raw_last = None
             self._raw_sent = float('-inf')
             self._raw_candidate = self._raw_receipt = self._target_offer = None
+            if self.ota is not None:
+                self.ota.reset()
         
     def on_message(self, client, userdata, msg):
         with self.lock:
             if msg.topic == self.prefix + '/status':
                 if msg.payload == b'online':
                     self.refresh_requested = True
+                return
+            if self.ota is not None and msg.topic in self.ota.topics:
+                if not self.connected or msg.retain:
+                    return
+                reply = self.ota.handle(msg.topic, msg.payload)
+                if reply is not None:
+                    client.publish(self.root + '/ota/ack', reply,
+                                   qos=1, retain=False)
                 return
             command = self.command_topics.get(msg.topic)
             if not self.connected or not command or msg.retain:
