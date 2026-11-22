@@ -84,6 +84,19 @@ def parent_grants_today(options, now):
                           and event["status"] == "active"]))
 
 
+def parent_bonus_activity_today(options, now):
+    """All current-day grants, including cancelled audit records."""
+    date = _date(now)
+    return list(reversed([dict(event) for event in _journal(options)["events"]
+                          if event["local_date"] == date]))
+
+
+def parent_bonus_legacy_today(options, now):
+    """Existing unattributed aggregate; not a fabricated clickable grant."""
+    legacy = _journal(options)["legacy"]
+    return legacy["minutes"] if legacy["date"] == _date(now) else 0
+
+
 def _write(options, journal, now):
     updated = dict(options)
     updated[JOURNAL_KEY] = journal
