@@ -68,12 +68,15 @@ def _journal(options):
 
 
 def _date(now):
-    if now.tzinfo is None or now.utcoffset() is None:
-        raise ValueError("Parent bonus requires timezone-aware local clock")
+    # Read-only HA date snapshots may come from tests or restored local clocks.
+    # They do not create an audit timestamp; never reinterpret their zone.
     return now.date().isoformat()
 
 
 def _timestamp(now):
+    # A NEW audit mutation always requires a real timezone-aware instant.
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("Parent bonus mutation requires timezone-aware clock")
     return now.astimezone(timezone.utc).isoformat()
 
 
