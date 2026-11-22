@@ -108,6 +108,8 @@ class DirectAction(DirectEntity, ButtonEntity):
 
     @callback
     def _capabilities(self, message):
+        if message.topic != self._root + "/discovery":
+            return
         try:
             metadata = parse_discovery(message.topic, message.payload)
             self._terminate_capable = (
