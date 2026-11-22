@@ -1,4 +1,6 @@
-# Parental Control — clean-start migration (issue #4 / #67)
+# Parental Control — historical foreground cutover (issue #4 / #67)
+
+**Historical 0.5.x guide, superseded for HA 0.6.0 clean-cut installs:** follow [domain-clean-cut.md](domain-clean-cut.md) instead. Do not apply both reset procedures or purge Recorder just to change the HA domain.
 
 **Owner decision (2026-11-21):** Test-only Parental Control usage history
 does **not** need preserving. For the first coordinated v2 deployment,
