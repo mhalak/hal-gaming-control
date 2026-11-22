@@ -97,7 +97,10 @@ def execute_targeted(offer, focus):
         focus.read([])  # forced fresh sampling; safe even without legacy rules
         return terminate_verified(
             offer['candidate'], getattr(focus, 'candidate', None),
-            offered_sample=offer['sample_time'],
+            # A sample must be generated AFTER the command was received,
+            # not merely after the old token was first offered.
+            offered_sample=max(offer['sample_time'],
+                               offer.get('received_at', offer['offered_at'])),
             current_sample=getattr(focus, 'last_sample_time', None),
             offered_at=offer['offered_at'], now=time.monotonic(),
             session=selected_session(), session_lookup=process_session_id)
