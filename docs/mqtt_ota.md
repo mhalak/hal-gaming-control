@@ -1,6 +1,6 @@
 # MQTT OTA: independent Windows agent release transport
 
-**Status: increment 1 of [issue #166](https://github.com/mhalak/hal-gaming-control/issues/166), transport-only, default-off.** No HA update button is wired to this transport, no Windows MQTT OTA subscriber is running, and no package may be installed from a staged file. The existing HTTPS updater is unchanged. All changes in PR #168 are safe to merge without activating Windows update commands.
+**Status: increment 2 of [issue #166](https://github.com/mhalak/hal-gaming-control/issues/166), MQTT staging receiver implemented but explicitly default-off.** A Windows service with explicit `update.enabled: true` and `update.mqtt_staging_enabled: true` plus a preprovisioned protected staging directory can now subscribe to the OTA topics and respond with ACKs. **There is still no HA UpdateEntity sender, no package signature authentication at staging, no connection to installation, no active Windows release distribution, and no completed real-PC pilot.** The existing HTTPS updater is unchanged. **Do not enable this preview on family PCs.**
 
 ## Independent versioning and Marketplace
 
@@ -19,17 +19,17 @@ Do **not** tag Windows-only binary releases in the HACS integration repository; 
 Both sides now have separate, pure implementations of this byte format:
 
 - HA source: `custom_components/hal_gaming_control/ota_sender.py` — `PackageFrames`, no MQTT publisher or UI call.
-- Windows source: `windows_agent/gaming_control/ota_staging.py` — `StageReceiver`, no MQTT subscriptions, unpacking or installation.
+- Windows source: `windows_agent/gaming_control/ota_staging.py` — `StageReceiver` plus `gaming_control/ota_mqtt.py` and the *explicitly gated* MQTT bridge adapter; bytes may be staged, but there is no unpacking or installation.
 - Contract tests: `windows_agent/tests/test_ota_contract.py` exercise exact HA-created bytes against the Windows sink; sender and receiver are not imported from one another.
 
-Proposed per-device MQTT topics (these are **not subscribed or published yet**):
+Device-scoped MQTT 5 topics (the three incoming topics and response ACK are **active only after deliberate Windows opt-in**, not on normal installations):
 
 | Topic suffix | Sender | Payload |
 | --- | --- | --- |
 | `ota/start` | HA | Strict non-retained JSON offer |
 | `ota/chunk` | HA | 20-byte header + raw binary chunk |
 | `ota/finish` | HA | Strict non-retained JSON finish request |
-| `ota/ack` | Windows | *Future*: exact transfer ID, accepted next index, progress/rejection |
+| `ota/ack` | Windows | JSON status `receiving`, `staged` or `rejected`, exact device ID/transfer ID/next index, QoS 1 non-retained |
 
 An offer carries precisely these keys:
 
@@ -54,7 +54,7 @@ The Windows sink accepts only the next expected chunk, or an **identical resend 
 
 ## Next safe increments (not implemented by this PR)
 
-1. **Per-device MQTT session adapter**: explicitly gated, authenticated broker ACLs, MQTT 5 non-retained QoS 1 chunks, strict recipient scope, response/ACK/resume within bounded time and orderly shutdown on restart. Broker size limits must allow 65,556-byte binary packets; normal gaming telemetry must not be blocked by streaming.
+1. **Remaining transport hardening**: on the next increment, a HA-side ACK-driven sender, bounded retry/resume policy, background worker that does not block gaming telemetry and a real broker load test. The Windows receiver already requires explicit opt-in, MQTT 5 non-retained QoS 1 chunks, exact per-device topics, responds with sanitized ACKs and discards incomplete transfers on reconnect. Broker size limits must allow 65,556-byte binary packets.
 2. **HA download and local cache**: from a fixed approved Windows release channel, verify immutable reviewed version / signed manifest, stream only to a currently online agent advertising the matching OTA capability; progress and explicit manual UpdateEntity trigger. Never bundle agent ZIPs with HACS.
 3. **Windows updater integration**: accept only a fully authenticated staged package through the existing durable journal, stop/swap/health-check/rollback transaction. Preserve protected `config.yaml`, `device_id` and original service registration. No arbitrary URL/command/package from MQTT.
 4. **Bootstrap and hardware acceptance**: provision updater once on each PC by a supervised trusted install, test with Smart App Control enabled, no unsigned executable exemptions. Pilot first on one disposable Windows machine; keep automatic updates and policy enforcement off.
@@ -75,3 +75,21 @@ python -m pytest -q tests/home_assistant/test_ota_sender.py
 ```
 
 The source-only modules carry no credentials and do not contact GitHub or a Windows PC.
+
+## Explicit Windows staging-only development gate (agent 0.2.10)
+
+This is **not a user deployment procedure**. Development VM only, after the current updater's separate secure bootstrap:
+
+```yaml
+update:
+  enabled: true
+  mqtt_staging_enabled: true
+```
+
+The protected local directory `%ProgramData%\\SmartHouseGamingControl\\ota-staging` must exist **before** starting the service and must permit writes only for SYSTEM and Administrators. The service derives its path internally from the already protected configuration directory; MQTT payloads cannot choose any output path. It deliberately fails startup if this explicit setting points to a missing staging directory or is enabled without `update.enabled`.
+
+When enabled, the Windows service subscribes to exactly its own `SmartHouse/Gaming/<device_id>/ota/{start,chunk,finish}` with MQTT 5, QoS 1 and retained deliveries suppressed. It sends non-retained QoS 1 `ota/ack` statuses with `{protocol,device_id,transfer_id,next_index,status}`. All retained OTA commands are ignored. Partial bytes are removed on disconnect or orderly shutdown, and an expired in-progress transfer cannot block a newer transfer. A completed `.staged` artifact remains **quarantined, not authenticated or installed**. No `command/update` is issued from this path.
+
+Provision broker ACLs: only an authorized HA deployment identity may write this PC's incoming OTA topics; the PC may only publish its scoped ACK and normal telemetry. Children and other PCs must never be authorized to publish OTA topics.
+
+This opt-in staging control is not exposed in HA and has not been exercised on actual SYSTEM/Windows hosts. Never interpret its `staged` ACK as approval to run a ZIP or proof of signature verification.
