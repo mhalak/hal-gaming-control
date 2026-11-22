@@ -42,9 +42,14 @@ class AddDailyBudget(GamingEntity, ButtonEntity):
         if effective_daily(options, now.weekday() >= 5) < 0:
             raise HomeAssistantError("Set a finite daily limit before adding time")
         entry = self.coordinator.entry
-        self.hass.config_entries.async_update_entry(
-            entry, options=add_parent_grant(
-                entry.options, self.coordinator.device_id, now, BONUS_INCREMENT))
+        updated = add_parent_grant(
+            entry.options, self.coordinator.device_id, now, BONUS_INCREMENT)
+        result = self.hass.config_entries.async_update_entry(
+            entry, options=updated)
+        if result is False:
+            # Do not imply that an explicit Add press succeeded when HA did
+            # not accept the new journal/bonus state.
+            raise HomeAssistantError("Parent bonus grant was not saved")
 
 
 class TerminateTrackedGame(GamingEntity, ButtonEntity):
