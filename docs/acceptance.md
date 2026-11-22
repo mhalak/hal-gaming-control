@@ -1,6 +1,12 @@
 # Windows agent acceptance checklist
 
 - [ ] Fresh install starts automatically under LocalSystem, no visible window, no user account provisioning.
+- [ ] HA 0.7.2 + Windows 0.2.9: with an empty local catalog, target offers are nonretained/expiring, device-scoped and contain no PID/path/argv/user; `Terminate active game` is available only for the same HA-enrolled, live, verified foreground application in native or scoped MQTT.
+- [ ] A legitimate single press consumes a capability once; retries, duplicate payloads, wrong device/epoch, retained/stale/malformed MQTT and broker reconnect never reuse the capability.
+- [ ] Windows receives no arbitrary target PID/name/path. Before one-process termination it requires a new post-offer user-session foreground sample matching PID/creation time/session/safe Java signature, verifies process identity and OS path protections; a switched/ambiguous session or window fails closed.
+- [ ] Two distinct processes with the same executable name are never treated as interchangeable. Untracked/system/background apps cannot be terminated via the HA manual action; direct scoped and native HA buttons have no duplicate enabled controls.
+- [ ] An explicit target failure leaves all games untouched; only the exact verified one stops on a successful authorized physical pilot. Do not send this command to a valuable unsaved game.
+- [ ] PCs with legacy games keep their original terminate function unchanged; new target protocol does not activate on those PCs. No automatic policy enforcement or updates are enabled.
 - [ ] New PC with only MQTT connection settings starts with no local `games`, sends uptime and raw v2 foreground identity, provides Lock PC and never subscribes to the legacy terminate command.
 - [ ] Rule-free PC publishes only exact agent-owned native terminate button tombstone; scoped/direct HA stale terminate action is unavailable when the agent revokes it, even if HA entry still lists the old action.
 - [ ] Existing PC with legacy games keeps the same manual Terminate game behavior and verified process constraints after upgrade; removing games is explicitly optional.
