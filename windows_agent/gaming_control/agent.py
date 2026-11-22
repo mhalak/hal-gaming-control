@@ -270,7 +270,9 @@ def run(config_path, stop_event):
                     display_policy, getattr(focus, "last_input_idle_ms", None),
                     foreground_context,
                     display_state=getattr(focus, "display_state", "unknown"),
-                    display_event_age_ms=getattr(focus, "display_event_age_ms", None))
+                    display_event_age_ms=getattr(focus, "display_event_age_ms", None),
+                    display_epoch=getattr(focus, "display_epoch", None),
+                    display_sequence=getattr(focus, "display_sequence", None))
                 # Raw v2 identity is independent of legacy Windows game rules.
                 # The old snapshot remains available during a safe HA cutover.
                 bridge.publish_raw_foreground(
