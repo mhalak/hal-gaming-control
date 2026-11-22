@@ -527,7 +527,7 @@ async def test_translations_explain_single_page_editor_and_mqtt(
             "tracked_apps": "Tracked applications",
         }
         assert "{actions}" not in steps["settings_menu"]["description"]
-        assert steps["settings_menu"]["title"] == "Parental control"
+        assert steps["settings_menu"]["title"] == "HAL Gaming Control"
         assert steps["tracked_apps"]["submit"] == "Save changes"
         assert "submit" not in steps["mqtt_settings"]
         tracked = steps["tracked_apps"]["description"]
