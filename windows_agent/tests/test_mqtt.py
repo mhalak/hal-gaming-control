@@ -355,3 +355,23 @@ def test_target_receipt_requires_same_authenticated_current_context():
     assert b.prime_target_receipt(candidate, second, sample_time=time.monotonic())
     b.on_disconnect(b.client, None, None, None, None)
     assert not b.publish_target_offer(candidate, second, sample_time=time.monotonic())
+
+
+def test_clean_cut_tombstones_never_publish_after_disconnect():
+    b = connected_bridge()
+    generation = b.generation
+    b.on_disconnect(b.client, None, None, None, None)
+    b.client.publish.reset_mock()
+    assert not b._clear_legacy_retained(generation)
+    b.client.publish.assert_not_called()
+
+
+def test_local_rules_cannot_prime_target_offer_without_v3_control_entitlement():
+    import time
+    b = connected_bridge()  # legacy local rules deliberately disable targeting
+    assert b.publish({}, 10)
+    context = b.capture_foreground_context()
+    candidate = ("RobloxPlayerBeta.exe", 321, 456.0, 2, None)
+    assert not b.prime_target_receipt(
+        candidate, context, sample_time=time.monotonic())
+    assert b._raw_receipt is None
