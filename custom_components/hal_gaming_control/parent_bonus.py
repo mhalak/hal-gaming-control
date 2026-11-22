@@ -22,6 +22,23 @@ def _legacy(options):
     return {"date": date, "minutes": amount}
 
 
+def _validate_event(event):
+    if (not isinstance(event, dict)
+            or not isinstance(event.get("id"), str)
+            or not isinstance(event.get("device_id"), str)
+            or not isinstance(event.get("local_date"), str)
+            or not isinstance(event.get("created_at_utc"), str)
+            or type(event.get("minutes")) is not int
+            or event["minutes"] <= 0
+            or event.get("status") not in ("active", "cancelled")):
+        raise ValueError("Invalid Parent bonus journal record")
+    cancelled_at = event.get("cancelled_at_utc")
+    if event["status"] == "cancelled" and not isinstance(cancelled_at, str):
+        raise ValueError("Invalid Parent bonus cancellation timestamp")
+    if event["status"] == "active" and cancelled_at is not None:
+        raise ValueError("Invalid active Parent bonus cancellation state")
+
+
 def _journal(options):
     stored = options.get(JOURNAL_KEY)
     if stored is None:
@@ -40,16 +57,12 @@ def _journal(options):
     events = stored["events"]
     if len(events) > MAX_EVENTS:
         raise ValueError("Parent bonus journal exceeds limit")
+    seen = set()
     for event in events:
-        if (not isinstance(event, dict)
-                or not isinstance(event.get("id"), str)
-                or not isinstance(event.get("device_id"), str)
-                or not isinstance(event.get("local_date"), str)
-                or not isinstance(event.get("created_at_utc"), str)
-                or type(event.get("minutes")) is not int
-                or event["minutes"] <= 0
-                or event.get("status") not in ("active", "cancelled")):
-            raise ValueError("Invalid Parent bonus journal record")
+        _validate_event(event)
+        if event["id"] in seen:
+            raise ValueError("Duplicate Parent bonus journal ID")
+        seen.add(event["id"])
     return {"version": JOURNAL_VERSION, "legacy": legacy,
             "events": [dict(event) for event in events]}
 
