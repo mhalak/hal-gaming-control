@@ -22,7 +22,7 @@ jobs:
       - run: pip install pytest
       - run: python -m pytest -q tests/home_assistant/test_rules.py tests/home_assistant/test_liveness.py tests/home_assistant/test_update_protocol.py tests/home_assistant/test_foreground_accounting.py tests/home_assistant/test_raw_foreground.py
       - run: python -m compileall -q custom_components
-      - run: python -m json.tool custom_components/smarthouse_gaming/manifest.json
+      - run: python -m json.tool custom_components/parental/manifest.json
   runtime:
     runs-on: ubuntu-latest
     steps:
@@ -41,4 +41,4 @@ jobs:
             windows_agent/requirements-dev.txt
             windows_agent/requirements.txt
       - run: uv pip install --system pytest-homeassistant-custom-component==0.13.373
-      - run: python -m pytest -q -o asyncio_mode=auto tests/home_assistant/test_domain_clean_cut.py tests/home_assistant/test_ha_runtime.py tests/home_assistant/test_options_flow_tracked_apps.py tests/home_assistant/test_candidate_protocol.py tests/home_assistant/test_app_registry.py tests/home_assistant/test_app_editor.py tests/home_assistant/test_recorder_runtime.py tests/home_assistant/test_migration_preflight.py tests/home_assistant/test_migration_journal.py tests/home_assistant/test_automation_owned_cleanup.py tests/home_assistant/test_foreground_store.py tests/home_assistant/test_legacy_activity_cleanup.py tests/home_assistant/test_foreground_e2e.py tests/home_assistant/test_foreground_coordinator.py tests/home_assistant/test_foreground_sensor.py tests/home_assistant/test_restriction_sensor.py tests/home_assistant/test_schedule_controls.py tests/home_assistant/test_weekend_schedule.py tests/home_assistant/test_fresh_start.py tests/home_assistant/test_foreground_source.py
+      - run: python -m pytest -q -o asyncio_mode=auto tests/home_assistant/test_domain_clean_cut.py tests/home_assistant/test_ha_runtime.py tests/home_assistant/test_options_flow_tracked_apps.py tests/home_assistant/test_candidate_protocol.py tests/home_assistant/test_app_registry.py tests/home_assistant/test_app_editor.py tests/home_assistant/test_recorder_runtime.py tests/home_assistant/test_automation_owned_cleanup.py tests/home_assistant/test_foreground_store.py tests/home_assistant/test_legacy_activity_cleanup.py tests/home_assistant/test_foreground_e2e.py tests/home_assistant/test_foreground_coordinator.py tests/home_assistant/test_foreground_sensor.py tests/home_assistant/test_restriction_sensor.py tests/home_assistant/test_schedule_controls.py tests/home_assistant/test_weekend_schedule.py tests/home_assistant/test_fresh_start.py tests/home_assistant/test_foreground_source.py

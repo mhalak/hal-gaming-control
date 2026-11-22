@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 COMPONENTS = ("windows_agent", "home_assistant")
 VERSION = re.compile(r"(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})")
 SHA = re.compile(r"[0-9a-f]{40}")
-HA_MANIFEST = Path("custom_components/smarthouse_gaming/manifest.json")
+HA_MANIFEST = Path("custom_components/parental/manifest.json")
 
 
 def _unique_object(pairs):
@@ -58,7 +58,7 @@ def sync_ha_manifest(root):
     release = _release_metadata(root)
     path = root / HA_MANIFEST
     manifest = _read_json(path)
-    if not isinstance(manifest, dict) or manifest.get("domain") != "smarthouse_gaming":
+    if not isinstance(manifest, dict) or manifest.get("domain") != "parental":
         raise ValueError("Unexpected HA manifest")
     if manifest.get("version") != release["home_assistant"]:
         manifest["version"] = release["home_assistant"]
