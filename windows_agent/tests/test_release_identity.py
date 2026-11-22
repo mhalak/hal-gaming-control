@@ -96,7 +96,7 @@ def test_build_allows_matching_explicit_version(checkout):
     tool = release_tool()
     with patch.object(tool, "_git", side_effect=lambda root, *args:
                       SHA if args == ("rev-parse", "HEAD") else ""):
-        assert tool.build_identity(checkout, "windows_agent", requested_version="0.4.0")["version"] == "0.3.0"
+        assert tool.build_identity(checkout, "windows_agent", requested_version="0.4.0")["version"] == "0.4.0"
 
 
 @pytest.mark.parametrize("status", [" M release.json", "?? untracked.py"])
