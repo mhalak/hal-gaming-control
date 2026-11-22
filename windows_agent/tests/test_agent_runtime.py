@@ -134,7 +134,8 @@ def test_run_advertises_os_hostname_and_preserves_generated_identity(runtime):
         A.run(path, Stop())
     resolved = A.Bridge.call_args.args[0]
     assert resolved["device"]["name"] == "DESKTOP-LUCIJA"
-    assert resolved["device"]["id"] == (path.parent / "device_id").read_text().strip()
+    assert resolved["device"]["id"] == "DESKTOP-LUCIJA"
+    assert not (path.parent / "device_id").exists()
 
 
 def test_no_catalog_starts_and_keeps_unified_foreground_telemetry(runtime):
