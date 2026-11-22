@@ -18,6 +18,27 @@ _FIELDS = frozenset((
 ))
 
 
+
+def _valid_offer_header(value, device_id, now):
+    return (type(value["version"]) is int and value["version"] == 1
+            and value["device_id"] == device_id
+            and isinstance(value["epoch"], str)
+            and re.fullmatch(r"[0-9a-f]{32}", value["epoch"]) is not None
+            and type(value["sequence"]) is int
+            and 1 <= value["sequence"] <= MAX_SEQUENCE
+            and type(value["observed_at"]) in (int, float)
+            and math.isfinite(value["observed_at"])
+            and type(now) in (int, float) and math.isfinite(now)
+            and -1 <= now - value["observed_at"] < OFFER_TTL)
+
+
+def _valid_offer_process(value):
+    return (_valid_process(value["process"])
+            and _valid_signature(value["process"], value["signature"])
+            and isinstance(value["token"], str)
+            and re.fullmatch(r"[0-9a-f]{32}", value["token"]) is not None)
+
+
 def parse_offer(topic, payload, device_id, *, retained, now):
     """Validate exact device, freshness, non-retained transport and safe fields."""
     if (retained is not False
@@ -30,20 +51,8 @@ def parse_offer(topic, payload, device_id, *, retained, now):
     except (UnicodeError, ValueError, TypeError, RecursionError) as exc:
         raise ValueError("Invalid targeted offer JSON") from exc
     if (not isinstance(value, dict) or value.keys() != _FIELDS
-            or type(value["version"]) is not int or value["version"] != 1
-            or value["device_id"] != device_id
-            or not isinstance(value["epoch"], str)
-            or not re.fullmatch(r"[0-9a-f]{32}", value["epoch"])
-            or type(value["sequence"]) is not int
-            or not 1 <= value["sequence"] <= MAX_SEQUENCE
-            or type(value["observed_at"]) not in (int, float)
-            or not math.isfinite(value["observed_at"])
-            or type(now) not in (int, float) or not math.isfinite(now)
-            or not -1 <= now - value["observed_at"] < OFFER_TTL
-            or not _valid_process(value["process"])
-            or not _valid_signature(value["process"], value["signature"])
-            or not isinstance(value["token"], str)
-            or not re.fullmatch(r"[0-9a-f]{32}", value["token"])):
+            or not _valid_offer_header(value, device_id, now)
+            or not _valid_offer_process(value)):
         raise ValueError("Invalid targeted offer identity")
     # Generic Java runtimes cannot be safely selected without a discriminator.
     identity_key(value["process"], value["signature"])
