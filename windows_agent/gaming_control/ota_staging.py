@@ -132,7 +132,10 @@ class StageReceiver:
         transfer_id = obj["transfer_id"]
         part = self.root / f"ota-{transfer_id}.part"
         staged = self.root / f"ota-{transfer_id}.staged"
-        if staged.exists() or staged.is_symlink():
+        # At most one completed, still-untrusted artifact awaits the trusted
+        # updater; an authorized broker publisher cannot fill the disk with
+        # many different 200 MiB transfer IDs.
+        if staged.exists() or staged.is_symlink() or any(self.root.glob("ota-*.staged")):
             raise FileExistsError("Staged transfer already exists")
         # Exclusive creation never truncates a previous/incomplete transaction.
         fd = part.open("xb")

@@ -1,3 +1,7 @@
+## Windows 0.2.10 Preview 15 — optional stage-only MQTT OTA receiver (#166)
+
+**Developer-only, deliberately disabled.** Adds an explicit `update.mqtt_staging_enabled: true` mode requiring `update.enabled: true` and a pre-existing protected ProgramData `ota-staging` directory. In this mode the agent receives bounded, device-scoped MQTT 5 packages and publishes non-retained ACKs, but **never installs, unpacks, runs or passes a staged file to the Windows updater**. Staged ZIP content is untrusted. Normal installations do not subscribe to OTA topics, and cannot enable them through HA. The source-only HA sender exists, but no runtime HA OTA sender/Install flow is connected. Do not enable on family PCs; use an isolated, signed-build-capable development VM. See [MQTT OTA protocol](mqtt_ota.md). HACS integration stays at **0.8.0**; a Windows-only version bump does not require an HA release.
+
 # Windows deployment guide
 
 ## Windows 0.2.9 Preview 8 — safe HA-targeted manual termination (#155)

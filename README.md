@@ -2,7 +2,7 @@
 
 # HAL Gaming Control
 
-**⚠️ HA 0.9.x preview (0.9.0 source candidate):** the canonical Home Assistant domain is now `hal_gaming_control`. This replaces the old `smarthouse_gaming`, `parental` (0.6.0), and conflicting `parental_control` (0.6.1) domains. **Remove the previous integration before installing; no automatic migration or dual installation is supported.** [One-time clean-install instructions](docs/domain-clean-cut.md). Windows agent 0.2.9 supports MQTT-only setup, OS computer name and stable per-install identity. The existing MQTT topic contract and IDs remain unchanged for enrolled PCs. The shipped HAL icon lives under the new domain; Marketplace's pre-install thumbnail may require catalog indexing.
+**⚠️ HA 0.9.x preview (0.9.0 source candidate):** the canonical Home Assistant domain is now `hal_gaming_control`. This replaces the old `smarthouse_gaming`, `parental` (0.6.0), and conflicting `parental_control` (0.6.1) domains. **Remove the previous integration before installing; no automatic migration or dual installation is supported.** [One-time clean-install instructions](docs/domain-clean-cut.md). Windows agent 0.2.10 supports MQTT-only setup, OS computer name and stable per-install identity. The existing MQTT topic contract and IDs remain unchanged for enrolled PCs. The optional Windows MQTT OTA staging capability is **disabled by default** and cannot yet install updates; see [development protocol](docs/mqtt_ota.md). The shipped HAL icon lives under the new domain; Marketplace's pre-install thumbnail may require catalog indexing.
 
 **Because parenting should have an API.**
 
@@ -112,7 +112,7 @@ Track gaming time on Windows PCs, set limits, give bonus minutes and use parent 
 
 ## Windows setup (simpler, safer)
 
-Windows agent **0.2.9** automatically reports the PC's real Windows computer name and keeps a stable per-install ID, even after renames. Choose the friendly label in Home Assistant. Existing IDs are migrated without re-enrollment. No local game list is needed for monitoring, budgets or Lock PC. HA 0.7.2 introduces a separate manual **Terminate active game** button for the verified, tracked foreground app on rule-free PCs. Existing PCs retaining local `games` rules keep legacy Terminate game; the new path still needs real-Windows acceptance before deployment. [Issue #155](https://github.com/mhalak/hal-gaming-control/issues/155). [Windows installation and upgrade](docs/windows_deployment.md).
+Windows agent **0.2.10** automatically reports the PC's real Windows computer name and keeps a stable per-install ID, even after renames. Choose the friendly label in Home Assistant. Existing IDs are migrated without re-enrollment. No local game list is needed for monitoring, budgets or Lock PC. HA 0.7.2 introduces a separate manual **Terminate active game** button for the verified, tracked foreground app on rule-free PCs. Existing PCs retaining local `games` rules keep legacy Terminate game; the new path still needs real-Windows acceptance before deployment. [Issue #155](https://github.com/mhalak/hal-gaming-control/issues/155). [Windows installation and upgrade](docs/windows_deployment.md).
 
 ## Want to get started?
 

@@ -156,7 +156,12 @@ def run(config_path, stop_event):
         raise ValueError('Interval must be between 0.25 and 5 seconds')
     rules = validate_rules(config.get('games', []))
     config = resolve_identity(config, config_path)
-    bridge = Bridge(config)
+    # The staging directory must be provisioned under protected ProgramData
+    # before this explicit, default-off capability can be enabled.
+    if config.get('update', {}).get('mqtt_staging_enabled') is True:
+        bridge = Bridge(config, ota_root=Path(config_path).parent / 'ota-staging')
+    else:
+        bridge = Bridge(config)
     last_health = float('-inf')
     previous_games = None
     focus = FocusProbe()
