@@ -106,7 +106,10 @@ def test_authenticated_interactive_helper_includes_input_age_without_content():
                return_value=120000):
         assert helper_main(PIPE_PREFIX + "a" * 32, "123") != 0
     body = json.loads(file.WriteFile.call_args.args[1])
-    assert body == {"time": 12.3, "status": "idle", "last_input_idle_ms": 120000}
+    assert body["time"] == 12.3 and body["status"] == "idle"
+    assert body["last_input_idle_ms"] == 120000
+    assert body["display_state"] == "unknown"
+    assert body["display_event_age_ms"] is None
     assert "username" not in body and "keys" not in body
     handle.Close.assert_called_once()
 
