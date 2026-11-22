@@ -1,25 +1,17 @@
-# Windows PC name and stable device ID are resolved automatically.
-# Use a different MQTT username/password for each PC.
+# HAL Gaming Control — minimal Windows companion configuration.
+# Computer name is read from Windows; per-PC device_id is stored in ProgramData.
+# Use a distinct broker account for each computer, with device-scoped ACLs.
 mqtt:
-  # MQTT 5 broker required; commands are never retained.
   host: REPLACE_WITH_BROKER_IP
-  port: 1883
   username: REPLACE_WITH_USERNAME
   password: REPLACE_WITH_PASSWORD
-  tls: false
-  discovery_prefix: homeassistant
+  # Optional: port defaults to 1883; TLS defaults to false.
+  # port: 8883
+  # tls: true
+  # ca_certs: C:\\path\\to\\trusted-ca.pem
 
-# Transitional: these rules are still required for the legacy manual
-# Terminate game action. See issue #155 for HA-authoritative replacement.
-games:
-  - name: Minecraft Java
-    process: javaw.exe
-    command_line_arg: net.minecraft.client.main.Main
-  - name: Minecraft Bedrock
-    process: Minecraft.Windows.exe
-  - name: Roblox
-    process: RobloxPlayerBeta.exe
-
-# Remote updater disabled until trusted signing and provisioning exist.
-update:
-  enabled: false
+# App detection and display names are configured in Home Assistant.
+# Without legacy 'games', Lock PC still works, but Terminate game is
+# deliberately unavailable until a safe HA-authoritative protocol ships.
+# Existing upgraded PCs may keep their legacy 'games' rules for manual kill.
+# Remote updater remains disabled by default.
