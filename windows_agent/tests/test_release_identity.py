@@ -128,7 +128,7 @@ def test_sync_ha_only_updates_version_and_is_idempotent(checkout):
     content = {"domain": "hal_gaming_control", "version": "0.4.2", "name": "Example"}
     manifest.write_text(json.dumps(content), encoding="utf-8")
     tool.sync_ha_manifest(checkout)
-    assert json.loads(manifest.read_text(encoding="utf-8")) == content | {"version": "0.12.0"}
+    assert json.loads(manifest.read_text(encoding="utf-8")) == content | {"version": "0.12.1"}
     previous = manifest.read_bytes()
     tool.sync_ha_manifest(checkout)
     assert manifest.read_bytes() == previous
@@ -176,7 +176,7 @@ def test_stage_ha_from_reviewed_git_checkout(checkout):
     tool = release_tool()
     assert tool.stage_ha(checkout, destination) == {
         "release": RELEASE["release"], "component": "home_assistant",
-        "version": "0.12.0", "commit": sha}
+        "version": "0.12.1", "commit": sha}
     assert (destination / "sensor.py").read_text(encoding="utf-8") == "EXAMPLE = True\n"
     assert json.loads((destination / "build-info.json").read_text())["commit"] == sha
     assert not (component / "build-info.json").exists()
