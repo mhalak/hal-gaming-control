@@ -68,10 +68,12 @@ cards:
       **⚪ Budget data unavailable** — check the integration and PC.
       {% elif mode == 'disabled' %}
       **⚪ Gaming rules disabled** — no restrictions are applied.
+      {% elif state_attr(d, 'unlimited_gaming_active') == true %}
+      **♾️ Unlimited gaming ON** — all automatic gaming restrictions are bypassed. Confirmed gaming time is still recorded.
       {% elif is_state(r, 'on') %}
       **🔴 Gaming restricted** — {{ state_attr(r, 'reasons') | join(', ') if state_attr(r, 'reasons') else 'check active rules' }}.
-      {% elif mode == 'unlimited' and is_state(r, 'off') %}
-      **♾️ Unlimited daily gaming** — weekly, schedule and per-game policy still apply.
+      {% elif mode == 'unlimited' %}
+      **♾️ Daily quota disabled** — weekly, schedule and per-game limits may still apply. This alone does not confirm playing is permitted.
       {% elif is_state(r, 'off') %}
       **🟢 Gaming permitted by active rules**.
       {% else %}
@@ -104,8 +106,10 @@ cards:
       **No verified budget snapshot.**
       {% elif mode == 'disabled' %}
       **Gaming rules are disabled.** No active allowance is enforced.
+      {% elif state_attr(e, 'unlimited_gaming_active') == true %}
+      **Unlimited gaming ON.** All automatic restrictions are bypassed; measured gaming time is still recorded.
       {% elif mode == 'unlimited' %}
-      **Unlimited daily gaming.** The recorded time remains unchanged.
+      **Daily quota disabled.** Weekly, schedule and per-game limits may still apply.
       {% else %}
       | Source | Minutes |
       |:--|--:|
@@ -148,7 +152,7 @@ The standard Home Assistant **Device info** page cannot host injected Markdown. 
 
 ## Data and privacy
 
-The daily sensor exposes the base allowance, Weekend bonus, Parent bonus, currently unimplemented Screen idle bonus, total effective daily limit, measured daily time, remaining daily time and the independent weekly ledger in its attributes. It also reports whether the policy is disabled/unlimited and whether historical coverage is incomplete.
+The daily sensor exposes the base allowance, Weekend bonus, Parent bonus, currently unimplemented Screen idle bonus, total effective daily limit, measured daily time, remaining daily time and the independent weekly ledger in its attributes. It also exposes `unlimited_gaming_active` to distinguish the parent override (all automatic restrictions bypassed) from simply having no finite daily quota (weekly, schedule and per-game restrictions may still apply). It also reports whether the policy is disabled/unlimited and whether historical coverage is incomplete.
 
 This is a **read-only view** of HAL Gaming Control's existing local HA accounting. No Windows agent change, additional cloud service or second application is required. Bonuses never rewrite history or add minutes to the weekly cap.
 

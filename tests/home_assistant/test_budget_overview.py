@@ -142,3 +142,35 @@ def test_unknown_and_unlimited_countdown_seconds_remain_none():
                                 {"daily": 0, "weekly": 0}, at(23), ready=True)
     assert unlimited["daily_remaining_seconds"] is None
     assert unlimited["weekly_remaining_seconds"] is None
+
+
+def test_unlimited_gaming_override_is_not_merely_an_unlimited_daily_quota():
+    """The UI must distinguish bypassing all rules from disabling one quota."""
+    totals = {"daily": 90 * 60, "weekly": 90 * 60,
+              "per_game": {"Roblox": 90 * 60}}
+    common = settings(daily=60, weekly=30, per_game={"Roblox": 15},
+                      schedule_enabled=True, schedule_start="16:00",
+                      schedule_end="20:00")
+
+    overridden = common | {"unlimited": True}
+    active = budget_overview(overridden, totals, at(23), ready=True)
+    assert active["unlimited_gaming_active"] is True
+    assert active["daily_budget_status"] == "unlimited"
+    assert active["weekly_budget_status"] == "unlimited"
+    assert violations(overridden, totals, at(23), ["Roblox"]) == []
+    assert active["daily_used_seconds"] == 90 * 60
+    assert active["weekly_used_seconds"] == 90 * 60
+
+    no_daily_quota = common | {"daily": -1, "unlimited": False}
+    limited = budget_overview(no_daily_quota, totals, at(23), ready=True)
+    assert limited["unlimited_gaming_active"] is False
+    assert limited["daily_budget_status"] == "unlimited"
+    assert limited["weekly_budget_status"] == "limited"
+    assert limited["weekly_remaining_seconds"] == 0
+    assert "weekly" in violations(no_daily_quota, totals, at(23), ["Roblox"])
+    assert "schedule" in violations(no_daily_quota, totals, at(23), ["Roblox"])
+    assert "game:Roblox" in violations(no_daily_quota, totals, at(23), ["Roblox"])
+
+    ordinary = budget_overview(common, totals, at(23), ready=True)
+    assert ordinary["unlimited_gaming_active"] is False
+    assert ordinary["daily_budget_status"] == "limited"

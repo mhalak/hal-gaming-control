@@ -195,6 +195,7 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True):
     daily_left = remaining_seconds(daily_finite, daily_used)
     weekly_left = remaining_seconds(weekly_finite, weekly_used)
     return {
+        "unlimited_gaming_active": bool(settings["unlimited"]),
         "daily_budget_status": daily_status,
         "weekly_budget_status": weekly_status,
         "base_daily_minutes": base if base >= 0 else None,
