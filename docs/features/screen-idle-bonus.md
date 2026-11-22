@@ -18,7 +18,7 @@
 
 As responsible parents, we want our kids to succeed. And the loot isn't going to mine itself. The game can work the night shift — the gaming budget shouldn't have to.
 
-**Planned — not implemented.** Windows source now has an early **read-only display context preview** (AC/DC power-plan screen timeout and last input age from the logged-in user's session), but **actual screen-off detection and the Screen idle bonus do not exist yet**. It is not an HA setting or a confirmed screen-OFF signal. [Design issue #92](https://github.com/mhalak/hal-gaming-control/issues/92).
+**Windows preview only — not deployed.** The agent now listens for Windows **console display ON / DIM / OFF** notifications in the signed-in user session, together with the existing AC/DC power-plan timeout and input-idle context. This is NOT proof that every physical monitor is off or that Windows switched it off automatically. **The Screen idle bonus and HA policy are not implemented.** [Design issue #92](https://github.com/mhalak/hal-gaming-control/issues/92).
 
 ## How would it work?
 
@@ -62,7 +62,9 @@ The agent can publish a non-retained, 45-second-expiry, device-scoped MQTT JSON 
   "version": 1,
   "device_id": "example_pc",
   "observed_at": 1790000000.0,
-  "display_state": "unknown",
+  "display_state": "off",
+  "display_scope": "windows_console",
+  "display_event_age_ms": 1500,
   "ac_timeout_seconds": 600,
   "dc_timeout_seconds": 300,
   "power_source": "ac",
@@ -70,4 +72,6 @@ The agent can publish a non-retained, 45-second-expiry, device-scoped MQTT JSON 
 }
 ```
 
-Values are illustrative, not readings from a family PC. **The `display_state` is intentionally always `unknown` in this increment**. A timeout is a configuration, not proof that a display turned off. `GetLastInputInfo` does not reliably cover every game controller/remote input and never authorizes a bonus on its own. The next Windows increment must listen for actual display power notifications, handle monitor/session ambiguity and prove the behavior under SYSTEM + the interactive user on a disposable PC. The later HA increment owns all policy and bonus grants. The Windows agent does not change power plans, game processes or screen settings.
+Values are illustrative, not readings from a family PC. An interactive-user helper registers a hidden, non-focus-stealing Windows message-only observer using `RegisterPowerSettingNotification(GUID_CONSOLE_DISPLAY_STATE)`, and reports console `on`, `dim`, `off` or `unknown` with `display_event_age_ms`. It invalidates stale/locked-session, sleep/resume, topology-change and missing-event results to `unknown`. All values share this existing `display_context` JSON packet; no new HA entities were introduced. **A console `off` event cannot prove all physical monitors are off**, does not distinguish automatic from manual off, and `GetLastInputInfo` cannot reliably see every game controller. Neither timeout nor state by itself authorizes a Screen idle bonus. A real SYSTEM + interactive-user pilot and later HA source-of-truth accounting are still needed. No Windows power setting or game process is modified.
+
+[High-priority issue #176](https://github.com/mhalak/hal-gaming-control/issues/176) covers future consolidation of **all** Windows monitoring into one versioned per-PC JSON snapshot. The present Windows change stays on the existing display-context topic until HA and Windows can migrate their authoritative gaming telemetry together, without double-counting.
