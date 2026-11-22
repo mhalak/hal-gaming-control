@@ -27,8 +27,7 @@ def _number(value):
     return type(value) in (float, int) and math.isfinite(value)
 
 
-def decode_display_context(payload, device_id, *, retained, wall_now):
-    """Require exact v2 schema, non-retained, fresh source/clock and sane types."""
+def _parse_display_json(payload, retained):
     if (retained is not False or not isinstance(payload, (str, bytes))
             or not 0 < len(payload) <= MAX_PACKET):
         raise ValueError("Missing fresh display context")
@@ -36,14 +35,22 @@ def decode_display_context(payload, device_id, *, retained, wall_now):
         row = json.loads(payload, object_pairs_hook=_unique_object)
     except (UnicodeError, ValueError, TypeError, RecursionError) as err:
         raise ValueError("Invalid display JSON") from err
-    if (not isinstance(row, dict) or row.keys() != FIELDS
-            or type(row["version"]) is not int or row["version"] != 2
+    if not isinstance(row, dict) or row.keys() != FIELDS:
+        raise ValueError("Invalid display fields")
+    return row
+
+
+def _validate_display_header(row, device_id, wall_now):
+    if (type(row["version"]) is not int or row["version"] != 2
             or row["device_id"] != device_id
             or row["display_scope"] != "windows_console"
             or not _number(row["observed_at"]) or row["observed_at"] < 0
             or not _number(wall_now)
             or not -MAX_FUTURE <= wall_now - row["observed_at"] < MAX_AGE):
         raise ValueError("Invalid display identity or timestamp")
+
+
+def _validate_display_policy(row):
     for name in ("ac_timeout_seconds", "dc_timeout_seconds"):
         val = row[name]
         if val is not None and (type(val) is not int or not 0 <= val <= 0xffffffff):
@@ -53,17 +60,29 @@ def decode_display_context(payload, device_id, *, retained, wall_now):
     idle = row["last_input_idle_ms"]
     if idle is not None and (type(idle) is not int or not 0 <= idle <= 86400000):
         raise ValueError("Invalid session idle age")
+
+
+def _validate_display_event(row):
     state, age, epoch, sequence = (
         row["display_state"], row["display_event_age_ms"],
         row["display_epoch"], row["display_sequence"])
     if state == "unknown":
         if any(value is not None for value in (age, epoch, sequence)):
             raise ValueError("Unknown state must not claim evidence")
-    elif (state not in ("on", "dim", "off")
-          or type(age) is not int or not 0 <= age <= MAX_EVENT_AGE_MS
-          or type(epoch) is not str or EPOCH.fullmatch(epoch) is None
-          or type(sequence) is not int or not 1 <= sequence <= (1 << 63) - 1):
+        return
+    if (state not in ("on", "dim", "off")
+            or type(age) is not int or not 0 <= age <= MAX_EVENT_AGE_MS
+            or type(epoch) is not str or EPOCH.fullmatch(epoch) is None
+            or type(sequence) is not int or not 1 <= sequence <= (1 << 63) - 1):
         raise ValueError("Invalid display notification receipt")
+
+
+def decode_display_context(payload, device_id, *, retained, wall_now):
+    """Require exact v2 schema, non-retained, fresh source and valid receipts."""
+    row = _parse_display_json(payload, retained)
+    _validate_display_header(row, device_id, wall_now)
+    _validate_display_policy(row)
+    _validate_display_event(row)
     return row
 
 
