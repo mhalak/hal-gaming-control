@@ -186,9 +186,10 @@ def load_approved_staged(root, device_id, version, public_key, *, now=None):
         raise OtaTrustError("Signed OTA archive missing")
     raw = base64.b64decode(receipt["manifest_b64"], validate=True)
     signature = base64.b64decode(receipt["signature_b64"], validate=True)
+    with archive.open("rb") as handle:
+        digest = hashlib.file_digest(handle, "sha256").hexdigest()
     offer = {"transfer_id": transfer_id, "version": version,
-             "size": archive.stat().st_size,
-             "sha256": hashlib.file_digest(archive.open("rb"), "sha256").hexdigest()}
+             "size": archive.stat().st_size, "sha256": digest}
     verify_signed_offer(json.dumps({
         "protocol": 2, "device_id": device_id, "transfer_id": transfer_id,
         "manifest_b64": receipt["manifest_b64"],
