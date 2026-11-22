@@ -231,7 +231,8 @@ def _publish_live_monitoring(bridge, focus, policy, uptime, context, rules):
     """One v3 observation; keep security offers off the monitoring stream."""
     sent = bridge.publish_unified_telemetry(focus, policy, uptime)
     candidate = getattr(focus, "candidate", None)
-    if not rules and sent:
+    if (not rules and sent
+            and getattr(focus, "foreground_state", None) == "foreground"):
         sample_time = getattr(focus, "last_sample_time", None)
         if bridge.prime_target_receipt(
                 candidate, context, sample_time=sample_time):
