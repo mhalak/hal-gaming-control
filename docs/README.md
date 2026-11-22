@@ -18,6 +18,7 @@ Want to track an app, set a limit or give bonus time? You're in the right place.
 
 | Feature | What you can expect |
 | --- | --- |
+| [100% Local mode](features/local-mode.md) | Windows service + local MQTT + Home Assistant; no external cloud control service |
 | [Gaming budgets & bonuses](features/gaming-budgets.md) | Daily/weekly budgets and additive Weekend bonus in HA 0.5.11 preview |
 | [Track applications](features/tracked-applications.md) | App list and friendly names in preview |
 | [Controls & automations](features/parent-actions.md) | Manual controls tested; automatic enforcement still needs testing |
