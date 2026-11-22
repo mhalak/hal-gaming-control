@@ -1,5 +1,22 @@
 # Windows deployment guide
 
+## Windows 0.2.8 Preview 7 — MQTT-only setup, safe manual-control compatibility (#155)
+
+A **new Windows installation no longer needs a local `games` catalog**. Configure only `mqtt.host`, `mqtt.username` and `mqtt.password` (and TLS/port when needed). Agent ID remains stable in protected `device_id`; its advertised name comes from Windows. App enrollment/naming, budgets and limits remain in Home Assistant; raw v2 foreground telemetry works without Windows rules.
+
+**Manual controls:** `Lock PC` remains available. The legacy `Terminate game` button requires a non-empty local `games` allowlist: without rules the agent *does not subscribe* to that command, does not advertise it as a capability, and publishes an exact retained tombstone only for its own previous native MQTT terminate button. An existing HA direct/scoped button created before migration is marked unavailable after the agent's live discovery metadata revokes the capability. No arbitrary process termination, automatic enforcement or updater is introduced. For existing PCs, keep the old `games` block unchanged to preserve manual termination until an HA-authoritative safe command is implemented in a separate reviewed step of #155.
+
+**No surprise migration:** Removing `games` is optional. Neither a service upgrade nor HA update deletes the legacy configuration, tracked-app mapping, stable device ID, budgets or history. If deliberately switching an existing PC to rules-free mode, back up its config first and restart the service; confirm `Lock PC`, uptime and foreground tracking, and check that `Terminate game` is unavailable. On rollback restore the previous binaries and prior `games` config. One-PC physical acceptance remains required; do not enable automatic enforcement.
+
+Minimal local config:
+
+```yaml
+mqtt:
+  host: BROKER_HOST
+  username: THIS_PC_MQTT_ACCOUNT
+  password: REPLACE_WITH_SECRET
+```
+
 ## Windows 0.2.7 Preview 6 — automatic PC identity (issue #155, first safe increment)
 
 The Windows agent now derives its discovery name from the **current Windows computer name**. Do not type or maintain `device.name`. On a fresh installation without `device.id`, it generates a random, stable per-install ID and saves it as `%ProgramData%\\SmartHouseGamingControl\\device_id` in the same administrator/SYSTEM-protected directory as `config.yaml`. It reuses this ID after service restart, PC renaming, or binary update. Keep this file with the ProgramData directory across reinstalls, because a lost ID creates a new HA device and MQTT topic root. Do not copy the identity file between PCs.
@@ -80,32 +97,19 @@ Copy-Item .\config.example.yaml .\config.yaml
 notepad .\config.yaml
 ```
 
-Set the MQTT host/port and credentials. No manual device ID or device name is needed. The following is a TLS example; the broker needs TLS enabled on its configured port. Adjust the transitional termination rules for actual game installations.
+Set the MQTT connection fields. No device ID, display name or local app rules are needed on new PCs. The following example uses optional TLS; the broker must have TLS enabled on the given port. Legacy termination rules are still accepted when upgrading an old PC.
 
 ```yaml
 mqtt:
   host: BROKER_HOST
   port: 8883
-  username: gaming_pc_01
+  username: THIS_PC_MQTT_ACCOUNT
   password: REPLACE_WITH_SECRET
   tls: true
   # ca_certs: absolute path to a trusted CA file, if required
-  discovery_prefix: homeassistant
-gaming:
-  check_interval_seconds: 1
-games:
-  - name: Roblox
-    process: RobloxPlayerBeta.exe
-  - name: Minecraft Java
-    process: javaw.exe
-    command_line_arg: net.minecraft.client.main.Main
-  - name: Minecraft Bedrock
-    process: Minecraft.Windows.exe
-update:
-  enabled: false
 ```
 
-Use a CA trusted by the service; do not turn off certificate verification. Generic runtimes such as Java need an additional exact argument or executable path constraint. Never put actual passwords in Git, diagnostics or screenshots.
+Use a CA trusted by the service; do not turn off certificate verification. For legacy optional `games` rules, generic runtimes such as Java still require an additional exact argument or executable path constraint. Never put actual passwords in Git, diagnostics or screenshots.
 
 Open an elevated PowerShell inside the staging directory:
 
@@ -127,7 +131,7 @@ Expected: Running, Automatic, LocalSystem. The installer places binaries in Prog
 3. Install the HA integration (manually, or via HACS when validated). Restart HA, go to Settings → Devices & services → Add integration and select HAL Gaming Control and the advertised PC.
 4. Verify raw telemetry, budget controls and Windows agent version on the device. Keep Current game and Uptime in Recorder with at least eight days' retention.
 5. Launch and close a disposable game. Current preview behavior reports matching running processes, even in the background; do not confuse that with actual foreground play.
-6. Test explicit Terminate game / Lock PC only in authorized disposable sessions. Termination may lose progress; lock is not a permanent lockout. Do not send commands just to test connectivity.
+6. On new rule-free installs, confirm that `Lock PC` is available and `Terminate game` is not advertised or cannot be pressed. Only test legacy `Terminate game` on PCs intentionally retaining local `games` rules, in an authorized disposable session. Termination may lose progress; lock is not a permanent lockout. Do not send commands just to test connectivity.
 7. Reboot the PC when authorized and verify automatic service startup, fresh telemetry and the reported version. Repeat for other PCs with unique IDs and credentials. See [acceptance checklist](acceptance.md).
 
 ## Edit configuration
