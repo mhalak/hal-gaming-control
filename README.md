@@ -1,4 +1,4 @@
-![SmartHouse Parental Control banner](docs/assets/banner.jpg)
+![HAL Gaming Control banner](docs/assets/banner.png)
 
 # SmartHouse Parental Control
 
