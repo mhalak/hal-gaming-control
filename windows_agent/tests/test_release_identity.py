@@ -25,7 +25,7 @@ def checkout(tmp_path):
     component = tmp_path / "custom_components" / "hal_gaming_control"
     component.mkdir(parents=True)
     (component / "manifest.json").write_text(
-        json.dumps({"domain": "hal_gaming_control", "version": "0.12.0"}), encoding="utf-8")
+        json.dumps({"domain": "hal_gaming_control", "version": "0.12.1"}), encoding="utf-8")
     return tmp_path
 
 
