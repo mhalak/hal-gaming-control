@@ -52,5 +52,27 @@
     "abort": {
       "invalid_app_configuration": "Stored tracked applications are invalid; no changes were made."
     }
+  },
+  "services": {
+    "prepare_parent_bonus_undo": {
+      "name": "Prepare Parent bonus Undo",
+      "description": "Arm the selected grant for this Home Assistant administrator for 90 seconds. Does not cancel it.",
+      "fields": {
+        "entity_id": {
+          "name": "Parent bonus selection",
+          "description": "Select the target PC's Parent bonus grant selector."
+        }
+      }
+    },
+    "confirm_parent_bonus_undo": {
+      "name": "Confirm Parent bonus Undo",
+      "description": "Revoke only the previously prepared grant from this same administrator. The daily budget may decrease.",
+      "fields": {
+        "entity_id": {
+          "name": "Parent bonus selection",
+          "description": "The same Parent bonus grant selector used for Prepare."
+        }
+      }
+    }
   }
 }
