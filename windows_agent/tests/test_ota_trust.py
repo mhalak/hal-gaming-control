@@ -204,3 +204,98 @@ def test_signed_ota_crash_after_commit_recovers_and_cleans_quarantine(tmp_path):
     assert not marker.exists()
     assert not stage.staged.exists()
     assert not env.journal_path.exists()
+
+
+
+def test_mqtt_v2_auth_route_accepts_only_finished_pinned_release(tmp_path):
+    """A stage ACK without signed/authenticated receipt cannot authorize Install."""
+    from gaming_control.ota_mqtt import OtaMqttReceiver
+    key = Ed25519PrivateKey.generate()
+    root = f"SmartHouse/Gaming/{PC}"
+    receiver = OtaMqttReceiver(root, PC, tmp_path, public_key=pem(key))
+    message = signed_auth(b"trusted-bytes", key)
+    assert root + "/ota/auth" in receiver.topics
+    assert receiver.handle(root + "/ota/auth", message, now=999) is None
+    receiver.active = staged(tmp_path, b"trusted-bytes")
+    accepted = json.loads(receiver.handle(root + "/ota/auth", message, now=999))
+    assert accepted["status"] == "authenticated"
+    assert accepted["transfer_id"] == TID
+    assert receiver.handle(root + "/ota/auth", message, now=999) is not None
+    assert (tmp_path / f"ota-{TID}.approved.json").is_file()
+    wrong_key = Ed25519PrivateKey.generate()
+    rejected = json.loads(receiver.handle(
+        root + "/ota/auth", signed_auth(b"trusted-bytes", wrong_key), now=999))
+    assert rejected["status"] == "rejected"
+    assert rejected["device_id"] == PC
+
+
+def test_v1_receiver_never_subscribes_or_acknowledges_signed_auth(tmp_path):
+    from gaming_control.ota_mqtt import OtaMqttReceiver
+    key = Ed25519PrivateKey.generate()
+    root = f"SmartHouse/Gaming/{PC}"
+    receiver = OtaMqttReceiver(root, PC, tmp_path)
+    assert root + "/ota/auth" not in receiver.topics
+    receiver.active = staged(tmp_path, b"safe")
+    assert receiver.handle(
+        root + "/ota/auth", signed_auth(b"safe", key), now=999) is None
+    assert not list(tmp_path.glob("*.approved.json"))
+
+
+def test_approval_refuses_second_parallel_receipt_and_symlinks(tmp_path):
+    key = Ed25519PrivateKey.generate()
+    content = b"sign only exactly these bytes"
+    receiver = staged(tmp_path, content)
+    foreign = tmp_path / ("ota-" + "e" * 32 + ".approved.json")
+    foreign.write_text("{}")
+    with pytest.raises(OtaTrustError, match="Another"):
+        authorize_staged(receiver, signed_auth(content, key), pem(key), now=999)
+    foreign.unlink()
+    marker = authorize_staged(receiver, signed_auth(content, key), pem(key), now=999)
+    archive = receiver.staged
+    archive.unlink()
+    archive.symlink_to(marker)
+    with pytest.raises(OtaTrustError, match="archive missing"):
+        load_approved_staged(tmp_path, PC, VERSION, pem(key), now=1000)
+
+
+def test_agent_defaults_to_normal_telemetry_when_ota_bootstrap_missing(tmp_path, monkeypatch):
+    from unittest.mock import Mock
+    from gaming_control import agent
+    config = {"device": {"id": PC, "name": "PC"},
+              "mqtt": {"host": "localhost"},
+              "update": {"enabled": True, "mqtt_staging_enabled": True,
+                         "mqtt_install_enabled": True}}
+    mock = Mock()
+    monkeypatch.setattr(agent, "Bridge", mock)
+    def missing(*_args):
+        raise ValueError("No trusted updater task")
+    monkeypatch.setattr(agent, "pinned_ota_key", missing)
+    result = agent._build_mqtt_bridge(tmp_path / "config.yaml", config)
+    assert result is mock.return_value
+    safe = mock.call_args.args[0]
+    assert safe["update"]["mqtt_install_enabled"] is False
+    assert safe["update"]["mqtt_staging_enabled"] is False
+    assert config["update"]["mqtt_install_enabled"] is True  # source unchanged
+    mock.reset_mock()
+    safe_config = config | {"update": {}}
+    agent._build_mqtt_bridge(tmp_path / "config.yaml", safe_config)
+    mock.assert_called_once_with(safe_config)
+
+
+def test_bootstrap_requires_update_flags_and_protected_provisioning(tmp_path):
+    from gaming_control.agent import pinned_ota_key
+    conf = tmp_path / "config.yaml"
+    conf.write_text("mqtt: {}\n")
+    disabled = {"update": {"mqtt_install_enabled": True,
+                           "mqtt_staging_enabled": False, "enabled": True}}
+    with pytest.raises(ValueError, match="requires explicitly"):
+        pinned_ota_key(conf, disabled)
+    (tmp_path / "ota-staging").mkdir()
+    enabled = {"update": {"mqtt_install_enabled": True,
+                          "mqtt_staging_enabled": True, "enabled": True}}
+    with pytest.raises(ValueError, match="updater"):
+        pinned_ota_key(conf, enabled)
+    (tmp_path / "updater.json").write_text(json.dumps(
+        {"mqtt_install_enabled": False, "public_key_pem": "not a key"}))
+    with pytest.raises(ValueError, match="not enabled"):
+        pinned_ota_key(conf, enabled)
