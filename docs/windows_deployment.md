@@ -166,10 +166,10 @@ Expected: Running, Automatic, LocalSystem. The installer places binaries in Prog
 ## Pair and validate
 
 1. Confirm the HA MQTT connection and running Windows service.
-2. In HA MQTT's topic listener, observe `SmartHouse/Gaming/<device_id>/discovery`, availability, state/uptime, state/in_game and state/current_game, using the saved `device_id` file value (not an assumed hostname). Uptime advances roughly every 60 seconds; availability must transition online after a fresh snapshot. Metadata includes agent_version.
+2. With Windows agent **0.4.0+**, inspect `SmartHouse/Gaming/<WINDOWS_COMPUTERNAME>/discovery` and `.../state/telemetry` (v3, non-retained) plus `.../availability` (retained). The discovery `device_id` and `name` must both match `$env:COMPUTERNAME`, with `agent_version: 0.4.0`. Native MQTT Uptime is derived from `system.uptime_seconds` in v3. Do **not** rely on a saved `device_id` file or the retired v1/v2 scalar monitoring topics.
 3. Install the HA integration (manually, or via HACS when validated). Restart HA, go to Settings → Devices & services → Add integration and select HAL Gaming Control and the advertised PC.
 4. Verify current raw foreground telemetry, HA-owned Active game, budget controls and Windows agent version on the device. The retired process-presence `Current game` entity is not required for HA 0.7.x foreground accounting. Preserve existing HA history and the HA-owned foreground ledger; do not purge Recorder as part of this update.
-5. Launch and close a disposable game. Current preview behavior reports matching running processes, even in the background; do not confuse that with actual foreground play.
+5. Launch and close a disposable game. On Windows **0.4.0+**, verify that the v3 **foreground** sample and HA accounting reflect only verified focused play; do not infer gameplay from a background legacy process-presence topic.
 6. On new rule-free installs, confirm that `Lock PC` is available and `Terminate game` is not advertised or cannot be pressed. Only test legacy `Terminate game` on PCs intentionally retaining local `games` rules, in an authorized disposable session. Termination may lose progress; lock is not a permanent lockout. Do not send commands just to test connectivity.
 7. Reboot the PC when authorized and verify automatic service startup, fresh telemetry and the reported version. Repeat for other PCs with unique IDs and credentials. See [acceptance checklist](acceptance.md).
 
@@ -179,7 +179,7 @@ Edit the protected installed config as an administrator:
 
 `$env:ProgramData\SmartHouseGamingControl\config.yaml`
 
-Preserve the protected `device_id` file, and keep any legacy `device.id` consistent with it. Do not change its ACL. Restart the service after authorized edits. Do not change HA's shared broker or another PC's credentials merely to change one PC.
+For Windows **0.4.0+**, the entire YAML `device:` section must be **absent**; the computer name is read from Windows and cannot be overridden in the agent. The obsolete ProgramData `device_id` file is ignored but may be retained only as rollback evidence. Restart the service after authorized edits. Do not change HA's shared broker or another PC's credentials merely to change one PC.
 
 ## Manual upgrade and rollback
 
