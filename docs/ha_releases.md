@@ -1,3 +1,10 @@
+## 0.12.2 — Prefer hostname-only gaming PC discovery in HA onboarding (#198)
+
+- Fix **Add gaming PC** showing the same PC twice after Windows agent 0.4.0's breaking hostname-only identity migration: both the old retained `SmartHouse/Gaming/desktop_*` discovery and the new `SmartHouse/Gaming/DESKTOP-*/discovery` can report an identical Windows computer `name`, even though their MQTT routing IDs differ.
+- If a fully matching new discovery exists (`device_id == name`), the manual PC selector displays only the hostname-scoped candidate for that name. The preference is applied **before** filtering already-enrolled HA config entries; old alias discovery cannot make a configured new PC reappear. It does **not** delete retained messages, migrate entries/Recorder, alter Windows or enforce gaming rules.
+- Older agents with no hostname successor remain selectable. If distinct IDs advertise the same friendly name and no exact hostname candidate exists, options show the MQTT identity as a disambiguator; no accidental merging. Users should still validate live telemetry and broker ACLs, then explicitly clean exact obsolete retained records after safe cutover.
+- **HA-only** 0.12.2 / Preview 23, Windows remains **0.4.0**. Source fix and tests are not a deployment; [#56 HOLD](https://github.com/mhalak/hal-gaming-control/issues/56) still applies.
+
 ## 0.12.1 — Tracked applications preview works with Windows v3-only telemetry (#192)
 
 - Fix **Currently detected application → Unavailable** in the native Tracked applications editor when Windows agent **0.3.0+** publishes only the v3 `state/telemetry` packet. The editor now briefly samples both the historical v2 raw foreground topic and the validated non-retained v3 observation; a valid v3 observation is preferred if both exist. This is a **read-only preview**, not a change to quota accounting, v3 opt-in, commands or process termination.
