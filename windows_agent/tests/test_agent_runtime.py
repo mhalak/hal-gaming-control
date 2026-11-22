@@ -137,13 +137,15 @@ def test_run_advertises_os_hostname_and_preserves_generated_identity(runtime):
     assert resolved["device"]["id"] == (path.parent / "device_id").read_text().strip()
 
 
-def test_no_catalog_starts_and_keeps_raw_foreground_telemetry(runtime):
+def test_no_catalog_starts_and_keeps_unified_foreground_telemetry(runtime):
     path, bridge, focus = runtime
     path.write_text(yaml.safe_dump({"mqtt": {"host": "broker"}}), encoding="utf-8")
     A.run(path, Stop())
     A.scan.assert_called_once_with([])
     focus.read.assert_called_once_with([])
-    bridge.publish_raw_foreground.assert_called_once()
+    bridge.publish_unified_telemetry.assert_called_once()
+    bridge.publish_raw_foreground.assert_not_called()
+    bridge.publish_display_context.assert_not_called()
     A.execute.assert_not_called()
 
 
@@ -266,18 +268,22 @@ def test_run_captures_foreground_before_probe_and_publishes_only_when_synced(run
     values = {"gaming_active": "OFF", "active_game": "idle"}
     bridge.capture_foreground_context.side_effect = lambda: calls.append("capture") or context
     focus.read.side_effect = lambda rules: calls.append("probe") or values
-    bridge.publish.side_effect = lambda *args: calls.append("legacy") or synchronized
-    bridge.publish_foreground.side_effect = lambda *args: calls.append("foreground")
+    bridge.publish.side_effect = lambda *args: calls.append("sync") or synchronized
+    bridge.publish_unified_telemetry.side_effect = lambda *args: calls.append("v3") or True
     A.run(path, Stop())
-    assert calls == ["capture", "probe", "legacy"] + (["foreground"] if synchronized else [])
+    assert calls == ["capture", "probe", "sync"] + (["v3"] if synchronized else [])
+    bridge.publish_foreground.assert_not_called()
+    bridge.publish_raw_foreground.assert_not_called()
     if synchronized:
-        bridge.publish_foreground.assert_called_once_with(values, context)
+        bridge.publish_unified_telemetry.assert_called_once()
     else:
-        bridge.publish_foreground.assert_not_called()
+        bridge.publish_unified_telemetry.assert_not_called()
 
 
 def test_targeted_command_does_not_execute_legacy_mass_kill(runtime):
-    path, bridge, _ = runtime
+    path, bridge, focus = runtime
+    focus.foreground_state = "foreground"
+    focus.candidate = ("RobloxPlayerBeta.exe", 410, 1000.5, 3, None)
     path.write_text(yaml.safe_dump({"mqtt": {"host": "broker"}}), encoding="utf-8")
     offer = {"candidate": ("RobloxPlayerBeta.exe", 410, 1000.5, 3, None),
              "sample_time": 100.0, "offered_at": 101.0}
@@ -289,6 +295,18 @@ def test_targeted_command_does_not_execute_legacy_mass_kill(runtime):
     A.execute.assert_not_called()
     bridge.publish_target_offer.assert_called_once()
 
+
+
+
+def test_target_offer_denied_when_v3_foreground_unverified(runtime):
+    path, bridge, focus = runtime
+    path.write_text(yaml.safe_dump({"mqtt": {"host": "broker"}}), encoding="utf-8")
+    focus.foreground_state = "unknown"
+    focus.candidate = ("RobloxPlayerBeta.exe", 410, 1000.5, 3, None)
+    A.run(path, Stop())
+    bridge.publish_unified_telemetry.assert_called_once()
+    bridge.prime_target_receipt.assert_not_called()
+    bridge.publish_target_offer.assert_not_called()
 
 def test_targeted_execution_requires_new_user_foreground_sample():
     offer = {"candidate": ("RobloxPlayerBeta.exe", 410, 1000.5, 3, None),
@@ -315,19 +333,19 @@ def test_targeted_execution_requires_sample_after_command_receipt():
     assert verify.call_args.kwargs["current_sample"] == 101.5
 
 
-def test_v3_publisher_disabled_by_default_in_production_loop(runtime):
+def test_v3_publisher_is_the_only_monitoring_stream_by_default(runtime):
     path, bridge, focus = runtime
     A.run(path, Stop())
-    bridge.publish_unified_telemetry.assert_not_called()
+    bridge.publish_unified_telemetry.assert_called_once()
+    bridge.publish_foreground.assert_not_called()
+    bridge.publish_raw_foreground.assert_not_called()
+    bridge.publish_display_context.assert_not_called()
 
 
-def test_v3_opt_in_uses_same_verified_focus_cycle_and_uptime(runtime):
+def test_v3_clean_cut_uses_same_verified_focus_cycle_and_uptime(runtime):
     path, bridge, focus = runtime
-    contents = yaml.safe_load(path.read_text(encoding="utf-8"))
-    contents["telemetry"] = {"unified_v3_enabled": True}
-    path.write_text(yaml.safe_dump(contents), encoding="utf-8")
     A.run(path, Stop())
-    bridge.publish_raw_foreground.assert_called_once()
+    bridge.publish_raw_foreground.assert_not_called()
     bridge.publish_unified_telemetry.assert_called_once()
     args = bridge.publish_unified_telemetry.call_args.args
     assert args[0] is focus
@@ -335,11 +353,8 @@ def test_v3_opt_in_uses_same_verified_focus_cycle_and_uptime(runtime):
     assert args[1]["power_source"] in ("ac", "battery", "unknown")
 
 
-def test_v3_opt_in_never_publishes_before_legacy_transport_sync(runtime):
+def test_v3_clean_cut_never_publishes_before_availability_sync(runtime):
     path, bridge, _ = runtime
-    contents = yaml.safe_load(path.read_text(encoding="utf-8"))
-    contents["telemetry"] = {"unified_v3_enabled": True}
-    path.write_text(yaml.safe_dump(contents), encoding="utf-8")
     bridge.publish.return_value = False
     A.run(path, Stop())
     bridge.publish_unified_telemetry.assert_not_called()

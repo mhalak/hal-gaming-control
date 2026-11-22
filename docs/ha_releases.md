@@ -1,3 +1,9 @@
+## Preview 20 — Windows agent 0.3.0 clean-cut Unified MQTT telemetry (#176)
+
+- **BREAKING Windows-only source allocation:** agent **0.3.0**, HA remains **0.12.0**. Routine Windows monitoring now publishes one non-retained MQTT v3 `state/telemetry` packet per PC, with no v1/v2 duplicate telemetry from the production loop. Agent-owned previously retained scalar state topics are safely tombstoned after a live reconnect. Privileged commands, OTA update, availability, enrollment hints and targeted termination authorization remain separate.
+- Existing native MQTT Uptime discovery keeps the **same** `smarthouse_gaming_<device_id>_uptime` unique ID/config topic and reads bounded numeric `system.uptime_seconds` from v3 with a 10-second expiry; Direct MQTT Uptime still uses its existing entity ID. No HA entity/Recorder deletion.
+- **Deployment HOLD:** HA 0.12.0's Unified MQTT telemetry option is **OFF by default** and must be explicitly enabled per PC before installing Windows 0.3.0. HA v2-only is intentionally incompatible with the Windows clean cut. An explicitly disabled Windows v3 setting is rejected at startup to avoid silent fallback. No signed build, physical pilot or rollout has occurred; see [#176](https://github.com/mhalak/hal-gaming-control/issues/176), [Windows v3 cutover](unified_mqtt_telemetry.md) and [#56 HOLD](https://github.com/mhalak/hal-gaming-control/issues/56).
+
 ## 0.12.0 — HA Unified telemetry v3 consumer (#176; opt-in only)
 
 - **Preview 19**, HA **0.12.0**, Windows **0.2.12 unchanged**. Adds a strict, 4 KiB, read-only MQTT v3 decoder with source epoch/sequence/time/device checks, replay/reconnect protection, bounded foreground/display/system fields, exact Java discriminator and unknown-safe handling.

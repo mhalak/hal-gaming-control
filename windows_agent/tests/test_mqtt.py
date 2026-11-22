@@ -51,34 +51,41 @@ def test_stale_actions_discarded():
         assert list(b.drain_commands()) == []
 
 
-def test_state_changes_and_uptime_period():
+def test_clean_cut_one_uptime_json_source_and_no_old_scalar_publish():
     b = connected_bridge()
-    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=10):
-        b.publish({'in_game': 'OFF', 'current_game': 'idle'}, 100)
-    topics = {call.args[0] for call in b.client.publish.call_args_list}
-    assert b.root + '/state/uptime' in topics
-    assert b.root + '/availability' in topics
-    b.client.publish.reset_mock()
-    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=11):
-        b.publish({'in_game': 'ON', 'current_game': 'Roblox'}, 101)
-    assert {call.args[0] for call in b.client.publish.call_args_list} == {
-        b.root + '/state/in_game', b.root + '/state/current_game'}
-    b.client.publish.reset_mock()
-    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=70):
-        b.publish({'in_game': 'ON', 'current_game': 'Roblox'}, 160)
-    assert b.root + '/state/uptime' in {call.args[0] for call in b.client.publish.call_args_list}
+    assert b.publish({'in_game': 'ON', 'current_game': 'Roblox'}, 100)
+    calls = b.client.publish.call_args_list
+    tombstones = {c.args[0] for c in calls if len(c.args) > 1
+                  and c.args[1] == b'' and '/state/' in c.args[0]}
+    expected = {b.root + '/state/' + key
+                for key in ('uptime', 'in_game', 'current_game',
+                            'gaming_active', 'active_game',
+                            'focus_availability')}
+    assert tombstones == expected
+    assert all(c.kwargs == {'qos': 1, 'retain': True}
+               for c in calls if c.args[0] in expected)
+    assert not any(c.args[0] in expected and c.args[1] not in (b'',)
+                   for c in calls)
+    uptime = b.configs[
+        'homeassistant/sensor/smarthouse_gaming_pc1_uptime/config']
+    assert uptime['state_topic'] == b.root + '/state/telemetry'
+    assert 'value_json.system.uptime_seconds' in uptime['value_template']
+    assert uptime['unique_id'] == 'smarthouse_gaming_pc1_uptime'
+    assert b.synced_generation == b.generation
 
 
-def test_republish_on_reconnect():
+def test_clean_cut_reconnect_resyncs_without_old_retained_state():
     b = connected_bridge()
-    values = {'in_game': 'OFF', 'current_game': 'idle'}
-    b.publish(values, 100)
+    assert b.publish({}, 10)
     b.on_disconnect(b.client, None, None, None, None)
     b.on_connect(b.client, None, None, SimpleNamespace(is_failure=False), None)
     b.client.publish.reset_mock()
-    b.publish(values, 101)
-    topics = {call.args[0] for call in b.client.publish.call_args_list}
-    assert {b.root + '/state/' + k for k in ('uptime', 'in_game', 'current_game')} <= topics
+    assert b.publish({}, 11)
+    calls = b.client.publish.call_args_list
+    assert any(c.args[:2] == (b.root + '/availability', 'online') for c in calls)
+    assert all(c.args[1] == b'' for c in calls
+               if c.args[0].endswith('/state/uptime'))
+    assert b.synced_generation == b.generation
 
 
 def test_versioned_custom_discovery():
@@ -92,74 +99,63 @@ def test_versioned_custom_discovery():
     assert data['actions'] == ['terminate_game', 'lock_pc']
 
 
-def test_startup_offline_until_all_live_values_are_confirmed():
+def test_startup_requires_offline_then_exact_tombstones_then_online():
     b = connected_bridge()
-    assert b.publish({'in_game':'OFF','current_game':'idle'}, 12)
-    calls = [(c.args[0], c.args[1], c.kwargs) for c in b.client.publish.call_args_list
-             if c.args[0].startswith(b.root + '/state/') or c.args[0] == b.root + '/availability']
-    assert calls == [
-        (b.root+'/availability','offline',{'qos':1,'retain':True}),
-        (b.root+'/state/in_game','OFF',{'qos':1,'retain':True}),
-        (b.root+'/state/current_game','idle',{'qos':1,'retain':True}),
-        (b.root+'/state/uptime','12',{'qos':1,'retain':True}),
-        (b.root+'/availability','online',{'qos':1,'retain':True}),
-    ]
+    assert b.publish({'gaming_active': 'ON', 'active_game': 'Roblox'}, 12)
+    calls = [c for c in b.client.publish.call_args_list
+             if c.args[0] == b.root + '/availability']
+    assert [c.args[1] for c in calls] == ['offline', 'online']
+    assert all(c.kwargs == {'qos': 1, 'retain': True} for c in calls)
+    assert b.metadata['unified_telemetry_protocol'] == 3
+    assert b.synced_generation == b.generation
 
 
-def test_initial_snapshot_timeout_never_announces_online():
+def test_missing_legacy_tombstone_ack_fails_closed_before_online():
     b = connected_bridge()
-    ack = Mock(rc=mqtt.MQTT_ERR_SUCCESS)
-    ack.is_published.return_value = True
+    ack = b.client.publish.return_value
     lost = Mock(rc=mqtt.MQTT_ERR_SUCCESS)
     lost.is_published.return_value = False
-    def deliver(topic, *args, **kwargs):
-        return lost if topic.endswith('/state/current_game') else ack
-    b.client.publish.side_effect = deliver
-    assert not b.publish({'in_game':'OFF','current_game':'idle'}, 12)
+    b.client.publish.side_effect = (
+        lambda topic, *args, **kwargs: lost
+        if topic == b.root + '/state/uptime' else ack)
+    assert not b.publish({'in_game': 'ON'}, 12)
     assert b.synced_generation is None
     assert b.refresh_requested
-    assert not any(c.args[:2] == (b.root+'/availability','online')
+    assert not any(c.args[:2] == (b.root + '/availability', 'online')
                    for c in b.client.publish.call_args_list)
     b.client.publish.side_effect = None
-    assert b.publish({'in_game':'OFF','current_game':'idle'}, 13)
+    assert b.publish({}, 13)
+    assert b.synced_generation == b.generation
 
 
-def test_disconnect_during_snapshot_requires_fresh_scan():
+def test_online_ack_required_before_synchronized_v3_publish():
     b = connected_bridge()
-    ack = b.client.publish.return_value
-    def disconnect():
-        b.on_disconnect(b.client, None, None, None, None)
-    def deliver(topic, *args, **kwargs):
-        if topic.endswith('/state/current_game'):
-            disconnect()
-        return ack
-    b.client.publish.side_effect = deliver
-    assert not b.publish({'in_game':'ON','current_game':'Roblox'}, 12)
-    assert b.synced_generation is None
-    b.on_connect(b.client,None,None,SimpleNamespace(is_failure=False),None)
-    b.client.publish.side_effect = None
-    b.client.publish.reset_mock()
-    assert b.publish({'in_game':'OFF','current_game':'idle'},13)
-    assert any(c.args[:2] == (b.root+'/state/current_game','idle')
-               for c in b.client.publish.call_args_list)
-    assert not any(c.args[:2] == (b.root+'/state/current_game','Roblox')
-                   for c in b.client.publish.call_args_list)
-
-
-def test_failed_game_transition_invalidates_and_retries_complete_snapshot():
-    b = connected_bridge()
-    assert b.publish({'in_game':'ON','current_game':'Roblox'}, 12)
     ack = b.client.publish.return_value
     lost = Mock(rc=mqtt.MQTT_ERR_SUCCESS)
     lost.is_published.return_value = False
-    b.client.publish.side_effect = lambda topic,*a,**k: lost if topic.endswith('/state/current_game') else ack
-    assert not b.publish({'in_game':'OFF','current_game':'idle'},13)
+    b.client.publish.side_effect = (
+        lambda topic, value, **kwargs: lost
+        if (topic, value) == (b.root + '/availability', 'online') else ack)
+    assert not b.publish({}, 12)
     assert b.synced_generation is None
-    assert b.client.publish.call_args.args[:2] == (b.root+'/availability','offline')
+    assert b.refresh_requested
+    assert b.client.publish.call_args.args[:2] == (b.root + '/availability', 'offline')
     b.client.publish.side_effect = None
-    assert b.publish({'in_game':'OFF','current_game':'idle'},14)
-    assert b.last['current_game'] == 'idle'
-    assert b.last['in_game'] == 'OFF'
+    assert b.publish({}, 13)
+
+
+def test_disconnect_during_cleanup_never_announces_online():
+    b = connected_bridge()
+    ack = b.client.publish.return_value
+    def deliver(topic, *args, **kwargs):
+        if topic == b.root + '/state/uptime':
+            b.on_disconnect(b.client, None, None, None, None)
+        return ack
+    b.client.publish.side_effect = deliver
+    assert not b.publish({}, 12)
+    assert b.synced_generation is None
+    assert not any(c.args[:2] == (b.root + '/availability', 'online')
+                   for c in b.client.publish.call_args_list)
 
 
 def test_disconnected_publish_never_sends_telemetry():
@@ -172,50 +168,25 @@ def test_disconnected_publish_never_sends_telemetry():
     assert b.refresh_requested
 
 
-def test_unknown_focus_hides_previous_state_before_publishing_pair():
+def test_unchanged_v3_sync_does_not_republish_old_scalar_states():
     b = connected_bridge()
-    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=10):
-        assert b.publish({'gaming_active': 'ON', 'active_game': 'Roblox'}, 12)
+    assert b.publish({'gaming_active': 'ON', 'active_game': 'Roblox'}, 12)
     b.client.publish.reset_mock()
-    values = {'gaming_active': 'UNKNOWN', 'active_game': 'unknown'}
-    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=11):
-        assert b.publish(values, 13)
-    assert [(c.args[0], c.args[1]) for c in b.client.publish.call_args_list] == [
-        (b.root + '/state/focus_availability', 'offline'),
-        (b.root + '/state/gaming_active', 'UNKNOWN'),
-        (b.root + '/state/active_game', 'unknown'),
-    ]
-    assert values == {'gaming_active': 'UNKNOWN', 'active_game': 'unknown'}
-
-
-def test_unchanged_sample_does_not_republish_before_uptime_deadline():
-    b = connected_bridge()
-    values = {'gaming_active': 'OFF', 'active_game': 'idle'}
-    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=10):
-        assert b.publish(values, 12)
-    b.client.publish.reset_mock()
-    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=69.99):
-        assert b.publish(values, 71)
+    assert b.publish({'gaming_active': 'OFF', 'active_game': 'idle'}, 13)
     b.client.publish.assert_not_called()
-    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=70):
-        assert b.publish(values, 72)
-    assert any(c.args[:2] == (b.root + '/state/uptime', '72')
-               for c in b.client.publish.call_args_list)
 
 
-def test_home_assistant_restart_forces_discovery_and_full_snapshot():
+def test_home_assistant_restart_refreshes_same_uptime_discovery():
     b = connected_bridge()
-    values = {'gaming_active': 'OFF', 'active_game': 'idle'}
-    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=10):
-        assert b.publish(values, 12)
-    b.on_message(b.client, None, SimpleNamespace(topic=b.prefix + '/status', payload=b'online'))
+    assert b.publish({}, 12)
+    b.on_message(b.client, None, SimpleNamespace(
+        topic=b.prefix + '/status', payload=b'online'))
     b.client.publish.reset_mock()
-    with patch('gaming_control.mqtt_bridge.time.monotonic', return_value=11):
-        assert b.publish(values, 13)
-    calls = b.client.publish.call_args_list
-    assert any(c.args[0] == b.root + '/discovery' for c in calls)
-    assert any(c.args[:2] == (b.root + '/state/uptime', '13') for c in calls)
-    assert calls[-1].args[:2] == (b.root + '/availability', 'online')
+    assert b.publish({}, 13)
+    assert any(c.args[0] == b.root + '/discovery'
+               for c in b.client.publish.call_args_list)
+    assert not any(c.args[0] == b.root + '/state/telemetry'
+                   for c in b.client.publish.call_args_list)
     assert b.synced_generation == b.generation
 
 
@@ -235,7 +206,7 @@ def test_failed_online_ack_does_not_commit_snapshot():
     assert b.client.publish.call_args.args[:2] == (b.root + '/availability', 'offline')
     b.client.publish.side_effect = None
     assert b.publish({'gaming_active': 'OFF', 'active_game': 'idle'}, 13)
-    assert b.last['active_game'] == 'idle'
+    assert b.synced_generation == b.generation
 
 
 def test_failed_initial_offline_ack_stops_before_discovery():
@@ -298,3 +269,130 @@ def test_no_rules_do_not_accept_terminate_and_retract_native_button():
                           if c.args[0] == b.root + "/discovery"]
     assert json.loads(discovery_messages[-1].args[1])["actions"] == ["lock_pc"]
     assert all("pc2" not in c.args[0] for c in b.client.publish.call_args_list)
+
+
+def test_target_offer_is_based_on_private_v3_receipt_not_old_raw_topic():
+    import time
+    b = Bridge({**CONFIG, "games": []})
+    b.client = Mock()
+    b.client.publish.return_value.rc = mqtt.MQTT_ERR_SUCCESS
+    b.client.publish.return_value.is_published.return_value = True
+    b.on_connect(b.client, None, None, SimpleNamespace(is_failure=False), None)
+    assert b.publish({}, 100)
+    b.client.publish.reset_mock()
+    context = b.capture_foreground_context()
+    candidate = ("RobloxPlayerBeta.exe", 321, 456.0, 2, None)
+    assert b.prime_target_receipt(candidate, context, sample_time=time.monotonic())
+    assert b.publish_target_offer(candidate, context, sample_time=time.monotonic())
+    topics = [c.args[0] for c in b.client.publish.call_args_list]
+    assert topics == [b.root + "/state/terminate_offer"]
+    assert b._raw_receipt["candidate"] == candidate
+    assert not b.publish_target_offer(candidate, context, sample_time=time.monotonic())
+
+
+def test_invalid_or_missing_target_receipt_does_not_create_offer():
+    import time
+    b = Bridge({**CONFIG, "games": []})
+    b.client = Mock()
+    b.client.publish.return_value.rc = mqtt.MQTT_ERR_SUCCESS
+    b.client.publish.return_value.is_published.return_value = True
+    b.on_connect(b.client, None, None, SimpleNamespace(is_failure=False), None)
+    assert b.publish({}, 100)
+    b.client.publish.reset_mock()
+    valid = ("RobloxPlayerBeta.exe", 321, 456.0, 2, None)
+    context = b.capture_foreground_context()
+    assert not b.prime_target_receipt(None, context, sample_time=time.monotonic())
+    assert not b.publish_target_offer(valid, context, sample_time=time.monotonic())
+    assert not b.prime_target_receipt(valid, context, sample_time=0.0)
+    assert not b.publish_target_offer(valid, context, sample_time=time.monotonic())
+    b.client.publish.assert_not_called()
+
+
+def test_broker_rejects_legacy_retained_tombstone_without_announcing_online():
+    b = connected_bridge()
+    ack = b.client.publish.return_value
+    rejected = Mock(rc=4)
+    b.client.publish.side_effect = (
+        lambda topic, *args, **kwargs: rejected
+        if topic == b.root + "/state/uptime" else ack)
+    assert not b.publish({}, 12)
+    assert b.synced_generation is None
+    assert b.refresh_requested
+    assert not any(c.args[:2] == (b.root + "/availability", "online")
+                   for c in b.client.publish.call_args_list)
+
+
+def test_tombstone_publish_exception_fails_closed_and_retries():
+    b = connected_bridge()
+    ack = b.client.publish.return_value
+    def fail(topic, *args, **kwargs):
+        if topic == b.root + "/state/uptime":
+            raise OSError("synthetic broker outage")
+        return ack
+    b.client.publish.side_effect = fail
+    assert not b.publish({}, 12)
+    assert b.synced_generation is None
+    assert b.refresh_requested
+    b.client.publish.side_effect = None
+    assert b.publish({}, 13)
+    assert b.synced_generation == b.generation
+
+
+def test_target_receipt_requires_same_authenticated_current_context():
+    import time
+    b = Bridge({**CONFIG, "games": []})
+    b.client = Mock()
+    b.client.publish.return_value.rc = mqtt.MQTT_ERR_SUCCESS
+    b.client.publish.return_value.is_published.return_value = True
+    b.on_connect(b.client, None, None, SimpleNamespace(is_failure=False), None)
+    assert b.publish({}, 12)
+    first = b.capture_foreground_context()
+    second = b.capture_foreground_context()
+    candidate = ("RobloxPlayerBeta.exe", 321, 456.0, 2, None)
+    assert not b.prime_target_receipt(candidate, first, sample_time=time.monotonic())
+    assert not b.prime_target_receipt(
+        candidate, second, sample_time=float("nan"))
+    assert b.prime_target_receipt(candidate, second, sample_time=time.monotonic())
+    b.on_disconnect(b.client, None, None, None, None)
+    assert not b.publish_target_offer(candidate, second, sample_time=time.monotonic())
+
+
+def test_clean_cut_tombstones_never_publish_after_disconnect():
+    b = connected_bridge()
+    generation = b.generation
+    b.on_disconnect(b.client, None, None, None, None)
+    b.client.publish.reset_mock()
+    assert not b._clear_legacy_retained(generation)
+    b.client.publish.assert_not_called()
+
+
+def test_local_rules_cannot_prime_target_offer_without_v3_control_entitlement():
+    import time
+    b = connected_bridge()  # legacy local rules deliberately disable targeting
+    assert b.publish({}, 10)
+    context = b.capture_foreground_context()
+    candidate = ("RobloxPlayerBeta.exe", 321, 456.0, 2, None)
+    assert not b.prime_target_receipt(
+        candidate, context, sample_time=time.monotonic())
+    assert b._raw_receipt is None
+
+
+def test_clean_cut_connection_drops_at_last_retained_tombstone_ack():
+    b = connected_bridge()
+    ack = b.client.publish.return_value
+    def transmit(topic, value, **kwargs):
+        if topic == b.root + "/state/focus_availability" and value == b"":
+            info = Mock(rc=mqtt.MQTT_ERR_SUCCESS)
+            info.wait_for_publish.return_value = True
+            def finish():
+                b.on_disconnect(b.client, None, None, None, None)
+                return True
+            info.is_published.side_effect = finish
+            return info
+        return ack
+    b.client.publish.side_effect = transmit
+    assert not b.publish({}, 12)
+    assert b.synced_generation is None
+    assert b.refresh_requested
+    assert not any(c.args[:2] == (b.root + "/availability", "online")
+                   for c in b.client.publish.call_args_list)

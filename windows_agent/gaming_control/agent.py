@@ -227,6 +227,21 @@ def _build_mqtt_bridge(config_path, config):
                   ota_public_key=pinned)
 
 
+def _publish_live_monitoring(bridge, focus, policy, uptime, context, rules):
+    """One v3 observation; keep security offers off the monitoring stream."""
+    sent = bridge.publish_unified_telemetry(focus, policy, uptime)
+    candidate = getattr(focus, "candidate", None)
+    if (not rules and sent
+            and getattr(focus, "foreground_state", None) == "foreground"):
+        sample_time = getattr(focus, "last_sample_time", None)
+        if bridge.prime_target_receipt(
+                candidate, context, sample_time=sample_time):
+            bridge.publish_target_offer(
+                candidate, context, sample_time=sample_time)
+    # Enrollment is a short-lived advisory control capability, not time data.
+    bridge.publish_candidate(candidate)
+
+
 def run(config_path, stop_event):
     config = yaml.safe_load(Path(config_path).read_text(encoding='utf-8'))
     interval = float(config.get('gaming', {}).get('check_interval_seconds', 1))
@@ -267,28 +282,9 @@ def run(config_path, stop_event):
                 if time.perf_counter() - last_power_poll >= 30:
                     display_policy = read_display_policy()
                     last_power_poll = time.perf_counter()
-                bridge.publish_display_context(
-                    display_policy, getattr(focus, "last_input_idle_ms", None),
-                    foreground_context,
-                    display_state=getattr(focus, "display_state", "unknown"),
-                    display_event_age_ms=getattr(focus, "display_event_age_ms", None),
-                    display_epoch=getattr(focus, "display_epoch", None),
-                    display_sequence=getattr(focus, "display_sequence", None))
-                # Raw v2 identity is independent of legacy Windows game rules.
-                # The old snapshot remains available during a safe HA cutover.
-                bridge.publish_raw_foreground(
-                    getattr(focus, "foreground_state", "unknown"),
-                    getattr(focus, "candidate", None), foreground_context)
-                # Deliberate parallel v3 migration gate: keep v2 telemetry
-                # authoritative for HA until its per-PC cutover is ready.
-                if config.get("telemetry", {}).get("unified_v3_enabled") is True:
-                    bridge.publish_unified_telemetry(focus, display_policy, uptime)
-                if not rules:
-                    bridge.publish_target_offer(
-                        getattr(focus, "candidate", None), foreground_context,
-                        sample_time=getattr(focus, "last_sample_time", None))
-                bridge.publish_foreground(active, foreground_context)
-                bridge.publish_candidate(getattr(focus, "candidate", None))
+                _publish_live_monitoring(
+                    bridge, focus, display_policy, uptime, foreground_context,
+                    rules)
             if bridge.updates_enabled and synchronized and bridge.client.is_connected():
                 if time.monotonic() - last_health >= 10:
                     if confirm_health(bridge, Path(config_path).parent):

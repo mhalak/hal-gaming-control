@@ -155,7 +155,8 @@ def test_same_executable_focus_switch_is_an_immediate_transition(rig):
     first, second = payloads(client)
     assert first["foreground"] == second["foreground"]
     assert first["sequence"] + 1 == second["sequence"]
-    assert "322" not in json.dumps(second)  # Private process identity withheld.
+    assert "pid" not in second["foreground"]  # Never expose private PID.
+    assert set(second["foreground"]) == {"state", "process", "signature", "sample_age_ms"}
 
 
 def test_java_discriminator_survives_without_argv_pid_or_path(rig):
@@ -298,20 +299,21 @@ def test_inflight_disconnect_disallows_stale_session_commit(rig):
     assert second["sequence"] == 1
 
 
-def test_disabled_config_and_invalid_explicit_gate():
+def test_v3_is_mandatory_and_explicit_legacy_disable_is_rejected():
     config = {"device": {"id": "pc1", "name": "Test"},
               "mqtt": {"host": "broker.invalid"}, "games": []}
-    with patch.object(M, "installed_version", return_value="0.2.12"):
-        disabled = M.Bridge(config)
-        assert disabled.unified_enabled is False
-        assert "unified_telemetry_protocol" not in disabled.metadata
-        assert not disabled.publish_unified_telemetry(SimpleNamespace(), POLICY, 10)
-        for value in ("true", 1, None):
+    with patch.object(M, "installed_version", return_value="0.3.0"):
+        mandatory = M.Bridge(config)
+        assert mandatory.unified_enabled is True
+        assert mandatory.metadata["unified_telemetry_protocol"] == 3
+        assert not mandatory.publish_unified_telemetry(
+            SimpleNamespace(), POLICY, 10)  # cannot publish offline
+        for value in ("false", False, 0, None):
             with pytest.raises(ValueError):
                 M.Bridge(config | {"telemetry": {"unified_v3_enabled": value}})
         with pytest.raises(ValueError):
-            M.Bridge(config | {"telemetry": {"unified_v3_enabled": True},
-                               "device": {"id": "p" * 65, "name": "Oversize"}})
+            M.Bridge(config | {"device": {"id": "p" * 65,
+                                        "name": "Oversize"}})
 
 
 def test_two_pcs_scoped_topics_and_epochs(rig):
@@ -357,3 +359,22 @@ def test_system_unknown_fields_are_not_fabricated():
             U.system_fields(value, "0.2.12", None)
     with pytest.raises(ValueError):
         U.system_fields(12, "dev-unsafe", None)
+
+
+def test_clean_cut_rejects_untrusted_device_identifier_early():
+    cfg = {"device": {"id": "bad id!", "name": "Untrusted"},
+           "mqtt": {"host": "localhost"}, "games": []}
+    with pytest.raises(ValueError, match="Invalid device id"):
+        M.Bridge(cfg)
+
+
+def test_no_authenticated_sample_context_after_broker_disconnect():
+    cfg = {"device": {"id": "pc1", "name": "Test"},
+           "mqtt": {"host": "localhost"}, "games": []}
+    bridge = M.Bridge(cfg)
+    bridge.client = Mock()
+    bridge.on_connect(bridge.client, None, None,
+                      SimpleNamespace(is_failure=False), None)
+    assert bridge.capture_foreground_context() is not None
+    bridge.on_disconnect(bridge.client, None, None, None, None)
+    assert bridge.capture_foreground_context() is None

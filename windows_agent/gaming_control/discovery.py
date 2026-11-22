@@ -18,7 +18,21 @@ def discovery(device_id, name, prefix='homeassistant', *, terminate_enabled=True
             data.update(command_topic=root + '/command/' + key, qos=0,
                         retain=False, payload_press='PRESS')
         else:
-            data['state_topic'] = root + '/state/' + key
+            # #176 clean cut: preserve the same entity and unique_id while
+            # reading Uptime solely from the versioned, non-retained v3 packet.
+            # expire_after is needed because availability can remain 'online'
+            # if the live telemetry helper stalls.
+            data['state_topic'] = root + '/state/telemetry'
+            data['expire_after'] = 10
+            data['value_template'] = (
+                "{{ value_json.system.uptime_seconds "
+                "if value_json is mapping and value_json.version == 3 "
+                "and value_json.device_id == '" + device_id + "' "
+                "and value_json.system is mapping "
+                "and value_json.system.uptime_seconds is integer "
+                "and 0 <= value_json.system.uptime_seconds <= 9223372036854775807 "
+                "else 'unavailable' }}"
+            )
         result[f'{prefix}/{component}/{uid}/config'] = data
     return result
 
