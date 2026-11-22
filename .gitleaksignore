@@ -3,3 +3,7 @@
 # Do not broaden to a path or generic-api-key rule.
 8fe7665f9ae588ff5707abc20978f57ec81dd963:tests/home_assistant/test_ota_signed_install.py:generic-api-key:124
 8fe7665f9ae588ff5707abc20978f57ec81dd963:tests/home_assistant/test_ota_signed_install.py:generic-api-key:134
+
+# Same two synthetic test signature false positives at squash-merged main SHA:
+1c9d497f92dc70fad3720bf02bf8a33677560734:tests/home_assistant/test_ota_signed_install.py:generic-api-key:124
+1c9d497f92dc70fad3720bf02bf8a33677560734:tests/home_assistant/test_ota_signed_install.py:generic-api-key:134
