@@ -1,6 +1,5 @@
 """Issue #93: one device-scoped, authoritative gaming budget receipt."""
 from datetime import datetime
-from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from zoneinfo import ZoneInfo
 
@@ -121,3 +120,25 @@ def test_budget_receipt_attaches_to_existing_daily_sensor_identity():
     assert attrs["coverage_incomplete"] is True
     assert "daily_limit_minutes" not in BudgetSensor(
         coordinator, "weekly", "Weekly budget remaining").extra_state_attributes
+
+
+def test_last_minute_is_visible_in_seconds_without_early_round_up():
+    opts = settings(daily=60)
+    for played, remaining in ((59 * 60 + 37, 23),
+                               (59 * 60 + 59.99, 1),
+                               (60 * 60, 0)):
+        totals = {"daily": played, "weekly": played, "per_game": {}}
+        receipt = budget_overview(opts, totals, at(23), ready=True)
+        assert receipt["daily_remaining_seconds"] == remaining
+        assert receipt["daily_used_minutes"] < 60 if played < 3600 else receipt["daily_used_minutes"] == 60
+        assert ("daily" in violations(opts, totals, at(23), [])) is (played >= 3600)
+
+
+def test_unknown_and_unlimited_countdown_seconds_remain_none():
+    incomplete = budget_overview(settings(), {}, at(23), ready=False)
+    assert incomplete["daily_remaining_seconds"] is None
+    assert incomplete["weekly_remaining_seconds"] is None
+    unlimited = budget_overview(settings(daily=-1, weekly=-1),
+                                {"daily": 0, "weekly": 0}, at(23), ready=True)
+    assert unlimited["daily_remaining_seconds"] is None
+    assert unlimited["weekly_remaining_seconds"] is None
