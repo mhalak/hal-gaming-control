@@ -22,7 +22,7 @@ The beauty of **Home Assistant automations**? Parents make the rules, choose the
 
 **“Don't look at me. I just live here, same as you.”**
 
-**Development preview (HA 0.5.12):** **Gaming restriction** is a passive per-PC rule signal. **Lock PC** and **Terminate game** worked in limited real-PC tests. **Automatic enforcement is not yet validated or enabled by default.**
+**Development preview (HA 0.5.13):** **Gaming restriction** is a passive per-PC rule signal. **Lock PC** and **Terminate game** worked in limited real-PC tests. **Automatic enforcement is not yet validated or enabled by default.**
 
 ## Use a manual control
 
@@ -42,6 +42,12 @@ The per-PC **Gaming restriction** binary sensor exposes the result of the verifi
 **Gaming rules enabled** is a separate HA switch, initially **off**. Turn it on for the selected PC when you want the restriction sensor to evaluate active rules; it does not itself terminate anything. **Unlimited gaming** can still override the rules.
 
 The sensor is **passive** and never shuts down a game. A future parent-authored automation should react to either (1) Gaming restriction changing to `on` **or** (2) Active game changing from idle to a game while restriction is already `on`. Also recheck actual state on HA startup; use a warning/grace period and recheck before a destructive command. Never send a command solely because the sensor becomes unavailable.
+
+## Allowed gaming schedule
+
+On each PC's device page, under **Configuration**, set **Allowed from** and **Allowed until** and turn on **Schedule enabled**. The two HA time pickers describe when gaming is allowed, not blocked. The interval may cross midnight (20:00–02:00); its end is exclusive. Equal start and end allow the full day, in HA local time.
+
+The separate **Gaming rules enabled** master switch must also be ON for the passive `schedule` reason to apply. **Unlimited gaming** overrides it. Changing any of these settings never automatically closes a game.
 
 ## Why Home Assistant automations?
 

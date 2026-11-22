@@ -1,3 +1,10 @@
+## 0.5.13 — native per-PC gaming schedule controls
+
+- Each PC now has **Schedule enabled**, **Allowed from**, and **Allowed until** in its Home Assistant Configuration section, using native editable Time entities. Stored settings are retained; defaults are off and 16:00–20:00.
+- These are **hours when playing is allowed**, not a scheduled command. Outside the window the passive Gaming restriction sensor adds `schedule` to its reasons, only if Gaming rules enabled and Schedule enabled are both ON, Unlimited gaming is OFF, and live accounting is verified.
+- Overnight intervals work (20:00–02:00); the end time is exclusive. Equal start/end means all-day permission. Windows are evaluated in HA local time, including DST transitions. Options update live without resetting Recorder accounting or tracked applications.
+- No automatic game closing, locking, or default automation; no custom UI. HA 0.5.13; Windows 0.2.6 unchanged. Physical deployment acceptance separate.
+
 ## 0.5.12 — passive per-PC Gaming restriction signal
 
 - Add **Gaming rules enabled**, a per-PC HA-local switch (default OFF) that controls whether the existing rule engine evaluates restrictions. It never issues MQTT commands. **Unlimited gaming** still provides an independent live bypass.

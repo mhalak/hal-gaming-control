@@ -19,7 +19,7 @@ async def async_setup_entry(hass, entry):
     # Policy/accounting must run even when the administrative update entity is disabled.
     entry.async_on_unload(coordinator.async_add_listener(lambda: None))
     entry.async_on_unload(entry.add_update_listener(_reload))
-    await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "binary_sensor", "button", "switch", "number", "update"])
+    await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "binary_sensor", "button", "switch", "number", "time", "update"])
     _remove_legacy_statistics(hass, entry)
     return True
 
@@ -37,7 +37,7 @@ async def _reload(hass, entry):
 
 async def async_unload_entry(hass, entry):
     unloaded = await hass.config_entries.async_unload_platforms(
-        entry, ["sensor", "binary_sensor", "button", "switch", "number", "select", "update"])
+        entry, ["sensor", "binary_sensor", "button", "switch", "number", "time", "select", "update"])
     if unloaded:
         await entry.runtime_data.async_stop_foreground()
     return unloaded
