@@ -2,7 +2,7 @@
 
 # HAL Gaming Control
 
-**⚠️ HA 0.7.x preview (0.7.2 current):** the canonical Home Assistant domain is now `hal_gaming_control`. This replaces the old `smarthouse_gaming`, `parental` (0.6.0), and conflicting `parental_control` (0.6.1) domains. **Remove the previous integration before installing; no automatic migration or dual installation is supported.** [One-time clean-install instructions](docs/domain-clean-cut.md). Windows agent 0.2.9 supports MQTT-only setup, OS computer name and stable per-install identity. The existing MQTT topic contract and IDs remain unchanged for enrolled PCs. The shipped HAL icon lives under the new domain; Marketplace's pre-install thumbnail may require catalog indexing.
+**⚠️ HA 0.8.x preview (0.8.0 current):** the canonical Home Assistant domain is now `hal_gaming_control`. This replaces the old `smarthouse_gaming`, `parental` (0.6.0), and conflicting `parental_control` (0.6.1) domains. **Remove the previous integration before installing; no automatic migration or dual installation is supported.** [One-time clean-install instructions](docs/domain-clean-cut.md). Windows agent 0.2.9 supports MQTT-only setup, OS computer name and stable per-install identity. The existing MQTT topic contract and IDs remain unchanged for enrolled PCs. The shipped HAL icon lives under the new domain; Marketplace's pre-install thumbnail may require catalog indexing.
 
 **Because parenting should have an API.**
 

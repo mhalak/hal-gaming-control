@@ -1,3 +1,10 @@
+## 0.8.0 — native Budget Overview dashboard receipt (#93)
+
+- HA-only feature release: existing per-PC **Daily budget remaining** entity exposes a structured daily/weekly receipt with base, Weekend and Parent bonuses, exact remaining seconds and confirmed measured playtime. Includes a native Lovelace Markdown/Tile dashboard example; sensor unique IDs are unchanged.
+- Distinguishes **Unlimited gaming** override (all automatic restrictions bypassed) from a disabled daily quota (weekly, schedule and per-game restrictions still apply), without ever stopping or rewriting recorded gameplay.
+- **Screen idle bonus (#92), Unlimited bonus (#164), and individually revocable Parent bonus grants (#165) are not implemented here.** Their display must not pretend a bonus was granted or an Undo function exists.
+- Windows agent stays **0.2.9** and the existing secure manual termination protocol remains unchanged. No MQTT contract changes, automatic enforcement, restart or deployment. Real Home Assistant/Android dashboard validation is required before declaring installation accepted.
+
 ## 0.7.2 — HA-owned targeted manual Terminate active game (#155)
 
 - New HA-native **Terminate active game** button in both MQTT installation modes. It is available only with a fresh non-retained agent termination offer bound to the exact accepted HA-tracked raw foreground sample. No tracked game, idle, unknown, offline, stale token, or session change => unavailable. Pressing consumes the token and sends one fixed, device-scoped, non-retained command; no automated action or policy trigger.
