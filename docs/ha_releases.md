@@ -1,3 +1,11 @@
+## 0.5.14 — independent weekday and weekend gaming windows
+
+- The schedule Configuration section now offers **Weekday allowed from/until** (Monday–Friday) and **Weekend allowed from/until** (Saturday–Sunday). The single **Schedule enabled** switch continues to control all schedule restrictions. Former weekday time entities retain their existing unique IDs (`schedule_start`, `schedule_end`), so saved weekday hours and their HA identities survive this upgrade.
+- New per-PC `weekend_schedule_start` / `weekend_schedule_end` TimeEntities preserve independent weekend hours once edited. For an existing installation **without weekend values**, Saturday/Sunday inherit the currently saved weekday times; this avoids unexpected permission changes. Until a weekend endpoint is explicitly saved, that endpoint continues to inherit edits to the matching weekday endpoint. Merely displaying inherited values does not write new config.
+- Overnight windows are anchored to their start day. Friday 20:00–02:00 allows Saturday until **before** 02:00, while Sunday 20:00–02:00 continues into Monday until **before** 02:00. An early Saturday hour is *not* granted by Saturday's new overnight window before that evening's start. Equal start/end means all-day permission for the selected start day. Evaluation uses HA-local time, including DST.
+- Schedule remains **passive only**: `Gaming restriction` can report `schedule` if Gaming rules enabled and Schedule enabled are on and verified telemetry is available; no default automation or Windows Kill/Lock command is sent. HA 0.5.14; Windows agent 0.2.6 unchanged.
+- CI covers existing-entry migration, native and direct MQTT, restart/reload, weekend/weekday boundaries, night rollover, two PCs, DST, and no unsolicited commands. Device-page mobile acceptance/deployment remain separate.
+
 ## 0.5.13 — native per-PC gaming schedule controls
 
 - Each PC now has **Schedule enabled**, **Allowed from**, and **Allowed until** in its Home Assistant Configuration section, using native editable Time entities. Stored settings are retained; defaults are off and 16:00–20:00.

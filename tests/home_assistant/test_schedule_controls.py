@@ -74,7 +74,7 @@ def test_schedule_controls_are_editable_on_device_even_when_pc_offline():
     assert (start.unique_id, end.unique_id, toggle.unique_id) == (
         "pc1_schedule_start", "pc1_schedule_end", "pc1_schedule_enabled")
     assert (start.name, end.name, toggle.name) == (
-        "Allowed from", "Allowed until", "Schedule enabled")
+        "Weekday allowed from", "Weekday allowed until", "Schedule enabled")
     assert start.native_value == time(16)
     assert end.native_value == time(20)
     assert toggle.is_on is False

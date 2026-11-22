@@ -22,7 +22,7 @@ The beauty of **Home Assistant automations**? Parents make the rules, choose the
 
 **“Don't look at me. I just live here, same as you.”**
 
-**Development preview (HA 0.5.13):** **Gaming restriction** is a passive per-PC rule signal. **Lock PC** and **Terminate game** worked in limited real-PC tests. **Automatic enforcement is not yet validated or enabled by default.**
+**Development preview (HA 0.5.14):** **Gaming restriction** is a passive per-PC rule signal. **Lock PC** and **Terminate game** worked in limited real-PC tests. **Automatic enforcement is not yet validated or enabled by default.**
 
 ## Use a manual control
 
@@ -43,11 +43,13 @@ The per-PC **Gaming restriction** binary sensor exposes the result of the verifi
 
 The sensor is **passive** and never shuts down a game. A future parent-authored automation should react to either (1) Gaming restriction changing to `on` **or** (2) Active game changing from idle to a game while restriction is already `on`. Also recheck actual state on HA startup; use a warning/grace period and recheck before a destructive command. Never send a command solely because the sensor becomes unavailable.
 
-## Allowed gaming schedule
+## Weekday and weekend gaming schedule
 
-On each PC's device page, under **Configuration**, set **Allowed from** and **Allowed until** and turn on **Schedule enabled**. The two HA time pickers describe when gaming is allowed, not blocked. The interval may cross midnight (20:00–02:00); its end is exclusive. Equal start and end allow the full day, in HA local time.
+Each PC's **Configuration** section has four native HA time pickers: **Weekday allowed from/until** (Monday–Friday) and **Weekend allowed from/until** (Saturday–Sunday). The shared **Schedule enabled** switch turns time-window restrictions on or off, while **Gaming rules enabled** must also be on for the passive `schedule` reason to apply. **Unlimited gaming** bypasses it.
 
-The separate **Gaming rules enabled** master switch must also be ON for the passive `schedule` reason to apply. **Unlimited gaming** overrides it. Changing any of these settings never automatically closes a game.
+Windows specify permitted playing hours, not times to close games. An overnight window is tied to its start day: Friday night can finish on Saturday morning, and Sunday night can finish on Monday morning. Endpoints are end-exclusive, and equal start/end permits all day for that start day. Home Assistant uses its local time.
+
+Existing saved weekday hours continue unchanged. Until a weekend endpoint is explicitly set, it inherits its weekday equivalent; once saved, the weekend option is independent. No schedule edit automatically sends a Windows command.
 
 ## Why Home Assistant automations?
 

@@ -4,7 +4,7 @@
 
 Home Assistant is the family's control panel: see gaming time, choose apps, give extra minutes and use manual controls. It can also handle reminders, which may save the family's last remaining nerve.
 
-**Development preview:** These steps describe HA 0.5.13 preview source. Always check the [release history](ha_releases.md) and the version you've installed.
+**Development preview:** These steps describe HA 0.5.14 preview source. Always check the [release history](ha_releases.md) and the version you've installed.
 
 ## Set it up
 
@@ -36,10 +36,16 @@ Open the PC device page to find **Daily budget**, **Weekly budget**, **Weekend b
 
 ## Set allowed gaming hours
 
-On the PC's **Configuration** section, use **Schedule enabled**, **Allowed from**, and **Allowed until** (HA 0.5.13). The range is the daily interval when gaming is **allowed**: 16:00–20:00 allows play from 16:00 until just before 20:00. Overnight 20:00–02:00 is supported. Equal start and end mean all-day allowance. Times are interpreted in Home Assistant local time, including daylight-saving changes.
+On each PC's **Configuration** section, **Schedule enabled** controls both of these native time-picker pairs:
 
-Both **Gaming rules enabled** and **Schedule enabled** must be ON for an out-of-hours passive `schedule` restriction. No PC commands are sent automatically; schedule defaults to OFF.
+- **Weekday allowed from** / **Weekday allowed until** — Monday through Friday.
+- **Weekend allowed from** / **Weekend allowed until** — Saturday and Sunday.
 
+The windows are hours when gaming is **allowed**, not times for an automatic Windows command. For example, 16:00–20:00 permits play until just before 20:00. The end is exclusive, and equal start/end means all-day allowance. Windows can cross midnight: a Sunday 20:00–02:00 window remains valid into Monday until 02:00. Times follow Home Assistant's local timezone, including daylight-saving transitions.
+
+When upgrading from a single-window schedule, the weekend starts out **inheriting the saved weekday window**, so no existing allowance changes unexpectedly. Once a weekend endpoint is edited it becomes independently saved; an unedited weekend endpoint continues to follow its weekday counterpart.
+
+Both **Gaming rules enabled** and **Schedule enabled** must be ON for the passive `schedule` restriction to apply. **Unlimited gaming** overrides it. Scheduling alone never calls Terminate game or Lock PC.
 
 ## Lock the PC or close a game
 
