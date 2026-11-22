@@ -23,7 +23,7 @@ Want to track an app, set a limit or give bonus time? You're in the right place.
 | [Track applications](features/tracked-applications.md) | App list and friendly names in preview |
 | [Controls & automations](features/parent-actions.md) | Manual controls tested; automatic enforcement still needs testing |
 | [AFK grind](features/screen-idle-bonus.md) | **Planned** |
-| [Budget Overview](features/budget-overview.md) | **Planned** |
+| [Budget Overview](features/budget-overview.md) | **Source preview (#93):** native HA dashboard receipt; verify installed version |
 
 Every feature starts with one of our family cartoons. **The jokes are real; the pictures are illustrations, not screenshots of a finished feature.**
 
