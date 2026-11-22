@@ -1,3 +1,9 @@
+## Preview 21 — Windows agent 0.4.0 hostname-only MQTT identity (BREAKING)
+
+- **BREAKING Windows-only change:** the OS computer name is now the sole `device_id` and discovery `name`. No saved random/legacy ProgramData `device_id` or YAML `device.id`/`device.name` is used. Config with any legacy `device:` block is rejected. Windows agent **0.4.0**, HA remains **0.12.0** (unchanged telemetry protocol v3).
+- Existing MQTT prefixes such as `SmartHouse/Gaming/desktop_lucija` do **not** become the new hostname prefixes automatically. Each PC must be re-enrolled in HA, have its per-device broker ACLs updated, and review stored apps, budgets, schedules, automations and history. Old retained discovery/availability messages require **exact scoped manual cleanup** only after validation.
+- Rollout remains **HOLD** without supervised one-PC hardware acceptance, verified HA 0.12.0+ opt-in v3 on the new device and a documented rollback. [Windows migration](windows_deployment.md#agent-040-preview-21--breaking-hostname-only-device-identity); [Unified MQTT v3](unified_mqtt_telemetry.md).
+
 ## Preview 20 — Windows agent 0.3.0 clean-cut Unified MQTT telemetry (#176)
 
 - **BREAKING Windows-only source allocation:** agent **0.3.0**, HA remains **0.12.0**. Routine Windows monitoring now publishes one non-retained MQTT v3 `state/telemetry` packet per PC, with no v1/v2 duplicate telemetry from the production loop. Agent-owned previously retained scalar state topics are safely tombstoned after a live reconnect. Privileged commands, OTA update, availability, enrollment hints and targeted termination authorization remain separate.
