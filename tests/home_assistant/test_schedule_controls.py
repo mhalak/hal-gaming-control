@@ -17,6 +17,15 @@ from custom_components.smarthouse_gaming.time import GamingScheduleTime
 from custom_components.smarthouse_gaming.switch import ScheduleEnabledSwitch
 
 
+# HA's mocked MQTT client owns a benign recurring housekeeping timer.
+pytestmark = [pytest.mark.usefixtures("recorder_mock")]
+
+
+@pytest.fixture
+def expected_lingering_timers():
+    return True
+
+
 TZ = ZoneInfo("Europe/Zagreb")
 DATA = {"device_id": "pc1", "name": "Test PC", "games": [],
         "actions": ["terminate_game", "lock_pc"], "protocol_version": 1}
