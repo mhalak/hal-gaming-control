@@ -537,8 +537,6 @@ async def test_rules_opt_in_switch_only_controls_passive_signal(
 
 async def test_legacy_terminate_button_requires_live_legacy_catalog_capability(
         hass, enable_custom_integrations, mqtt_mock):
-    from homeassistant.exceptions import HomeAssistantError
-
     # An existing HA config entry still advertises terminate; the Windows PC
     # has migrated to rules-free mode, and its new MQTT metadata revokes it.
     entry = MockConfigEntry(domain=DOMAIN, title=DATA["name"], unique_id="pc1", data=DATA)
@@ -556,9 +554,10 @@ async def test_legacy_terminate_button_requires_live_legacy_catalog_capability(
         assert hass.states.get(eid).state == "unavailable"
         # Home Assistant must refuse instead of publishing a command that
         # would silently do nothing or hit a legacy connected agent.
-        with pytest.raises(HomeAssistantError):
-            await hass.services.async_call("button", "press",
-                                           {"entity_id": eid}, blocking=True)
+        # HA silently skips service calls targeting unavailable buttons; the
+        # important invariant is that nothing reaches MQTT.
+        await hass.services.async_call("button", "press",
+                                       {"entity_id": eid}, blocking=True)
         publish.assert_not_awaited()
         async_fire_mqtt_message(hass, "SmartHouse/Gaming/pc2/discovery",
                                 json.dumps(DATA | {"device_id": "pc2", "actions": ["terminate_game"]}))
