@@ -2,7 +2,7 @@
 branch = True
 relative_files = True
 source =
-    custom_components/smarthouse_gaming
+    custom_components/parental
 data_file = coverage-ha-data
 
 [report]

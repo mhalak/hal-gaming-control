@@ -353,48 +353,6 @@ async def test_legacy_options_cannot_reenable_implicit_actions(rig, options):
     publish.assert_not_awaited()
 
 
-async def test_registry_domain_transfer_preserves_recorded_entity_history(rig):
-    """A registry-only identity transfer must not rewrite historical Recorder state IDs."""
-    from homeassistant.components.recorder import get_instance
-
-    registry = er.async_get(rig.hass)
-    scoped = registry.async_get_or_create(
-        "sensor", DOMAIN, "pc1_current_game", config_entry=rig.entry,
-        suggested_object_id="pc1_scoped_current_game")
-    replacement = MockConfigEntry(domain="parental", unique_id="pc1", data=DATA)
-    replacement.add_to_hass(rig.hass)
-
-    rig.freezer.move_to(NOW)
-    await rig.state(scoped.entity_id, "Roblox", ts(11, 16, 11, 58))
-    await rig.state(scoped.entity_id, "idle", ts(11, 16, 11, 59))
-    start = at(11, 16, 11, 57)
-    coordinator = rig.coordinator()
-    recorder = get_instance(rig.hass)
-
-    async def read():
-        return await recorder.async_add_executor_job(
-            coordinator._read_history, scoped.entity_id, start, NOW)
-
-    before = await read()
-    assert (ts(11, 16, 11, 58), "Roblox") in before
-    assert (ts(11, 16, 11, 59), "idle") in before
-
-    # State machine rows are synthetic; there is no loaded Entity instance.
-    registry.async_update_entity_platform(scoped.entity_id, "parental",
-                                          new_config_entry_id=replacement.entry_id)
-    await async_wait_recording_done(rig.hass)
-    moved = registry.async_get(scoped.entity_id)
-    assert moved.id == scoped.id and moved.entity_id == scoped.entity_id
-    assert moved.config_entry_id == replacement.entry_id
-    after = await read()
-    assert after == before
-
-    registry.async_update_entity_platform(scoped.entity_id, DOMAIN,
-                                          new_config_entry_id=rig.entry.entry_id)
-    await async_wait_recording_done(rig.hass)
-    assert await read() == before
-
-
 # Durable foreground accounting epoch. This increment is intentionally not
 # connected to either coordinator or migration activation.
 async def test_foreground_cutover_requires_explicit_activation(hass, freezer):
