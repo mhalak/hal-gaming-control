@@ -429,7 +429,6 @@ class Updater:
         self.health, self.clock = health, clock
         self.hook = hook or (lambda name: None)
         self.authenticode = authenticode or verify_authenticode
-        self.ota_authenticated_files = None
         self.request_id = None
         self.version = None
         self.record = None
@@ -523,7 +522,6 @@ class Updater:
         if self.backup.exists() or self.stage.exists():
             raise ValueError('Untracked transaction files require administrator recovery')
         cfg = json.loads((self.data / 'updater.json').read_text(encoding='utf-8'))
-        self.ota_authenticated_files = None
         self.record = {'old': current, 'new': version, 'request_id': request['request_id']}
         self.phase('download')
         self.stage.mkdir()
@@ -571,7 +569,14 @@ class Updater:
             manifest = verify_manifest(
                 manifest_raw, signature, cfg['public_key_pem'].encode(), version)
             shutil.copyfile(source, package)
-            self.ota_authenticated_files = (source, marker)
+            # Persist only a validated opaque transfer ID, never an MQTT path.
+            # Crash recovery can then clean the quarantined evidence *after*
+            # a verified commit without losing the journal's exact ownership.
+            transfer_id = marker.name[len('ota-'):-len('.approved.json')]
+            if not re.fullmatch(r'[0-9a-f]{32}', transfer_id):
+                raise ValueError('Invalid authenticated OTA transfer ID')
+            self.record['ota_transfer_id'] = transfer_id
+            atomic_json(self.journal_path, self.record)
         else:
             base = cfg['base_url']
             self.download(base, f'windows-agent-{version}.json', raw, 4096)
@@ -596,15 +601,6 @@ class Updater:
         self.status('success')
         self.hook('status_success')
         self.cleanup()
-        # The signed record and quarantine are no longer needed after a
-        # HEALTH-VERIFIED transaction. Never remove before journal commit.
-        if self.ota_authenticated_files is not None:
-            for path in self.ota_authenticated_files:
-                try:
-                    path.unlink(missing_ok=True)
-                except OSError:
-                    LOG.warning('OTA quarantine cleanup deferred')
-            self.ota_authenticated_files = None
 
     def cleanup(self):
         """Best effort. A failure leaves the committed journal so the next start retries."""
@@ -615,6 +611,18 @@ class Updater:
             if self.stage.exists():
                 shutil.rmtree(self.stage)
             self.hook('cleanup_stage')
+            transfer_id = (self.record or {}).get('ota_transfer_id')
+            if transfer_id is not None:
+                if not isinstance(transfer_id, str) or not re.fullmatch(r'[0-9a-f]{32}', transfer_id):
+                    raise ValueError('Invalid OTA journal transfer ID')
+                root = self.data / 'ota-staging'
+                if not root.is_dir() or root.is_symlink():
+                    raise ValueError('Protected OTA quarantine unavailable')
+                for extension in ('.approved.json', '.staged'):
+                    path = root / f'ota-{transfer_id}{extension}'
+                    if path.is_symlink():
+                        raise ValueError('OTA quarantine symlink is unsafe')
+                    path.unlink(missing_ok=True)
             self.journal_path.unlink(missing_ok=True)
             return True
         except Exception as err:
