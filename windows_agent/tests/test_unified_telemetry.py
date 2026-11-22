@@ -359,3 +359,22 @@ def test_system_unknown_fields_are_not_fabricated():
             U.system_fields(value, "0.2.12", None)
     with pytest.raises(ValueError):
         U.system_fields(12, "dev-unsafe", None)
+
+
+def test_clean_cut_rejects_untrusted_device_identifier_early():
+    cfg = {"device": {"id": "bad id!", "name": "Untrusted"},
+           "mqtt": {"host": "localhost"}, "games": []}
+    with pytest.raises(ValueError, match="Invalid device id"):
+        M.Bridge(cfg)
+
+
+def test_no_authenticated_sample_context_after_broker_disconnect():
+    cfg = {"device": {"id": "pc1", "name": "Test"},
+           "mqtt": {"host": "localhost"}, "games": []}
+    bridge = M.Bridge(cfg)
+    bridge.client = Mock()
+    bridge.on_connect(bridge.client, None, None,
+                      SimpleNamespace(is_failure=False), None)
+    assert bridge.capture_foreground_context() is not None
+    bridge.on_disconnect(bridge.client, None, None, None, None)
+    assert bridge.capture_foreground_context() is None
