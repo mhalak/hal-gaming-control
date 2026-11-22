@@ -8,8 +8,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 SHA = "1234567890abcdef" * 2 + "12345678"
-RELEASE = {"release": "Parental Control Preview 8", "windows_agent": "0.2.6",
-           "home_assistant": "0.5.14"}
+RELEASE = {"release": "Parental Control Preview 9", "windows_agent": "0.2.6",
+           "home_assistant": "0.6.0"}
 
 
 def release_tool():
@@ -22,10 +22,10 @@ def release_tool():
 @pytest.fixture
 def checkout(tmp_path):
     (tmp_path / "release.json").write_text(json.dumps(RELEASE), encoding="utf-8")
-    component = tmp_path / "custom_components" / "smarthouse_gaming"
+    component = tmp_path / "custom_components" / "parental"
     component.mkdir(parents=True)
     (component / "manifest.json").write_text(
-        json.dumps({"domain": "smarthouse_gaming", "version": "0.5.14"}), encoding="utf-8")
+        json.dumps({"domain": "parental", "version": "0.6.0"}), encoding="utf-8")
     return tmp_path
 
 
@@ -33,7 +33,7 @@ def test_repository_release_metadata_is_consistent():
     release = release_tool().read_release(ROOT)
     assert release == RELEASE
     assert release["home_assistant"] == json.loads(
-        (ROOT / "custom_components/smarthouse_gaming/manifest.json").read_text(encoding="utf-8")
+        (ROOT / "custom_components/parental/manifest.json").read_text(encoding="utf-8")
     )["version"]
 
 
@@ -50,7 +50,7 @@ def test_release_rejects_invalid_numeric_component_version(checkout, value):
 
 
 def test_release_rejects_ha_version_drift(checkout):
-    (checkout / "custom_components/smarthouse_gaming/manifest.json").write_text(
+    (checkout / "custom_components/parental/manifest.json").write_text(
         '{"version":"0.4.2"}', encoding="utf-8")
     with pytest.raises(ValueError):
         release_tool().read_release(checkout)
@@ -73,7 +73,7 @@ def test_release_missing_file_is_not_a_legacy_default(checkout):
         release_tool().read_release(checkout)
 
 
-@pytest.mark.parametrize("component,version", [("windows_agent", "0.2.6"), ("home_assistant", "0.5.14")])
+@pytest.mark.parametrize("component,version", [("windows_agent", "0.2.6"), ("home_assistant", "0.6.0")])
 def test_build_identity_is_bound_to_clean_revision(checkout, component, version):
     tool = release_tool()
     with patch.object(tool, "_git", side_effect=lambda root, *args:
@@ -124,11 +124,11 @@ def test_build_rejects_unknown_component(checkout):
 
 def test_sync_ha_only_updates_version_and_is_idempotent(checkout):
     tool = release_tool()
-    manifest = checkout / "custom_components/smarthouse_gaming/manifest.json"
-    content = {"domain": "smarthouse_gaming", "version": "0.4.2", "name": "Example"}
+    manifest = checkout / "custom_components/parental/manifest.json"
+    content = {"domain": "parental", "version": "0.4.2", "name": "Example"}
     manifest.write_text(json.dumps(content), encoding="utf-8")
     tool.sync_ha_manifest(checkout)
-    assert json.loads(manifest.read_text(encoding="utf-8")) == content | {"version": "0.5.14"}
+    assert json.loads(manifest.read_text(encoding="utf-8")) == content | {"version": "0.6.0"}
     previous = manifest.read_bytes()
     tool.sync_ha_manifest(checkout)
     assert manifest.read_bytes() == previous
@@ -136,7 +136,7 @@ def test_sync_ha_only_updates_version_and_is_idempotent(checkout):
 
 
 def test_sync_ha_rejects_wrong_domain(checkout):
-    manifest = checkout / "custom_components/smarthouse_gaming/manifest.json"
+    manifest = checkout / "custom_components/parental/manifest.json"
     manifest.write_text('{"domain":"other","version":"0.4.2"}', encoding="utf-8")
     previous = manifest.read_bytes()
     with pytest.raises(ValueError):
@@ -165,7 +165,7 @@ def test_stage_ha_from_reviewed_git_checkout(checkout):
     def git(*args):
         return subprocess.run(["git", "-C", str(checkout), *args], check=True,
                               capture_output=True, text=True).stdout.strip()
-    component = checkout / "custom_components" / "smarthouse_gaming"
+    component = checkout / "custom_components" / "parental"
     (component / "sensor.py").write_text("EXAMPLE = True\n", encoding="utf-8")
     git("init")
     git("add", ".")
@@ -176,7 +176,7 @@ def test_stage_ha_from_reviewed_git_checkout(checkout):
     tool = release_tool()
     assert tool.stage_ha(checkout, destination) == {
         "release": RELEASE["release"], "component": "home_assistant",
-        "version": "0.5.14", "commit": sha}
+        "version": "0.6.0", "commit": sha}
     assert (destination / "sensor.py").read_text(encoding="utf-8") == "EXAMPLE = True\n"
     assert json.loads((destination / "build-info.json").read_text())["commit"] == sha
     assert not (component / "build-info.json").exists()

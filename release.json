@@ -1,5 +1,5 @@
 {
-  "release": "Parental Control Preview 8",
+  "release": "Parental Control Preview 9",
   "windows_agent": "0.2.6",
-  "home_assistant": "0.5.14"
+  "home_assistant": "0.6.0"
 }

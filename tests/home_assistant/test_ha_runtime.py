@@ -6,9 +6,9 @@ import pytest
 
 from homeassistant import config_entries, data_entry_flow
 from pytest_homeassistant_custom_component.common import MockConfigEntry
-from custom_components.smarthouse_gaming.const import DOMAIN
-from custom_components.smarthouse_gaming.config_flow import GamingConfigFlow
-from custom_components.smarthouse_gaming.coordinator import GamingCoordinator
+from custom_components.parental.const import DOMAIN
+from custom_components.parental.config_flow import GamingConfigFlow
+from custom_components.parental.coordinator import GamingCoordinator
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures('recorder_mock')]
 
@@ -47,7 +47,7 @@ async def test_options_menu_only_has_mqtt_and_apps_and_keeps_legacy_options(
 
 async def test_remote_update_entity_request_and_completion(hass):
     from unittest.mock import AsyncMock, Mock
-    from custom_components.smarthouse_gaming.update import WindowsAgentUpdate
+    from custom_components.parental.update import WindowsAgentUpdate
     from homeassistant.exceptions import HomeAssistantError
 
     coordinator = Mock()
@@ -56,7 +56,7 @@ async def test_remote_update_entity_request_and_completion(hass):
     coordinator.data = {"online": True}
     entity = WindowsAgentUpdate(coordinator)
     entity.hass = hass
-    with patch.object(entity, "async_write_ha_state"), patch.object(entity, "_refresh_catalog", new_callable=AsyncMock), patch("custom_components.smarthouse_gaming.update.mqtt.async_publish", new_callable=AsyncMock) as publish:
+    with patch.object(entity, "async_write_ha_state"), patch.object(entity, "_refresh_catalog", new_callable=AsyncMock), patch("custom_components.parental.update.mqtt.async_publish", new_callable=AsyncMock) as publish:
         entity._metadata(SimpleNamespace(topic="SmartHouse/Gaming/pc1/discovery",payload=json.dumps(DATA | {"agent_version":"0.1.0","remote_update":True})))
         entity.approved = "0.2.0"
         assert entity.available
@@ -81,8 +81,8 @@ async def test_remote_update_entity_request_and_completion(hass):
 async def test_remote_update_restore_after_restart(hass):
     from time import time
     from unittest.mock import Mock
-    from custom_components.smarthouse_gaming.update import WindowsAgentUpdate, TIMEOUT
-    from custom_components.smarthouse_gaming.update_protocol import make_request
+    from custom_components.parental.update import WindowsAgentUpdate, TIMEOUT
+    from custom_components.parental.update_protocol import make_request
     coordinator = Mock()
     coordinator.device_id = "pc1"
     coordinator.entry.data = DATA
@@ -155,7 +155,7 @@ async def test_mqtt_manifest_subscription_dispatches_real_discovery(hass, enable
 # --- Manual onboarding when HA MQTT discovery is disabled (issue #13) ---
 from unittest.mock import MagicMock
 from pytest_homeassistant_custom_component.common import async_fire_mqtt_message
-from custom_components.smarthouse_gaming import config_flow as cf
+from custom_components.parental import config_flow as cf
 
 @pytest.fixture
 def expected_lingering_timers() -> bool:
@@ -460,7 +460,7 @@ async def test_per_game_editor_hidden_preserving_existing_settings(hass, enable_
     # Tracked applications editor (not the removed Save page) commits.
     hass.config_entries.async_update_entry(entry, options=dict(entry.options) | {
         "per_game":{"Roblox":45}})
-    with patch("custom_components.smarthouse_gaming.config_flow._discover_foreground_candidate",
+    with patch("custom_components.parental.config_flow._discover_foreground_candidate",
                return_value=None):
         form = await manager.async_configure(
             result["flow_id"], {"next_step_id": "tracked_apps"})
@@ -470,125 +470,12 @@ async def test_per_game_editor_hidden_preserving_existing_settings(hass, enable_
     assert entry.options["daily"] == 60
 
 
-@pytest.mark.parametrize("key, platform", [("current_game", "sensor"), ("lock_pc", "button"),
-                                          ("update", "update")])
-async def test_cross_domain_registry_transfer_and_reverse(hass, key, platform):
-    """Capability test against the real HA registries, not a mock migration implementation."""
-    from homeassistant.helpers import device_registry as dr, entity_registry as er
-
-    options = {"daily": 60, "weekly": 300, "weekend_daily": 120, "unlimited": True,
-               "bonus_minutes": 30, "bonus_date": "2026-11-20", "actions": ["lock_pc"]}
-    old = MockConfigEntry(domain=DOMAIN, title=DATA["name"], data=DATA,
-                          options=options, unique_id="pc1")
-    new = MockConfigEntry(domain="parental", title=old.title, data=dict(old.data),
-                          options=dict(old.options), unique_id=old.unique_id)
-    old.add_to_hass(hass)
-    new.add_to_hass(hass)
-    devices, entities = dr.async_get(hass), er.async_get(hass)
-    identifiers = {("mqtt", "smarthouse_gaming_pc1")}
-    device = devices.async_get_or_create(config_entry_id=old.entry_id, identifiers=identifiers,
-                                         name="Test PC")
-    devices.async_update_device(device.id, name_by_user="Custom PC")
-    entity = entities.async_get_or_create(platform, DOMAIN, "pc1_" + key,
-                                           config_entry=old, device_id=device.id)
-    entity = entities.async_update_entity(entity.entity_id, name="Custom entity",
-                                          disabled_by=er.RegistryEntryDisabler.USER)
-    await hass.async_block_till_done()
-
-    # The entity and device must move in one synchronous registry operation group.
-    # Both entries are unloaded in this test. Never move live entities.
-    entities.async_update_entity_platform(entity.entity_id, "parental",
-                                          new_config_entry_id=new.entry_id)
-    devices.async_update_device(device.id, new_config_entry_id=new.entry_id)
-    await hass.async_block_till_done()
-
-    moved = entities.async_get(entity.entity_id)
-    assert moved is not None
-    assert moved.id == entity.id and moved.unique_id == entity.unique_id
-    assert moved.entity_id == entity.entity_id and moved.device_id == device.id
-    assert moved.platform == "parental" and moved.config_entry_id == new.entry_id
-    assert moved.name == "Custom entity" and moved.disabled_by == er.RegistryEntryDisabler.USER
-    assert entities.async_get_entity_id(platform, DOMAIN, entity.unique_id) is None
-    assert entities.async_get_entity_id(platform, "parental", entity.unique_id) == entity.entity_id
-    target_device = devices.async_get(device.id)
-    assert target_device.config_entry_id == new.entry_id
-    assert target_device.identifiers == identifiers and target_device.name_by_user == "Custom PC"
-    assert dict(new.options) == dict(old.options) == options
-    assert dict(new.data) == dict(old.data) == DATA
-
-    # Prove the registry operations can be reversed before retiring the old entry.
-    entities.async_update_entity_platform(entity.entity_id, DOMAIN,
-                                          new_config_entry_id=old.entry_id)
-    devices.async_update_device(device.id, new_config_entry_id=old.entry_id)
-    await hass.async_block_till_done()
-    restored = entities.async_get(entity.entity_id)
-    assert restored is not None and restored.id == entity.id
-    assert restored.platform == DOMAIN and restored.config_entry_id == old.entry_id
-    assert restored.device_id == device.id and restored.disabled_by == entity.disabled_by
-    assert devices.async_get(device.id).config_entry_id == old.entry_id
-    assert entities.async_get_entity_id(platform, "parental", entity.unique_id) is None
-
-
-async def test_cross_domain_transfer_preserves_native_mqtt_and_other_pc(hass):
-    """HA 2026.10 device ownership is scoped to the config entry, not the identifier alone."""
-    from homeassistant.helpers import device_registry as dr, entity_registry as er
-
-    legacy = MockConfigEntry(domain=DOMAIN, unique_id="pc1", data=DATA)
-    target = MockConfigEntry(domain="parental", unique_id="pc1", data=DATA)
-    other = MockConfigEntry(domain=DOMAIN, unique_id="pc2", data={**DATA, "device_id": "pc2"})
-    mqtt_entry = MockConfigEntry(domain="mqtt", unique_id="broker", data={})
-    for entry in (legacy, target, other, mqtt_entry):
-        entry.add_to_hass(hass)
-
-    devices, entities = dr.async_get(hass), er.async_get(hass)
-    pc1_identifiers = {("mqtt", "smarthouse_gaming_pc1")}
-    old_device = devices.async_get_or_create(config_entry_id=legacy.entry_id,
-                                             identifiers=pc1_identifiers, name="Test PC 1")
-    raw_device = devices.async_get_or_create(config_entry_id=mqtt_entry.entry_id,
-                                             identifiers=pc1_identifiers, name="Test PC 1")
-    other_device = devices.async_get_or_create(config_entry_id=other.entry_id,
-                                               identifiers={("mqtt", "smarthouse_gaming_pc2")},
-                                               name="Test PC 2")
-    old_entity = entities.async_get_or_create("switch", DOMAIN, "pc1_unlimited",
-                                              config_entry=legacy, device_id=old_device.id)
-    raw_entity = entities.async_get_or_create("sensor", "mqtt", "smarthouse_gaming_pc1_current_game",
-                                              config_entry=mqtt_entry, device_id=raw_device.id)
-    other_entity = entities.async_get_or_create("switch", DOMAIN, "pc2_unlimited",
-                                                config_entry=other, device_id=other_device.id)
-    assert len({old_device.id, raw_device.id, other_device.id}) == 3
-    await hass.async_block_till_done()
-
-    entities.async_update_entity_platform(old_entity.entity_id, "parental",
-                                          new_config_entry_id=target.entry_id)
-    devices.async_update_device(old_device.id, new_config_entry_id=target.entry_id)
-    await hass.async_block_till_done()
-    moved = entities.async_get(old_entity.entity_id)
-    assert moved.id == old_entity.id and moved.device_id == old_device.id
-    assert moved.config_entry_id == target.entry_id and moved.platform == "parental"
-    assert devices.async_get(old_device.id).config_entry_id == target.entry_id
-    assert entities.async_get(raw_entity.entity_id) == raw_entity
-    assert devices.async_get(raw_device.id) == raw_device
-    assert entities.async_get(other_entity.entity_id) == other_entity
-    assert devices.async_get(other_device.id) == other_device
-    assert entities.async_get_entity_id("sensor", "mqtt", raw_entity.unique_id) == raw_entity.entity_id
-    assert entities.async_get_entity_id("switch", DOMAIN, other_entity.unique_id) == other_entity.entity_id
-
-    entities.async_update_entity_platform(old_entity.entity_id, DOMAIN,
-                                          new_config_entry_id=legacy.entry_id)
-    devices.async_update_device(old_device.id, new_config_entry_id=legacy.entry_id)
-    await hass.async_block_till_done()
-    assert entities.async_get(old_entity.entity_id).config_entry_id == legacy.entry_id
-    assert devices.async_get(old_device.id).config_entry_id == legacy.entry_id
-    assert entities.async_get(raw_entity.entity_id) == raw_entity
-    assert entities.async_get(other_entity.entity_id) == other_entity
-
-
 @pytest.mark.parametrize("reported,expected", [
     ("a" * 40, "a" * 40), ("abc", None), ("A" * 40, None), (True, None), (None, None),
 ])
 async def test_agent_version_includes_validated_build_sha(hass, reported, expected):
     from unittest.mock import Mock
-    from custom_components.smarthouse_gaming.agent_version import AgentVersionSensor
+    from custom_components.parental.agent_version import AgentVersionSensor
     coordinator = Mock()
     coordinator.device_id = "pc1"
     coordinator.entry.data = DATA
@@ -614,8 +501,8 @@ async def test_agent_version_includes_validated_build_sha(hass, reported, expect
 ])
 async def test_integration_version_reads_only_local_staged_provenance(hass, tmp_path, info, expected):
     from unittest.mock import AsyncMock, Mock
-    from custom_components.smarthouse_gaming.entity import GamingEntity
-    from custom_components.smarthouse_gaming.agent_version import IntegrationVersionSensor
+    from custom_components.parental.entity import GamingEntity
+    from custom_components.parental.agent_version import IntegrationVersionSensor
     (tmp_path / "manifest.json").write_text(json.dumps({"version": "0.5.5"}), encoding="utf-8")
     if info is not None:
         (tmp_path / "build-info.json").write_text(json.dumps(info), encoding="utf-8")

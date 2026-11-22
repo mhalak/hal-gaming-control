@@ -8,8 +8,8 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import device_registry as dr
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_mqtt_message
 
-from custom_components.smarthouse_gaming.const import DOMAIN
-from custom_components.smarthouse_gaming.direct_mqtt import direct_mode
+from custom_components.parental.const import DOMAIN
+from custom_components.parental.direct_mqtt import direct_mode
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("recorder_mock")]
 
@@ -39,7 +39,7 @@ async def test_scoped_entities_and_safe_controls(hass, enable_custom_integration
               for platform, key in [("sensor","played_daily"), ("sensor","remaining_weekly"),
                                     ("sensor","played_game_0123456789abcdef"),
                                     ("sensor","restriction"), ("binary_sensor","allowed")]]
-    with patch("custom_components.smarthouse_gaming.coordinator.direct_mode", return_value=True):
+    with patch("custom_components.parental.coordinator.direct_mode", return_value=True):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
@@ -78,7 +78,7 @@ async def test_scoped_entities_and_safe_controls(hass, enable_custom_integration
 async def test_native_mode_no_duplicate_raw_entities(hass, enable_custom_integrations, mqtt_mock):
     entry = MockConfigEntry(domain=DOMAIN,title=DATA["name"],unique_id="pc1",data=DATA)
     entry.add_to_hass(hass)
-    with patch("custom_components.smarthouse_gaming.coordinator.direct_mode",return_value=False):
+    with patch("custom_components.parental.coordinator.direct_mode",return_value=False):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
     registry = er.async_get(hass)
@@ -95,14 +95,14 @@ async def test_budget_entities_report_percent_and_keep_history_when_offline(hass
     entry = MockConfigEntry(domain=DOMAIN, title=DATA["name"], unique_id="pc1",
                             data=DATA, options={"enabled":True,"daily":60,"weekly":300})
     entry.add_to_hass(hass)
-    with patch("custom_components.smarthouse_gaming.coordinator.direct_mode", return_value=True):
+    with patch("custom_components.parental.coordinator.direct_mode", return_value=True):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
     registry = er.async_get(hass)
     daily = registry.async_get_entity_id("sensor",DOMAIN,"pc1_daily_budget_remaining")
     weekly = registry.async_get_entity_id("sensor",DOMAIN,"pc1_weekly_budget_remaining")
     c = entry.runtime_data
-    with patch("custom_components.smarthouse_gaming.sensor.dt_util.now", return_value=__import__("datetime").datetime(2026,11,18,12)):
+    with patch("custom_components.parental.sensor.dt_util.now", return_value=__import__("datetime").datetime(2026,11,18,12)):
         c.async_set_updated_data({"ready":True,"online":False,"totals":{"daily":900,"weekly":3600}})
         assert float(hass.states.get(daily).state) == 75
         assert float(hass.states.get(weekly).state) == 80
@@ -119,7 +119,7 @@ async def test_unlimited_switch_persists_without_reload_and_works_offline(hass, 
                             data=DATA, options={"enabled":True,"daily":60,"weekend_daily":120,
                                                 "weekend_total":90,"unlimited":False})
     entry.add_to_hass(hass)
-    with patch("custom_components.smarthouse_gaming.coordinator.direct_mode", return_value=True):
+    with patch("custom_components.parental.coordinator.direct_mode", return_value=True):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
     c = entry.runtime_data
@@ -137,7 +137,7 @@ async def test_unlimited_switch_persists_without_reload_and_works_offline(hass, 
             assert "weekend_total" not in c.options
         assert not publish.called
     assert await hass.config_entries.async_unload(entry.entry_id)
-    with patch("custom_components.smarthouse_gaming.coordinator.direct_mode", return_value=True):
+    with patch("custom_components.parental.coordinator.direct_mode", return_value=True):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
     assert hass.states.get(eid).state == "on"
@@ -152,7 +152,7 @@ async def test_live_budget_controls_and_action_configuration(hass, enable_custom
                             data=DATA, options={"enabled": True, "daily": 60, "weekly": -1,
                                                 "weekend_daily": 120})
     entry.add_to_hass(hass)
-    with patch("custom_components.smarthouse_gaming.coordinator.direct_mode", return_value=True):
+    with patch("custom_components.parental.coordinator.direct_mode", return_value=True):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
     c = entry.runtime_data
@@ -208,7 +208,7 @@ async def test_live_budget_controls_and_action_configuration(hass, enable_custom
             assert entry.options[key] == 0
 
         now = datetime(2026, 11, 21, 12, tzinfo=ZoneInfo("Europe/Zagreb"))
-        with patch("custom_components.smarthouse_gaming.button.dt_util.now", return_value=now):
+        with patch("custom_components.parental.button.dt_util.now", return_value=now):
             for _ in range(2):
                 await hass.services.async_call("button", "press",
                                                {"entity_id": bonus}, blocking=True)
@@ -216,7 +216,7 @@ async def test_live_budget_controls_and_action_configuration(hass, enable_custom
             assert entry.options["bonus_minutes"] == 60
             assert entry.options["bonus_date"] == "2026-11-21"
             assert entry.options["weekend_bonus"] == 0
-        with patch("custom_components.smarthouse_gaming.button.dt_util.now",
+        with patch("custom_components.parental.button.dt_util.now",
                    return_value=now.replace(day=22)):
             await hass.services.async_call("button", "press",
                                            {"entity_id": bonus}, blocking=True)
@@ -232,7 +232,7 @@ async def test_agent_version_is_independent_of_update_capability_and_pc_availabi
     import json
     entry = MockConfigEntry(domain=DOMAIN, title=DATA["name"], unique_id="pc1", data=DATA)
     entry.add_to_hass(hass)
-    with patch("custom_components.smarthouse_gaming.coordinator.direct_mode", return_value=direct):
+    with patch("custom_components.parental.coordinator.direct_mode", return_value=direct):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
     registry = er.async_get(hass)
@@ -270,7 +270,7 @@ async def test_ha_owned_active_game_entity_is_present_in_both_modes(
     entry = MockConfigEntry(domain=DOMAIN, title=DATA["name"],
                             unique_id="pc1", data=DATA)
     entry.add_to_hass(hass)
-    with patch("custom_components.smarthouse_gaming.coordinator.direct_mode",
+    with patch("custom_components.parental.coordinator.direct_mode",
                return_value=direct):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
@@ -296,7 +296,7 @@ async def test_ha_owned_active_game_ignores_legacy_agent_game_names(
     entry = MockConfigEntry(domain=DOMAIN, title=DATA["name"], unique_id="pc1",
                             data=DATA, options=options)
     entry.add_to_hass(hass)
-    with patch("custom_components.smarthouse_gaming.coordinator.direct_mode",
+    with patch("custom_components.parental.coordinator.direct_mode",
                return_value=True):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
@@ -360,7 +360,7 @@ async def test_v2_foreground_is_device_scoped_and_resets_on_disconnect(
                                        "signature": None, "name": "Roblox"}]}
                     if pc == "pc1" else {"tracked_apps": []})
         for pc in ("pc1", "pc2")]
-    with patch("custom_components.smarthouse_gaming.coordinator.direct_mode",
+    with patch("custom_components.parental.coordinator.direct_mode",
                return_value=True):
         for entry in entries:
             entry.add_to_hass(hass)
@@ -404,7 +404,7 @@ async def test_live_ha_duration_display_is_exact_hms_and_numeric_history_remains
         hass, enable_custom_integrations, mqtt_mock):
     entry = MockConfigEntry(domain=DOMAIN, title=DATA["name"], unique_id="pc1", data=DATA)
     entry.add_to_hass(hass)
-    with patch("custom_components.smarthouse_gaming.coordinator.direct_mode", return_value=True):
+    with patch("custom_components.parental.coordinator.direct_mode", return_value=True):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
     registry = er.async_get(hass)
@@ -437,7 +437,7 @@ async def test_passive_restriction_sensor_runs_in_both_mqtt_modes_and_survives_r
     entry.add_to_hass(hass)
 
     async def boot():
-        with patch("custom_components.smarthouse_gaming.coordinator.direct_mode",
+        with patch("custom_components.parental.coordinator.direct_mode",
                    return_value=direct):
             assert await hass.config_entries.async_setup(entry.entry_id)
             await hass.async_block_till_done()
@@ -493,7 +493,7 @@ async def test_rules_opt_in_switch_only_controls_passive_signal(
         options={"enabled": False, "daily": 0, "weekly": 300,
                  "actions": ["terminate_game", "lock_pc"]})
     entry.add_to_hass(hass)
-    with patch("custom_components.smarthouse_gaming.coordinator.direct_mode",
+    with patch("custom_components.parental.coordinator.direct_mode",
                return_value=direct):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()

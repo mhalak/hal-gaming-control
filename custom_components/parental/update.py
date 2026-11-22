@@ -14,7 +14,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
 
-from .const import ROOT
+from .const import ROOT, DOMAIN
 from .entity import GamingEntity
 from .protocol import parse_discovery
 from .update_protocol import ACTIVE, TERMINAL, catalog_url, catalog_version, make_request, parse_status, version_tuple
@@ -69,7 +69,7 @@ class WindowsAgentUpdate(GamingEntity, UpdateEntity):
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
-        self.store = Store(self.hass, 1, f"smarthouse_gaming.update.{self.coordinator.entry.entry_id}")
+        self.store = Store(self.hass, 1, f"{DOMAIN}.update.{self.coordinator.entry.entry_id}")
         saved = await self.store.async_load()
         if saved:
             self._restore(saved)

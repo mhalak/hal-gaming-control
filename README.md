@@ -2,6 +2,8 @@
 
 # SmartHouse Parental Control
 
+**⚠️ HA 0.6.0 breaking preview:** the integration domain changes from `smarthouse_gaming` to `parental`. Remove the old HA integration **before** installing the new version; there is no migration or dual-installation support. [Clean-install instructions](docs/domain-clean-cut.md). Windows agent 0.2.6 and MQTT topics are unchanged.
+
 **Because parenting should have an API.**
 
 *Powered by HAL Systems.*

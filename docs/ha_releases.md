@@ -1,3 +1,11 @@
+## 0.6.0 — breaking domain clean cut to parental (#5)
+
+- **BREAKING:** the HA integration's only domain/package is now `parental` / `custom_components/parental`. The previous `smarthouse_gaming` package is not shipped or loaded. This is a preview clean cut, **not** a seamless config-entry or entity migration.
+- **Required manual action:** before installing 0.6.0, remove all old SmartHouse Parental Control entries from HA 0.5.x through HA's UI, uninstall the old HACS package if applicable, then install only the new package and re-enroll each PC. Re-enter Tracked applications, limits, bonuses and schedules. **Existing entity IDs and Recorder history continuity are not guaranteed.** Do not purge unrelated Recorder rows or edit HA `.storage`. [Full procedure](domain-clean-cut.md).
+- **Windows agent remains 0.2.6**. MQTT root `SmartHouse/Gaming`, wire discovery/topic identities `smarthouse_gaming_<device_id>` and PC command protocol are intentionally unchanged. No Windows update is required.
+- Foreground tracking, schedule restrictions, budgets, bonuses and HA-local manual actions remain passive/no auto-enforcement. Controls initially require new configuration.
+- Source/CI release preparation only; no claim that either HA instance or PC has been deployed.
+
 ## 0.5.14 — independent weekday and weekend gaming windows
 
 - The schedule Configuration section now offers **Weekday allowed from/until** (Monday–Friday) and **Weekend allowed from/until** (Saturday–Sunday). The single **Schedule enabled** switch continues to control all schedule restrictions. Former weekday time entities retain their existing unique IDs (`schedule_start`, `schedule_end`), so saved weekday hours and their HA identities survive this upgrade.
@@ -104,7 +112,7 @@
 
 # HA integration release history
 
-The HA integration version is the `version` in `custom_components/smarthouse_gaming/manifest.json`, displayed by Home Assistant. Increment this version for every deployable HA change: minor for features, patch for fixes, major for breaking changes as appropriate. Record changes here, deploy latest main and record the deployed commit for rollback. Windows agent releases have separate versioning; do not bump Windows for HA-only changes. A manifest version is not a published GitHub Release.
+The HA integration version is the `version` in `custom_components/parental/manifest.json`, displayed by Home Assistant. Increment this version for every deployable HA change: minor for features, patch for fixes, major for breaking changes as appropriate. Record changes here, deploy latest main and record the deployed commit for rollback. Windows agent releases have separate versioning; do not bump Windows for HA-only changes. A manifest version is not a published GitHub Release.
 
 ## 0.5.1 — Parental Control Preview 3 (candidate, not yet verified as deployed)
 - #7 / #52 incremental read-only foreground candidate detection. The Windows 0.2.4 agent publishes only a bounded executable basename, a vetted Java launch signature (main class, JAR basename or module), and a short-lived opaque token on a non-retained MQTT 5 topic. HA displays a recent candidate in the selected PC's Tracked applications menu, including apps not already monitored. It rejects retained/stale, foreign-device and malformed messages. Neither side transmits the raw command line or credentials, window title, PID or executable path; ambiguous Java entry points are shown without falsely naming a game.

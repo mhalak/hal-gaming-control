@@ -1,5 +1,5 @@
 {
-  "domain": "smarthouse_gaming",
+  "domain": "parental",
   "name": "SmartHouse Parental Control",
   "codeowners": [
     "@mhalak"
@@ -16,5 +16,5 @@
   "mqtt": [
     "SmartHouse/Gaming/+/discovery"
   ],
-  "version": "0.5.14"
+  "version": "0.6.0"
 }

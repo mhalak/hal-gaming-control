@@ -3,13 +3,13 @@ import pytest
 from homeassistant.config_entries import ConfigEntryState
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.smarthouse_gaming.app_registry import identity_key
-from custom_components.smarthouse_gaming.const import DOMAIN
-from custom_components.smarthouse_gaming.foreground_cutover import (
+from custom_components.parental.app_registry import identity_key
+from custom_components.parental.const import DOMAIN
+from custom_components.parental.foreground_cutover import (
     async_activate_cutover,
 )
-from custom_components.smarthouse_gaming.foreground_store import ForegroundStore
-from custom_components.smarthouse_gaming.fresh_start import (
+from custom_components.parental.foreground_store import ForegroundStore
+from custom_components.parental.fresh_start import (
     FreshStartBlocked, async_reset_confirmed_intervals,
 )
 
