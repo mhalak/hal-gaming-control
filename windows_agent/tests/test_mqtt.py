@@ -269,3 +269,40 @@ def test_no_rules_do_not_accept_terminate_and_retract_native_button():
                           if c.args[0] == b.root + "/discovery"]
     assert json.loads(discovery_messages[-1].args[1])["actions"] == ["lock_pc"]
     assert all("pc2" not in c.args[0] for c in b.client.publish.call_args_list)
+
+
+def test_target_offer_is_based_on_private_v3_receipt_not_old_raw_topic():
+    import time
+    b = Bridge({**CONFIG, "games": []})
+    b.client = Mock()
+    b.client.publish.return_value.rc = mqtt.MQTT_ERR_SUCCESS
+    b.client.publish.return_value.is_published.return_value = True
+    b.on_connect(b.client, None, None, SimpleNamespace(is_failure=False), None)
+    assert b.publish({}, 100)
+    b.client.publish.reset_mock()
+    context = b.capture_foreground_context()
+    candidate = ("RobloxPlayerBeta.exe", 321, 456.0, 2, None)
+    assert b.prime_target_receipt(candidate, context, sample_time=time.monotonic())
+    assert b.publish_target_offer(candidate, context, sample_time=time.monotonic())
+    topics = [c.args[0] for c in b.client.publish.call_args_list]
+    assert topics == [b.root + "/state/terminate_offer"]
+    assert b._raw_receipt["candidate"] == candidate
+    assert not b.publish_target_offer(candidate, context, sample_time=time.monotonic())
+
+
+def test_invalid_or_missing_target_receipt_does_not_create_offer():
+    import time
+    b = Bridge({**CONFIG, "games": []})
+    b.client = Mock()
+    b.client.publish.return_value.rc = mqtt.MQTT_ERR_SUCCESS
+    b.client.publish.return_value.is_published.return_value = True
+    b.on_connect(b.client, None, None, SimpleNamespace(is_failure=False), None)
+    assert b.publish({}, 100)
+    b.client.publish.reset_mock()
+    valid = ("RobloxPlayerBeta.exe", 321, 456.0, 2, None)
+    context = b.capture_foreground_context()
+    assert not b.prime_target_receipt(None, context, sample_time=time.monotonic())
+    assert not b.publish_target_offer(valid, context, sample_time=time.monotonic())
+    assert not b.prime_target_receipt(valid, context, sample_time=0.0)
+    assert not b.publish_target_offer(valid, context, sample_time=time.monotonic())
+    b.client.publish.assert_not_called()
