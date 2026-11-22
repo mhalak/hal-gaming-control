@@ -1,10 +1,10 @@
-## 0.9.0 — Parent bonus grant journal backend (#165; review candidate)
+## 0.9.0 — Parent bonus history and admin-confirmed Undo (#165; review candidate)
 
-- Every **new** press of the existing `Add 30 minutes` button creates a persistent, device-scoped, UTC-timestamped grant with an immutable ID and active state. The date-scoped cumulative `bonus_minutes` stays synchronized as a backward-compatible mirror; the existing daily/weekly usage, limits and entities retain their semantics.
-- The Budget Overview includes today's individual Parent grant records, most recent activity and an explicitly unattributed legacy total for bonuses awarded before migration. Repeated presses are distinct, and cancellation of a specific current-day grant is implemented as a validated, idempotent **backend operation** (records are preserved as cancelled, not deleted).
-- **The user-facing Undo selection/confirmation UI is NOT yet included in this backend increment.** A later PR under #165 must expose authenticated, device-scoped cancellation without races or decorative/inert buttons. Do not market this as a finished Undo feature or deploy it as proof of UI acceptance.
-- Audit journal is retained up to 90 days and capped at 2048 events, fails closed on invalid records. No Windows/MQTT payload change, no automatic game termination or lock, and no compensation for Unlimited (#164) or Screen Idle (#92). This is a reviewed-source candidate only until CI, review and actual HA/Android tests pass.
-- Windows agent remains **0.2.9**. Deploy HA only after pilot preflight and approval; green CI alone is not an installation.
+- Every new **Add 30 minutes** click creates a UTC-timestamped grant with an opaque stable ID, device and HA-local date. The date-scoped legacy `bonus_minutes` is mirrored without inventing history for old anonymous grants. The daily/weekly gaming-time history stays unchanged.
+- Budget Overview shows today's active/cancelled Parent bonus records. The native **Parent bonus to undo** dropdown and two explicit **Prepare Undo / Confirm Undo** admin-only HA actions can revoke one selected grant after the standard HA confirmation dialog. No fake Markdown action or custom HACS JavaScript is needed.
+- Actor-bound 90-second server-side arming, exact grant matching, invalidation on any changed selection, admin authentication and denial of automation/anonymous invocations protect two-parent concurrent use. A cancelled grant remains in 90-day audit and cannot be applied twice. Reload resets prepared actions; all operations are device-scoped.
+- Read-only integration/sensor and native dashboard path remain usable; applying Undo can immediately reduce a daily quota but sends no Windows MQTT commands and changes no recorded usage, weekly base, Weekend/Unlimited/Screen Idle bonus.
+- Preview **16**, HA **0.9.0**, Windows agent **0.2.10** (unchanged from the Windows OTA staging merge); Windows OTA is still default-off and not an installer. No deployment, real Android UI pilot, or automatic enforcement has been performed for this candidate.
 
 ## 0.8.0 — native Budget Overview dashboard receipt (#93)
 
