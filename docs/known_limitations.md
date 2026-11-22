@@ -10,6 +10,7 @@ HAL Gaming Control is still being built. Some things work in testing, but this i
 
 - **Lock PC** and legacy **Terminate game** worked in limited real-PC tests. The new HA 0.7.2 / Windows 0.2.9 **Terminate active game** protocol is implemented in preview source but **has not been validated on a physical Windows service**; do not deploy it as a proven enforcement mechanism.
 - **Daily and weekly budgets**, **Weekend bonus**, **Add 30 minutes** and the **Tracked applications** editor exist in preview source. What you see depends on your installed version.
+- **Budget Overview (HA 0.8.0):** source includes the read-only native dashboard receipt with exact remaining seconds and separate daily/weekly allowances. Follow [the dashboard example](features/budget-overview.md); it has not yet been smoke-tested on the owner's installed HA/Android device.
 - Windows reports app activity to Home Assistant, but **full foreground-only tracking still needs end-to-end testing**.
 
 Our robot is enthusiastic. We're a little more careful.
@@ -17,7 +18,7 @@ Our robot is enthusiastic. We're a little more careful.
 ## What's not ready?
 
 - The **Gaming restriction** signal and a default-off **Gaming rules enabled** switch are implemented in HA 0.5.12 source, but **automatic game closing or locking** is not validated or enabled by default.
-- **AFK bonuses** and the itemized **Budget Overview** are **planned**, not working features.
+- **AFK / Screen idle bonuses** are still planned. The **Budget Overview** is now available in HA 0.8.0 source as a **read-only native dashboard**; it is not an embedded Device info view. Per-grant Parent bonus history/Undo (#165) and Unlimited bonus compensation (#164) remain separate planned features. Verify the installed HA version before using the dashboard YAML.
 - **Windows installation:** There is no verified signed public installer. Windows Smart App Control has blocked an unsigned build. **Don't turn off Smart App Control, Defender or other protections** to make it run.
 - **Updates:** The trusted Windows updater and stable release are still being tested.
 - **Platforms:** The Windows companion targets **64-bit Windows 10/11**. Other systems and individual browser-tab tracking aren't supported.
