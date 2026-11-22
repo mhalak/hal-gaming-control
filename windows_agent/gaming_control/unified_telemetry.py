@@ -76,6 +76,7 @@ def _event(state, event_age_ms, epoch, sequence, sample_age):
     """Recompute event age at envelope capture, without manufacturing an edge."""
     if (state not in ("on", "dim", "off") or sample_age is None
             or type(event_age_ms) is not int
+            or not 0 <= event_age_ms
             or not 0 <= event_age_ms + sample_age <= MAX_EVENT_AGE_MS
             or type(epoch) is not str or HEX32.fullmatch(epoch) is None
             or type(sequence) is not int
