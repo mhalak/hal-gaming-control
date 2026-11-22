@@ -192,7 +192,8 @@ class Bridge:
         self.advertised_commands = (list(COMMANDS) if self._termination_enabled
                                     else ['lock_pc'])
         self.configs = discovery(self.id, dev['name'], self.prefix,
-                                 terminate_enabled=self._termination_enabled)
+                                 terminate_enabled=self._termination_enabled,
+                                 unified_enabled=self.unified_enabled)
         self.metadata = {'protocol_version': 1, 'device_id': self.id,
                          'name': dev['name'], 'games': sorted({r['name'] for r in config.get('games', [])}),
                          'actions': list(self.advertised_commands)}
