@@ -643,5 +643,8 @@ class Bridge:
                 msg = self.client.publish(self.root + '/availability', 'offline', qos=1, retain=True)
                 msg.wait_for_publish(timeout=2)
         finally:
+            if self.ota is not None:
+                with self.lock:
+                    self.ota.reset()
             self.client.disconnect()
             self.client.loop_stop()
