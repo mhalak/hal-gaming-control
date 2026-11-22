@@ -124,10 +124,12 @@ class GamingCoordinator(DataUpdateCoordinator):
         ready = self.storage_healthy and alias is not None
         active = [alias] if ready and alias != "idle" else []
         # Confirmed intervals are a lower bound; gaps are never known idle.
+        # The restriction signal is policy-only; never publish a command here.
+        reasons = violations(self.options, totals, now, active) if ready else None
         return {"ready": ready, "online": ready, "active_game": alias if ready else None,
                 "totals": totals if ready else {}, "recorded_totals": totals,
                 "coverage_incomplete": True, "cutover_since": self.cutover_since,
-                "reasons": None, "active": active}
+                "reasons": reasons, "active": active}
 
     @property
     def options(self):

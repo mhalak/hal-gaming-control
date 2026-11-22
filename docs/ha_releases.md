@@ -1,3 +1,11 @@
+## 0.5.12 — passive per-PC Gaming restriction signal
+
+- New `binary_sensor.<pc>_gaming_restriction` reports **ON** when current verified gaming totals violate Daily budget, Weekly budget, schedule, or an active game's per-game budget. **OFF** means no applicable restriction; **unavailable** means there is not enough fresh verified accounting to decide.
+- The sensor exposes ordered `reasons` (e.g. `daily`, `weekly`, `schedule`, `game:Roblox`) and the first `reason`. It respects the additive Weekend and date-scoped Parent bonuses, plus Unlimited gaming and the enabled flag.
+- Runs in both direct-MQTT and native-MQTT configurations; tied to its own Windows PC device. It is only an observation **and never calls Terminate game or Lock PC**.
+- A parent-authored automation must check restriction **and** Active game, and re-evaluate on restriction changes, new foreground games and HA startup. If data becomes unavailable, do not treat it as permission for an automatic destructive action.
+- No automatic enforcement, default automations, Windows agent updates, migration of stored playtime or registry deletion. HA 0.5.12, Windows agent 0.2.6. Physical HA and PC acceptance remain separate.
+
 ## 0.5.11 — clean-preview budget names, additive Weekend bonus and readable durations
 
 - Replace the old **Daily limit**, **Weekly limit** and **Weekend daily limit** configuration entities with fresh **Daily budget**, **Weekly budget** and **Weekend bonus** entities. New `number` IDs end in `_daily_budget`, `_weekly_budget` and `_weekend_bonus`. Remove only the obsolete project-owned limit entity registry entries.

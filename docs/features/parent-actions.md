@@ -22,7 +22,7 @@ The beauty of **Home Assistant automations**? Parents make the rules, choose the
 
 **“Don't look at me. I just live here, same as you.”**
 
-**Development preview:** **Lock PC** and **Terminate game** worked in limited real-PC tests. **Automatic enforcement is not yet validated or enabled by default.**
+**Development preview (HA 0.5.12):** **Gaming restriction** is a passive per-PC rule signal. **Lock PC** and **Terminate game** worked in limited real-PC tests. **Automatic enforcement is not yet validated or enabled by default.**
 
 ## Use a manual control
 
@@ -35,13 +35,19 @@ The beauty of **Home Assistant automations**? Parents make the rules, choose the
 
 Adding a game to the tracked list never closes it by itself.
 
+## Gaming restriction sensor
+
+The per-PC **Gaming restriction** binary sensor exposes the result of the verified budget/schedule rules. `on` means the child has crossed at least one applicable limit; `off` means none apply; `unavailable` means HA cannot establish the truth from reliable live accounting. Its attributes include `reasons` and `reason`, such as `daily`, `weekly`, `schedule` or `game:Roblox`.
+
+The sensor is **passive** and never shuts down a game. A future parent-authored automation should react to either (1) Gaming restriction changing to `on` **or** (2) Active game changing from idle to a game while restriction is already `on`. Also recheck actual state on HA startup; use a warning/grace period and recheck before a destructive command. Never send a command solely because the sensor becomes unavailable.
+
 ## Why Home Assistant automations?
 
 This is the fun part: set your own rules. You might send a reminder, allow a short grace period or ask a parent to step in — instead of repeating “five more minutes” all evening.
 
 A future safe workflow could warn the child, wait a moment and check whether the restriction still applies before taking action.
 
-**Keep automatic game closing and locking off for now.** The restriction trigger and full workflow need testing. Missing or outdated data is not proof of a broken rule.
+**Keep automatic game closing and locking off for now.** The restriction signal exists, but an end-to-end safe automation workflow and physical testing are still pending. Missing or outdated data is not proof of a broken rule.
 
 The robot insists on a trial run before meeting angry children.
 
