@@ -227,6 +227,20 @@ def _build_mqtt_bridge(config_path, config):
                   ota_public_key=pinned)
 
 
+def _publish_live_monitoring(bridge, focus, policy, uptime, context, rules):
+    """One v3 observation; keep security offers off the monitoring stream."""
+    sent = bridge.publish_unified_telemetry(focus, policy, uptime)
+    candidate = getattr(focus, "candidate", None)
+    if not rules and sent:
+        sample_time = getattr(focus, "last_sample_time", None)
+        if bridge.prime_target_receipt(
+                candidate, context, sample_time=sample_time):
+            bridge.publish_target_offer(
+                candidate, context, sample_time=sample_time)
+    # Enrollment is a short-lived advisory control capability, not time data.
+    bridge.publish_candidate(candidate)
+
+
 def run(config_path, stop_event):
     config = yaml.safe_load(Path(config_path).read_text(encoding='utf-8'))
     interval = float(config.get('gaming', {}).get('check_interval_seconds', 1))
@@ -267,22 +281,9 @@ def run(config_path, stop_event):
                 if time.perf_counter() - last_power_poll >= 30:
                     display_policy = read_display_policy()
                     last_power_poll = time.perf_counter()
-                # #176 breaking cutover: one complete live v3 monitoring
-                # snapshot. No v1/v2 duplicate foreground/display publications.
-                sent = bridge.publish_unified_telemetry(
-                    focus, display_policy, uptime)
-                if not rules and sent:
-                    # Terminate-game is a distinct short-lived authorization
-                    # protocol, not ordinary monitoring. Preserve it privately
-                    # without shipping the old foreground_identity topic.
-                    candidate = getattr(focus, "candidate", None)
-                    if bridge.prime_target_receipt(
-                            candidate, foreground_context,
-                            sample_time=getattr(focus, "last_sample_time", None)):
-                        bridge.publish_target_offer(
-                            candidate, foreground_context,
-                            sample_time=getattr(focus, "last_sample_time", None))
-                bridge.publish_candidate(getattr(focus, "candidate", None))
+                _publish_live_monitoring(
+                    bridge, focus, display_policy, uptime, foreground_context,
+                    rules)
             if bridge.updates_enabled and synchronized and bridge.client.is_connected():
                 if time.monotonic() - last_health >= 10:
                     if confirm_health(bridge, Path(config_path).parent):
