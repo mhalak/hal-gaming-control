@@ -12,7 +12,9 @@
 
 Heard “just five more minutes” again? Let Home Assistant keep track while you enjoy your coffee.
 
-Track gaming time on Windows PCs, set limits, give bonus minutes and use parent controls when needed. No cloud account or parental-control subscription required.
+Track gaming time on Windows PCs, set limits, give bonus minutes and use parent controls when needed.
+
+**🏠 Local-first. Your home, your data.** The Windows companion reports activity to **your MQTT broker and Home Assistant**. Core tracking, budgets and parent controls need **no vendor cloud account, external activity-processing service or parental-control subscription**. Internet access may still be needed for software updates or optional online data sources.
 
 *Emotionally off duty, not legally. Please don't actually outsource parenting to a YAML file.*
 
