@@ -1,3 +1,10 @@
+## 0.10.0 — Signed Windows MQTT OTA Install orchestration (#166; source candidate)
+
+- **Preview 17**, HA **0.10.0** and Windows **0.2.11**. Adds a separate, optional, default-OFF native HA "Windows updates (advanced)" configuration section for the fixed approved-version catalog, signed release HTTPS directory, operator-pinned public Ed25519 key and a guarded MQTT Install enable switch.
+- New Windows MQTT OTA protocol v2 reports whether the SYSTEM updater is explicitly provisioned. HA caches/checks approved signed archive bytes, uses the device-scoped stage/ACK transport, then requires a **Windows-confirmed Ed25519 signature handoff** before sending the ordinary one-device \`command/update\`. A v1 stage ACK is never interpreted as an install. No unsigned or non-pinned release is accepted.
+- SYSTEM updater independently checks protected ProgramData approval, pinned manifest Ed25519 signature, SHA/size/version, safe archive and Windows Authenticode signer before using the existing durable transaction/rollback/health pipeline. The old HTTPS updater path remains separate and default-OFF.
+- **Not a production release:** no real Authenticode-signed artifact, trusted publishing infrastructure, independently pinned local PC bootstrap or physical Smart App Control acceptance has been demonstrated. The #56 integrated deployment HOLD remains in effect; source readiness and actual rollout must be reported separately.
+
 ## 0.9.0 — Parent bonus history and admin-confirmed Undo (#165; review candidate)
 
 - Every new **Add 30 minutes** click creates a UTC-timestamped grant with an opaque stable ID, device and HA-local date. The date-scoped legacy `bonus_minutes` is mirrored without inventing history for old anonymous grants. The daily/weekly gaming-time history stays unchanged.
