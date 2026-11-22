@@ -39,7 +39,7 @@ Open the PC device page to find **Daily budget**, **Weekly budget**, **Weekend b
 
 **Daily budget remaining** and **Weekly budget remaining** show remaining percentages. **Daily gaming time** and **Weekly gaming time** show explicit `h m s` text. Separate diagnostic **Daily gaming time (minutes)** and **Weekly gaming time (minutes)** sensors remain numeric durations for graphs and automations.
 
-[Gaming budgets](features/gaming-budgets.md)
+[Gaming budgets](features/gaming-budgets.md) · [Budget Overview dashboard example](features/budget-overview.md)
 
 ## Set allowed gaming hours
 
@@ -67,7 +67,7 @@ Turn on the per-PC **Gaming rules enabled** switch to opt into rule evaluation (
 ## Not available yet
 
 - **AFK / Screen idle bonus** — future screen-off tracking and daily bonuses.
-- **Budget Overview** — a simple breakdown of allowances, bonuses and time used.
+- **Budget Overview** — source preview under [#93](https://github.com/mhalak/hal-gaming-control/issues/93): a read-only per-PC daily/weekly allowance breakdown with an optional native Home Assistant dashboard stack; installed versions must include the merged change.
 - Safe, fully tested automatic restriction enforcement.
 
 [AFK grind](features/screen-idle-bonus.md) · [Budget Overview](features/budget-overview.md)
