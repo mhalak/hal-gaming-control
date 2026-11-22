@@ -93,12 +93,15 @@ def test_helper_sends_compact_sample_and_reports_failure(helper_api, stage):
         sample_effect = [sample, WinError(109)]
     with patch.object(F, "sample_window", side_effect=sample_effect), \
             patch.object(F, "read_interactive_input_idle_ms", return_value=None), \
+            patch.object(F, "DisplayObserver") as observer, \
             patch.object(F.time, "sleep") as sleep:
+        observer.return_value.sample.return_value = {"display_state": "unknown", "display_event_age_ms": None}
         code = F.helper_main(F.PIPE_PREFIX + "a"*32, "123")
     assert F.describe_exit(code) == (stage, 109)
     file.CreateFile.assert_called_once()
     pipe.GetNamedPipeServerProcessId.assert_called_once_with(handle)
-    assert file.WriteFile.call_args_list[0].args == (handle, b'{"status":"idle","time":10,"last_input_idle_ms":null}')
+    assert file.WriteFile.call_args_list[0].args == (handle, b'{"status":"idle","time":10,"last_input_idle_ms":null,"display_state":"unknown","display_event_age_ms":null}')
+    observer.return_value.sample.assert_called()
     sleep.assert_called_once_with(F.SAMPLE_PERIOD)
     handle.Close.assert_called_once()
 

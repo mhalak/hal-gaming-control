@@ -1,0 +1,5 @@
+# Exact historical Gitleaks false positives: synthetic Ed25519 signature
+# bytes b"a" * 64 in test_ota_signed_install.py; no key/token/credential.
+# Do not broaden to a path or generic-api-key rule.
+8fe7665f9ae588ff5707abc20978f57ec81dd963:tests/home_assistant/test_ota_signed_install.py:generic-api-key:124
+8fe7665f9ae588ff5707abc20978f57ec81dd963:tests/home_assistant/test_ota_signed_install.py:generic-api-key:134
