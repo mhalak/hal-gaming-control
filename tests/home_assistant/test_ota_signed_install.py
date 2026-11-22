@@ -253,4 +253,4 @@ async def test_native_admin_options_flow_requires_fixed_urls_and_pinned_public_e
     assert result["data"]["daily"] == 120
     assert result["data"]["tracked_apps"] == saved["tracked_apps"]
     assert result["data"]["ota_install_enabled"] is True
-    assert result["data"]["ota_signer_public_key"] == public
+    assert result["data"]["ota_signer_public_key"] == public.strip()
