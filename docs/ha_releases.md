@@ -1,3 +1,11 @@
+## 0.9.0 — Parent bonus history and admin-confirmed Undo (#165; review candidate)
+
+- Every new **Add 30 minutes** click creates a UTC-timestamped grant with an opaque stable ID, device and HA-local date. The date-scoped legacy `bonus_minutes` is mirrored without inventing history for old anonymous grants. The daily/weekly gaming-time history stays unchanged.
+- Budget Overview shows today's active/cancelled Parent bonus records. The native **Parent bonus to undo** dropdown and two explicit **Prepare Undo / Confirm Undo** admin-only HA actions can revoke one selected grant after the standard HA confirmation dialog. No fake Markdown action or custom HACS JavaScript is needed.
+- Actor-bound 90-second server-side arming, exact grant matching, invalidation on any changed selection, admin authentication and denial of automation/anonymous invocations protect two-parent concurrent use. A cancelled grant remains in 90-day audit and cannot be applied twice. Reload resets prepared actions; all operations are device-scoped.
+- Read-only integration/sensor and native dashboard path remain usable; applying Undo can immediately reduce a daily quota but sends no Windows MQTT commands and changes no recorded usage, weekly base, Weekend/Unlimited/Screen Idle bonus.
+- Preview **16**, HA **0.9.0**, Windows agent **0.2.10** (unchanged from the Windows OTA staging merge); Windows OTA is still default-off and not an installer. No deployment, real Android UI pilot, or automatic enforcement has been performed for this candidate.
+
 ## 0.8.0 — native Budget Overview dashboard receipt (#93)
 
 - HA-only feature release: existing per-PC **Daily budget remaining** entity exposes a structured daily/weekly receipt with base, Weekend and Parent bonuses, exact remaining seconds and confirmed measured playtime. Includes a native Lovelace Markdown/Tile dashboard example; sensor unique IDs are unchanged.

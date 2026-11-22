@@ -1,0 +1,30 @@
+prepare_parent_bonus_undo:
+  name: Prepare Parent bonus Undo
+  description: >-
+    Arm cancellation of the selected active Parent bonus grant on one gaming PC.
+    The confirmation is valid for 90 seconds and only for this HA administrator.
+  fields:
+    entity_id:
+      name: Parent bonus selection
+      description: Select the Parent bonus target entity on the desired gaming PC.
+      required: true
+      selector:
+        entity:
+          domain: select
+          integration: hal_gaming_control
+
+confirm_parent_bonus_undo:
+  name: Confirm Parent bonus Undo
+  description: >-
+    Cancel only the previously prepared Parent bonus grant if the same
+    administrator and exact selected grant still match. The daily allowance
+    may decrease immediately. Does not issue Windows actions.
+  fields:
+    entity_id:
+      name: Parent bonus selection
+      description: Select the same Parent bonus target entity as in Prepare.
+      required: true
+      selector:
+        entity:
+          domain: select
+          integration: hal_gaming_control

@@ -10,7 +10,8 @@ from homeassistant.util import dt as dt_util
 from .direct_mqtt import DirectAction
 from .action_registry import ACTION_REGISTRY
 from .entity import GamingEntity
-from .rule_engine import effective_daily, daily_bonus_minutes
+from .rule_engine import effective_daily
+from .parent_bonus import add_parent_grant
 from .const import ROOT
 from .targeted_protocol import parse_offer, offer_matches_raw
 
@@ -41,10 +42,9 @@ class AddDailyBudget(GamingEntity, ButtonEntity):
         if effective_daily(options, now.weekday() >= 5) < 0:
             raise HomeAssistantError("Set a finite daily limit before adding time")
         entry = self.coordinator.entry
-        self.hass.config_entries.async_update_entry(entry, options=dict(entry.options) | {
-            "bonus_date": now.date().isoformat(),
-            "bonus_minutes": daily_bonus_minutes(options, now) + BONUS_INCREMENT,
-        })
+        self.hass.config_entries.async_update_entry(
+            entry, options=add_parent_grant(
+                entry.options, self.coordinator.device_id, now, BONUS_INCREMENT))
 
 
 class TerminateTrackedGame(GamingEntity, ButtonEntity):

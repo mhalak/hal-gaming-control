@@ -45,13 +45,34 @@ Here is what a parent's daily budget might look like:
 
 *Illustrative values, not live measurements.* The Screen idle bonus remains **pending** until [Smart Idle #92](screen-idle-bonus.md) delivers a verified event ledger. Pending does not mean zero eligible time and must not be guessed.
 
+## Parent bonus history and Undo (HA 0.9.0 source candidate, #165)
+
+Every **new** click of **Add 30 minutes** becomes a separate, timestamped Parent bonus grant. The daily sensor exposes the **12 most recent** active grants (`parent_bonus_grants_today`) and active/cancelled records (`parent_bonus_activity_today`) to keep Recorder attributes compact. The full 90-day audit remains in the per-PC config entry, and the native select can list all active grants for today. The sensor also exposes `parent_bonus_recent_action` (latest add or cancellation), so the dashboard gives immediate visible feedback after a change. Cancelled grants remain in the audit; no past gaming time is erased.
+
+Previous bonuses were just an anonymous `bonus_minutes` total. These remain as a **Legacy Parent bonus** row, with unknown individual grant times. We never invent earlier clicks.
+
+### Safely undo one specific bonus
+
+The updated native HA dashboard offers a device-scoped **Parent bonus to undo** dropdown, **Prepare Undo**, and **Confirm Undo** buttons. Unlike Markdown-only fake buttons, these call real HA admin actions. The flow is:
+
+1. Choose a visible timestamped +30 minute grant from the dropdown. The shortened ID suffix distinguishes same-minute clicks; no IDs need to be typed.
+2. Press **Prepare Undo**. The dropdown's `undo_status` and `prepared_grant` attributes show which grant was armed.
+3. Recheck the displayed grant and press **Confirm Undo**. HA asks whether you want to remove the selected grant, warning that remaining gaming time might decrease immediately.
+4. The backend checks the same HA administrator, exact grant, local day, and 90-second deadline. If another person changes the global dropdown, the preparation is invalidated. If anything fails, **nothing is revoked**. Start again.
+
+The actions are admin-only, require an authenticated HA user and a specific select entity, and cannot be triggered anonymously. They never publish MQTT/Windows commands. The daily allowance and restrictions are recalculated from the active grants, while the weekly allowance and real recorded daily/weekly gaming time remain unchanged.
+
+**Important:** Selecting a grant is shared HA state, but each prepared confirmation belongs to the acting administrator. Never confirm a grant without rechecking the select's `prepared_grant`. The state is transient, so a Home Assistant reload also cancels pending confirmations.
+
+**Release status:** source candidate only; until PR #169 is reviewed, merged, installed, and tested on Android, the live Undo workflow is not verified. HA 0.8.0 does not include it.
+
 ## Add a Home Assistant dashboard card
 
-This is a **native Home Assistant vertical-stack dashboard**, not a custom frontend. The large number and status appear first, followed by a horizontal daily remaining bar, the itemized receipt and a separate weekly bar. The dashboard does not issue commands or silently change your rules.
+This is a **native Home Assistant vertical-stack dashboard**, not a custom frontend. The large number and status appear first, followed by a horizontal daily remaining bar, the itemized receipt and a separate weekly bar. The accounting/receipt is read-only. The optional Undo controls explicitly change one Parent bonus only after selection, preparation, and administrator confirmation; they do not issue Windows commands.
 
-1. In **Settings → Devices & services → HAL Gaming Control**, open the target PC. Find the real entity IDs for **Daily budget remaining**, **Weekly budget remaining** and **Gaming restriction**.
+1. In **Settings → Devices & services → HAL Gaming Control**, open the target PC. Find the real entity IDs for **Daily budget remaining**, **Weekly budget remaining**, **Gaming restriction**, and **Parent bonus to undo**.
 2. Open an editable dashboard, choose **Add card → Manual** and paste the full YAML below.
-3. Replace the example entity IDs with those from *that same PC* (every `sensor.example_pc_...` and `binary_sensor.example_pc_...`). The example names are placeholders, not guaranteed IDs.
+3. Replace the example entity IDs with those from *that same PC* (every `sensor.example_pc_...`, `binary_sensor.example_pc_...` and `select.example_pc_...`). The example names are placeholders, not guaranteed IDs.
 4. Check the daily and weekly percentages against the sensors. Test with rules disabled, unlimited gaming, exhausted weekly allowance and offline/unknown data before trusting the display.
 
 ```yaml
@@ -142,6 +163,72 @@ cards:
       - type: bar-gauge
         min: 0
         max: 100
+
+  - type: markdown
+    title: "👑 Parent bonus history"
+    content: |-
+      {% set e = 'sensor.example_pc_daily_budget_remaining' %}
+      {% set entries = state_attr(e, 'parent_bonus_activity_today') or [] %}
+      {% set legacy = state_attr(e, 'parent_bonus_legacy_minutes') | int(0) %}
+      {% set last = state_attr(e, 'parent_bonus_recent_action') %}
+      **Parent bonus today: +{{ state_attr(e, 'parent_bonus_minutes') | int(0) }} min**
+      {% if last %}
+
+      **Latest action:** {{ as_local(as_datetime(last.at_utc)).strftime('%H:%M') }} ·
+      {% if last.action == 'cancelled' %}↩️ −{{ last.minutes }} min cancelled{% else %}✅ +{{ last.minutes }} min added{% endif %}
+      {% endif %}
+      {% if legacy > 0 %}
+
+      Legacy bonus (time unknown): **+{{ legacy }} min**
+      {% endif %}
+      {% for grant in entries %}
+
+      {{ as_local(as_datetime(grant.created_at_utc)).strftime('%H:%M') }} ·
+      +{{ grant.minutes }} min · {{ grant.status | upper }} ·
+      `{{ grant.id[-10:] }}`
+      {% else %}
+
+      No new individual grants yet.
+      {% endfor %}
+
+  - type: entities
+    title: "Undo a Parent bonus"
+    entities:
+      - entity: select.example_pc_parent_bonus_to_undo
+        name: "1 · Choose grant"
+
+  - type: markdown
+    content: |-
+      {% set s = 'select.example_pc_parent_bonus_to_undo' %}
+      **Status:** {{ state_attr(s, 'undo_status') or 'Not ready' }}
+
+      **Prepared:** {{ state_attr(s, 'prepared_grant') or 'None' }}
+
+  - type: grid
+    columns: 2
+    square: false
+    cards:
+      - type: button
+        name: "2 · Prepare Undo"
+        icon: mdi:clipboard-check-outline
+        tap_action:
+          action: perform-action
+          perform_action: hal_gaming_control.prepare_parent_bonus_undo
+          data:
+            entity_id: select.example_pc_parent_bonus_to_undo
+      - type: button
+        name: "3 · Confirm Undo"
+        icon: mdi:backup-restore
+        tap_action:
+          action: perform-action
+          perform_action: hal_gaming_control.confirm_parent_bonus_undo
+          data:
+            entity_id: select.example_pc_parent_bonus_to_undo
+          confirmation:
+            title: "Remove this Parent bonus?"
+            text: "Cancel the PREPARED grant? Today's remaining budget can decrease immediately. Verify the grant shown above."
+            confirm_text: "Remove bonus"
+            dismiss_text: "Keep bonus"
 ```
 
 The horizontal bars display **percentage remaining**, not elapsed minutes. They may be unknown when rules are disabled, a limit is unlimited, or the data is unavailable. This is expected and different from 0%.

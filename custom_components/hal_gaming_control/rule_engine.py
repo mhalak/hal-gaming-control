@@ -61,6 +61,9 @@ def effective_daily(options, weekend):
 
 def daily_bonus_minutes(options, now):
     """Only today's bonus is active (local calendar date, not rolling 24h)."""
+    if "parent_bonus_journal" in options:
+        from .parent_bonus import parent_bonus_total
+        return parent_bonus_total(options, now)
     if options.get("bonus_date") != now.date().isoformat():
         return 0
     value = options.get("bonus_minutes", 0)
@@ -157,6 +160,10 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True):
     Idle bonus before #92 exists, or report unknown/offline time as zero.
     """
     from math import ceil, floor, isfinite
+    from .parent_bonus import (
+        parent_bonus_activity_today, parent_bonus_legacy_today,
+        parent_grants_today,
+    )
 
     settings = DEFAULTS | options
     base = settings["daily"]
@@ -188,6 +195,21 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True):
         # enforcement uses unrounded seconds, not this display countdown.
         return ceil(max(0, limit * 60 - used))
 
+    # The full journal belongs to config-entry options, not Recorder attrs.
+    # Mirror only the newest entries: 50 active + 50 audit entries can exceed
+    # Home Assistant's 16 KiB recorder state-attributes threshold.
+    activity = parent_bonus_activity_today(settings, now)
+    active_grants = parent_grants_today(settings, now)
+    latest = max(
+        activity, key=lambda event: (
+            event["cancelled_at_utc"] or event["created_at_utc"]), default=None)
+    recent_action = ({
+        "action": "cancelled" if latest["status"] == "cancelled" else "added",
+        "minutes": latest["minutes"],
+        "at_utc": latest["cancelled_at_utc"] or latest["created_at_utc"],
+        "grant_id": latest["id"],
+    } if latest else None)
+
     daily_used = verified_seconds("daily")
     weekly_used = verified_seconds("weekly")
     daily_finite = daily_limit if daily_status == "limited" else None
@@ -203,6 +225,10 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True):
             _validated_weekend_bonus(settings.get("weekend_bonus", 0))
             if base >= 0 and now.weekday() >= 5 else 0),
         "parent_bonus_minutes": daily_bonus_minutes(settings, now),
+        "parent_bonus_legacy_minutes": parent_bonus_legacy_today(settings, now),
+        "parent_bonus_grants_today": active_grants[:12],
+        "parent_bonus_activity_today": activity[:12],
+        "parent_bonus_recent_action": recent_action,
         "screen_idle_bonus_minutes": None,
         "screen_idle_bonus_status": "pending",
         "daily_limit_minutes": daily_finite,
