@@ -148,3 +148,60 @@ def remaining_budget_percent(options, totals, now, period):
     if limit == 0:
         return 0.0
     return round(100 * max(0.0, min(1.0, 1.0 - totals[period] / (limit * 60))), 1)
+
+
+def budget_overview(options, totals, now, *, ready, coverage_incomplete=True):
+    """Read-only daily/weekly gaming budget receipt for the HA dashboard.
+
+    Keep all figures derived from the same confirmed-second snapshot and the
+    same effective limits used by enforcement. The unimplemented Smart Idle
+    bonus is *unknown*, never a fabricated zero or advance allowance.
+    """
+    from math import isfinite
+
+    settings = DEFAULTS | options
+    base = settings["daily"]
+    daily_limit = effective_budget_limit(settings, now, "daily")
+    weekly_limit = effective_budget_limit(settings, now, "weekly")
+    if not settings["enabled"]:
+        daily_status = weekly_status = "disabled"
+    else:
+        daily_status = ("unlimited" if settings["unlimited"] or daily_limit < 0
+                        else "limited")
+        weekly_status = ("unlimited" if settings["unlimited"] or weekly_limit < 0
+                         else "limited")
+
+    def measured(period):
+        seconds = totals.get(period) if ready else None
+        if (type(seconds) not in (int, float) or not isfinite(seconds)
+                or seconds < 0):
+            return None
+        return round(seconds / 60, 2)
+
+    daily_used = measured("daily")
+    weekly_used = measured("weekly")
+    daily_finite = daily_limit if daily_status == "limited" else None
+    weekly_finite = weekly_limit if weekly_status == "limited" else None
+
+    return {
+        "daily_budget_status": daily_status,
+        "weekly_budget_status": weekly_status,
+        "base_daily_minutes": base if base >= 0 else None,
+        "weekend_bonus_minutes": (
+            _validated_weekend_bonus(settings.get("weekend_bonus", 0))
+            if base >= 0 and now.weekday() >= 5 else 0),
+        "parent_bonus_minutes": daily_bonus_minutes(settings, now),
+        "screen_idle_bonus_minutes": None,
+        "screen_idle_bonus_status": "pending",
+        "daily_limit_minutes": daily_finite,
+        "daily_used_minutes": daily_used,
+        "daily_remaining_minutes": (
+            round(max(0, daily_finite - daily_used), 2)
+            if daily_finite is not None and daily_used is not None else None),
+        "weekly_limit_minutes": weekly_finite,
+        "weekly_used_minutes": weekly_used,
+        "weekly_remaining_minutes": (
+            round(max(0, weekly_finite - weekly_used), 2)
+            if weekly_finite is not None and weekly_used is not None else None),
+        "coverage_incomplete": bool(coverage_incomplete),
+    }
