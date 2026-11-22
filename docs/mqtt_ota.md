@@ -1,6 +1,6 @@
 # MQTT OTA: independent Windows agent release transport
 
-**Status: increment 4 (source-only) of [issue #166](https://github.com/mhalak/hal-gaming-control/issues/166).** The HA-side MQTT transport can now send scoped packets with ACK/retry, and the opt-in Windows MQTT receiver can stage them. **This is a staging-only developer API, not an HA UpdateEntity Install implementation.** No signed release package source, signature verification at installation, updater handoff, installed-version change, or completed real-PC pilot exists. The existing HTTPS updater and active HA Install behavior are unchanged. **Do not enable this preview on family PCs.**
+**Status: increment 5 (source-only) of [issue #166](https://github.com/mhalak/hal-gaming-control/issues/166).** The HA-side MQTT transport can now send scoped packets with ACK/retry, and the opt-in Windows MQTT receiver can stage them. **This is a staging-only developer API, not an HA UpdateEntity Install implementation.** No signed release package source, signature verification at installation, updater handoff, installed-version change, or completed real-PC pilot exists. The existing HTTPS updater and active HA Install behavior are unchanged. **Do not enable this preview on family PCs.**
 
 ## Independent versioning and Marketplace
 
@@ -124,3 +124,16 @@ The cache expects Windows package-release's existing `windows-agent-X.Y.Z.json` 
 The future UpdateEntity integration must use the single existing per-PC update entity, require admin authorization, a current verified agent OTA capability, a fixed operator-approved release/catalog, matching pinned-key verification, and a clear transition `downloaded → signed archive cached → staged unverified → Windows signature verified → installed/healthy`. It must never report success merely because the broker delivered a ZIP or `ota/ack` reported `staged`. Staging and installing remain separate permissions and operations.
 
 Automated checks: `python -m pytest -q -o asyncio_mode=auto tests/home_assistant/test_ota_release.py` (synthetic ephemeral signing keys and offline fake HTTPS responses). No private keys or production URLs are committed.
+
+
+## HA UpdateEntity OTA integration preflight (increment 5, default-OFF)
+
+`ota_pipeline.py` now composes the existing signed release cache (#172) and MQTT ACK-driven stage-only sender (#171). The sender accepts `expected_sha256` and `expected_size` from the **signed manifest** and refuses to publish if the current ZIP bytes do not match, even if the sender would otherwise happily calculate a different digest. The streaming sender still revalidates the source during transmission.
+
+The existing `WindowsAgentUpdate` entity reads the device-scoped `mqtt_ota_protocol: 1` discovery capability, exposes read-only `mqtt_ota_protocol` and `mqtt_ota_install_ready: false` attributes, and owns a **private internal** `_async_stage_signed_ota_candidate` hook. This helper refuses all use unless the entry has `ota_stage_preview_enabled: true` (not exposed in Configure), the PC reports both `remote_update: true` and `mqtt_ota_protocol: 1`, is online, has an installed version older than the exact approved catalog version, and has a fixed HTTPS release base and out-of-band pinned Ed25519 public key in options. It invokes the signed cache and the ACK-based MQTT sender and returns only `staged_unverified`. **No HA menu, service, script, automation or Install action invokes this hook**, and the HA Configure form does not provide a way to enable the developer preview. It is NOT a supported deployment API.
+
+Importantly, `WindowsAgentUpdate.async_install` is **unchanged** and still uses its independent, explicitly provisioned HTTPS legacy updater, not the new OTA path. It cannot silently switch to the new MQTT route on discovery alone. The existing update entity is the only intended future Install control; no duplicate update button is created.
+
+To activate MQTT Install in a later safe increment, Windows must first accept the signed JSON manifest + detached signature alongside the staged ZIP, independently verify the pinned public key, secure the staging directory, verify Windows Authenticode and use the existing journal/rollback transaction. HA must then enforce admin authorization and provide a supported operator-provisioned source-key configuration. Do not auto-merge stage receipt into installed version or expose OTA staging on family PCs. Tests exercise modified archive rejection *before any publish*, incomplete/foreign capability, source configuration, one-session concurrency, false-success receipts, and the unchanged legacy update action.
+
+Run: `python -m pytest -q -o asyncio_mode=auto tests/home_assistant/test_ota_pipeline.py`.

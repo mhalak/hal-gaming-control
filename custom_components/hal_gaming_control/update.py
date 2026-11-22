@@ -36,6 +36,8 @@ class WindowsAgentUpdate(GamingEntity, UpdateEntity):
         self.installed = None
         self.approved = None
         self.capable = False
+        self.ota_protocol = None  # Windows staging capability, NOT install permission.
+        self._ota_pipeline = None
         self.pending = None
         self.started = None
         self.result = None
@@ -65,7 +67,12 @@ class WindowsAgentUpdate(GamingEntity, UpdateEntity):
 
     @property
     def extra_state_attributes(self):
-        return {"update_status": self.result, "request_id": self.pending["request_id"] if self.pending else None}
+        return {
+            "update_status": self.result,
+            "request_id": self.pending["request_id"] if self.pending else None,
+            "mqtt_ota_protocol": self.ota_protocol,
+            "mqtt_ota_install_ready": False,  # Signed Windows installer handoff pending.
+        }
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
@@ -117,8 +124,11 @@ class WindowsAgentUpdate(GamingEntity, UpdateEntity):
             version_tuple(raw["agent_version"])
             self.installed = raw["agent_version"]
             self.capable = raw.get("remote_update") is True
+            value = raw.get("mqtt_ota_protocol")
+            self.ota_protocol = 1 if type(value) is int and value == 1 else None
         except (KeyError, ValueError, TypeError):
             self.capable = False
+            self.ota_protocol = None
             self.installed = None
         self._complete()
         self.async_write_ha_state()
@@ -181,6 +191,36 @@ class WindowsAgentUpdate(GamingEntity, UpdateEntity):
         if monotonic() - self.last_catalog >= 300:
             await self._refresh_catalog()
         self.async_write_ha_state()
+
+    async def _async_stage_signed_ota_candidate(self, version, *, on_progress=None):
+        """Internal, default-OFF release preflight + MQTT quarantine, not Install.
+
+        This is deliberately NOT reached from async_install, a Home Assistant
+        service, or options flow: Windows v1 cannot yet safely authenticate and
+        consume an OTA-staged package. A staged ACK cannot complete an update.
+        """
+        from .ota_pipeline import OtaPreflightError, OtaStagingPipeline
+        from .ota_release import ReleaseCacheError
+        from .ota_transport import OtaTransferError
+
+        opts = self.coordinator.entry.options
+        if opts.get("ota_stage_preview_enabled") is not True or self.pending:
+            raise HomeAssistantError("OTA staging disabled or install already active")
+        if self._ota_pipeline is None:
+            self._ota_pipeline = OtaStagingPipeline(
+                self.hass, self.hass.config.path(".hal_gaming_control", "ota-cache"))
+        try:
+            return await self._ota_pipeline.async_stage_approved(
+                device_id=self.coordinator.device_id,
+                installed=self.installed, approved=self.approved,
+                version=version, online=self.coordinator.data.get("online") is True,
+                remote_update=self.capable, ota_protocol=self.ota_protocol,
+                base_url=opts.get("ota_release_base_url"),
+                pinned_public_key=opts.get("ota_signer_public_key"),
+                on_progress=on_progress)
+        except (OtaPreflightError, ReleaseCacheError, OtaTransferError,
+                ValueError, OSError) as err:
+            raise HomeAssistantError("Signed OTA staging preflight failed") from err
 
     async def async_install(self, version, backup, **kwargs):
         async with self.lock:
