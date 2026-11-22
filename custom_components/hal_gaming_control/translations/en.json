@@ -67,10 +67,10 @@
       },
       "unified_telemetry": {
         "title": "Unified MQTT telemetry v3 — experimental",
-        "description": "Per-device compatibility cutover, OFF by default. Only enable after the Windows agent for THIS PC publishes strict, non-retained unified v3 snapshots every ~2 seconds. Enabling switches Home Assistant gaming accounting, Screen Idle and Direct MQTT Uptime to ONLY the new v3 topic, without double-counting legacy v2 streams. An older or missing Windows v3 publisher makes live gameplay UNKNOWN; it will not silently fall back to v2, add minutes, or grant Screen Idle bonuses. Existing configured apps, historical totals, and unique IDs are preserved. No deployment or Windows update is started by this setting.",
+        "description": "Per-PC HA source cutover, OFF by default. Windows 0.3.0 is a BREAKING CLEAN CUT: its monitoring uses ONLY strict, non-retained Unified telemetry v3 and it does NOT publish legacy v2 foreground/display/scalar states. During an approved joint HA+Windows maintenance window, enable this option for the exact PC as part of the coordinated upgrade. Before the v3 publisher is online, HA intentionally shows UNKNOWN and does not fall back, charge unseen gaming minutes, or grant Screen Idle bonuses. To roll back you must restore the compatible previous Windows agent AND this HA selection together. Existing app settings, unique IDs and Recorder history are preserved. This form does NOT deploy or update Windows.",
         "data": {
           "unified_telemetry_enabled": "Use Unified MQTT telemetry v3 for this PC",
-          "unified_telemetry_acknowledged": "I understand this is experimental and requires matching Windows v3 publisher, live supervision and rollback acceptance"
+          "unified_telemetry_acknowledged": "I understand Windows 0.3.0 has NO v2 fallback; switching telemetry formats requires a coordinated PC + HA upgrade or rollback"
         }
       }
     },
