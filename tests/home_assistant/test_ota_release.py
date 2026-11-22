@@ -120,7 +120,7 @@ async def test_wrong_pinned_key_and_tampered_signed_manifest_fail(tmp_path):
         verify_signed_manifest(raw, sig, other, VERSION)
     with pytest.raises(ReleaseCacheError, match="signature"):
         verify_signed_manifest(raw + b" ", sig, public, VERSION)
-    with pytest.raises(ReleaseCacheError, match="signature"):
+    with pytest.raises(ReleaseCacheError, match="evidence"):
         verify_signed_manifest(raw, sig[:-1], public, VERSION)
     cache = SignedReleaseCache(None, tmp_path / "cache", session=session)
     with pytest.raises(ReleaseCacheError):
