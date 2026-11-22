@@ -9,7 +9,7 @@ In **HAL Gaming Control → Configure → MQTT configuration**, view connection 
 
 Home Assistant and each Windows agent have separate connection configuration. The integration uses HA's existing MQTT integration; each agent uses its protected local `config.yaml`. Changing one does not change the other. If different brokers per PC are needed, that is a separate transport/bridging feature.
 
-In **Configure → Tracked applications**, view the applications reported in the selected PC's discovery data. The list is read-only. Live enrollment, rename and removal are not implemented and remain tracked in issue #7.
+In **Configure → Tracked applications**, enroll the selected PC's freshly observed foreground application and manage its display name entirely in Home Assistant. No app catalogue or display-name mapping needs to be written to the Windows service. The agent only publishes validated raw process identity, and Home Assistant owns the user-facing name.
 
 ## Windows
 Copy `windows_agent/config.example.yaml` to a private `config.yaml`, then edit the MQTT section before installation:
