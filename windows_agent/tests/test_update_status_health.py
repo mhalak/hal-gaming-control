@@ -148,7 +148,7 @@ def test_legacy_status_without_persisted_id_remains_compatible(reporter_factory)
 def test_mismatched_configured_vs_persisted_id_never_reports_to_other_device(
         reporter_factory):
     data = reporter_factory.data
-    (data / 'device_id').write_text('other_pc\\n', encoding='ascii')
+    (data / 'device_id').write_text('other_pc', encoding='ascii')
     FakeClient.instances.clear()
     reporter = reporter_factory()
     assert reporter.client is None
