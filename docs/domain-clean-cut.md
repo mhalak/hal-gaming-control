@@ -11,6 +11,10 @@ change**. The old `smarthouse_gaming_<device_id>` **MQTT discovery
 identifiers are intentionally retained as wire protocol IDs**. They are not
 a second integration.
 
+## Hold: Marketplace domain collision
+
+**Do not perform this 0.6.1 clean-cut installation yet.** The `parental_control` domain in this preview collides with [an unrelated Marketplace integration](https://github.com/cesbron-dev/ha-parental-control) that already uses the same internal domain and has its own brand icon. The Marketplace may display that product's icon on our listing, and it will not allow both packages to coexist. [Tracking issue #146](https://github.com/mhalak/smarthouse-parental-control/issues/146) describes the proposed brand-specific replacement domain and additional clean-cut requirements. The steps below document 0.6.1 historical behavior; follow the updated procedure for the future reviewed unique-domain release rather than installing this conflicting build.
+
 ## Before installing 0.6.1
 
 1. Identify the **correct TrueNAS-associated HA instance**. Make a normal
