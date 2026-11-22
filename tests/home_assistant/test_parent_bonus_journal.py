@@ -169,4 +169,4 @@ def test_budget_overview_recorder_attrs_bounded_and_cancel_receipt_is_latest():
     assert len(opts["parent_bonus_journal"]["events"]) == 30
     assert len(parent_grants_today(opts, now())) == 29
     assert overview["parent_bonus_minutes"] == 29 * 30
-    assert "daily" not in opts
+    assert "daily_used" not in opts
