@@ -209,7 +209,7 @@ def test_discovery_cannot_invent_ota_install_readiness():
 
 @pytest.mark.asyncio
 async def test_native_admin_options_flow_requires_fixed_urls_and_pinned_public_ed25519(
-        hass, enable_custom_integrations):
+        hass, enable_custom_integrations, recorder_mock):
     from homeassistant.data_entry_flow import FlowResultType
     from pytest_homeassistant_custom_component.common import MockConfigEntry
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
