@@ -6,7 +6,7 @@ from homeassistant.util import dt as dt_util
 from .direct_mqtt import DirectUptime
 from .agent_version import AgentVersionSensor, IntegrationVersionSensor
 from .entity import GamingEntity
-from .rule_engine import remaining_budget_percent, effective_budget_limit, daily_bonus_minutes
+from .rule_engine import remaining_budget_percent, effective_budget_limit, budget_overview
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -56,7 +56,9 @@ class BudgetSensor(GamingEntity, SensorEntity):
                 if limit >= 0 and used is not None else None,
         }
         if self.period == "daily":
-            attributes["parent_bonus_minutes"] = daily_bonus_minutes(options, now)
+            attributes.update(budget_overview(
+                options, totals, now, ready=bool(data.get("ready")),
+                coverage_incomplete=data.get("coverage_incomplete", True)))
         return attributes
 
 
