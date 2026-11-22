@@ -48,7 +48,7 @@ def setup_select():
 async def test_native_select_lists_each_grant_without_manual_ids():
     entity, entry, committed = setup_select()
     with patch("custom_components.hal_gaming_control.select.dt_util.now",
-               return_value=at()):
+               return_value=at()), patch.object(entity, "async_write_ha_state"):
         options = entity.options
         assert options[0] == UNSELECTED
         assert len(options) == 4
