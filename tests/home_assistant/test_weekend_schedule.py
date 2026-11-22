@@ -159,7 +159,8 @@ async def test_weekend_entity_runtime_changes_live_and_survives_reload(
                                 "enabled": True, "schedule_enabled": True,
                                 "schedule_start": "16:00", "schedule_end": "20:00",
                                 "daily": 120, "weekly": 4200,
-                                "tracked_apps": [{"process": "roblox.exe", "name": "Roblox"}]})
+                                "tracked_apps": [{"process": "RobloxPlayerBeta.exe",
+                                                 "signature": None, "name": "Roblox"}]})
     entry.add_to_hass(hass)
 
     async def load():
