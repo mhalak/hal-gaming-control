@@ -31,3 +31,18 @@ def test_only_verified_agent_owned_activity_topics_are_retired():
     for keep in ('uptime', 'terminate_game', 'lock_pc'):
         assert any(f'_{keep}/config' in topic
                    for topic in discovery('pc1', 'PC 1'))
+
+
+def test_no_local_rules_do_not_discover_unsafe_manual_terminate():
+    config = discovery("pc1", "PC 1", terminate_enabled=False)
+    assert len(config) == 2
+    assert not any("_terminate_game/config" in topic for topic in config)
+    assert any("_lock_pc/config" in topic for topic in config)
+    assert any("_uptime/config" in topic for topic in config)
+    assert not set(config).intersection(discovery("pc2", "PC 2"))
+
+
+def test_explicit_terminate_tombstone_is_device_scoped():
+    from gaming_control.discovery import terminate_discovery_topic
+    assert terminate_discovery_topic("pc1", "homeassistant") == (
+        "homeassistant/button/smarthouse_gaming_pc1_terminate_game/config")
