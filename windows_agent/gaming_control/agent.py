@@ -16,6 +16,8 @@ LOG = logging.getLogger(__name__)
 
 
 def scan(rules):
+    if not rules:
+        return []
     result = []
     # Create fresh Process objects to avoid psutil's process_iter PID cache.
     for pid in psutil.pids():
@@ -86,6 +88,8 @@ def stop_games(rules):
 
 def execute(command, rules):
     if command == 'terminate_game':
+        if not rules:
+            raise ValueError('Terminate game unavailable without local rules')
         stop_games(rules)
     elif command == 'lock_pc':
         lock_active_session()
@@ -117,7 +121,7 @@ def run(config_path, stop_event):
     interval = float(config.get('gaming', {}).get('check_interval_seconds', 1))
     if not 0.25 <= interval <= 5:
         raise ValueError('Interval must be between 0.25 and 5 seconds')
-    rules = validate_rules(config['games'])
+    rules = validate_rules(config.get('games', []))
     config = resolve_identity(config, config_path)
     bridge = Bridge(config)
     last_health = float('-inf')
