@@ -1,6 +1,6 @@
 # MQTT OTA: independent Windows agent release transport
 
-**Status: increment 3 of [issue #166](https://github.com/mhalak/hal-gaming-control/issues/166).** The HA-side MQTT transport can now send scoped packets with ACK/retry, and the opt-in Windows MQTT receiver can stage them. **This is a staging-only developer API, not an HA UpdateEntity Install implementation.** No signed release package source, signature verification at installation, updater handoff, installed-version change, or completed real-PC pilot exists. The existing HTTPS updater and active HA Install behavior are unchanged. **Do not enable this preview on family PCs.**
+**Status: increment 4 (source-only) of [issue #166](https://github.com/mhalak/hal-gaming-control/issues/166).** The HA-side MQTT transport can now send scoped packets with ACK/retry, and the opt-in Windows MQTT receiver can stage them. **This is a staging-only developer API, not an HA UpdateEntity Install implementation.** No signed release package source, signature verification at installation, updater handoff, installed-version change, or completed real-PC pilot exists. The existing HTTPS updater and active HA Install behavior are unchanged. **Do not enable this preview on family PCs.**
 
 ## Independent versioning and Marketplace
 
@@ -111,3 +111,16 @@ python -m pytest -q tests/home_assistant/test_ota_transport.py
 ```
 
 **Not yet implemented:** a production release distributor or a user-facing OTA update action, and no live Windows PC has received a package from this code.
+
+
+## HA signed release preflight/cache (increment 4, developer-only)
+
+`custom_components/hal_gaming_control/ota_release.py` provides `SignedReleaseCache.async_prepare(base_url=..., version=..., pinned_public_key=...)`. It is **not invoked by a Home Assistant UI control, service, config flow or automation**. No signing key, Windows release repository, HTTPS server or production updater task has been configured by this change; HA 0.8.0 / Windows 0.2.10 remain unchanged in their deployed behavior.
+
+The cache expects Windows package-release's existing `windows-agent-X.Y.Z.json` (four keys: version, filename, size, sha256), `windows-agent-X.Y.Z.sig` (64-byte Ed25519 signature on the **exact manifest bytes**) and `windows-agent-X.Y.Z.zip`. HTTPS is mandatory, redirects, credentials, query parameters, fragmented URLs and oversized metadata are rejected. The caller must supply an **out-of-band pinned Ed25519 public key**; a key downloaded from the same release server is not a trust anchor. The manifest must match the requested version and fixed filename, with size ≤200 MiB and a canonical lowercase SHA-256. The ZIP is streamed in bounded blocks to a private directory, checked against the signed length and digest, flushed/fsynced and stored under an immutable version+digest filename. A temporary file is removed on errors; corrupt existing cached archives are rejected, never quietly reused. The signed manifest and signature are preserved in the returned `SignedArchive` for the eventual Windows handoff.
+
+**This is only signed-archive preflight, not Windows binary trust.** A valid Ed25519 manifest cannot replace Windows Authenticode checks, trusted executable build provenance, OS Smart App Control acceptance or the Windows updater's independent Ed25519 validation. `SignedReleaseCache` does not extract, execute, install, or transmit anything over MQTT. The current Windows OTA receiver stages **ZIP bytes only** and does not yet receive the signed manifest/signature or pass them to the trusted updater. Windows must gain that evidence path and its transactional install handoff before HA's existing `Windows agent update` Install action may use the MQTT transport. Do not enable the Windows staging preview on real family PCs.
+
+The future UpdateEntity integration must use the single existing per-PC update entity, require admin authorization, a current verified agent OTA capability, a fixed operator-approved release/catalog, matching pinned-key verification, and a clear transition `downloaded → signed archive cached → staged unverified → Windows signature verified → installed/healthy`. It must never report success merely because the broker delivered a ZIP or `ota/ack` reported `staged`. Staging and installing remain separate permissions and operations.
+
+Automated checks: `python -m pytest -q -o asyncio_mode=auto tests/home_assistant/test_ota_release.py` (synthetic ephemeral signing keys and offline fake HTTPS responses). No private keys or production URLs are committed.
