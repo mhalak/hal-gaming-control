@@ -23,7 +23,7 @@ Track gaming time on Windows PCs, set limits, give bonus minutes and use parent 
     </td>
     <td valign="middle">
       <h3>⏱️ Gaming budgets — the clock doesn't negotiate.</h3>
-      <p>The king can grant <strong>30 bonus minutes today</strong>. The weekly limit, however, refuses to bow.</p>
+      <p>The king can grant <strong>30 bonus minutes today</strong> or an additive <strong>Weekend bonus</strong> every Saturday and Sunday. The weekly budget, however, refuses to bow.</p>
       <p><a href="docs/features/gaming-budgets.md">Budgets &amp; bonuses explained</a></p>
     </td>
   </tr>

@@ -46,40 +46,17 @@ def calculate(transitions, now, games):
 
 
 def _validated_weekend_bonus(value):
-    """Explicit opt-in bonus; old entries without the key keep legacy semantics."""
+    """Validate the additive weekend bonus; missing entries use zero."""
     if type(value) is not int or not 0 <= value <= 600 or value % 10:
         raise ValueError("Invalid weekend bonus: expected 0–600 minutes in steps of 10")
     return value
 
 
 def effective_daily(options, weekend):
-    if "weekend_bonus" in options:
-        bonus = _validated_weekend_bonus(options["weekend_bonus"])
-        base = options["daily"]
-        return base + bonus if weekend and base >= 0 else base
-    return options["weekend_daily"] if weekend and options["weekend_daily"] >= 0 else options["daily"]
-
-
-def preview_weekend_bonus_migration(options):
-    """Return an equivalent additive bonus or require manual resolution.
-
-    Pure preview only: never mutate a legacy config entry, policy or history.
-    Negative weekend override means inherit base daily. The migration cannot
-    represent a smaller weekend limit nor turn an unlimited base into a limit.
-    """
-    options = DEFAULTS | options
-    daily, weekend = options["daily"], options["weekend_daily"]
-    if (type(daily) is not int or daily < -1 or
-            type(weekend) is not int or weekend < -1):
-        raise ValueError("Weekend migration requires manual resolution")
-    if weekend == -1:
-        return 0
-    if daily < 0:
-        raise ValueError("Weekend migration requires manual resolution")
-    bonus = weekend - daily
-    if bonus < 0 or bonus > 600 or bonus % 10:
-        raise ValueError("Weekend migration requires manual resolution")
-    return bonus
+    """Only additive weekend bonuses exist in the active policy."""
+    bonus = _validated_weekend_bonus(options.get("weekend_bonus", 0))
+    base = options["daily"]
+    return base + bonus if weekend and base >= 0 else base
 
 
 def daily_bonus_minutes(options, now):

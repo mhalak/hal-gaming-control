@@ -1,54 +1,82 @@
-"""Native configuration sliders for the three gaming quotas."""
+"""Native per-device gaming budgets and additive weekend bonus controls."""
+
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.const import EntityCategory, UnitOfTime
 from homeassistant.exceptions import HomeAssistantError
+
 from .entity import GamingEntity
 
-LIMITS = {"daily":"Daily limit", "weekend_daily":"Weekend daily limit", "weekly":"Weekly limit"}
-# A fixed-step HA number needs an aligned disabled position. Keep -1 in policy.
+# Fresh preview: use budget and bonus IDs rather than legacy limit IDs.
+CONTROLS = {
+    "daily": ("Daily budget", "daily_budget", -10, 600, 10),
+    "weekly": ("Weekly budget", "weekly_budget", 0, 4200, 60),
+    "weekend_bonus": ("Weekend bonus", "weekend_bonus", 0, 600, 10),
+}
+# The daily control previously exposed -10 as a no-limit position. Keep its
+# meaning; 0 is a real, finite daily budget. Other controls start at zero.
 DISABLED_SLIDER_VALUE = -10
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    async_add_entities([GamingLimit(entry.runtime_data, key, name) for key, name in LIMITS.items()])
+    async_add_entities([
+        GamingBudget(entry.runtime_data, key) for key in CONTROLS
+    ])
 
 
-class GamingLimit(GamingEntity, NumberEntity):
+class GamingBudget(GamingEntity, NumberEntity):
     _attr_entity_category = EntityCategory.CONFIG
-    _attr_native_min_value = DISABLED_SLIDER_VALUE
-    _attr_native_max_value = 600
-    _attr_native_step = 10
     _attr_native_unit_of_measurement = UnitOfTime.MINUTES
     _attr_mode = NumberMode.SLIDER
     _attr_icon = "mdi:timer-outline"
 
-    def __init__(self, coordinator, key, name):
-        super().__init__(coordinator, key + "_limit", name)
+    def __init__(self, coordinator, key):
+        name, unique_key, minimum, maximum, step = CONTROLS[key]
+        super().__init__(coordinator, unique_key, name)
         self.key = key
+        self._attr_native_min_value = minimum
+        self._attr_native_max_value = maximum
+        self._attr_native_step = step
+        if key == "weekend_bonus":
+            self._attr_icon = "mdi:gift-outline"
 
     @property
     def available(self):
+        # Budget policy is configured in HA, even while the Windows PC is offline.
         return True
 
     @property
     def native_value(self):
         value = self.coordinator.options[self.key]
-        # Preserve existing policy and larger legacy limits without migration.
-        if value == -1:
+        if self.key == "daily" and value == -1:
             return DISABLED_SLIDER_VALUE
-        return value if 0 <= value <= 600 else None
+        # Legacy weekly values outside the new scale remain unchanged in config;
+        # new installations default to the full 4200-minute weekly allowance.
+        return value if type(value) is int and 0 <= value <= self.native_max_value else None
 
     @property
     def extra_state_attributes(self):
-        return {"configured_minutes": self.coordinator.options[self.key],
-                "disabled_slider_value": DISABLED_SLIDER_VALUE,
-                "disabled_meaning": "Use daily limit" if self.key == "weekend_daily" else "No limit"}
+        value = self.coordinator.options[self.key]
+        return {
+            "configured_minutes": value,
+            "disabled_meaning": "No limit" if self.key == "daily" and value == -1 else None,
+            "requires_configuration": self.key == "weekly" and value == -1,
+        }
 
     async def async_set_native_value(self, value):
-        if value != DISABLED_SLIDER_VALUE and (not 0 <= value <= 600 or value % 10 != 0):
-            raise HomeAssistantError("Limit must be -10 (disabled) or 0–600 minutes in 10-minute steps")
-        configured = -1 if value == DISABLED_SLIDER_VALUE else int(value)
+        minimum, maximum, step = CONTROLS[self.key][2:]
+        disabled = self.key == "daily" and value == DISABLED_SLIDER_VALUE
+        if (isinstance(value, bool) or not isinstance(value, (int, float))
+                or (not disabled and (not minimum <= value <= maximum or value % step))):
+            raise HomeAssistantError(
+                f"{self.name} must be {minimum}–{maximum} minutes in {step}-minute steps"
+            )
+        configured = -1 if disabled else int(value)
         entry = self.coordinator.entry
-        self.hass.config_entries.async_update_entry(
-            entry, options=dict(entry.options) | {self.key: configured})
+        options = dict(entry.options)
+        if self.key == "weekend_bonus":
+            # Discard obsolete replacement budget fields on explicit save.
+            options.pop("weekend_daily", None)
+            options.pop("weekend_total", None)
+        options[self.key] = configured
+        self.hass.config_entries.async_update_entry(entry, options=options)
         self.async_write_ha_state()

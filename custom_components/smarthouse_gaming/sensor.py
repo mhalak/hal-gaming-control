@@ -1,6 +1,7 @@
 """Expose raw telemetry and the two owner-requested budget indicators."""
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
-from homeassistant.const import PERCENTAGE
+from homeassistant.const import PERCENTAGE, UnitOfTime
+from homeassistant.const import EntityCategory
 from homeassistant.util import dt as dt_util
 from .direct_mqtt import DirectUptime
 from .agent_version import AgentVersionSensor, IntegrationVersionSensor
@@ -10,11 +11,13 @@ from .rule_engine import remaining_budget_percent, effective_budget_limit, daily
 
 async def async_setup_entry(hass, entry, async_add_entities):
     c = entry.runtime_data
-    entities = [BudgetSensor(c, "daily", "Daily budget"),
-                BudgetSensor(c, "weekly", "Weekly budget"),
+    entities = [BudgetSensor(c, "daily", "Daily budget remaining"),
+                BudgetSensor(c, "weekly", "Weekly budget remaining"),
                 ActiveGameSensor(c),
-                GamingTimeSensor(c, "daily", "Daily gaming time"),
-                GamingTimeSensor(c, "weekly", "Weekly gaming time"),
+                GamingTimeDisplaySensor(c, "daily", "Daily gaming time"),
+                GamingTimeDisplaySensor(c, "weekly", "Weekly gaming time"),
+                GamingTimeSensor(c, "daily", "Daily gaming time (minutes)"),
+                GamingTimeSensor(c, "weekly", "Weekly gaming time (minutes)"),
                 AgentVersionSensor(c), IntegrationVersionSensor(c)]
     if c.direct:
         entities.append(DirectUptime(c))
@@ -26,7 +29,7 @@ class BudgetSensor(GamingEntity, SensorEntity):
     _attr_icon = "mdi:gamepad-variant-outline"
 
     def __init__(self, coordinator, period, name):
-        super().__init__(coordinator, "budget_" + period, name)
+        super().__init__(coordinator, period + "_budget_remaining", name)
         self.period = period
 
     @property
@@ -47,13 +50,13 @@ class BudgetSensor(GamingEntity, SensorEntity):
         limit = effective_budget_limit(options, now, self.period)
         used = totals.get(self.period) if data.get("ready") else None
         attributes = {
-            "limit_minutes": limit if limit >= 0 else None,
+            "budget_minutes": limit if limit >= 0 else None,
             "used_minutes": round(used / 60, 2) if used is not None else None,
             "remaining_minutes": round(max(0, limit - used / 60), 2)
                 if limit >= 0 and used is not None else None,
         }
         if self.period == "daily":
-            attributes["bonus_minutes"] = daily_bonus_minutes(options, now)
+            attributes["parent_bonus_minutes"] = daily_bonus_minutes(options, now)
         return attributes
 
 
@@ -74,7 +77,11 @@ class GamingTimeSensor(GamingEntity, SensorEntity):
     """Confirmed-only elapsed time; offline history is marked incomplete."""
 
     _attr_device_class = SensorDeviceClass.DURATION
-    _attr_native_unit_of_measurement = "min"
+    # The original numeric entity remains a duration sensor for graphs/history.
+    # A separate text sensor provides true h/m/s because HA's frontend formats
+    # native 'h' durations as h/m only and native 'min' as m/s only.
+    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_icon = "mdi:timer-outline"
 
     def __init__(self, coordinator, period, name):
@@ -97,10 +104,33 @@ class GamingTimeSensor(GamingEntity, SensorEntity):
         if raw is None:
             return None
         elapsed = raw.get(self.period)
-        return round(elapsed / 60, 2) if elapsed is not None else None
+        return round(elapsed / 60, 6) if elapsed is not None else None
 
     @property
     def extra_state_attributes(self):
         data = self.coordinator.data or {}
         return {"coverage_incomplete": data.get("coverage_incomplete", True),
                 "cutover_since": data.get("cutover_since")}
+
+
+class GamingTimeDisplaySensor(GamingTimeSensor):
+    """Exact H/M/S for parents, separate from the numeric Recorder sensor."""
+
+    _attr_device_class = None
+    _attr_native_unit_of_measurement = None
+    _attr_entity_category = None
+
+    def __init__(self, coordinator, period, name):
+        super().__init__(coordinator, period, name)
+        self._attr_unique_id = f"{coordinator.device_id}_gaming_time_display_{period}"
+
+    @property
+    def native_value(self):
+        data = self.coordinator.data or {}
+        raw = data.get("recorded_totals")
+        if raw is None or raw.get(self.period) is None:
+            return None
+        seconds = max(0, int(round(raw[self.period])))
+        hours, rest = divmod(seconds, 3600)
+        minutes, seconds = divmod(rest, 60)
+        return f"{hours}h {minutes}m {seconds}s"

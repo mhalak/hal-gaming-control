@@ -49,7 +49,7 @@ async def test_scoped_entities_and_safe_controls(hass, enable_custom_integration
     assert all(ids.values())
     assert all(registry.async_get(eid) is None for eid in legacy)
     owned = er.async_entries_for_config_entry(registry, entry.entry_id)
-    assert {e.unique_id for e in owned if e.entity_id.split(".")[0] in ("sensor","binary_sensor")} == {"pc1_uptime","pc1_budget_daily","pc1_budget_weekly","pc1_agent_version","pc1_integration_version","pc1_active_game","pc1_gaming_time_daily","pc1_gaming_time_weekly"}
+    assert {e.unique_id for e in owned if e.entity_id.split(".")[0] in ("sensor","binary_sensor")} == {"pc1_uptime","pc1_daily_budget_remaining","pc1_weekly_budget_remaining","pc1_agent_version","pc1_integration_version","pc1_active_game","pc1_gaming_time_daily","pc1_gaming_time_weekly", "pc1_gaming_time_display_daily", "pc1_gaming_time_display_weekly"}
     for old_key, old_domain in (("current_game", "sensor"), ("in_game", "binary_sensor"),
                                 ("gaming_active", "binary_sensor")):
         assert registry.async_get_entity_id(old_domain, DOMAIN, "pc1_" + old_key) is None
@@ -83,8 +83,8 @@ async def test_native_mode_no_duplicate_raw_entities(hass, enable_custom_integra
     registry = er.async_get(hass)
     assert registry.async_get_entity_id("sensor",DOMAIN,"pc1_uptime") is None
     assert registry.async_get_entity_id("button",DOMAIN,"pc1_lock_pc") is None
-    assert registry.async_get_entity_id("sensor",DOMAIN,"pc1_budget_daily") is not None
-    assert registry.async_get_entity_id("sensor",DOMAIN,"pc1_budget_weekly") is not None
+    assert registry.async_get_entity_id("sensor",DOMAIN,"pc1_daily_budget_remaining") is not None
+    assert registry.async_get_entity_id("sensor",DOMAIN,"pc1_weekly_budget_remaining") is not None
     assert registry.async_get_entity_id("switch",DOMAIN,"pc1_unlimited") is not None
     assert await hass.config_entries.async_unload(entry.entry_id)
 
@@ -97,8 +97,8 @@ async def test_budget_entities_report_percent_and_keep_history_when_offline(hass
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
     registry = er.async_get(hass)
-    daily = registry.async_get_entity_id("sensor",DOMAIN,"pc1_budget_daily")
-    weekly = registry.async_get_entity_id("sensor",DOMAIN,"pc1_budget_weekly")
+    daily = registry.async_get_entity_id("sensor",DOMAIN,"pc1_daily_budget_remaining")
+    weekly = registry.async_get_entity_id("sensor",DOMAIN,"pc1_weekly_budget_remaining")
     c = entry.runtime_data
     with patch("custom_components.smarthouse_gaming.sensor.dt_util.now", return_value=__import__("datetime").datetime(2026,11,18,12)):
         c.async_set_updated_data({"ready":True,"online":False,"totals":{"daily":900,"weekly":3600}})
@@ -146,68 +146,83 @@ async def test_unlimited_switch_persists_without_reload_and_works_offline(hass, 
 async def test_live_budget_controls_and_action_configuration(hass, enable_custom_integrations, mqtt_mock):
     from datetime import datetime
     from zoneinfo import ZoneInfo
-    from homeassistant.exceptions import HomeAssistantError
     entry = MockConfigEntry(domain=DOMAIN, title=DATA["name"], unique_id="pc1",
-                            data=DATA, options={"enabled":True,"daily":60,"weekly":-1,"weekend_daily":120})
+                            data=DATA, options={"enabled": True, "daily": 60, "weekly": -1,
+                                                "weekend_daily": 120})
     entry.add_to_hass(hass)
     with patch("custom_components.smarthouse_gaming.coordinator.direct_mode", return_value=True):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
     c = entry.runtime_data
     registry = er.async_get(hass)
+
     def entity(domain, key):
-        return registry.async_get_entity_id(domain, DOMAIN, "pc1_"+key)
-    daily = entity("number","daily_limit")
-    weekly = entity("number","weekly_limit")
-    weekend = entity("number","weekend_daily_limit")
-    bonus = entity("button","add_daily_budget")
+        return registry.async_get_entity_id(domain, DOMAIN, "pc1_" + key)
+
+    daily = entity("number", "daily_budget")
+    weekly = entity("number", "weekly_budget")
+    weekend = entity("number", "weekend_bonus")
+    bonus = entity("button", "add_daily_budget")
     assert all((daily, weekly, weekend, bonus))
+    assert entity("number", "daily_limit") is None
+    assert entity("number", "weekly_limit") is None
+    assert entity("number", "weekend_daily_limit") is None
     assert entity("select", "add_action") is None
     assert entity("select", "remove_action") is None
+
     state = hass.states.get(daily)
     assert float(state.state) == 60
     assert state.attributes["min"] == -10
     assert state.attributes["max"] == 600
     assert state.attributes["step"] == 10
     assert state.attributes["mode"] == "slider"
-    assert float(hass.states.get(weekly).state) == -10
+    assert hass.states.get(weekly).attributes["min"] == 0
+    assert hass.states.get(weekly).attributes["max"] == 4200
+    assert hass.states.get(weekly).attributes["step"] == 60
+    assert hass.states.get(weekend).attributes["min"] == 0
+    assert hass.states.get(weekend).attributes["max"] == 600
+    assert hass.states.get(weekend).attributes["step"] == 10
+    assert float(hass.states.get(weekend).state) == 0
     assert entry.options["weekly"] == -1
+
     with patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish:
-        for eid, value in [(daily,90),(weekly,300),(weekend,180)]:
-            await hass.services.async_call("number","set_value",{"entity_id":eid,"value":value},blocking=True)
+        for eid, value in [(daily, 90), (weekly, 4200), (weekend, 180)]:
+            await hass.services.async_call("number", "set_value",
+                                           {"entity_id": eid, "value": value}, blocking=True)
             await hass.async_block_till_done()
         assert entry.options["daily"] == 90
-        assert entry.options["weekly"] == 300
-        assert entry.options["weekend_daily"] == 180
-        # All sliders must support returning to the original disabled sentinel.
-        for eid, key in [(daily,"daily"),(weekly,"weekly"),(weekend,"weekend_daily")]:
-            await hass.services.async_call("number","set_value",{"entity_id":eid,"value":-10},blocking=True)
-            await hass.async_block_till_done()
-            assert entry.options[key] == -1
-            assert float(hass.states.get(eid).state) == -10
-            await hass.services.async_call("number","set_value",{"entity_id":eid,"value":0},blocking=True)
+        assert entry.options["weekly"] == 4200
+        assert entry.options["weekend_bonus"] == 180
+        assert "weekend_daily" not in entry.options
+        # Only daily retains the legacy no-limit notch. Zero is finite for all.
+        await hass.services.async_call("number", "set_value",
+                                       {"entity_id": daily, "value": -10}, blocking=True)
+        await hass.async_block_till_done()
+        assert entry.options["daily"] == -1
+        for eid, key in [(daily, "daily"), (weekly, "weekly"), (weekend, "weekend_bonus")]:
+            await hass.services.async_call("number", "set_value",
+                                           {"entity_id": eid, "value": 0}, blocking=True)
             await hass.async_block_till_done()
             assert entry.options[key] == 0
-            assert float(hass.states.get(eid).state) == 0
-        for eid, value in [(daily,90),(weekly,300),(weekend,180)]:
-            await hass.services.async_call("number","set_value",{"entity_id":eid,"value":value},blocking=True)
-            await hass.async_block_till_done()
-        now = datetime(2026,11,21,12,tzinfo=ZoneInfo("Europe/Zagreb"))
+
+        now = datetime(2026, 11, 21, 12, tzinfo=ZoneInfo("Europe/Zagreb"))
         with patch("custom_components.smarthouse_gaming.button.dt_util.now", return_value=now):
             for _ in range(2):
-                await hass.services.async_call("button","press",{"entity_id":bonus},blocking=True)
+                await hass.services.async_call("button", "press",
+                                               {"entity_id": bonus}, blocking=True)
                 await hass.async_block_till_done()
             assert entry.options["bonus_minutes"] == 60
             assert entry.options["bonus_date"] == "2026-11-21"
-            assert entry.options["weekend_daily"] == 180
-        with patch("custom_components.smarthouse_gaming.button.dt_util.now", return_value=now.replace(day=22)):
-            await hass.services.async_call("button","press",{"entity_id":bonus},blocking=True)
+            assert entry.options["weekend_bonus"] == 0
+        with patch("custom_components.smarthouse_gaming.button.dt_util.now",
+                   return_value=now.replace(day=22)):
+            await hass.services.async_call("button", "press",
+                                           {"entity_id": bonus}, blocking=True)
             await hass.async_block_till_done()
             assert entry.options["bonus_minutes"] == 30
         assert entry.runtime_data is c
         assert not publish.called
     assert await hass.config_entries.async_unload(entry.entry_id)
-
 
 @pytest.mark.parametrize("direct", [False, True])
 async def test_agent_version_is_independent_of_update_capability_and_pc_availability(
@@ -381,3 +396,30 @@ async def test_v2_foreground_is_device_scoped_and_resets_on_disconnect(
     assert hass.states.get(ids["pc1"]).state == "idle"
     for entry in entries:
         assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_live_ha_duration_display_is_exact_hms_and_numeric_history_remains(
+        hass, enable_custom_integrations, mqtt_mock):
+    entry = MockConfigEntry(domain=DOMAIN, title=DATA["name"], unique_id="pc1", data=DATA)
+    entry.add_to_hass(hass)
+    with patch("custom_components.smarthouse_gaming.coordinator.direct_mode", return_value=True):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    registry = er.async_get(hass)
+    pretty = registry.async_get_entity_id("sensor", DOMAIN, "pc1_gaming_time_display_daily")
+    numeric = registry.async_get_entity_id("sensor", DOMAIN, "pc1_gaming_time_daily")
+    weekly_pretty = registry.async_get_entity_id("sensor", DOMAIN, "pc1_gaming_time_display_weekly")
+    assert all((pretty, numeric, weekly_pretty))
+    entry.runtime_data.async_set_updated_data({
+        "ready": True, "online": False, "active_game": "idle",
+        "recorded_totals": {"daily": 711 * 60 + 3, "weekly": 12 * 3600 + 9},
+        "totals": {"daily": 711 * 60 + 3, "weekly": 12 * 3600 + 9},
+    })
+    await hass.async_block_till_done()
+    assert hass.states.get(pretty).state == "11h 51m 3s"
+    assert hass.states.get(weekly_pretty).state == "12h 0m 9s"
+    assert hass.states.get(pretty).attributes.get("device_class") is None
+    assert hass.states.get(pretty).attributes.get("unit_of_measurement") is None
+    assert float(hass.states.get(numeric).state) == 711.05
+    assert hass.states.get(numeric).attributes["unit_of_measurement"] == "min"
+    assert await hass.config_entries.async_unload(entry.entry_id)

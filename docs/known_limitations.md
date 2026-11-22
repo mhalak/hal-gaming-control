@@ -7,7 +7,7 @@ SmartHouse Parental Control is still being built. Some things work in testing, b
 ## What can I try?
 
 - **Lock PC** and **Terminate game** worked in limited real-PC tests. They still need testing on your own devices.
-- **Daily and weekly budgets**, **Add 30 minutes** and the **Tracked applications** editor exist in preview source. What you see depends on your installed version.
+- **Daily and weekly budgets**, **Weekend bonus**, **Add 30 minutes** and the **Tracked applications** editor exist in preview source. What you see depends on your installed version.
 - Windows reports app activity to Home Assistant, but **full foreground-only tracking still needs end-to-end testing**.
 
 Our robot is enthusiastic. We're a little more careful.
@@ -33,3 +33,5 @@ Our robot is enthusiastic. We're a little more careful.
 Older bugs, signing details and version-specific investigations are in the [archived technical history](reference/known_limitations_history.md), [HA engineering notes](reference/ha_integration_technical.md) and [release history](ha_releases.md).
 
 *Please don't disable Windows security just because a cartoon robot is asking nicely.*
+
+- **Gaming time display:** The friendly `h m s` sensors are text; use the separate numeric minute sensors for graphs or numeric automations.
