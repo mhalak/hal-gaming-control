@@ -16,10 +16,7 @@ mqtt:
 # Existing upgraded PCs may keep their legacy 'games' rules for manual kill.
 # Remote updater remains disabled by default.
 
-# Issue #176: experimental unified read-only v3 telemetry publisher.
-# Disabled until HA has a verified per-device cutover to this protocol.
-# When explicitly enabled it publishes ONE extra non-retained MQTT v3 JSON
-# snapshot on SmartHouse/Gaming/<device_id>/state/telemetry alongside all
-# existing v2/legacy topics. Does not replace command/OTA/availability.
-telemetry:
-  unified_v3_enabled: false
+# Breaking clean cut #176: unified v3 telemetry is mandatory, not a toggle.
+# One non-retained state/telemetry JSON packet replaces the old scalar and v2
+# foreground/display monitoring topics. Match HA 0.12.0+ v3 source selection
+# before installing. Command/OTA/terminate-offer channels stay independent.
