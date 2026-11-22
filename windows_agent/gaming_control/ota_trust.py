@@ -65,6 +65,20 @@ def _decode(encoded, limit):
     return raw
 
 
+def _match_signed_manifest(manifest, offer):
+    version = manifest["version"]
+    if (not isinstance(version, str) or not VERSION.fullmatch(version)
+            or version != offer["version"]
+            or manifest["filename"] != f"windows-agent-{version}.zip"
+            or type(manifest["size"]) is not int
+            or manifest["size"] != offer["size"]
+            or not 0 < manifest["size"] <= MAX_PACKAGE
+            or not isinstance(manifest["sha256"], str)
+            or not SHA.fullmatch(manifest["sha256"])
+            or manifest["sha256"] != offer["sha256"]):
+        raise OtaTrustError("Signed release does not match exact received ZIP")
+
+
 def verify_signed_offer(payload, offer, device_id, public_key):
     """Verify source, device, exact offer hash/size and immutable artifact name."""
     envelope = _read_json(payload, MAX_ENVELOPE, AUTH_KEYS)
@@ -88,17 +102,7 @@ def verify_signed_offer(payload, offer, device_id, public_key):
     except Exception as exc:
         raise OtaTrustError("Signed OTA signature verification failed") from exc
     manifest = _read_json(raw, MAX_MANIFEST, MANIFEST_KEYS)
-    version = manifest["version"]
-    if (not isinstance(version, str) or not VERSION.fullmatch(version)
-            or version != offer["version"]
-            or manifest["filename"] != f"windows-agent-{version}.zip"
-            or type(manifest["size"]) is not int
-            or manifest["size"] != offer["size"]
-            or not 0 < manifest["size"] <= MAX_PACKAGE
-            or not isinstance(manifest["sha256"], str)
-            or not SHA.fullmatch(manifest["sha256"])
-            or manifest["sha256"] != offer["sha256"]):
-        raise OtaTrustError("Signed release does not match exact received ZIP")
+    _match_signed_manifest(manifest, offer)
     return envelope, manifest
 
 
