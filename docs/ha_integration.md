@@ -64,10 +64,10 @@ Turn on the per-PC **Gaming rules enabled** switch to opt into rule evaluation (
 
 [Controls & automations](features/parent-actions.md)
 
-## Not available yet
+## Preview dashboard and what's next
 
-- **AFK / Screen idle bonus** — future screen-off tracking and daily bonuses.
-- **Budget Overview** — source preview under [#93](https://github.com/mhalak/hal-gaming-control/issues/93): a read-only per-PC daily/weekly allowance breakdown with an optional native Home Assistant dashboard stack; installed versions must include the merged change.
+- **AFK / Screen idle bonus** — future screen-off tracking and daily bonuses; not available yet.
+- **Budget Overview** — source preview under [#93](https://github.com/mhalak/hal-gaming-control/issues/93): a read-only per-PC daily/weekly allowance breakdown with a native dashboard stack; installed versions must include the merged change.
 - Safe, fully tested automatic restriction enforcement.
 
 [AFK grind](features/screen-idle-bonus.md) · [Budget Overview](features/budget-overview.md)
