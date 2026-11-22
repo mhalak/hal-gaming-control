@@ -95,3 +95,40 @@ def test_bonus_event_time_is_utc_even_during_dst_overlap():
                   for e in opts["parent_bonus_journal"]["events"]]
     assert timestamps[0] != timestamps[1]
     assert parent_bonus_total(opts, second) == 60
+
+
+@pytest.mark.asyncio
+async def test_add_30_button_produces_visible_distinct_entries_without_windows_commands():
+    from types import SimpleNamespace
+    from unittest.mock import Mock, patch
+    from custom_components.hal_gaming_control.button import AddDailyBudget
+    from custom_components.hal_gaming_control.const import DEFAULTS
+    from custom_components.hal_gaming_control.rule_engine import budget_overview
+
+    entry = SimpleNamespace(data={"device_id": "pc1", "name": "Test PC"},
+                            options={"daily": 180, "weekly": 300})
+    c = Mock()
+    c.device_id = "pc1"
+    c.entry = entry
+    c.last_update_success = True
+    c.options = DEFAULTS | entry.options
+
+    def save(_entry, *, options):
+        entry.options = options
+        c.options = DEFAULTS | options
+
+    add = AddDailyBudget(c)
+    add.hass = SimpleNamespace(
+        config_entries=SimpleNamespace(async_update_entry=save))
+    with patch("custom_components.hal_gaming_control.button.dt_util.now",
+               return_value=now()):
+        await add.async_press()
+        await add.async_press()
+    assert len(parent_grants_today(entry.options, now())) == 2
+    receipt = budget_overview(c.options, {"daily": 0, "weekly": 0},
+                              now(), ready=True)
+    assert receipt["parent_bonus_minutes"] == 60
+    assert len(receipt["parent_bonus_grants_today"]) == 2
+    assert receipt["parent_bonus_legacy_minutes"] == 0
+    assert receipt["weekly_limit_minutes"] == 300
+    assert "actions" not in entry.options
