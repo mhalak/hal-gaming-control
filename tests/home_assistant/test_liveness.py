@@ -1,4 +1,4 @@
-from custom_components.parental.liveness import UptimeLiveness
+from custom_components.parental_control.liveness import UptimeLiveness
 
 def test_retained_value_not_fresh():
     live = UptimeLiveness()
@@ -28,7 +28,7 @@ import pytest
 
 
 def foreground_gate():
-    from custom_components.parental.foreground_snapshot import ForegroundLiveness
+    from custom_components.parental_control.foreground_snapshot import ForegroundLiveness
     return ForegroundLiveness("pc1", {"Roblox", "Minecraft"})
 
 
@@ -205,7 +205,7 @@ def test_foreground_snapshot_monotonic_regression_on_read_invalidates():
 
 
 def test_foreground_snapshot_reserved_or_ambiguous_enrolled_names_rejected():
-    from custom_components.parental.foreground_snapshot import ForegroundLiveness
+    from custom_components.parental_control.foreground_snapshot import ForegroundLiveness
     gate = ForegroundLiveness("pc1", {"idle", "unknown", "unavailable", "", "A | B"})
     for name in ("idle", "unknown", "unavailable", "", "A | B"):
         assert not observe(gate, packet(active_game=name))
