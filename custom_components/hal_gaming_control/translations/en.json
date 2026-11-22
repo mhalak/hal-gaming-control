@@ -29,7 +29,8 @@
           "mqtt_settings": "MQTT configuration",
           "tracked_apps": "Tracked applications",
           "windows_updates": "Windows updates (advanced)",
-          "screen_idle": "Screen idle (experimental)"
+          "screen_idle": "Screen idle (experimental)",
+          "unified_telemetry": "Unified MQTT telemetry (experimental)"
         }
       },
       "mqtt_settings": {
@@ -63,6 +64,14 @@
           "screen_idle_acknowledged": "I understand this is an experimental feature and requires real-PC validation"
         },
         "submit": "Save Screen idle policy"
+      },
+      "unified_telemetry": {
+        "title": "Unified MQTT telemetry v3 — experimental",
+        "description": "Per-device compatibility cutover, OFF by default. Only enable after the Windows agent for THIS PC publishes strict, non-retained unified v3 snapshots every ~2 seconds. Enabling switches Home Assistant gaming accounting, Screen Idle and Direct MQTT Uptime to ONLY the new v3 topic, without double-counting legacy v2 streams. An older or missing Windows v3 publisher makes live gameplay UNKNOWN; it will not silently fall back to v2, add minutes, or grant Screen Idle bonuses. Existing configured apps, historical totals, and unique IDs are preserved. No deployment or Windows update is started by this setting.",
+        "data": {
+          "unified_telemetry_enabled": "Use Unified MQTT telemetry v3 for this PC",
+          "unified_telemetry_acknowledged": "I understand this is experimental and requires matching Windows v3 publisher, live supervision and rollback acceptance"
+        }
       }
     },
     "error": {
@@ -71,7 +80,8 @@
       "invalid_application": "Invalid application row, duplicate process, or invalid name. Only the verified foreground process can be added.",
       "no_tracked_apps": "No HA-managed applications to modify yet.",
       "invalid_signed_release": "Use a fixed HTTPS catalog and release directory, a valid Ed25519 PUBLIC PEM key, and all required fields when enabling updates. No settings were changed.",
-      "screen_idle_preview_unconfirmed": "Confirm the experimental limitations before enabling. No settings were changed."
+      "screen_idle_preview_unconfirmed": "Confirm the experimental limitations before enabling. No settings were changed.",
+      "unified_telemetry_unconfirmed": "Confirm the v3 protocol compatibility requirements before enabling; options were not changed."
     },
     "abort": {
       "invalid_app_configuration": "Stored tracked applications are invalid; no changes were made."
