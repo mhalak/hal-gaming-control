@@ -49,7 +49,7 @@ async def test_scoped_entities_and_safe_controls(hass, enable_custom_integration
     assert all(ids.values())
     assert all(registry.async_get(eid) is None for eid in legacy)
     owned = er.async_entries_for_config_entry(registry, entry.entry_id)
-    assert {e.unique_id for e in owned if e.entity_id.split(".")[0] in ("sensor","binary_sensor")} == {"pc1_uptime","pc1_daily_budget_remaining","pc1_weekly_budget_remaining","pc1_agent_version","pc1_integration_version","pc1_active_game","pc1_gaming_time_daily","pc1_gaming_time_weekly", "pc1_gaming_time_display_daily", "pc1_gaming_time_display_weekly"}
+    assert {e.unique_id for e in owned if e.entity_id.split(".")[0] in ("sensor","binary_sensor")} == {"pc1_uptime","pc1_daily_budget_remaining","pc1_weekly_budget_remaining","pc1_agent_version","pc1_integration_version","pc1_active_game","pc1_gaming_time_daily","pc1_gaming_time_weekly", "pc1_gaming_time_display_daily", "pc1_gaming_time_display_weekly", "pc1_gaming_restriction"}
     for old_key, old_domain in (("current_game", "sensor"), ("in_game", "binary_sensor"),
                                 ("gaming_active", "binary_sensor")):
         assert registry.async_get_entity_id(old_domain, DOMAIN, "pc1_" + old_key) is None
@@ -58,6 +58,7 @@ async def test_scoped_entities_and_safe_controls(hass, enable_custom_integration
     assert entry.runtime_data.entity_id("sensor","uptime") == ids["uptime"]
     assert entry.runtime_data.options["enabled"] is False
     assert registry.async_get_entity_id("switch",DOMAIN,"pc1_unlimited") is not None
+    assert registry.async_get_entity_id("switch",DOMAIN,"pc1_gaming_rules_enabled") is not None
     # Observe actual topic delivery. Nothing should publish on telemetry alone.
     with patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish:
         for suffix, payload in [("availability","online"),("state/uptime","100"),("state/in_game","ON"),("state/current_game","Roblox")]:
@@ -86,6 +87,7 @@ async def test_native_mode_no_duplicate_raw_entities(hass, enable_custom_integra
     assert registry.async_get_entity_id("sensor",DOMAIN,"pc1_daily_budget_remaining") is not None
     assert registry.async_get_entity_id("sensor",DOMAIN,"pc1_weekly_budget_remaining") is not None
     assert registry.async_get_entity_id("switch",DOMAIN,"pc1_unlimited") is not None
+    assert registry.async_get_entity_id("switch",DOMAIN,"pc1_gaming_rules_enabled") is not None
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
@@ -422,4 +424,112 @@ async def test_live_ha_duration_display_is_exact_hms_and_numeric_history_remains
     assert hass.states.get(pretty).attributes.get("unit_of_measurement") is None
     assert float(hass.states.get(numeric).state) == 711.05
     assert hass.states.get(numeric).attributes["unit_of_measurement"] == "min"
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+@pytest.mark.parametrize("direct", [False, True])
+async def test_passive_restriction_sensor_runs_in_both_mqtt_modes_and_survives_reload(
+        hass, enable_custom_integrations, mqtt_mock, direct):
+    entry = MockConfigEntry(
+        domain=DOMAIN, title=DATA["name"], unique_id="pc1", data=DATA,
+        options={"enabled": True, "daily": 60, "weekly": 4200,
+                 "actions": ["terminate_game", "lock_pc"]})
+    entry.add_to_hass(hass)
+
+    async def boot():
+        with patch("custom_components.smarthouse_gaming.coordinator.direct_mode",
+                   return_value=direct):
+            assert await hass.config_entries.async_setup(entry.entry_id)
+            await hass.async_block_till_done()
+
+    await boot()
+    registry = er.async_get(hass)
+    restriction = registry.async_get_entity_id(
+        "binary_sensor", DOMAIN, "pc1_gaming_restriction")
+    active_id = registry.async_get_entity_id("sensor", DOMAIN, "pc1_active_game")
+    assert restriction and active_id
+    assert registry.async_get_entity_id("binary_sensor", DOMAIN, "pc1_allowed") is None
+    assert hass.states.get(restriction).state == "unavailable"
+
+    c = entry.runtime_data
+    def sample(ready=True, game="idle", seconds=3600):
+        c.async_set_updated_data({
+            "ready": ready, "online": ready, "active_game": game if ready else None,
+            "active": [game] if ready and game != "idle" else [],
+            "totals": {"daily": seconds, "weekly": seconds,
+                       "per_game": {"Roblox": 0}} if ready else {},
+            "recorded_totals": {"daily": seconds, "weekly": seconds},
+        })
+
+    with patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish:
+        sample()
+        await hass.async_block_till_done()
+        assert hass.states.get(restriction).state == "on"
+        assert hass.states.get(restriction).attributes["reasons"] == ["daily"]
+        # An already-active restriction is still ON as a new game starts;
+        # the independent Active game state transition is a second automation trigger.
+        sample(game="Roblox")
+        await hass.async_block_till_done()
+        assert hass.states.get(restriction).state == "on"
+        assert hass.states.get(active_id).state == "Roblox"
+        sample(ready=False)
+        await hass.async_block_till_done()
+        assert hass.states.get(restriction).state == "unavailable"
+        publish.assert_not_awaited()
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await boot()
+    assert er.async_get(hass).async_get_entity_id(
+        "binary_sensor", DOMAIN, "pc1_gaming_restriction") == restriction
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+
+@pytest.mark.parametrize("direct", [True, False])
+async def test_rules_opt_in_switch_only_controls_passive_signal(
+        hass, enable_custom_integrations, mqtt_mock, direct):
+    entry = MockConfigEntry(
+        domain=DOMAIN, title=DATA["name"], unique_id="pc1", data=DATA,
+        options={"enabled": False, "daily": 0, "weekly": 300,
+                 "actions": ["terminate_game", "lock_pc"]})
+    entry.add_to_hass(hass)
+    with patch("custom_components.smarthouse_gaming.coordinator.direct_mode",
+               return_value=direct):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    registry = er.async_get(hass)
+    toggle = registry.async_get_entity_id("switch", DOMAIN, "pc1_gaming_rules_enabled")
+    restricted = registry.async_get_entity_id(
+        "binary_sensor", DOMAIN, "pc1_gaming_restriction")
+    assert toggle and restricted
+    assert hass.states.get(toggle).state == "off"
+    c = entry.runtime_data
+
+    def observed():
+        c.async_set_updated_data({
+            "ready": True, "online": True, "active_game": "idle", "active": [],
+            "totals": {"daily": 0, "weekly": 0, "per_game": {}},
+        })
+
+    with patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish:
+        observed()
+        await hass.async_block_till_done()
+        assert hass.states.get(restricted).state == "off"
+        await hass.services.async_call(
+            "switch", "turn_on", {"entity_id": toggle}, blocking=True)
+        await hass.async_block_till_done()
+        assert entry.runtime_data is c
+        assert entry.options["enabled"] is True
+        assert hass.states.get(toggle).state == "on"
+        observed()
+        await hass.async_block_till_done()
+        assert hass.states.get(restricted).state == "on"
+        await hass.services.async_call(
+            "switch", "turn_off", {"entity_id": toggle}, blocking=True)
+        await hass.async_block_till_done()
+        assert entry.options["enabled"] is False
+        observed()
+        await hass.async_block_till_done()
+        assert hass.states.get(restricted).state == "off"
+        publish.assert_not_awaited()
     assert await hass.config_entries.async_unload(entry.entry_id)

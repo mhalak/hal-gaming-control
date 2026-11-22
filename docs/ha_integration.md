@@ -4,7 +4,7 @@
 
 Home Assistant is the family's control panel: see gaming time, choose apps, give extra minutes and use manual controls. It can also handle reminders, which may save the family's last remaining nerve.
 
-**Development preview:** These steps describe HA 0.5.11 preview source. Always check the [release history](ha_releases.md) and the version you've installed.
+**Development preview:** These steps describe HA 0.5.12 preview source. Always check the [release history](ha_releases.md) and the version you've installed.
 
 ## Set it up
 
@@ -38,7 +38,9 @@ Open the PC device page to find **Daily budget**, **Weekly budget**, **Weekend b
 
 **Lock PC** and **Terminate game** are manual controls. They've worked in limited real-PC tests, but you should test them on your own setup. Closing a game may lose unsaved progress.
 
-**Automatic game closing or locking isn't validated or enabled by default.** A budget sensor alone isn't permission to terminate a game.
+Turn on the per-PC **Gaming rules enabled** switch to opt into rule evaluation (default off). This is not an automatic command or installed automation. **Gaming restriction** is a passive per-PC binary sensor in HA 0.5.12. It is `on` when a confirmed budget/schedule/per-game rule is violated, `off` when allowed, and `unavailable` when live accounting is not reliable. Its `reasons` attribute explains why. It **never** sends a command.
+
+**Automatic game closing or locking isn't validated or enabled by default.** A parent-authored automation should check both Gaming restriction and Active game, including when a game starts while restriction is already `on`; it should also recheck after HA restart before any action. An unavailable sensor is not evidence of a violation.
 
 [Controls & automations](features/parent-actions.md)
 
