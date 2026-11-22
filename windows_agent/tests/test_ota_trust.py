@@ -111,7 +111,8 @@ def test_marker_expires_and_denies_wrong_pc_or_version(tmp_path):
             load_approved_staged(tmp_path, device, version, pem(key), now=time)
 
 
-def test_real_transaction_consumes_authenticated_mqtt_zip_and_rolls_back_on_failure(tmp_path):
+def test_real_transaction_consumes_authenticated_mqtt_zip_and_rolls_back_on_failure(tmp_path, monkeypatch):
+    monkeypatch.setattr('gaming_control.identity.socket.gethostname', lambda: PC)
     from updater_fakes import Env, signed_release
     env = Env(tmp_path)
     env.data.joinpath("device_id").write_text(PC)
@@ -179,7 +180,8 @@ def test_pinned_bootstrap_refuses_unsigned_updater_configuration(tmp_path):
         pinned_ota_key(conf, opts)
 
 
-def test_signed_ota_crash_after_commit_recovers_and_cleans_quarantine(tmp_path):
+def test_signed_ota_crash_after_commit_recovers_and_cleans_quarantine(tmp_path, monkeypatch):
+    monkeypatch.setattr('gaming_control.identity.socket.gethostname', lambda: PC)
     from updater_fakes import Env, SimulatedCrash, signed_release
     env = Env(tmp_path)
     env.data.joinpath("device_id").write_text(PC)
@@ -206,6 +208,28 @@ def test_signed_ota_crash_after_commit_recovers_and_cleans_quarantine(tmp_path):
     assert not env.journal_path.exists()
 
 
+
+
+def test_signed_ota_rejects_old_scoped_staging_after_hostname_cutover(tmp_path, monkeypatch):
+    """A matching old ProgramData/device_id must not authorize a new OS hostname."""
+    from updater_fakes import Env, signed_release
+    env = Env(tmp_path)
+    env.data.joinpath("device_id").write_text(PC)
+    monkeypatch.setattr('gaming_control.identity.socket.gethostname', lambda: 'DESKTOP-NEW')
+    data = signed_release(env.key, VERSION)[f"windows-agent-{VERSION}.zip"]
+    staging = env.data / "ota-staging"
+    staging.mkdir()
+    stage = staged(staging, data)
+    authorize_staged(stage, signed_auth(data, env.key), pem(env.key), now=999)
+    cfg_path = env.data / "updater.json"
+    cfg = json.loads(cfg_path.read_text()) | {
+        "mqtt_install_enabled": True, "authenticode_thumbprint": "A" * 40,
+    }
+    cfg_path.write_text(json.dumps(cfg))
+    env.request(VERSION)
+    assert env.updater(authenticode=lambda *_: True).run() == "failed"
+    env.assert_settled("1.0.0", "failed")
+    assert env.service.calls == []
 
 def test_mqtt_v2_auth_route_accepts_only_finished_pinned_release(tmp_path):
     """A stage ACK without signed/authenticated receipt cannot authorize Install."""

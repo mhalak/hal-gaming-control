@@ -287,28 +287,14 @@ def claim_request_id(path, request, now):
 
 # ------------------------------------------------------------ status over MQTT
 def updater_device_id(data, config):
-    """Use the same stable identity as the live agent, never a guessed MQTT ID.
+    """Use the OS hostname, never YAML IDs or the old ProgramData/device_id.
 
-    Fresh installations do not contain device.id in config.yaml. The agent
-    persists its ID in ProgramData/device_id; legacy installations may still
-    use the YAML ID. Reject disagreement to prevent cross-device status.
+    Keep the signature for the existing status reporter. A legacy YAML device
+    section is rejected to prevent updates being sent under the wrong scope.
     """
-    from gaming_control.identity import _valid_id
+    from gaming_control.identity import resolve_identity
 
-    data = Path(data)
-    declared = (config.get('device') or {}).get('id')
-    file = data / 'device_id'
-    if file.is_symlink():
-        raise ValueError('Persisted device ID cannot be a symlink')
-    if file.exists():
-        if not file.is_file():
-            raise ValueError('Persisted device ID must be a regular file')
-        stored = _valid_id(file.read_text(encoding='ascii').strip())
-        if declared is not None and _valid_id(declared) != stored:
-            raise ValueError('Configured and persisted device identities disagree')
-        return stored
-    return _valid_id(declared)
-
+    return resolve_identity(config, Path(data) / 'config.yaml')['device']['id']
 
 class StatusReporter:
     """Separate MQTT client (own client id) so status is visible while the agent is stopped.
@@ -578,12 +564,8 @@ class Updater:
         self.status('downloading')
         raw, sig, package = [self.stage / name for name in ('manifest.json', 'manifest.sig', 'package.zip')]
         if cfg.get('mqtt_install_enabled') is True:
-            device_file = self.data / 'device_id'
-            if device_file.is_symlink() or not device_file.is_file():
-                raise ValueError('Persisted device ID required for MQTT OTA')
-            device_id = device_file.read_text(encoding='ascii').strip()
-            if not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', device_id):
-                raise ValueError('Invalid persisted device ID')
+            from gaming_control.identity import windows_computer_name
+            device_id = windows_computer_name()
             source, manifest_raw, signature, marker = load_approved_staged(
                 self.data / 'ota-staging', device_id, version,
                 cfg['public_key_pem'], now=self.clock())

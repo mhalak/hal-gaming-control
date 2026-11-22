@@ -1,5 +1,9 @@
 # HAL Gaming Control — minimal Windows companion configuration.
-# Computer name is read from Windows; per-PC device_id is stored in ProgramData.
+# BREAKING Preview 21 / Windows 0.4.0: Windows computer name is BOTH
+# the MQTT routing identity and the discovered name. No YAML 'device'
+# section or persisted ProgramData/device_id is read or created.
+# Windows renaming changes HA identity and MQTT topic scope. Re-enroll in HA
+# and update broker ACLs before a supervised cutover.
 # Use a distinct broker account for each computer, with device-scoped ACLs.
 mqtt:
   host: REPLACE_WITH_BROKER_IP
