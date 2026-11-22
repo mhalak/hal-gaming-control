@@ -172,9 +172,44 @@ class ForegroundSource:
             else:
                 self.on_update()
 
+    def _v3_display(self, packet, wall, mono):
+        if self.display is None:
+            return None
+        previous = self.display.current(mono)
+        self._observe_display(display_v2(packet), wall, mono)
+        current = self.display.current(mono)
+        if previous != current and current == "on":
+            self._needs_post_on = True
+        elif current != "on":
+            self._needs_post_on = False
+        return current
+
+    def _v3_effective_foreground(self, packet, display_state):
+        raw = foreground_v2(packet)
+        if (self.display is None or
+                (display_state == "on" and not self._needs_post_on)):
+            return raw
+        adjusted = json.loads(raw)
+        adjusted.update(
+            state="idle" if display_state == "off" else "unknown",
+            process=None, signature=None)
+        return json.dumps(adjusted)
+
+    def _v3_foreground(self, packet, wall, mono, display_state):
+        effective = self._v3_effective_foreground(packet, display_state)
+        accepted = self.ledger.observe(
+            effective, retained=False, wall_now=wall, monotonic_now=mono)
+        self.last_raw = None
+        if (accepted and packet["foreground"]["state"] == "foreground"
+                and (self.display is None or
+                     (display_state == "on" and not self._needs_post_on))):
+            self.last_raw = json.loads(foreground_v2(packet))
+        if self._needs_post_on and display_state == "on":
+            self._needs_post_on = False  # Next packet must confirm focus again.
+
     @callback
     def _telemetry_snapshot(self, message):
-        """Apply one ordered, atomic v3 observation; display BEFORE foreground."""
+        """Apply one ordered atomic v3 packet, display before foreground."""
         if (self._closed or self.telemetry_order is None
                 or not self.v3_capable):
             return
@@ -191,43 +226,12 @@ class ForegroundSource:
             self.invalidate()
             return
         if not self.telemetry_order.accept(packet, monotonic_now=mono):
-            return  # Replay is not new evidence, nor does it reset old evidence.
+            return  # Duplicate/replay cannot mutate display or accounting.
         self.system_uptime = packet["system"]["uptime_seconds"]
         self.system_status = dict(packet["system"])
         self.display_details = dict(packet["display"])
-        if self.display is not None:
-            previous = self.display.current(mono)
-            self._observe_display(display_v2(packet), wall, mono)
-            current = self.display.current(mono)
-            if previous != current and current == "on":
-                self._needs_post_on = True
-            elif current != "on":
-                self._needs_post_on = False
-
-        # The raw process may still be focused while the display is off.
-        # OFF -> idle; unknown/first ON -> unknown; never invent another
-        # measured foreground interval from a Windows power-plan timeout.
-        raw = packet["foreground"]
-        transformed = foreground_v2(packet)
-        display_state = self.display.current(mono) if self.display is not None else None
-        if self.display is not None and (
-                display_state == "off" or display_state != "on"
-                or self._needs_post_on):
-            adjusted = json.loads(transformed)
-            if display_state == "off":
-                adjusted.update(state="idle", process=None, signature=None)
-            else:
-                adjusted.update(state="unknown", process=None, signature=None)
-            transformed = json.dumps(adjusted)
-        accepted = self.ledger.observe(
-            transformed, retained=False, wall_now=wall, monotonic_now=mono)
-        self.last_raw = None
-        if (accepted and raw["state"] == "foreground"
-                and (self.display is None or
-                     (display_state == "on" and not self._needs_post_on))):
-            self.last_raw = json.loads(foreground_v2(packet))
-        if self._needs_post_on and display_state == "on":
-            self._needs_post_on = False  # Next v3 packet must prove focus again.
+        display_state = self._v3_display(packet, wall, mono)
+        self._v3_foreground(packet, wall, mono, display_state)
         self.on_update()
 
     def _observe_display(self, payload, wall, mono):
