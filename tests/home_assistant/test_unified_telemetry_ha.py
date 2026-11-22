@@ -370,3 +370,47 @@ async def test_existing_active_game_sensor_exposes_diagnostics_as_attributes():
     assert attrs["last_input_idle_ms"] == 123000
     assert attrs["system_uptime_seconds"] == 123456
     assert "username" not in attrs and "process" not in attrs
+
+
+
+async def test_v3_requires_verified_discovery_not_just_parent_toggle(hass):
+    s, cb, _, _, _ = await start(hass)
+    root = "SmartHouse/Gaming/pc1"
+    deliver(cb, root + "/availability", "online", ts=99)
+    s._v3_discovery(SimpleNamespace(
+        topic=root + "/discovery",
+        payload=json.dumps({"protocol_version": 1, "device_id": "pc1",
+                            "name": "PC", "games": [], "actions": [],
+                            "unified_telemetry_protocol": 1})))
+    assert s.v3_capable is False
+    deliver(cb, root + "/state/telemetry", v3(ts=100), ts=100)
+    assert s.current(10100) is None
+    assert total(s) == 0
+    s._v3_discovery(SimpleNamespace(
+        topic=root + "/discovery",
+        payload=json.dumps({"protocol_version": 1, "device_id": "pc1",
+                            "name": "PC", "games": [], "actions": [],
+                            "unified_telemetry_protocol": 3})))
+    deliver(cb, root + "/state/telemetry", v3(ts=102, seq=2), ts=102)
+    assert s.current(10102) is None
+    deliver(cb, root + "/state/telemetry", v3(ts=104, seq=3), ts=104)
+    assert s.current(10104) == "Roblox"
+    s.close()
+
+
+async def test_stale_cached_off_never_presents_confirmed_idle_forever(hass):
+    s, cb, _, bonus, _ = await start(hass)
+    root = "SmartHouse/Gaming/pc1"
+    deliver(cb, root + "/availability", "online", ts=99)
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=100, seq=1), ts=100)
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=102, seq=2), ts=102)
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=104, seq=3, screen="off", event=2), ts=104)
+    assert s.current(10104) == "idle"
+    assert s.current(10115) is None  # Lost MQTT stream, not ongoing proof.
+    assert s.system_uptime is None
+    assert s.display_details is None
+    assert bonus.call_count == 1
+    s.close()
