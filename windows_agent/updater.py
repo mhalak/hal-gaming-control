@@ -564,8 +564,8 @@ class Updater:
         self.status('downloading')
         raw, sig, package = [self.stage / name for name in ('manifest.json', 'manifest.sig', 'package.zip')]
         if cfg.get('mqtt_install_enabled') is True:
-            agent_config = yaml.safe_load((self.data / 'config.yaml').read_text(encoding='utf-8'))
-            device_id = updater_device_id(self.data, agent_config)
+            from gaming_control.identity import windows_computer_name
+            device_id = windows_computer_name()
             source, manifest_raw, signature, marker = load_approved_staged(
                 self.data / 'ota-staging', device_id, version,
                 cfg['public_key_pem'], now=self.clock())
