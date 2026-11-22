@@ -18,7 +18,7 @@
 
 As responsible parents, we want our kids to succeed. And the loot isn't going to mine itself. The game can work the night shift — the gaming budget shouldn't have to.
 
-**Planned — not implemented.** There is no Screen idle bonus setting or validated screen-off tracking to turn on today. [Design issue #92](https://github.com/mhalak/hal-gaming-control/issues/92).
+**Planned — not implemented.** Windows source now has an early **read-only display context preview** (AC/DC power-plan screen timeout and last input age from the logged-in user's session), but **actual screen-off detection and the Screen idle bonus do not exist yet**. It is not an HA setting or a confirmed screen-OFF signal. [Design issue #92](https://github.com/mhalak/hal-gaming-control/issues/92).
 
 ## How would it work?
 
@@ -50,3 +50,24 @@ More: [Gaming budgets](gaming-budgets.md)
 ---
 
 **Explore more features:** [← Controls & automations](parent-actions.md) · [Budget Overview →](budget-overview.md)
+
+## Developer preview — Windows display context
+
+In the Windows agent source, `display_context.py` reads `VIDEOIDLE` for the active power plan using Win32 power APIs, reporting configured **AC** and **DC** timeouts in seconds. `0` means Windows is configured to **never** turn the display off automatically on that power source. The foreground helper (which runs in the active interactive user session, not Session 0) separately reads `GetLastInputInfo` and returns the approximate age in milliseconds of the last session input. Failures, a locked or unconfirmed session, or input-age ambiguity yield `null` rather than fabricated activity.
+
+The agent can publish a non-retained, 45-second-expiry, device-scoped MQTT JSON snapshot on `SmartHouse/Gaming/<device_id>/state/display_context` approximately every 30 seconds after its normal telemetry is synchronized. The schema is:
+
+```json
+{
+  "version": 1,
+  "device_id": "example_pc",
+  "observed_at": 1790000000.0,
+  "display_state": "unknown",
+  "ac_timeout_seconds": 600,
+  "dc_timeout_seconds": 300,
+  "power_source": "ac",
+  "last_input_idle_ms": 120000
+}
+```
+
+Values are illustrative, not readings from a family PC. **The `display_state` is intentionally always `unknown` in this increment**. A timeout is a configuration, not proof that a display turned off. `GetLastInputInfo` does not reliably cover every game controller/remote input and never authorizes a bonus on its own. The next Windows increment must listen for actual display power notifications, handle monitor/session ambiguity and prove the behavior under SYSTEM + the interactive user on a disposable PC. The later HA increment owns all policy and bonus grants. The Windows agent does not change power plans, game processes or screen settings.

@@ -7,6 +7,7 @@ import yaml
 from .core import game_state, match_game, validate_rules
 from .identity import resolve_identity
 from .focus_session import FocusProbe, selected_session
+from .display_context import read_display_policy
 from .targeted_terminate import terminate_verified
 from .mqtt_bridge import Bridge
 from .windows import system_uptime, lock_active_session, process_session_id
@@ -163,6 +164,9 @@ def run(config_path, stop_event):
     else:
         bridge = Bridge(config)
     last_health = float('-inf')
+    last_power_poll = float('-inf')
+    display_policy = {"ac_timeout_seconds": None, "dc_timeout_seconds": None,
+                      "power_source": "unknown"}
     previous_games = None
     focus = FocusProbe()
     LOG.info('Agent starting: version=%s system_uptime=%s', installed_version(), system_uptime())
@@ -185,6 +189,14 @@ def run(config_path, stop_event):
             values = game_state(name for _, name, _ in games) | active
             synchronized = bridge.publish(values, system_uptime())
             if synchronized:
+                # Power plan values are read-only and polled at 30s intervals;
+                # input age is sampled only inside the interactive user helper.
+                if time.perf_counter() - last_power_poll >= 30:
+                    display_policy = read_display_policy()
+                    last_power_poll = time.perf_counter()
+                bridge.publish_display_context(
+                    display_policy, getattr(focus, "last_input_idle_ms", None),
+                    foreground_context)
                 # Raw v2 identity is independent of legacy Windows game rules.
                 # The old snapshot remains available during a safe HA cutover.
                 bridge.publish_raw_foreground(
