@@ -151,13 +151,12 @@ def remaining_budget_percent(options, totals, now, period):
 
 
 def budget_overview(options, totals, now, *, ready, coverage_incomplete=True):
-    """Read-only daily/weekly gaming budget receipt for the HA dashboard.
+    """Read-only, device-scoped receipt from the same exact-second rule inputs.
 
-    Keep all figures derived from the same confirmed-second snapshot and the
-    same effective limits used by enforcement. The unimplemented Smart Idle
-    bonus is *unknown*, never a fabricated zero or advance allowance.
+    Keep daily bonuses separate; do not rewrite measured time, grant a Screen
+    Idle bonus before #92 exists, or report unknown/offline time as zero.
     """
-    from math import isfinite
+    from math import ceil, floor, isfinite
 
     settings = DEFAULTS | options
     base = settings["daily"]
@@ -171,18 +170,30 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True):
         weekly_status = ("unlimited" if settings["unlimited"] or weekly_limit < 0
                          else "limited")
 
-    def measured(period):
+    def verified_seconds(period):
         seconds = totals.get(period) if ready else None
         if (type(seconds) not in (int, float) or not isfinite(seconds)
                 or seconds < 0):
             return None
-        return round(seconds / 60, 2)
+        return seconds
 
-    daily_used = measured("daily")
-    weekly_used = measured("weekly")
+    def whole_hundredths(seconds):
+        # For display only; never round played time UP to an enforcement boundary.
+        return floor(seconds / 60 * 100) / 100 if seconds is not None else None
+
+    def remaining_seconds(limit, used):
+        if limit is None or used is None:
+            return None
+        # 0.1 second left still means gaming time remains. The underlying
+        # enforcement uses unrounded seconds, not this display countdown.
+        return ceil(max(0, limit * 60 - used))
+
+    daily_used = verified_seconds("daily")
+    weekly_used = verified_seconds("weekly")
     daily_finite = daily_limit if daily_status == "limited" else None
     weekly_finite = weekly_limit if weekly_status == "limited" else None
-
+    daily_left = remaining_seconds(daily_finite, daily_used)
+    weekly_left = remaining_seconds(weekly_finite, weekly_used)
     return {
         "daily_budget_status": daily_status,
         "weekly_budget_status": weekly_status,
@@ -194,14 +205,14 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True):
         "screen_idle_bonus_minutes": None,
         "screen_idle_bonus_status": "pending",
         "daily_limit_minutes": daily_finite,
-        "daily_used_minutes": daily_used,
-        "daily_remaining_minutes": (
-            round(max(0, daily_finite - daily_used), 2)
-            if daily_finite is not None and daily_used is not None else None),
+        "daily_used_seconds": daily_used,
+        "daily_used_minutes": whole_hundredths(daily_used),
+        "daily_remaining_seconds": daily_left,
+        "daily_remaining_minutes": whole_hundredths(daily_left),
         "weekly_limit_minutes": weekly_finite,
-        "weekly_used_minutes": weekly_used,
-        "weekly_remaining_minutes": (
-            round(max(0, weekly_finite - weekly_used), 2)
-            if weekly_finite is not None and weekly_used is not None else None),
+        "weekly_used_seconds": weekly_used,
+        "weekly_used_minutes": whole_hundredths(weekly_used),
+        "weekly_remaining_seconds": weekly_left,
+        "weekly_remaining_minutes": whole_hundredths(weekly_left),
         "coverage_incomplete": bool(coverage_incomplete),
     }
