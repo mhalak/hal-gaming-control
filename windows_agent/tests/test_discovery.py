@@ -7,7 +7,13 @@ def test_exact_interface():
     assert not set(a).intersection(b)
     root = 'SmartHouse/Gaming/pc1/'
     assert {v['state_topic'] for v in a.values() if 'state_topic' in v} == {
-        root + 'state/uptime'}
+        root + 'state/telemetry'}
+    uptime = a['homeassistant/sensor/smarthouse_gaming_pc1_uptime/config']
+    assert uptime['unique_id'] == 'smarthouse_gaming_pc1_uptime'
+    assert uptime['expire_after'] == 10
+    assert 'value_json.system.uptime_seconds' in uptime['value_template']
+    assert "value_json.device_id == 'pc1'" in uptime['value_template']
+    assert 'unavailable' in uptime['value_template']
     assert {v['command_topic'] for v in a.values() if 'command_topic' in v} == {
         root + 'command/terminate_game', root + 'command/lock_pc'}
     for topic, config in a.items():
