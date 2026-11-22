@@ -20,11 +20,11 @@ For documentation-only changes explain why behavior tests are not applicable.
 
 ## Agent usage
 
-<!-- Required for PRs with AI-agent contributions. Add one row per agent/model; use measured token usage attributable to this PR. Write "unavailable" when a value cannot be measured, and state the measurement scope/limitation. Update after further agent work. -->
+<!-- Required for PRs with AI-agent contributions. Add one row per agent/model. Prefer telemetry (measured); otherwise estimate PR-specific input, output and total tokens with sensible rounding or ranges (estimated). State the source or estimation assumptions and uncertainty. Do not guess unknown model identifiers. Update after further agent work. -->
 
-| Agent | Model (exact ID) | Input tokens | Output tokens | Total tokens | Measurement source / scope |
-| --- | --- | ---: | ---: | ---: | --- |
-| <!-- agent --> | <!-- model ID or unavailable --> | <!-- count or unavailable --> | <!-- count or unavailable --> | <!-- count or unavailable --> | <!-- tool/session metric and scope --> |
+| Agent | Model (exact ID) | Usage type | Input tokens | Output tokens | Total tokens | Source / estimation basis and scope |
+| --- | --- | --- | ---: | ---: | ---: | --- |
+| <!-- agent --> | <!-- model ID or unavailable --> | <!-- measured or estimated --> | <!-- count or range --> | <!-- count or range --> | <!-- count or range --> | <!-- telemetry or assumptions, scope and uncertainty --> |
 
 ## Remaining limitations / blockers
 
