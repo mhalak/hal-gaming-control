@@ -107,10 +107,9 @@ class DisplayObserver:
     def start(self):
         if self.window is not None:
             return True
-        import win32api
-        import win32gui
-
         try:
+            import win32api
+            import win32gui
             self.instance = win32api.GetModuleHandle(None)
             self.class_name = "HALGamingConsoleDisplay-" + secrets.token_hex(8)
             klass = win32gui.WNDCLASS()
