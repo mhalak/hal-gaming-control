@@ -11,9 +11,9 @@ from homeassistant.const import EntityCategory
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.parental_control.const import DEFAULTS, DOMAIN
-from custom_components.parental_control.rule_engine import inside_weekly_schedule, violations
-from custom_components.parental_control.time import GamingScheduleTime
+from custom_components.hal_gaming_control.const import DEFAULTS, DOMAIN
+from custom_components.hal_gaming_control.rule_engine import inside_weekly_schedule, violations
+from custom_components.hal_gaming_control.time import GamingScheduleTime
 
 pytestmark = [pytest.mark.usefixtures("recorder_mock")]
 
@@ -164,7 +164,7 @@ async def test_weekend_entity_runtime_changes_live_and_survives_reload(
     entry.add_to_hass(hass)
 
     async def load():
-        with patch("custom_components.parental_control.coordinator.direct_mode",
+        with patch("custom_components.hal_gaming_control.coordinator.direct_mode",
                    return_value=direct):
             assert await hass.config_entries.async_setup(entry.entry_id)
             await hass.async_block_till_done()
@@ -185,7 +185,7 @@ async def test_weekend_entity_runtime_changes_live_and_survives_reload(
             "active_game": "idle", "active": [],
             "totals": {"daily": 0, "weekly": 0, "per_game": {}}})
 
-    with patch("custom_components.parental_control.binary_sensor.dt_util.now",
+    with patch("custom_components.hal_gaming_control.binary_sensor.dt_util.now",
                return_value=at(21, 12)), \
          patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish:
         refresh()

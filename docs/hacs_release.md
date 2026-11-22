@@ -1,10 +1,12 @@
 # HACS publication checklist
 
-Public product name: SmartHouse Parental Control. Proposed repository slug: smarthouse-parental-control. The internal integration domain is **`parental_control`** (breaking clean cut in HA 0.6.1); the MQTT wire root `SmartHouse/Gaming`, native MQTT discovery identifiers (`smarthouse_gaming_<device_id>`) and Windows service stay unchanged. An installed `smarthouse_gaming` HA config entry must be removed and re-added as `parental_control`; no automatic migration or retained HA registry history guarantee.
+Public product name: SmartHouse Parental Control. GitHub repository: `mhalak/smarthouse-parental-control`. **Canonical HA 0.7.0 domain and package: `hal_gaming_control`**, in `custom_components/hal_gaming_control`. Only the HA package changes: MQTT root `SmartHouse/Gaming`, existing `smarthouse_gaming_<device_id>` native discovery wire IDs and Windows agent **0.2.6** are unchanged. Earlier HA entries under `smarthouse_gaming`, `parental` or `parental_control` must be removed and re-enrolled via the [clean-cut guide](domain-clean-cut.md); no automatic migration is provided.
 
-## Marketplace domain conflict — blocking publication
+## Marketplace domain identity
 
-**Confirmed 2026-11-22:** our HA 0.6.1 uses `parental_control`, which is also the domain of [cesbron-dev/ha-parental-control](https://github.com/cesbron-dev/ha-parental-control) in the Marketplace catalog. The domain-scoped pre-install icon can therefore show the unrelated integration's artwork, and the two packages cannot be installed side by side. See [blocking issue #146](https://github.com/mhalak/smarthouse-parental-control/issues/146). Before publishing or recommending Marketplace installation, select and validate a unique domain (proposed: `smarthouse_parental_control`), bump the HA version and complete a new coordinated migration with acceptance tests. A local `brand/icon.png` does not by itself solve the pre-install collision. Do not publish 0.6.1 as the stable Marketplace package.
+HA 0.6.1's former `parental_control` domain collided with [cesbron-dev/ha-parental-control](https://github.com/cesbron-dev/ha-parental-control), causing the wrong Marketplace icon and an installation collision. Source preview HA **0.7.0** adopts the distinct domain `hal_gaming_control` ([issue #146](https://github.com/mhalak/smarthouse-parental-control/issues/146)). The existing HAL artwork is packaged at `custom_components/hal_gaming_control/brand/icon.png` and `icon@2x.png`.
+
+**Do not claim the public Marketplace listing or pre-install icon is already fixed.** Catalog/release icon indexing and a fresh Marketplace install still need external checks on HA 2026.11. If the Marketplace Download dialog suggests any directory other than `hal_gaming_control`, **cancel**. Stable catalog submission remains gated on official validation, physical smoke testing and release requirements.
 
 ## Source-only development preview
 
@@ -24,8 +26,8 @@ Core Terminate game and Lock PC actions worked in live smoke testing. Source pub
 - Resolve the known limitations and record formal acceptance evidence.
 
 ## HACS checks
-- Preserve the existing local `custom_components/<unique_domain>/brand/icon.png` and `icon@2x.png`; once the unique domain is selected, verify Marketplace **pre-install** imagery against current catalog/release indexing rules and **installed** icons against the local Brands API. Do not submit custom integration images to the legacy `home-assistant/brands` route; follow the HA 2026.3+ local brand conventions.
-- One integration under custom_components/parental_control; runtime files and brand assets within that directory.
+- Preserve the existing local `custom_components/hal_gaming_control/brand/icon.png` and `icon@2x.png`; once the unique domain is selected, verify Marketplace **pre-install** imagery against current catalog/release indexing rules and **installed** icons against the local Brands API. Do not submit custom integration images to the legacy `home-assistant/brands` route; follow the HA 2026.3+ local brand conventions.
+- One integration under custom_components/hal_gaming_control; runtime files and brand assets within that directory.
 - Root hacs.json and README, identifiable OSI license, useful GitHub metadata.
 - Run local packaging validation on every PR. Run official HACS validation and Hassfest without ignores once public; fix failures before publication.
 - Minimum HA version is conservatively set to 2026.10.2, the current tested deployment baseline. Validate more versions before lowering it.

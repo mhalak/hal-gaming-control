@@ -18,7 +18,7 @@
 
 Even royal decrees have rules: bonus time goes to the child's PC you choose, not every gaming device in the kingdom.
 
-**Development preview (HA 0.6.1):** Daily budget, Weekly budget, Weekend bonus and **Add 30 minutes** are available in source. Test the installed version on your own PC.
+**Development preview (HA 0.7.0):** Daily budget, Weekly budget, Weekend bonus and **Add 30 minutes** are available in source. Test the installed version on your own PC.
 
 ## Set the gaming budgets
 

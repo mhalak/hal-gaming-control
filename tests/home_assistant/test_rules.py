@@ -1,10 +1,10 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import pytest
-from custom_components.parental_control.rule_engine import calculate, violations, windows, remaining_budget_percent, effective_budget_limit, daily_bonus_minutes
-from custom_components.parental_control.const import DEFAULTS
-from custom_components.parental_control.protocol import parse_discovery
-from custom_components.parental_control.action_registry import available_actions, selected_actions
+from custom_components.hal_gaming_control.rule_engine import calculate, violations, windows, remaining_budget_percent, effective_budget_limit, daily_bonus_minutes
+from custom_components.hal_gaming_control.const import DEFAULTS
+from custom_components.hal_gaming_control.protocol import parse_discovery
+from custom_components.hal_gaming_control.action_registry import available_actions, selected_actions
 import json
 
 TZ = ZoneInfo("Europe/Zagreb")
@@ -135,7 +135,7 @@ def test_bonus_can_extend_zero_daily_limit_but_not_weekly_or_schedule():
 # Additive weekend bonus contract, active on both weekend days.
 @pytest.mark.parametrize("day,expected", [(20,60),(21,100),(22,100),(23,60)])
 def test_opt_in_weekend_bonus_adds_to_weekday_base(day, expected):
-    from custom_components.parental_control.rule_engine import effective_budget_limit
+    from custom_components.hal_gaming_control.rule_engine import effective_budget_limit
     opts = DEFAULTS | {"daily": 60, "weekend_bonus": 40}
     assert effective_budget_limit(opts, dt(day), "daily") == expected
 

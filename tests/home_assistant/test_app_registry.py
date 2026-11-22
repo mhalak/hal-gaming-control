@@ -1,7 +1,7 @@
 """HA-only tracked application model — no Windows configuration side effects."""
 import pytest
 
-from custom_components.parental_control.app_registry import (
+from custom_components.hal_gaming_control.app_registry import (
     add_app, identity_key, load_apps, normalized_name, remove_app, rename_app,
 )
 

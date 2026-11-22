@@ -1,3 +1,5 @@
+> **Historical engineering reference.** For currently supported HA 0.7.0 setup with the `hal_gaming_control` domain, see [the clean-cut guide](../domain-clean-cut.md). Older baseline notes below describe previous previews.
+
 > **Archived engineering notes (21 November 2026).** These notes cover specific development versions and may be outdated. For the shorter parent-facing guide, [start here](../ha_integration.md).
 
 ---
@@ -22,7 +24,7 @@ HA 0.5.8 also fixes missing Configure menu labels caused by omitted `menu_option
 
 **Visual-only editor refresh in HA 0.5.9:** The Currently detected application preview emphasizes the tracked HA name above its safe raw executable within a Markdown blockquote. An unregistered foreground executable is labeled `Not tracked` **only in the editor**, while the Active game sensor continues to report `idle` for untracked apps; explicit `Idle` and `Unavailable` are distinct states. A short Note separates the preview from the Application List. Frontend blockquote appearance is theme/renderer-dependent (background and border are not guaranteed); no custom frontend was added. Existing app mapping persistence, snapshot timing and the requirement to close/reopen the editor to recapture remain unchanged.
 
-Install custom_components/parental_control through manual installation or HACS where available. Restart HA. MQTT and Recorder must be enabled. Add one config entry per PC using scoped or native MQTT discovery. Restrictions are disabled by default.
+Current installation uses `custom_components/hal_gaming_control`; see the clean-cut guide rather than relying on historical setup steps. Restart HA. MQTT and Recorder must be enabled. Add one config entry per PC using scoped or native MQTT discovery. Restrictions are disabled by default.
 
 ## Planned device controls — after the 0.5.0 preview
 

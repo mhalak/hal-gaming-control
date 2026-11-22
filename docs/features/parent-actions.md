@@ -22,7 +22,7 @@ The beauty of **Home Assistant automations**? Parents make the rules, choose the
 
 **“Don't look at me. I just live here, same as you.”**
 
-**Development preview (HA 0.6.1):** **Gaming restriction** is a passive per-PC rule signal. **Lock PC** and **Terminate game** worked in limited real-PC tests. **Automatic enforcement is not yet validated or enabled by default.**
+**Development preview (HA 0.7.0):** **Gaming restriction** is a passive per-PC rule signal. **Lock PC** and **Terminate game** worked in limited real-PC tests. **Automatic enforcement is not yet validated or enabled by default.**
 
 ## Use a manual control
 

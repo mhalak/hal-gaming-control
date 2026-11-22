@@ -1,4 +1,11 @@
-## 0.6.1 — correct integration domain to `parental_control` (#5)
+## 0.7.0 — unique `hal_gaming_control` HA domain (#146)
+
+- **BREAKING development preview:** The single supported HA package and manifest domain is now `custom_components/hal_gaming_control` / `hal_gaming_control`. It avoids the confirmed collision between HA 0.6.1 `parental_control` and the unrelated `cesbron-dev/ha-parental-control` Marketplace integration. Public product name remains **SmartHouse Parental Control**, with existing HAL artwork.
+- **Not an in-place update.** Remove earlier `smarthouse_gaming` (0.5.x), `parental` (0.6.0) or `parental_control` (0.6.1) project config entries and code before installing the **reviewed 0.7.0** package, then add each PC and re-enter HA-local tracked apps, budgets, bonuses and schedules. Full [clean-cut guide](domain-clean-cut.md). No automatic history or entity-ID migration; do not manually edit HA `.storage` or purge shared Recorder.
+- **No Windows/MQTT changes:** agent stays **0.2.6**; `SmartHouse/Gaming` topics and `smarthouse_gaming_<device_id>` native discovery wire IDs are unchanged. No new automatic lock/game termination and no default rule enablement.
+- All HA imports, CI tests, release tooling, HACS packaging, local `brand/icon.png` and `icon@2x.png`, documentation, and version identity updated. **Marketplace pre-install icons may require separate indexing**; source availability does not prove a successful installation or production deployment.
+
+## 0.6.1 — superseded preview domain `parental_control` (#5; do not install)
 
 - **Canonical HA domain is `parental_control`**, with exactly one package folder `custom_components/parental_control`. The briefly allocated 0.6.0 domain `parental` is superseded; do not install 0.6.0.
 - This is still a **clean-cut preview installation**, not an automatic migration. When moving from `smarthouse_gaming` 0.5.x **or** `parental` 0.6.0, uninstall the old config entries and package first, then install only `parental_control` and configure the PC(s) again. See [the clean-cut guide](domain-clean-cut.md).
@@ -119,7 +126,7 @@
 
 # HA integration release history
 
-The HA integration version is the `version` in `custom_components/parental_control/manifest.json`, displayed by Home Assistant. Increment this version for every deployable HA change: minor for features, patch for fixes, major for breaking changes as appropriate. Record changes here, deploy latest main and record the deployed commit for rollback. Windows agent releases have separate versioning; do not bump Windows for HA-only changes. A manifest version is not a published GitHub Release.
+The HA integration version is the `version` in `custom_components/hal_gaming_control/manifest.json`, displayed by Home Assistant. Increment this version for every deployable HA change: minor for features, patch for fixes, major for breaking changes as appropriate. Record changes here, deploy latest main and record the deployed commit for rollback. Windows agent releases have separate versioning; do not bump Windows for HA-only changes. A manifest version is not a published GitHub Release.
 
 ## 0.5.1 — Parental Control Preview 3 (candidate, not yet verified as deployed)
 - #7 / #52 incremental read-only foreground candidate detection. The Windows 0.2.4 agent publishes only a bounded executable basename, a vetted Java launch signature (main class, JAR basename or module), and a short-lived opaque token on a non-retained MQTT 5 topic. HA displays a recent candidate in the selected PC's Tracked applications menu, including apps not already monitored. It rejects retained/stale, foreign-device and malformed messages. Neither side transmits the raw command line or credentials, window title, PID or executable path; ambiguous Java entry points are shown without falsely naming a game.

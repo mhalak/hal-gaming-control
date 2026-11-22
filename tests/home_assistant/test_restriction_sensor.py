@@ -7,9 +7,9 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from custom_components.parental_control.binary_sensor import GamingRestriction
-from custom_components.parental_control.const import DEFAULTS
-from custom_components.parental_control.switch import GamingRulesSwitch
+from custom_components.hal_gaming_control.binary_sensor import GamingRestriction
+from custom_components.hal_gaming_control.const import DEFAULTS
+from custom_components.hal_gaming_control.switch import GamingRulesSwitch
 
 
 TZ = ZoneInfo("Europe/Zagreb")
@@ -64,7 +64,7 @@ def test_identity_and_initial_disabled_policy():
 def test_budget_and_safe_override(options, daily, weekly, expected):
     entity, c = restriction(options=options)
     c.data["totals"].update(daily=daily, weekly=weekly)
-    with patch("custom_components.parental_control.binary_sensor.dt_util.now",
+    with patch("custom_components.hal_gaming_control.binary_sensor.dt_util.now",
                return_value=at(18)):
         assert entity.available
         assert entity.is_on is bool(expected)
@@ -78,17 +78,17 @@ def test_bonus_is_day_scoped_and_weekly_cap_stays_independent():
         "bonus_date": "2026-11-21", "bonus_minutes": 30,
     })
     c.data["totals"].update(daily=120 * 60, weekly=120 * 60)
-    with patch("custom_components.parental_control.binary_sensor.dt_util.now",
+    with patch("custom_components.hal_gaming_control.binary_sensor.dt_util.now",
                return_value=at(21)):
         assert entity.available and not entity.is_on  # 60 + 60 + 30
-    with patch("custom_components.parental_control.binary_sensor.dt_util.now",
+    with patch("custom_components.hal_gaming_control.binary_sensor.dt_util.now",
                return_value=at(22)):
         assert entity.is_on  # 60 + 60, one-off bonus expired
-    with patch("custom_components.parental_control.binary_sensor.dt_util.now",
+    with patch("custom_components.hal_gaming_control.binary_sensor.dt_util.now",
                return_value=at(23)):
         assert entity.is_on  # weekday budget is only 60
     c.options["weekly"] = 120
-    with patch("custom_components.parental_control.binary_sensor.dt_util.now",
+    with patch("custom_components.hal_gaming_control.binary_sensor.dt_util.now",
                return_value=at(21)):
         assert entity.extra_state_attributes["reasons"] == ["weekly"]
 
@@ -100,11 +100,11 @@ def test_schedule_restriction_without_active_game_and_per_game_only_when_active(
         "schedule_end": "20:00", "per_game": {"Roblox": 10},
     })
     c.data["totals"]["per_game"] = {"Roblox": 600}
-    with patch("custom_components.parental_control.binary_sensor.dt_util.now",
+    with patch("custom_components.hal_gaming_control.binary_sensor.dt_util.now",
                return_value=at(18)):
         assert entity.is_on
         assert entity.extra_state_attributes["reasons"] == ["schedule"]
-    with patch("custom_components.parental_control.binary_sensor.dt_util.now",
+    with patch("custom_components.hal_gaming_control.binary_sensor.dt_util.now",
                return_value=at(18, 18)):
         assert not entity.is_on
         c.data["active"] = ["Roblox"]
