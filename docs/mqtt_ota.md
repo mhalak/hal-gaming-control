@@ -1,6 +1,6 @@
 # MQTT OTA: independent Windows agent release transport
 
-**Status: increment 2 of [issue #166](https://github.com/mhalak/hal-gaming-control/issues/166), MQTT staging receiver implemented but explicitly default-off.** A Windows service with explicit `update.enabled: true` and `update.mqtt_staging_enabled: true` plus a preprovisioned protected staging directory can now subscribe to the OTA topics and respond with ACKs. **There is still no HA UpdateEntity sender, no package signature authentication at staging, no connection to installation, no active Windows release distribution, and no completed real-PC pilot.** The existing HTTPS updater is unchanged. **Do not enable this preview on family PCs.**
+**Status: increment 3 of [issue #166](https://github.com/mhalak/hal-gaming-control/issues/166).** The HA-side MQTT transport can now send scoped packets with ACK/retry, and the opt-in Windows MQTT receiver can stage them. **This is a staging-only developer API, not an HA UpdateEntity Install implementation.** No signed release package source, signature verification at installation, updater handoff, installed-version change, or completed real-PC pilot exists. The existing HTTPS updater and active HA Install behavior are unchanged. **Do not enable this preview on family PCs.**
 
 ## Independent versioning and Marketplace
 
@@ -18,7 +18,7 @@ Do **not** tag Windows-only binary releases in the HACS integration repository; 
 
 Both sides now have separate, pure implementations of this byte format:
 
-- HA source: `custom_components/hal_gaming_control/ota_sender.py` — `PackageFrames`, no MQTT publisher or UI call.
+- HA source: `custom_components/hal_gaming_control/ota_sender.py` — `PackageFrames`; `custom_components/hal_gaming_control/ota_transport.py` — HA `HaOtaTransport` with real MQTT publish/subscribe (not yet invoked by UpdateEntity or exposed as an HA service).
 - Windows source: `windows_agent/gaming_control/ota_staging.py` — `StageReceiver` plus `gaming_control/ota_mqtt.py` and the *explicitly gated* MQTT bridge adapter; bytes may be staged, but there is no unpacking or installation.
 - Contract tests: `windows_agent/tests/test_ota_contract.py` exercise exact HA-created bytes against the Windows sink; sender and receiver are not imported from one another.
 
@@ -54,7 +54,7 @@ The Windows sink accepts only the next expected chunk, or an **identical resend 
 
 ## Next safe increments (not implemented by this PR)
 
-1. **Remaining transport hardening**: on the next increment, a HA-side ACK-driven sender, bounded retry/resume policy, background worker that does not block gaming telemetry and a real broker load test. The Windows receiver already requires explicit opt-in, MQTT 5 non-retained QoS 1 chunks, exact per-device topics, responds with sanitized ACKs and discards incomplete transfers on reconnect. Broker size limits must allow 65,556-byte binary packets.
+1. **Remaining transport hardening**: the HA ACK-driven sender now exists in the module, but remains unexposed until trusted release provenance is established. It sends stop-and-wait QoS1 non-retained chunks with bounded timeouts/retries, one concurrent upload per destination and executor-based disk reads. No resumability across HA or Windows restarts yet; retry starts a new transfer ID after cleanup. A real broker load test is outstanding. The Windows receiver requires explicit opt-in, exact per-device topics and removes incomplete transfers on reconnect. Broker size limits must allow 65,556-byte binary packets.
 2. **HA download and local cache**: from a fixed approved Windows release channel, verify immutable reviewed version / signed manifest, stream only to a currently online agent advertising the matching OTA capability; progress and explicit manual UpdateEntity trigger. Never bundle agent ZIPs with HACS.
 3. **Windows updater integration**: accept only a fully authenticated staged package through the existing durable journal, stop/swap/health-check/rollback transaction. Preserve protected `config.yaml`, `device_id` and original service registration. No arbitrary URL/command/package from MQTT.
 4. **Bootstrap and hardware acceptance**: provision updater once on each PC by a supervised trusted install, test with Smart App Control enabled, no unsigned executable exemptions. Pilot first on one disposable Windows machine; keep automatic updates and policy enforcement off.
@@ -93,3 +93,21 @@ When enabled, the Windows service subscribes to exactly its own `SmartHouse/Gami
 Provision broker ACLs: only an authorized HA deployment identity may write this PC's incoming OTA topics; the PC may only publish its scoped ACK and normal telemetry. Children and other PCs must never be authorized to publish OTA topics.
 
 This opt-in staging control is not exposed in HA and has not been exercised on actual SYSTEM/Windows hosts. Never interpret its `staged` ACK as approval to run a ZIP or proof of signature verification.
+
+## HA sender (increment 3): stage-only internal API
+
+`custom_components/hal_gaming_control/ota_transport.py` provides `HaOtaTransport(hass).async_stage_package(path, device_id=..., version=...)` for **future trusted internal callers**. The method is not registered as an HA service and is not connected to `WindowsAgentUpdate.async_install`: no user button can currently send an arbitrary local file to a computer. The module does not download packages or grant update rights, and it never calls `command/update`. A successful result is named `staged_unverified`, not `installed`.
+
+The engine attaches an ACK subscription *before* publishing a non-retained offer, then sends each 64 KiB binary block with QoS1 and waits for an ACK with the exact device ID, random 128-bit transfer ID, monotonic next-block index and expected status. It ignores retained/foreign/malformed/duplicate/late ACKs, rejects ahead-of-stream acknowledgements, enforces configurable bounded retries and a single in-progress transfer per device. Only one copy of a block is in flight, avoiding broker floods. Hashing and each block read run through HA's executor, so the event loop does not perform a 200 MiB file hash. A caller may receive progress callbacks (confirmed chunks / total).
+
+The Windows v1 receiver **does not implement idempotent FINISH**: resending FINISH after a lost ACK would incorrectly produce a rejection despite successfully staged bytes. Therefore the HA sender repeats **only START and CHUNK**. It publishes FINISH **exactly once** and reports `OTA finish unconfirmed` on a lost acknowledgement. This is an *unknown outcome*, not proof of failure or a reason to launch a second update. HA unsubscribes on failures/cancellation, preserves the normal gaming stream and never performs installation.
+
+The transfer offer expires within 110 seconds, under the receiver's 120-second upper bound. Large archives that cannot complete in that time fail closed and require a new transfer ID. The sender currently has a strict per-chunk ACK window; do not claim 200 MiB transfer throughput or cross-restart resume until a physical broker soak test. Before enabling user-facing Install, implement a **pinned, authenticated release catalog**, on-disk local approved package cache, signed manifest/Authenticode checks and a trusted Windows updater handoff.
+
+Example test target:
+
+```bash
+python -m pytest -q tests/home_assistant/test_ota_transport.py
+```
+
+**Not yet implemented:** a production release distributor or a user-facing OTA update action, and no live Windows PC has received a package from this code.
