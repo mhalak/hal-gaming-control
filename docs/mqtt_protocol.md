@@ -1,5 +1,8 @@
 # MQTT protocol v1
 
+**Cross-component contract tests:** [shared immutable MQTT wire fixtures](../tests/contracts/README.md) are checked by production Windows publisher tests and HA consumer/Options Flow tests. Contract changes require paired regressions and explicit versioning; passing isolated encoder and decoder tests alone is insufficient.
+# MQTT protocol v1
+
 **Current Preview 21 / Windows 0.4.0 identity:** `<device_id>` is exactly the validated Windows computer name, not a configurable or persisted ID. All old `device:` YAML overrides are rejected; re-enroll HA and update MQTT ACLs when migrating from earlier installations. This document preserves historical v1/v2 protocol behavior for older versions; current monitoring is v3. See [the migration](windows_deployment.md#agent-040-preview-21--breaking-hostname-only-device-identity).
 
 **Historical v1/v2 behavior only (Windows <= 0.3.0):**

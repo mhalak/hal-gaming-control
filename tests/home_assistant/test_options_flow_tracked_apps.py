@@ -259,9 +259,235 @@ async def test_raw_snapshot_rejects_stale_retained_foreign_and_unsafe_packets(
         view = await manager.async_init(entry.entry_id)
         view = await manager.async_configure(
             view["flow_id"], {"next_step_id": "tracked_apps"})
-    assert captured == [(device_topic, 0), ("unsubscribed", 0)]
+    assert captured == [(device_topic, 0),
+                        ("SmartHouse/Gaming/pc1/state/telemetry", 0),
+                        ("unsubscribed", 0), ("unsubscribed", 0)]
     assert view["description_placeholders"]["raw_value"] == "chrome.exe"
     assert view["description_placeholders"]["preview_name"] == "Not tracked"
+
+
+def load_contract(version, filename):
+    """Read immutable wire examples shared with the real Windows publisher tests."""
+    path = (Path(__file__).resolve().parents[2] / "tests" / "contracts"
+            / version / filename)
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def v3_roblox_packet(*, device="pc1", observed_at,
+                     state="foreground", age_ms=50):
+    """Fresh copy of the shared v3 fixture; never invent its message shape."""
+    packet = load_contract("v3", "telemetry-foreground.json")
+    packet["device_id"] = device
+    packet["observed_at"] = observed_at
+    packet["foreground"].update(
+        state=state,
+        process="RobloxPlayerBeta.exe" if state == "foreground" else None,
+        sample_age_ms=age_ms,
+    )
+    return packet
+
+
+async def test_shared_golden_wire_fixtures_decode_with_real_ha_parsers():
+    """Schema and full message envelope are owned by the shared contracts."""
+    from custom_components.hal_gaming_control.unified_telemetry import (
+        decode_telemetry)
+    from custom_components.hal_gaming_control.candidate_protocol import (
+        parse_candidate)
+
+    v3 = load_contract("v3", "telemetry-foreground.json")
+    decoded = decode_telemetry(
+        json.dumps(v3), "pc1", retained=False,
+        wall_now=v3["observed_at"])
+    assert decoded["foreground"]["process"] == "RobloxPlayerBeta.exe"
+    assert decoded["system"]["agent_version"] == "0.3.0"
+
+    candidate = load_contract("v1", "foreground-candidate.json")
+    decoded_candidate = parse_candidate(
+        "SmartHouse/Gaming/pc1/state/foreground_candidate",
+        json.dumps(candidate), "pc1", retained=False,
+        now=candidate["observed_at"])
+    assert decoded_candidate["process"] == decoded["foreground"]["process"]
+    assert decoded_candidate["token"] == candidate["token"]
+
+
+async def test_v3_only_windows_agent_shows_detected_app_in_editor(
+        hass, enable_custom_integrations):
+    """Preview must work without old v2 MQTT, even if v3 accounting is disabled."""
+    entry = add_device(hass, DATA1)
+    now = cf.dt_util.utcnow().timestamp()
+    v3_topic = "SmartHouse/Gaming/pc1/state/telemetry"
+    subscriptions = []
+
+    async def subscribe(_hass, topic, cb, qos=0):
+        subscriptions.append(topic)
+        if topic == v3_topic:
+            cb(SimpleNamespace(topic=topic, retain=False,
+                               payload=json.dumps(v3_roblox_packet(observed_at=now))))
+        return lambda: None
+
+    with patch.object(cf.mqtt, "async_subscribe", side_effect=subscribe), \
+            patch.object(cf, "_listen_window", new=AsyncMock()), \
+            patch.object(cf, "_discover_foreground_candidate",
+                         new=AsyncMock(return_value=ROBLOX)):
+        manager = hass.config_entries.options
+        menu = await manager.async_init(entry.entry_id)
+        result = await manager.async_configure(
+            menu["flow_id"], {"next_step_id": "tracked_apps"})
+
+    assert v3_topic in subscriptions
+    assert result["description_placeholders"]["raw_value"] == "RobloxPlayerBeta.exe"
+    assert result["description_placeholders"]["preview_name"] == "Not tracked"
+    assert rows(result) == []
+    field = next(iter(result["data_schema"].schema.values()))
+    assert field.config["fields"]["detected"]["default"] == "RobloxPlayerBeta.exe"
+
+
+async def test_v3_rejects_retained_foreign_stale_and_unsafe_preview(
+        hass, enable_custom_integrations):
+    entry = add_device(hass, DATA1)
+    now = cf.dt_util.utcnow().timestamp()
+    v3_topic = "SmartHouse/Gaming/pc1/state/telemetry"
+
+    async def subscribe(_hass, topic, cb, qos=0):
+        if topic == v3_topic:
+            valid = v3_roblox_packet(observed_at=now)
+            for packet, retained in (
+                    (valid, True),
+                    (valid | {"device_id": "pc2"}, False),
+                    (valid | {"observed_at": now - 90}, False),
+                    (valid | {"foreground": valid["foreground"] |
+                              {"process": "C:/unsafe.exe"}}, False)):
+                cb(SimpleNamespace(topic=topic, retain=retained,
+                                   payload=json.dumps(packet)))
+        return lambda: None
+
+    with patch.object(cf.mqtt, "async_subscribe", side_effect=subscribe), \
+            patch.object(cf, "_listen_window", new=AsyncMock()), \
+            patch.object(cf, "_discover_foreground_candidate",
+                         new=AsyncMock(return_value=None)):
+        manager = hass.config_entries.options
+        menu = await manager.async_init(entry.entry_id)
+        result = await manager.async_configure(
+            menu["flow_id"], {"next_step_id": "tracked_apps"})
+
+    assert result["description_placeholders"]["raw_value"] == "unavailable"
+    assert result["description_placeholders"]["preview_name"] == "Unavailable"
+
+
+async def test_windows_v3_only_mqtt_capture_add_save_roundtrip(
+        hass, enable_custom_integrations):
+    """Actual MQTT callbacks, Options Flow and persisted HA list; zero v2 packets."""
+    saved = {"daily": 75, "weekly": 600, "unlimited": False,
+             "unified_telemetry_enabled": True}
+    entry = add_device(hass, DATA1, saved)
+    now = cf.dt_util.utcnow().timestamp()
+    root = "SmartHouse/Gaming/pc1/state/"
+    subscribed, unsubscribed = [], []
+
+    async def subscribe(_hass, topic, cb, qos=0):
+        subscribed.append(topic)
+        if topic == root + "foreground_candidate":
+            candidate = load_contract("v1", "foreground-candidate.json")
+            candidate["observed_at"] = now
+            cb(SimpleNamespace(topic=topic, retain=False,
+                               payload=json.dumps(candidate)))
+        elif topic == root + "telemetry":
+            cb(SimpleNamespace(topic=topic, retain=False,
+                               payload=json.dumps(v3_roblox_packet(observed_at=now))))
+        return lambda: unsubscribed.append(topic)
+
+    with patch.object(cf.mqtt, "async_subscribe", side_effect=subscribe), \
+            patch.object(cf, "_listen_window", new=AsyncMock()), \
+            patch.object(cf.mqtt, "async_publish", new=AsyncMock()) as publish:
+        manager = hass.config_entries.options
+        menu = await manager.async_init(entry.entry_id)
+        view = await manager.async_configure(
+            menu["flow_id"], {"next_step_id": "tracked_apps"})
+        assert view["description_placeholders"]["raw_value"] == ROBLOX["process"]
+        assert view["description_placeholders"]["preview_name"] == "Not tracked"
+        assert rows(view) == []
+        field = next(iter(view["data_schema"].schema.values()))
+        assert field.config["fields"]["detected"]["default"] == ROBLOX["process"]
+        result = await manager.async_configure(view["flow_id"], {
+            "applications": [{"name": "Roblox", "detected": ROBLOX["process"]}]})
+        publish.assert_not_called()
+
+    assert set(subscribed) == {
+        root + "foreground_candidate", root + "foreground_identity",
+        root + "telemetry"}
+    assert set(unsubscribed) == set(subscribed)
+    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert result["data"]["tracked_apps"] == [{
+        "process": ROBLOX["process"], "signature": None, "name": "Roblox"}]
+    for key, value in saved.items():
+        assert result["data"][key] == value
+
+
+async def test_v3_takes_precedence_over_stale_or_conflicting_v2(
+        hass, enable_custom_integrations):
+    """Legacy packets cannot overwrite confirmed v3 foreground preview."""
+    entry = add_device(hass, DATA1)
+    now = cf.dt_util.utcnow().timestamp()
+    root = "SmartHouse/Gaming/pc1/state/"
+
+    async def subscribe(_hass, topic, cb, qos=0):
+        if topic == root + "telemetry":
+            cb(SimpleNamespace(topic=topic, retain=False,
+                               payload=json.dumps(v3_roblox_packet(observed_at=now))))
+        elif topic == root + "foreground_identity":
+            cb(SimpleNamespace(topic=topic, retain=False,
+                               payload=json.dumps({
+                                   "version": 2, "device_id": "pc1",
+                                   "epoch": "a" * 32, "sequence": 42,
+                                   "observed_at": now, "state": "foreground",
+                                   "process": "chrome.exe", "signature": None,
+                               })))
+        return lambda: None
+
+    with patch.object(cf.mqtt, "async_subscribe", side_effect=subscribe), \
+            patch.object(cf, "_listen_window", new=AsyncMock()), \
+            patch.object(cf, "_discover_foreground_candidate",
+                         new=AsyncMock(return_value=ROBLOX)):
+        manager = hass.config_entries.options
+        menu = await manager.async_init(entry.entry_id)
+        view = await manager.async_configure(
+            menu["flow_id"], {"next_step_id": "tracked_apps"})
+
+    assert view["description_placeholders"]["raw_value"] == ROBLOX["process"]
+    assert view["description_placeholders"]["preview_name"] == "Not tracked"
+    field = next(iter(view["data_schema"].schema.values()))
+    assert field.config["fields"]["detected"]["default"] == ROBLOX["process"]
+
+
+async def test_v3_foreground_without_candidate_is_preview_only(
+        hass, enable_custom_integrations):
+    """A v3 sample alone must not authorize new game enrollment."""
+    entry = add_device(hass, DATA1)
+    now = cf.dt_util.utcnow().timestamp()
+    root = "SmartHouse/Gaming/pc1/state/"
+
+    async def subscribe(_hass, topic, cb, qos=0):
+        if topic == root + "telemetry":
+            cb(SimpleNamespace(topic=topic, retain=False,
+                               payload=json.dumps(v3_roblox_packet(observed_at=now))))
+        return lambda: None
+
+    with patch.object(cf.mqtt, "async_subscribe", side_effect=subscribe), \
+            patch.object(cf, "_listen_window", new=AsyncMock()):
+        manager = hass.config_entries.options
+        menu = await manager.async_init(entry.entry_id)
+        view = await manager.async_configure(
+            menu["flow_id"], {"next_step_id": "tracked_apps"})
+
+    assert view["description_placeholders"]["raw_value"] == ROBLOX["process"]
+    assert view["description_placeholders"]["preview_name"] == "Not tracked"
+    assert rows(view) == []
+    field = next(iter(view["data_schema"].schema.values()))
+    assert field.config["fields"]["detected"].get("default") is None
+    with pytest.raises(data_entry_flow.InvalidData):
+        await manager.async_configure(view["flow_id"], {
+            "applications": [{"name": "Roblox", "detected": ROBLOX["process"]}]})
+    assert "tracked_apps" not in entry.options
 
 
 async def test_add_detected_game_once_in_same_form_preserves_limits(

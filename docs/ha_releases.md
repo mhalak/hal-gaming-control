@@ -1,3 +1,9 @@
+## 0.12.1 — Tracked applications preview works with Windows v3-only telemetry (#192)
+
+- Fix **Currently detected application → Unavailable** in the native Tracked applications editor when Windows agent **0.3.0+** publishes only the v3 `state/telemetry` packet. The editor now briefly samples both the historical v2 raw foreground topic and the validated non-retained v3 observation; a valid v3 observation is preferred if both exist. This is a **read-only preview**, not a change to quota accounting, v3 opt-in, commands or process termination.
+- The same device-scoped process/signature validation, freshness and non-retained guards apply; malformed, foreign, stale or retained v3 messages cannot authorize adding a new application. The independent v1 candidate enrollment hint is still required to offer Add, and it must match the shown snapshot.
+- A blank **Application List** reflects HA-local `tracked_apps` settings for **that config entry**; a newly added PC after a clean-cut migration does not inherit old mappings. Re-enter them deliberately. **HA 0.12.1** is the only version increment; Windows agent **0.4.0** stays unchanged. This is a source fix and is not evidence of deployment.
+
 ## Preview 21 — Windows agent 0.4.0 hostname-only MQTT identity (BREAKING)
 
 - **BREAKING Windows-only change:** the OS computer name is now the sole `device_id` and discovery `name`. No saved random/legacy ProgramData `device_id` or YAML `device.id`/`device.name` is used. Config with any legacy `device:` block is rejected. Windows agent **0.4.0**, HA remains **0.12.0** (unchanged telemetry protocol v3).

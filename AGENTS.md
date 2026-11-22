@@ -29,6 +29,14 @@ All feature work, behavior changes and bug fixes follow Red → Green → Refact
 - Record actual RED/GREEN evidence in the PR description: commands, expected failure, actual results and commit or CI links. Report blockers; do not claim execution that did not occur.
 - Never weaken assertions, skip tests or remove regression cases to obtain green results. Documentation-only changes do not require artificial failing tests.
 
+## Cross-component MQTT protocol contracts (mandatory)
+
+- The **source-controlled, versioned wire examples** in [tests/contracts](tests/contracts/README.md) are the shared contract for messages crossing Windows ↔ Home Assistant. They are not generated at test time from either component's implementation.
+- Every new or changed MQTT message shape, topic, field meaning or version requires a **Windows production publisher/serializer test** and a **Home Assistant production decoder/consumer test** against the *same* example. Test the actual end-user consumer path, not just a helper returning synthetic parsed state; for application enrollment, test MQTT → HA Options Flow → Add/Save.
+- **Never silently rewrite an old-version contract fixture to make a change green.** A breaking format gets a new versioned fixture. Keep the old samples as regression gates for supported versions; if deliberately retired, update the explicit clean-cut migration, negative compatibility tests and release notes.
+- Verify full field names/types, device isolation, freshness, retention, malformed/unknown payload rejection and that no command can be fabricated by read-only messages. Dynamic fields can be normalized only *after* checking their valid bounds.
+- Ensure Windows and HA CI execute their respective contract cases in every relevant PR. A green Windows publisher test alone or HA consumer test alone is **not** evidence of protocol compatibility.
+
 ## Code quality targets
 
 - Minimum line coverage: 90% independently for the HA integration and Windows agent production Python code. Measure branch coverage separately; no numeric branch threshold has been approved.
