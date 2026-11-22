@@ -13,6 +13,7 @@ import paho.mqtt.client as mqtt
 from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.properties import Properties
 from .core import COMMANDS
+from .targeted_terminate import TARGET_TTL, parse_target_request
 from .update_control import parse_request, installed_version, installed_build_sha
 from .discovery import discovery, obsolete_discovery_topics, terminate_discovery_topic
 
@@ -93,6 +94,7 @@ class Bridge:
         self._raw_sequence = 0
         self._raw_last = None
         self._raw_sent = float('-inf')
+        self._raw_candidate = self._raw_receipt = self._target_offer = None
         # MQTT 5 preserves the retain flag even on live deliveries.
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f'gaming-{self.id}',
                                   protocol=mqtt.MQTTv5)
@@ -111,6 +113,7 @@ class Bridge:
         # Until HA->Windows termination is migrated, a rule-free PC must not
         # accept the legacy fixed PRESS command (which targets local rules).
         self._termination_enabled = bool(config.get('games', []))
+        self._target_enabled = not self._termination_enabled
         self.advertised_commands = (list(COMMANDS) if self._termination_enabled
                                     else ['lock_pc'])
         self.configs = discovery(self.id, dev['name'], self.prefix,
@@ -120,6 +123,9 @@ class Bridge:
                          'actions': list(self.advertised_commands)}
         self.command_topics = {self.root + '/command/' + key: key
                                for key in self.advertised_commands}
+        if self._target_enabled:
+            self.command_topics[self.root + '/command/terminate_target'] = 'terminate_target'
+            self.metadata['targeted_terminate_protocol'] = 1
         self.updates_enabled = config.get('update', {}).get('enabled') is True
         self.metadata['agent_version'] = installed_version()
         self.metadata['agent_build_sha'] = installed_build_sha(self.metadata['agent_version'])
@@ -153,6 +159,7 @@ class Bridge:
             self._raw_sequence = 0
             self._raw_last = None
             self._raw_sent = float('-inf')
+            self._raw_candidate = self._raw_receipt = self._target_offer = None
         # Do not receive stored retained actions; reject any live retained action as well.
         options = mqtt.SubscribeOptions(qos=0, retainAsPublished=True, retainHandling=2)
         for topic in self.command_topics:
@@ -169,6 +176,7 @@ class Bridge:
             self._candidate_key = self._candidate_token = None
             self._raw_last = None
             self._raw_sent = float('-inf')
+            self._raw_candidate = self._raw_receipt = self._target_offer = None
         
     def on_message(self, client, userdata, msg):
         with self.lock:
@@ -185,6 +193,26 @@ class Bridge:
                 except (ValueError, TypeError):
                     LOG.warning('Invalid update request rejected')
                     return
+            elif command == 'terminate_target':
+                try:
+                    request = parse_target_request(msg.payload, self.id, self._foreground_epoch)
+                except (ValueError, TypeError):
+                    LOG.warning('Invalid targeted terminate request rejected')
+                    return
+                offer = self._target_offer
+                now = time.monotonic()
+                if (offer is None or offer['generation'] != self.generation
+                        or not 0 <= now - offer['offered_at'] < TARGET_TTL
+                        or not secrets.compare_digest(offer['token'], request['token'])):
+                    return
+                # Consume BEFORE queuing; replay, duplicated requests and queue
+                # overflow never give a second chance to kill a process.
+                self._target_offer = None
+                command = ('terminate_target', {
+                    'candidate': offer['candidate'],
+                    'sample_time': offer['sample_time'],
+                    'offered_at': offer['offered_at'],
+                }, request['request_id'])
             elif msg.payload != b'PRESS':
                 return
             try:
@@ -409,15 +437,22 @@ class Bridge:
                 return False
             process, signature = parts
             identity = (state, process, json.dumps(signature, sort_keys=True))
-            if identity == self._raw_last and now - self._raw_sent < RAW_FOREGROUND_PERIOD:
+            if candidate != self._raw_candidate:
+                # A foreground switch to another PID with the same .exe must
+                # invalidate the prior process capability immediately.
+                self._target_offer = self._raw_receipt = None
+            if (identity == self._raw_last and candidate == self._raw_candidate
+                    and now - self._raw_sent < RAW_FOREGROUND_PERIOD):
                 return False
+            self._target_offer = self._raw_receipt = None
             expiry = math.floor(FOREGROUND_MAX_AGE - max(age, wall - observed))
             if expiry < 1:
                 return False
             self._raw_sequence += 1
+            packet_epoch, packet_seq = self._foreground_epoch, self._raw_sequence
             payload = json.dumps({
                 "version": 2, "device_id": self.id,
-                "epoch": self._foreground_epoch, "sequence": self._raw_sequence,
+                "epoch": packet_epoch, "sequence": packet_seq,
                 "observed_at": observed, "state": state,
                 "process": process, "signature": signature,
             })
@@ -438,6 +473,12 @@ class Bridge:
                 return False
             self._raw_last = identity
             self._raw_sent = now
+            self._raw_candidate = candidate
+            self._raw_receipt = {
+                'candidate': candidate, 'generation': generation,
+                'epoch': packet_epoch, 'sequence': packet_seq,
+                'observed_at': observed, 'captured_at': captured,
+            }
         return True
 
     def publish_candidate(self, candidate):
