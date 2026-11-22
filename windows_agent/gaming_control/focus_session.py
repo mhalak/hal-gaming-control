@@ -18,6 +18,7 @@ import time
 from .foreground import classify, candidate_from_sample, sample_window, IDLE, UNKNOWN, MAX_SAMPLE_AGE
 from .windows import process_session_id
 from .display_context import read_interactive_input_idle_ms, MAX_INPUT_IDLE_MS
+from .display_notifications import DisplayObserver, MAX_EVENT_AGE_MS
 
 LOG = logging.getLogger(__name__)
 PIPE_PREFIX = r"\\.\pipe\SmartHouseGamingFocus-"
@@ -121,17 +122,22 @@ def helper_main(pipe_name, parent_pid):
     except (ValueError, TypeError):
         return helper_error(1)
     handle = None
+    observer = None
     stage = 2
     try:
         handle = win32file.CreateFile(pipe_name, 0x40000000, 0, None, 3, 0x00110000, None)
         stage = 3
         if win32pipe.GetNamedPipeServerProcessId(handle) != expected_parent:
             return helper_error(stage)
+        observer = DisplayObserver()
+        observer.start()  # failing registration leaves state unknown, not a dead focus helper
         while True:
             stage = 4
+            observer.pump()  # Windows messages must be pumped on the window-creator thread
             sample = sample_window()
             # This executes inside the selected user session, not in SYSTEM.
             sample["last_input_idle_ms"] = read_interactive_input_idle_ms()
+            sample.update(observer.sample())
             payload = json.dumps(sample, separators=(",", ":")).encode("ascii")
             stage = 5
             win32file.WriteFile(handle, payload)
@@ -139,6 +145,8 @@ def helper_main(pipe_name, parent_pid):
     except (pywintypes.error, OSError, ValueError) as err:
         return helper_error(stage, err)
     finally:
+        if observer is not None:
+            observer.close()
         if handle is not None:
             handle.Close()
 
@@ -155,6 +163,8 @@ class FocusProbe:
         # Only a newly verified helper sample may authorize a targeted action.
         self.last_sample_time = None
         self.last_input_idle_ms = None
+        self.display_state = "unknown"
+        self.display_event_age_ms = None
 
     def _report_error(self, stage, code):
         now = time.monotonic()
@@ -276,6 +286,14 @@ class FocusProbe:
         if type(value) is int and 0 <= value <= MAX_INPUT_IDLE_MS:
             self.last_input_idle_ms = value
 
+    def _observe_display(self, sample):
+        state = sample.get("display_state")
+        age = sample.get("display_event_age_ms")
+        if (state in ("on", "off", "dim") and type(age) is int
+                and 0 <= age <= MAX_EVENT_AGE_MS):
+            self.display_state = state
+            self.display_event_age_ms = age
+
     def read(self, rules):
         self.last_input_idle_ms = None  # never retain a stale session reading
         self.candidate = None  # never carry identity over a failed or stale probe
@@ -317,6 +335,7 @@ class FocusProbe:
             if isinstance(sample, dict) and isinstance(sample.get("time"), (int, float)) and now - sample["time"] <= MAX_SAMPLE_AGE:
                 self.started = now
                 self._observe_input_idle(sample)
+                self._observe_display(sample)
                 self._observe_raw(sample, result, session, now)
             return result
         except Exception as err:
