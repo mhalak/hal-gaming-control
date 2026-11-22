@@ -2,8 +2,8 @@
 
 **Breaking preview change.** SmartHouse Parental Control now uses the single
 Home Assistant domain `parental_control` and the single package directory
-`custom_components/parental_control`. The old `smarthouse_gaming` or briefly used `parental` integrations
-**cannot be updated in place**, and there is deliberately no automatic
+`custom_components/parental_control`. The old `smarthouse_gaming` integration and the briefly used `parental`
+0.6.0 domain **cannot be updated in place**, and there is deliberately no automatic
 migration, compatibility package, dual installation or hidden registry edit.
 
 Windows agent 0.2.6 and its MQTT topic root `SmartHouse/Gaming` **do not
@@ -14,8 +14,8 @@ a second integration.
 ## Before installing 0.6.1
 
 1. Identify the **correct TrueNAS-associated HA instance**. Make a normal
-   HA backup/snapshot and record the previously installed 0.5.14 build for
-   rollback; do not post local MQTT credentials or device IDs on GitHub.
+   HA backup/snapshot and record the previously installed build (0.5.x or
+   0.6.0) for rollback; do not post local MQTT credentials or device IDs on GitHub.
 2. Record each child's device name/ID and relevant **Tracked applications**
    display names and executable signatures, Daily/Weekly budgets, Weekend
    bonus, Parent bonus, Gaming rules/Unlimited switches, weekday/weekend
@@ -28,15 +28,15 @@ a second integration.
 
 ## Clean uninstall and fresh install
 
-4. **While HA 0.5.14 is still present**, navigate to
+4. **While the old HA integration is still present**, navigate to
    Settings → Devices & services → SmartHouse Parental Control and remove
    the **old** config entry for each managed PC using HA's UI (domain
    `smarthouse_gaming`, or `parental` if 0.6.0 was already installed). Confirm the
    old entry is gone. This is a deliberate one-time breaking reset.
 5. If installed via HACS, uninstall the old HA integration through HACS
    before reinstalling the renamed domain. Stop Home Assistant and verify
-   that `config/custom_components/smarthouse_gaming` and `config/custom_components/parental` are absent. Remove
-   leftover old *code files* via the supported filesystem/deployment
+   that both `config/custom_components/smarthouse_gaming` and
+   `config/custom_components/parental` are absent. Remove leftover *code files* via the supported filesystem/deployment
    manager; **do not edit any HA `.storage` files** or purge Recorder.
 6. Install **only** the reviewed `custom_components/parental_control` directory
    (including manifest, config flow, assets, etc.) in the right HA instance,
