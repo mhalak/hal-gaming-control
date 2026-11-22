@@ -61,7 +61,7 @@ def test_enable_requires_provisioned_updater_and_protected_dir(tmp_path):
     with pytest.raises(ValueError, match="updater"):
         Bridge(CONFIG | {"update": {"enabled": False, "mqtt_staging_enabled": True}},
                ota_root=tmp_path)
-    with pytest.raises(ValueError, match="staging"):
+    with pytest.raises(ValueError, match="Staging directory"):
         Bridge(CONFIG, ota_root=tmp_path / "does_not_exist")
     with pytest.raises(ValueError, match="staging"):
         Bridge(CONFIG)
