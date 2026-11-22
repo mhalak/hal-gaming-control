@@ -7,8 +7,8 @@ SmartHouse Parental Control connects your child's Windows PC to Home Assistant, 
 **This is a development preview, not a one-click installer.** You'll need to be comfortable testing software built from source.
 
 
-> **Breaking change in HA 0.6.1:** the only integration domain is `parental_control`.
-> If upgrading from `smarthouse_gaming` 0.5.x, **do not run a normal
+> **Breaking change in HA 0.7.0:** the only integration domain is `hal_gaming_control`.
+> If upgrading from `smarthouse_gaming` 0.5.x, `parental` 0.6.0 or `parental_control` 0.6.1, **do not run a normal
 > in-place update**. First follow the [one-time clean-cut installation
 > guide](domain-clean-cut.md); saved HA settings and tracked apps must be
 > configured again. The Windows/MQTT protocol stays unchanged.

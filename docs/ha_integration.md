@@ -4,11 +4,11 @@
 
 Home Assistant is the family's control panel: see gaming time, choose apps, give extra minutes and use manual controls. It can also handle reminders, which may save the family's last remaining nerve.
 
-**Development preview:** These steps describe HA 0.6.1 preview source. Always check the [release history](ha_releases.md) and the version you've installed.
+**Development preview:** These steps describe HA 0.7.0 preview source. Always check the [release history](ha_releases.md) and the version you've installed.
 
 
-> **Breaking change in HA 0.6.1:** the only integration domain is `parental_control`.
-> If upgrading from `smarthouse_gaming` 0.5.x, **do not run a normal
+> **Breaking change in HA 0.7.0:** the only integration domain is `hal_gaming_control`.
+> If upgrading from `smarthouse_gaming` 0.5.x, `parental` 0.6.0 or `parental_control` 0.6.1, **do not run a normal
 > in-place update**. First follow the [one-time clean-cut installation
 > guide](domain-clean-cut.md); saved HA settings and tracked apps must be
 > configured again. The Windows/MQTT protocol stays unchanged.

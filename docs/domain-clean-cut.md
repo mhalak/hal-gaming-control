@@ -1,84 +1,37 @@
-# HA 0.6.1 domain clean cut — one-time installation procedure
+# HA 0.7.0 domain clean cut — one-time installation procedure
 
-**Breaking preview change.** SmartHouse Parental Control now uses the single
-Home Assistant domain `parental_control` and the single package directory
-`custom_components/parental_control`. The old `smarthouse_gaming` integration and the briefly used `parental`
-0.6.0 domain **cannot be updated in place**, and there is deliberately no automatic
-migration, compatibility package, dual installation or hidden registry edit.
+**Breaking development preview.** The single supported Home Assistant integration domain is now `hal_gaming_control` in `custom_components/hal_gaming_control`. It replaces all experimental predecessors: `smarthouse_gaming` (0.5.x), `parental` (0.6.0), and `parental_control` (0.6.1, which collided with another project's Marketplace domain). **This is not an in-place upgrade.** No automatic migration, alias, dual installation, or HA registry editing is provided. See [issue #146](https://github.com/mhalak/smarthouse-parental-control/issues/146).
 
-Windows agent 0.2.6 and its MQTT topic root `SmartHouse/Gaming` **do not
-change**. The old `smarthouse_gaming_<device_id>` **MQTT discovery
-identifiers are intentionally retained as wire protocol IDs**. They are not
-a second integration.
+**Windows agent 0.2.6 is unchanged.** Its MQTT root `SmartHouse/Gaming` and `smarthouse_gaming_<device_id>` native MQTT discovery IDs remain the existing wire-protocol contract. Those MQTT identifiers do **not** indicate a second HA custom integration. No Windows agent reinstall is required solely for this HA-domain change.
 
-## Hold: Marketplace domain collision
+## Before removing the old integration
 
-**Do not perform this 0.6.1 clean-cut installation yet.** The `parental_control` domain in this preview collides with [an unrelated Marketplace integration](https://github.com/cesbron-dev/ha-parental-control) that already uses the same internal domain and has its own brand icon. The Marketplace may display that product's icon on our listing, and it will not allow both packages to coexist. [Tracking issue #146](https://github.com/mhalak/smarthouse-parental-control/issues/146) describes the proposed brand-specific replacement domain and additional clean-cut requirements. The steps below document 0.6.1 historical behavior; follow the updated procedure for the future reviewed unique-domain release rather than installing this conflicting build.
+1. Identify the correct HA instance and take a **full HA backup/snapshot** (configuration and Recorder included). Record installed versions and the rollback point privately.
+2. Make private notes/screenshots of each PC's tracked application names and executable signatures, Daily/Weekly budgets, Weekend bonus, parent bonus, Gaming rules/Unlimited switches, weekday/weekend hours, and any device-specific options. **These options will not be migrated.**
+3. Disable relevant HA automations, especially ones that could send **Lock PC** or **Terminate game**. Leave Gaming rules OFF for the initial new installation. Check that no Windows update transaction is active.
 
-## Before installing 0.6.1
+## Uninstall first, then install 0.7.0
 
-1. Identify the **correct TrueNAS-associated HA instance**. Make a normal
-   HA backup/snapshot and record the previously installed build (0.5.x or
-   0.6.0) for rollback; do not post local MQTT credentials or device IDs on GitHub.
-2. Record each child's device name/ID and relevant **Tracked applications**
-   display names and executable signatures, Daily/Weekly budgets, Weekend
-   bonus, Parent bonus, Gaming rules/Unlimited switches, weekday/weekend
-   windows and other HA-local options. You will need to **configure these
-   again**. No old options, history, app mappings or entity IDs are
-   guaranteed to migrate. A user can take private screenshots / notes.
-3. **Disable any HA automations** depending on the old entities, particularly
-   Lock PC and Terminate game. Ensure no Windows agent update transaction
-   is pending. Do not run an agent-based hot update over the old installation.
+4. **While the previous integration code still exists**, remove its config entries in **Settings → Devices & services** for each PC. The old entry may be registered under `smarthouse_gaming`, `parental`, or `parental_control`. Confirm there are no old project config entries left.
+5. If the old integration was HACS/Marketplace-managed, remove its old installation through that UI where supported. Stop HA and use your supported filesystem/deployment manager to verify that **none** of these old *code* folders remains:
+   - `config/custom_components/smarthouse_gaming`
+   - `config/custom_components/parental`
+   - `config/custom_components/parental_control`
+   
+   **Never edit HA `.storage` or purge the shared Recorder database** to make this work. Be careful: the `parental_control` directory can belong to a different project, so first identify any installed owner rather than deleting an unrelated package.
+6. From the exact **reviewed 0.7.0 source** install **only** `custom_components/hal_gaming_control` (manifest, translations, brand icons and the complete package), either via a verified Marketplace custom-repository download **whose destination is exactly `hal_gaming_control`**, or via the existing controlled, versioned agent/source deployment. **If the UI proposes `parental` or `parental_control`, cancel the download.** Restart Home Assistant.
+7. In **Settings → Devices & services → Add integration**, choose **SmartHouse Parental Control**. Enroll the first Windows PC using the existing MQTT/Windows agent, then re-enter tracked applications, limits, bonuses and allowed gaming hours. Keep automatic enforcement disabled. Enroll the second PC after the first passes.
 
-## Clean uninstall and fresh install
+## Smoke test and rollout
 
-4. **While the old HA integration is still present**, navigate to
-   Settings → Devices & services → SmartHouse Parental Control and remove
-   the **old** config entry for each managed PC using HA's UI (domain
-   `smarthouse_gaming`, or `parental` if 0.6.0 was already installed). Confirm the
-   old entry is gone. This is a deliberate one-time breaking reset.
-5. If installed via HACS, uninstall the old HA integration through HACS
-   before reinstalling the renamed domain. Stop Home Assistant and verify
-   that both `config/custom_components/smarthouse_gaming` and
-   `config/custom_components/parental` are absent. Remove leftover *code files* via the supported filesystem/deployment
-   manager; **do not edit any HA `.storage` files** or purge Recorder.
-6. Install **only** the reviewed `custom_components/parental_control` directory
-   (including manifest, config flow, assets, etc.) in the right HA instance,
-   through supported HACS custom-repository installation if available, or
-   the existing reviewed source/agent deployment process. Restart HA.
-   Do not retain the legacy folder as a sidecar.
-7. In HA, Add integration → **SmartHouse Parental Control**; select and
-   register the first Windows PC (existing agent and MQTT stay connected).
-   Re-enter local Tracked applications, budgets, bonuses and allowed
-   weekday/weekend hours; keep **Gaming rules enabled** OFF during smoke
-   tests. Repeat for the second PC only once the first passes.
-8. Confirm **exactly one** Parental Control entry/device per PC. Test
-   fresh Active game / idle / unavailable, current day/week totals,
-   schedule, weekend bonus, Windows version and manual actions on a safe
-   disposable game; ensure no extra or unsolicited command.
-9. Restore selected HA automations only after verifying their **new**
-   entity IDs and the correct PC. Keep automatic lock/terminate disabled
-   unless the parent explicitly approves a tested automation.
-10. Record the installed HA 0.6.1 source commit, build/package SHA,
-    successful live checks and rollback evidence. This guide does not
-    claim deployment occurred.
+8. Verify that each intended PC has exactly one new `hal_gaming_control` config entry, the correct HAL icon and no duplicate project devices; check Active game/Idle/Unavailable, fresh daily and weekly accounting, schedules, additive Weekend bonus and safe manual actions.
+9. Review **new entity IDs** and restore HA automations selectively, only after validating their target PC and checking they cannot send unintended commands. Do not enable automatic lock or game termination without explicit parent approval and a real-PC test.
+10. Record installed HA 0.7.0 package/commit SHA, actual smoke-test results and rollback evidence. **Source changes and passing CI are not proof of deployment.** Marketplace's *pre-install thumbnail* may require separate catalog/release icon indexing even when the correct icon is bundled in the integration.
 
-## What happens to old history or state?
+## Old history, unknown activity and rollback
 
-Removing an integration does not authorize deleting the **shared Recorder
-database**. Some historical rows may remain under old entity IDs; they are
-not migrated by this change, and new entities may receive different names.
-Old HA integration-owned foreground/checkpoint and updater data are not
-adopted. New accounts start with unverified fresh activity; never
-reinterpret an unknown interval as observed gaming. Budgets and tracked
-applications must be re-entered, with **no automatic game enforcement**.
+Historical Recorder rows under old entity IDs may remain, but **are not migrated or guaranteed to appear under the new entities**. New HA-managed accounting begins with fresh, verified activity; offline/unknown periods must never be charged as observed gaming or interpreted as confirmed idle. Keep the shared Recorder database intact. Re-enter all HA-local settings manually.
 
-If the old config entry could not be removed because its files were already
-deleted, restore the reviewed legacy source **temporarily only to perform
-the UI uninstall**, then stop HA and install only `parental_control`. Do not
-manually modify `.storage/core.config_entries` or use blanket Recorder
-purges. A backup restore returns the previously installed preview domain and must be
-followed by this clean installation process again.
+If HA cannot remove an old config entry because its package was already deleted, temporarily restore the **matching reviewed legacy code** solely to perform the supported UI removal, then stop HA and switch to the new package. Never edit `.storage/core.config_entries`.
 
-This is a **breaking preview release**, not a seamless upgrade and not
-a stable 1.0 migration. Related: #5 and deployment #56.
+Restoring an HA backup restores the old preview domain and requires repeating this clean-cut process. This is a preview migration, **not a stable 1.0 migration**. Related: #5, #12, #56, #146.

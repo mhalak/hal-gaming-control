@@ -8,7 +8,7 @@ Want to track an app, set a limit or give bonus time? You're in the right place.
 
 ## Start here
 
-**Upgrading from HA 0.5.x?** First follow the [HA 0.6.1 clean-cut guide](domain-clean-cut.md). A normal in-place update is unsupported.
+**Upgrading from any earlier HA preview (0.5.x, 0.6.0 or 0.6.1)?** Follow the [HA 0.7.0 clean-cut guide](domain-clean-cut.md). A normal in-place update is unsupported.
 
 1. [Getting started](getting-started.md) — what you need and how to test safely.
 2. [Home Assistant setup](ha_integration.md) — find your PC, apps and controls.
