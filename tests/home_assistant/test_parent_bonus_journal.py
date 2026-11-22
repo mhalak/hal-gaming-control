@@ -129,6 +129,44 @@ async def test_add_30_button_produces_visible_distinct_entries_without_windows_c
                               now(), ready=True)
     assert receipt["parent_bonus_minutes"] == 60
     assert len(receipt["parent_bonus_grants_today"]) == 2
+    assert receipt["parent_bonus_recent_action"]["action"] == "added"
+    assert receipt["parent_bonus_recent_action"]["minutes"] == 30
     assert receipt["parent_bonus_legacy_minutes"] == 0
     assert receipt["weekly_limit_minutes"] == 300
     assert "actions" not in entry.options
+
+
+
+def test_budget_overview_recorder_attrs_bounded_and_cancel_receipt_is_latest():
+    """30 grants should not persist two huge copies in Recorder attrs.
+
+    A cancellation of an older grant is the last *action*, even if a newer
+    grant still exists. Full journal and native select keep all active IDs.
+    """
+    from custom_components.hal_gaming_control.rule_engine import budget_overview
+    opts = {"enabled": True, "daily": 120, "weekly": 300}
+    for minute in range(1, 31):
+        opts = add_parent_grant(opts, "pc1", now(minute=minute), 30)
+
+    original = parent_grants_today(opts, now())
+    assert len(original) == 30
+    grant_id = original[15]["id"]
+    opts = revoke_parent_grant(opts, "pc1", grant_id, now(minute=45))
+    overview = budget_overview(
+        opts, {"daily": 0, "weekly": 0}, now(minute=46), ready=True)
+    assert len(overview["parent_bonus_grants_today"]) == 12
+    assert len(overview["parent_bonus_activity_today"]) == 12
+    assert overview["parent_bonus_recent_action"] == {
+        "action": "cancelled",
+        "minutes": 30,
+        "at_utc": next(
+            e["cancelled_at_utc"]
+            for e in opts["parent_bonus_journal"]["events"]
+            if e["id"] == grant_id
+        ),
+        "grant_id": grant_id,
+    }
+    assert len(opts["parent_bonus_journal"]["events"]) == 30
+    assert len(parent_grants_today(opts, now())) == 29
+    assert overview["parent_bonus_minutes"] == 29 * 30
+    assert "daily" not in opts
