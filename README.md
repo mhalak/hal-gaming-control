@@ -2,7 +2,7 @@
 
 # HAL Gaming Control
 
-**⚠️ HA 0.7.0 breaking preview:** the canonical Home Assistant domain is now `hal_gaming_control`. This replaces the old `smarthouse_gaming`, `parental` (0.6.0), and conflicting `parental_control` (0.6.1) domains. **Remove the previous integration before installing; no automatic migration or dual installation is supported.** [One-time clean-install instructions](docs/domain-clean-cut.md). Windows agent 0.2.6 and MQTT topics are unchanged. The shipped HAL icon lives under the new domain; Marketplace's pre-install thumbnail may require catalog indexing.
+**⚠️ HA 0.7.0 breaking preview:** the canonical Home Assistant domain is now `hal_gaming_control`. This replaces the old `smarthouse_gaming`, `parental` (0.6.0), and conflicting `parental_control` (0.6.1) domains. **Remove the previous integration before installing; no automatic migration or dual installation is supported.** [One-time clean-install instructions](docs/domain-clean-cut.md). Windows agent 0.2.7 adds automatic computer-name discovery and stable per-install identity; the existing MQTT topic contract remains unchanged for already enrolled PCs. The shipped HAL icon lives under the new domain; Marketplace's pre-install thumbnail may require catalog indexing.
 
 **Because parenting should have an API.**
 
@@ -94,6 +94,10 @@ Track gaming time on Windows PCs, set limits, give bonus minutes and use parent 
 </table>
 
 **Development preview.** Features depend on the installed version. Screen idle bonuses and the itemized Budget Overview are **not implemented**. Don't enable automatic game closing or locking before testing on your PC. [What's ready and what's missing](docs/known_limitations.md).
+
+## Windows setup (simpler, safer)
+
+Windows agent **0.2.7** automatically reports the PC's real Windows computer name and keeps a stable per-install ID, even after renames. Choose the friendly label in Home Assistant. Existing IDs are migrated without re-enrollment. Besides MQTT connection settings, legacy local game rules are still needed for manual termination until [issue #155](https://github.com/mhalak/hal-gaming-control/issues/155) is complete. [Windows installation and upgrade](docs/windows_deployment.md).
 
 ## Want to get started?
 
