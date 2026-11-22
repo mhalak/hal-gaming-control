@@ -45,4 +45,12 @@ All feature work, behavior changes and bug fixes follow Red → Green → Refact
 4. The remaining feature work is recorded in an issue, not left in the branch.
 5. Deployable component versions, relevant docs and migration constraints are updated.
 
+## Agent model and token disclosure in pull requests
+
+- Every PR created or worked on by an AI agent must contain an `## Agent usage` section in the **PR description**, not only in a comment. Keep it updated after additional implementation, review or rework and before merge.
+- Identify each contributing agent and the **exact model identifier** used. If multiple models or agents contributed, report each separately.
+- Report the tokens consumed **for work on this PR**, using actual usage telemetry where available: input tokens, output tokens and total tokens. Add cached or reasoning token details only when the provider exposes them, and avoid double-counting them in the total.
+- Include the measurement source and scope when relevant. Do not present a full conversation/session total as a PR-only total unless all of that usage belongs to the PR.
+- If a model ID or token metric is not exposed, explicitly write `unavailable` for that field and explain the limitation. **Never fabricate token counts or present guesses as measured usage.**
+
 All code, documentation, PRs and issues are written in English.
