@@ -29,6 +29,38 @@ There is an existing Core-only special mapping for blocked custom integrations
 replaced by built-in integrations. That does **not** establish a supported
 general-purpose mapping for arbitrary third-party domain changes.
 
+## Public registry migration APIs verified for HA 2026.10.2
+
+The initial research blocker was **config entry domain immutability**, not the
+availability of all cross-domain migration APIs. HA Core **does** expose:
+
+- `entity_registry.async_update_entity_platform(entity_id, "parental",
+  new_config_entry_id=target.entry_id)` — explicitly intended for moving
+  **unloaded** entities between integrations. Retains `entity_id`,
+  registry `id`, original `unique_id` and user edits when allowed.
+- `device_registry.async_update_device(device_id,
+  new_config_entry_id=target.entry_id)` — moves device ownership without
+  changing its registry `id` or MQTT identifiers.
+
+See
+[entity registry in HA 2026.10.2](https://github.com/home-assistant/core/blob/2026.10.2/homeassistant/helpers/entity_registry.py)
+and
+[device registry in HA 2026.10.2](https://github.com/home-assistant/core/blob/2026.10.2/homeassistant/helpers/device_registry.py).
+
+`tests/home_assistant/test_domain_registry_transfer.py` exercises these
+public methods against real in-memory HA registries, including keeping the
+same IDs, custom names and icons, reverse transfer before source deletion,
+native MQTT-owned separation, and cleanup of a transferred source entry.
+
+**Important:** these tests prove registry operations, **not a complete
+crash-safe domain migration**. A new-domain config entry still needs to be
+created using its config flow, the old package must be retained temporarily
+to unload/remove its old entry, and all integration-owned per-entry Stores
+(foreground intervals, updater state, etc.) must be transferred or keyed
+safely. If the power fails between registry operations, the existing
+journal must reconcile and roll back partial moves on startup. Do not
+deploy until this is fully tested.
+
 ## Already available safeguards
 
 - `migration_preflight.async_preflight` inspects an **unloaded** source
@@ -55,12 +87,11 @@ recovery must first be implemented and verified.
    can be created using public config-flow APIs with exact preserved
    data/options. Verify no old and new entry can run simultaneously and
    no duplicate MQTT subscriptions or remote commands occur.
-3. Confirm a public supported way to transfer owned entity registry
-   platform/entry association and device association **without changing
-   entity IDs**, metadata, user customizations or Recorder history.
-   Independently verify native MQTT-owned entities are untouched. If
-   exact preservation is unsupported, stop and obtain explicit owner
-   approval for a documented one-time preview reset instead.
+3. Build an **atomic orchestration** around the verified public entity/device
+   transfer APIs; validate exact pre-/post-conditions, run a one-PC pilot,
+   verify historical Recorder continuity and leave native MQTT-owned entities
+   untouched. If any metadata/history cannot be preserved, stop and obtain
+   explicit owner approval before a preview reset.
 4. Verify integration-owned Recorder/foreground checkpoint and
    updater stores remain accessible under the new entry identity.
    In particular, an update transaction must never be pending during
