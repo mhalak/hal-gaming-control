@@ -2,7 +2,7 @@
 
 [← Documentation hub](../../README.md) · [← Project home](../../../README.md)
 
-The feature illustrations follow the existing SmartHouse Parental Control banner's visual direction: dark teal, cyan/bright yellow highlights, warm parent-and-child cartoon caricatures, bold outlines, and the friendly white robot.
+The feature illustrations follow the existing HAL Gaming Control banner's visual direction: dark teal, cyan/bright yellow highlights, warm parent-and-child cartoon caricatures, bold outlines, and the friendly white robot.
 
 **Artwork is a visual explanation, not a real Home Assistant screenshot.** All five approved feature illustrations are committed and linked from the README and their guides. **Planned** describes the status of some software features, not missing artwork. Characters are fictionalized cartoons, not real family photographs.
 

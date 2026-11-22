@@ -35,13 +35,13 @@ The PC only observes and reports. **Names and tracked-app settings live in Home 
 ## Add an application
 
 1. Confirm the Windows companion and Home Assistant integration are installed and sending fresh telemetry. Start the application on the child's PC and bring it to the foreground.
-2. In Home Assistant, open **Settings → Devices & services → SmartHouse Parental Control**. Choose the correct PC's integration entry, then **Configure → Tracked applications**.
+2. In Home Assistant, open **Settings → Devices & services → HAL Gaming Control**. Choose the correct PC's integration entry, then **Configure → Tracked applications**.
 3. Review **Currently detected application**. It should show the safe raw executable identity (and Java signature where applicable). The editor captures a *snapshot when you open this step*. If the wrong app appears, close the dialog with **X**, focus the right app on Windows, and reopen **Configure → Tracked applications**.
 4. In **Application List**, choose **Add**, supply your friendly name and confirm the inner **Add** dialog. You can similarly edit or remove existing entries.
 5. **Important: press the outer Save changes button as well.** The inner Add/Edit/Delete dialog only changes the draft list displayed on screen. Closing without **Save changes** discards these edits.
 6. Reopen Tracked applications to confirm the persisted mapping. The final user-facing Active game behavior depends on the separately validated foreground cutover; do not treat adding a name as proof that all accounting is correct.
 
-**Mobile note:** the on-screen keyboard's Enter action cannot submit the inner Add dialog through the native Home Assistant selector. Tap the actual **Add** button, dismiss the keyboard if needed, then tap the outer **Save changes** button. A single-step editor is deferred to [future custom frontend work](https://github.com/mhalak/smarthouse-parental-control/issues/89).
+**Mobile note:** the on-screen keyboard's Enter action cannot submit the inner Add dialog through the native Home Assistant selector. Tap the actual **Add** button, dismiss the keyboard if needed, then tap the outer **Save changes** button. A single-step editor is deferred to [future custom frontend work](https://github.com/mhalak/hal-gaming-control/issues/89).
 
 ## What should the screen look like?
 

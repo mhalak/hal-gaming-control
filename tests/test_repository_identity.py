@@ -63,7 +63,7 @@ def test_old_product_name_only_in_historical_documents():
 def test_all_owner_repository_links_target_the_current_repository():
     link = re.compile(r"(?:github\.com|raw\.githubusercontent\.com)/mhalak/([A-Za-z0-9._-]+)")
     bad = sorted({f"{name}: {slug}" for name, text in text_files()
-                  for slug in link.findall(text) if slug != "hal-gaming-control"})
+                  for slug in link.findall(text) if slug.removesuffix(".git") != "hal-gaming-control"})
     assert bad == []
 
 

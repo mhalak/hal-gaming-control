@@ -1,8 +1,12 @@
 # HA 0.7.0 domain clean cut — one-time installation procedure
 
-**Breaking development preview.** The single supported Home Assistant integration domain is now `hal_gaming_control` in `custom_components/hal_gaming_control`. It replaces all experimental predecessors: `smarthouse_gaming` (0.5.x), `parental` (0.6.0), and `parental_control` (0.6.1, which collided with another project's Marketplace domain). **This is not an in-place upgrade.** No automatic migration, alias, dual installation, or HA registry editing is provided. See [issue #146](https://github.com/mhalak/smarthouse-parental-control/issues/146).
+**Breaking development preview.** The single supported Home Assistant integration domain is now `hal_gaming_control` in `custom_components/hal_gaming_control`. It replaces all experimental predecessors: `smarthouse_gaming` (0.5.x), `parental` (0.6.0), and `parental_control` (0.6.1, which collided with another project's Marketplace domain). **This is not an in-place upgrade.** No automatic migration, alias, dual installation, or HA registry editing is provided. See [issue #146](https://github.com/mhalak/hal-gaming-control/issues/146).
 
 **Windows agent 0.2.6 is unchanged.** Its MQTT root `SmartHouse/Gaming` and `smarthouse_gaming_<device_id>` native MQTT discovery IDs remain the existing wire-protocol contract. Those MQTT identifiers do **not** indicate a second HA custom integration. No Windows agent reinstall is required solely for this HA-domain change.
+
+## Repository and product rename
+
+The GitHub repository `mhalak/smarthouse-parental-control` was renamed to `mhalak/hal-gaming-control`, and the public product name "SmartHouse Parental Control" became **HAL Gaming Control**. GitHub redirects the old repository URL, but update any custom HACS repository entry or bookmark to `https://github.com/mhalak/hal-gaming-control`. Entries created by earlier previews can still be listed under the old product name in **Settings → Devices & services**; remove them as described below. The rename changes no version, HA domain, MQTT topic or wire identifier, and the source contains no alias for the old names.
 
 ## Before removing the old integration
 
@@ -20,7 +24,7 @@
    
    **Never edit HA `.storage` or purge the shared Recorder database** to make this work. Be careful: the `parental_control` directory can belong to a different project, so first identify any installed owner rather than deleting an unrelated package.
 6. From the exact **reviewed 0.7.0 source** install **only** `custom_components/hal_gaming_control` (manifest, translations, brand icons and the complete package), either via a verified Marketplace custom-repository download **whose destination is exactly `hal_gaming_control`**, or via the existing controlled, versioned agent/source deployment. **If the UI proposes `parental` or `parental_control`, cancel the download.** Restart Home Assistant.
-7. In **Settings → Devices & services → Add integration**, choose **SmartHouse Parental Control**. Enroll the first Windows PC using the existing MQTT/Windows agent, then re-enter tracked applications, limits, bonuses and allowed gaming hours. Keep automatic enforcement disabled. Enroll the second PC after the first passes.
+7. In **Settings → Devices & services → Add integration**, choose **HAL Gaming Control**. Enroll the first Windows PC using the existing MQTT/Windows agent, then re-enter tracked applications, limits, bonuses and allowed gaming hours. Keep automatic enforcement disabled. Enroll the second PC after the first passes.
 
 ## Smoke test and rollout
 

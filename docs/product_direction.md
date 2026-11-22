@@ -1,4 +1,4 @@
-# Product direction — SmartHouse Parental Control
+# Product direction — HAL Gaming Control
 
 [← Documentation hub](README.md) · [← Project home](../README.md)
 
@@ -15,8 +15,8 @@ This document records agreed product behavior, not a claim that each feature is 
 | Budget model | Daily and weekly time sensors, Weekend bonus, automation-owned enforcement | Partial kernel and action cleanup in 0.5.0 preview; duration sensors/bonus UI/restriction trigger still planned |
 | Foreground accounting | Foreground telemetry and foreground-only accounting | Priority follow-up; required before accurate active application accounting |
 | Application list | Application list and enrollment from live foreground identity | Backlog improvement |
-| Screen idle bonus / AFK grind support | Detect confirmed display-off, let background grinding continue and optionally reward eligible pre-off idle minutes as a daily parent-policy bonus | Planned; [#92](https://github.com/mhalak/smarthouse-parental-control/issues/92) |
-| Budget overview | Text-first breakdown of daily, parent, weekend and screen idle bonuses plus measured playtime | Planned; [#93](https://github.com/mhalak/smarthouse-parental-control/issues/93) |
+| Screen idle bonus / AFK grind support | Detect confirmed display-off, let background grinding continue and optionally reward eligible pre-off idle minutes as a daily parent-policy bonus | Planned; [#92](https://github.com/mhalak/hal-gaming-control/issues/92) |
+| Budget overview | Text-first breakdown of daily, parent, weekend and screen idle bonuses plus measured playtime | Planned; [#93](https://github.com/mhalak/hal-gaming-control/issues/93) |
 | Countdown popup | Child-facing Windows countdown and warning popup | Backlog improvement; visual behavior agreed |
 | Future | Optional request for five more minutes | Deferred until popup UX is validated |
 
@@ -40,7 +40,7 @@ Account only confirmed monitored foreground activity, not merely a running or mi
 
 ## Application list
 
-In Settings → Devices & services → SmartHouse Parental Control → select the PC's integration entry → Configure, expose Application list in the Options Flow (not the device page containing budget sliders).
+In Settings → Devices & services → HAL Gaming Control → select the PC's integration entry → Configure, expose Application list in the Options Flow (not the device page containing budget sliders).
 
 Show the current raw foreground application, including unmonitored applications. A parent focuses the desired application, selects Add application and supplies a readable name. Example: identify Minecraft Java by javaw.exe plus an appropriate identity constraint; Chrome can be monitored as an ordinary application. Show enrolled applications, allow rename/removal, avoid duplicates, and preserve durable per-PC HA configuration without any Windows configuration write or service restart. No Steam/Epic catalog is required.
 
@@ -57,7 +57,7 @@ Parents can choose how generous the household rules should be. **Screen idle bon
 - The Windows companion reports confirmed display state and reliable interactive-session inactivity evidence; Windows display power configuration informs eligibility but is not a reason to invent idle periods. A console session service must not mistake its own session for the child's. Raw keyboard contents, private command lines, window titles and identities are not reported.
 - While the monitor is confirmed off, the tracked game may **remain running** for AFK grinding. The HA-owned **Active game** becomes confirmed `idle` and newly elapsed screen-off time is **not** charged to gaming usage. On return and fresh foreground confirmation, normal accounting resumes. No terminate, lock or forced power-setting changes are implied.
 - Measured foreground usage **up to the screen-off event** stays in daily, weekly and per-application statistics. With parental permission and reliable last-activity evidence, the system grants up to the eligible measured pre-off idle span as **today's Screen idle bonus**; a manual display-off immediately after input must not earn a fictional full timeout. Bonus events are device-scoped, durable, idempotent and do not survive into the next day's allowance.
-- The **effective finite daily allowance** is base daily budget + applicable Weekend bonus + Parent bonus (from Add 30 minutes) + Screen idle bonus. The independent weekly limit is **not** enlarged, and the underlying recorded gaming-time total is **not** decreased. Show all line items transparently in [Budget overview #93](https://github.com/mhalak/smarthouse-parental-control/issues/93).
+- The **effective finite daily allowance** is base daily budget + applicable Weekend bonus + Parent bonus (from Add 30 minutes) + Screen idle bonus. The independent weekly limit is **not** enlarged, and the underlying recorded gaming-time total is **not** decreased. Show all line items transparently in [Budget overview #93](https://github.com/mhalak/hal-gaming-control/issues/93).
 - Offer a parent-controlled opt-in/policy for automatic Screen idle bonuses, so generous and strict households are both supported. Keep it inactive unless explicitly configured and validated; this roadmap is not authorization to enable enforcement, backfill older history, grant allowances from untrusted or missing telemetry or alter Windows settings.
 
 Illustrative ledger (not live data):

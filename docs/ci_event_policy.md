@@ -12,3 +12,5 @@ The repository uses the same eight workflow names and required job/check names a
 This policy affects **new runs evaluated against the revised workflow**. It does not retroactively cancel hundreds of already queued runs created under the old unlimited-push configuration. Owners with GitHub Actions write access can cancel obsolete runs on the Actions page; do not cancel runs from `main` or the latest PR revision. If a queued PR was created before this policy reached `main`, it may require one deliberate head update after this change is merged to receive the newer definition.
 
 When reviewing feature PRs, merge only after all required checks pass on the **exact latest head SHA**. A passing old SHA or a still-queued check is not approval.
+
+The same workflow also runs `tests/test_repository_identity.py`, which keeps the repository slug (`mhalak/hal-gaming-control`) and public product name (**HAL Gaming Control**) consistent and confines the previous names to the explicitly historical documents listed in that test.

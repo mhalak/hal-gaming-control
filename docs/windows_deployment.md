@@ -45,8 +45,8 @@ Home Assistant (HA) and HACS run independently of the Windows companion. HACS in
 For this source preview, build from a reviewed revision. A production installation should use a reviewed compatible release. Clone on the trusted build machine:
 
 ```powershell
-git clone https://github.com/mhalak/smarthouse-parental-control.git
-Set-Location smarthouse-parental-control
+git clone https://github.com/mhalak/hal-gaming-control.git
+Set-Location hal-gaming-control
 git checkout --detach REVIEWED_COMMIT_SHA
 git rev-parse HEAD
 Set-Location windows_agent
@@ -118,7 +118,7 @@ Expected: Running, Automatic, LocalSystem. The installer places binaries in Prog
 
 1. Confirm the HA MQTT connection and running Windows service.
 2. In HA MQTT's topic listener, observe the exact device root SmartHouse/Gaming/gaming_pc_01/discovery, availability, state/uptime, state/in_game and state/current_game. Uptime advances roughly every 60 seconds; availability must transition online after a fresh snapshot. Metadata includes agent_version.
-3. Install the HA integration (manually, or via HACS when validated). Restart HA, go to Settings → Devices & services → Add integration and select SmartHouse Parental Control and the advertised PC.
+3. Install the HA integration (manually, or via HACS when validated). Restart HA, go to Settings → Devices & services → Add integration and select HAL Gaming Control and the advertised PC.
 4. Verify raw telemetry, budget controls and Windows agent version on the device. Keep Current game and Uptime in Recorder with at least eight days' retention.
 5. Launch and close a disposable game. Current preview behavior reports matching running processes, even in the background; do not confuse that with actual foreground play.
 6. Test explicit Terminate game / Lock PC only in authorized disposable sessions. Termination may lose progress; lock is not a permanent lockout. Do not send commands just to test connectivity.

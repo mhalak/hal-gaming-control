@@ -1,4 +1,4 @@
-"""Explicit one-time clean start for a single Parental Control HA entry.
+"""Explicit one-time clean start for a single HAL Gaming Control HA entry.
 
 This only resets the v2 verified-interval checkpoint. It does not touch
 Home Assistant's shared Recorder database, user policy/options, native MQTT

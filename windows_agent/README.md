@@ -1,4 +1,4 @@
-# SmartHouse Parental Control — Windows MQTT agent
+# HAL Gaming Control — Windows MQTT agent
 
 For an end-user installation, manual upgrade, rollback and troubleshooting, follow the [Windows deployment guide](../docs/windows_deployment.md). This document describes the underlying service and protocol. The foreground-enabled build is an unvalidated development candidate; do not deploy it as a stable release.
 

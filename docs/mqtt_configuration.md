@@ -1,6 +1,6 @@
-# MQTT connection settings in Parental Control
+# MQTT connection settings in HAL Gaming Control
 
-The Parental Control **MQTT configuration** Options Flow step is **read-only**. It reports whether Home Assistant's shared MQTT connection is connected, the configured broker address and port when safely available, the selected PC identity, the device topic root and the current MQTT discovery mode.
+The HAL Gaming Control **MQTT configuration** Options Flow step is **read-only**. It reports whether Home Assistant's shared MQTT connection is connected, the configured broker address and port when safely available, the selected PC identity, the device topic root and the current MQTT discovery mode.
 
 **To change Home Assistant's MQTT broker, port, credentials or TLS:**
 
