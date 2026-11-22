@@ -237,7 +237,7 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True):
             screen_idle_bonus_total(settings, now)
             if settings.get("screen_idle_enabled") is True else None),
         "screen_idle_bonus_status": (
-            "preview" if settings.get("screen_idle_enabled") is True else "disabled"),
+            "preview" if settings.get("screen_idle_enabled") is True else "pending"),
         "daily_limit_minutes": daily_finite,
         "daily_used_seconds": daily_used,
         "daily_used_minutes": whole_hundredths(daily_used),
