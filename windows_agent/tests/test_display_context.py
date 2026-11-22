@@ -124,7 +124,7 @@ def test_focus_probe_invalidates_user_idle_on_lost_or_locked_session():
         assert p.read([])["active_game"] == "idle"
     assert p.last_input_idle_ms == 96000
     with patch("gaming_control.focus_session.selected_session",
-               return_value=(1, "locked")):
+               return_value=(1, "locked")), patch.object(p, "close"):
         assert p.read([])["active_game"] == "idle"
     assert p.last_input_idle_ms is None
 
