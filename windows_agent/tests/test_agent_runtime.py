@@ -281,7 +281,9 @@ def test_run_captures_foreground_before_probe_and_publishes_only_when_synced(run
 
 
 def test_targeted_command_does_not_execute_legacy_mass_kill(runtime):
-    path, bridge, _ = runtime
+    path, bridge, focus = runtime
+    focus.foreground_state = "foreground"
+    focus.candidate = ("RobloxPlayerBeta.exe", 410, 1000.5, 3, None)
     path.write_text(yaml.safe_dump({"mqtt": {"host": "broker"}}), encoding="utf-8")
     offer = {"candidate": ("RobloxPlayerBeta.exe", 410, 1000.5, 3, None),
              "sample_time": 100.0, "offered_at": 101.0}
@@ -293,6 +295,18 @@ def test_targeted_command_does_not_execute_legacy_mass_kill(runtime):
     A.execute.assert_not_called()
     bridge.publish_target_offer.assert_called_once()
 
+
+
+
+def test_target_offer_denied_when_v3_foreground_unverified(runtime):
+    path, bridge, focus = runtime
+    path.write_text(yaml.safe_dump({"mqtt": {"host": "broker"}}), encoding="utf-8")
+    focus.foreground_state = "unknown"
+    focus.candidate = ("RobloxPlayerBeta.exe", 410, 1000.5, 3, None)
+    A.run(path, Stop())
+    bridge.publish_unified_telemetry.assert_called_once()
+    bridge.prime_target_receipt.assert_not_called()
+    bridge.publish_target_offer.assert_not_called()
 
 def test_targeted_execution_requires_new_user_foreground_sample():
     offer = {"candidate": ("RobloxPlayerBeta.exe", 410, 1000.5, 3, None),
