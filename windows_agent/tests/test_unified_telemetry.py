@@ -155,7 +155,8 @@ def test_same_executable_focus_switch_is_an_immediate_transition(rig):
     first, second = payloads(client)
     assert first["foreground"] == second["foreground"]
     assert first["sequence"] + 1 == second["sequence"]
-    assert "322" not in json.dumps(second)  # Private process identity withheld.
+    assert "pid" not in second["foreground"]  # Never expose private PID.
+    assert set(second["foreground"]) == {"state", "process", "signature", "sample_age_ms"}
 
 
 def test_java_discriminator_survives_without_argv_pid_or_path(rig):
