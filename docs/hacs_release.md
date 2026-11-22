@@ -2,6 +2,10 @@
 
 Public product name: SmartHouse Parental Control. Proposed repository slug: smarthouse-parental-control. The internal integration domain is **`parental_control`** (breaking clean cut in HA 0.6.1); the MQTT wire root `SmartHouse/Gaming`, native MQTT discovery identifiers (`smarthouse_gaming_<device_id>`) and Windows service stay unchanged. An installed `smarthouse_gaming` HA config entry must be removed and re-added as `parental_control`; no automatic migration or retained HA registry history guarantee.
 
+## Marketplace domain conflict — blocking publication
+
+**Confirmed 2026-11-22:** our HA 0.6.1 uses `parental_control`, which is also the domain of [cesbron-dev/ha-parental-control](https://github.com/cesbron-dev/ha-parental-control) in the Marketplace catalog. The domain-scoped pre-install icon can therefore show the unrelated integration's artwork, and the two packages cannot be installed side by side. See [blocking issue #146](https://github.com/mhalak/smarthouse-parental-control/issues/146). Before publishing or recommending Marketplace installation, select and validate a unique domain (proposed: `smarthouse_parental_control`), bump the HA version and complete a new coordinated migration with acceptance tests. A local `brand/icon.png` does not by itself solve the pre-install collision. Do not publish 0.6.1 as the stable Marketplace package.
+
 ## Source-only development preview
 
 Core Terminate game and Lock PC actions worked in live smoke testing. Source publication does not certify stable release acceptance. Keep personal data, credentials, private diagnostics and development history out of the public repository. Do not distribute unsigned executables as trusted releases. This preview has no active Windows binary build, artifact upload or release workflow. Windows CI runs source tests and compilation checks only; local packaging remains available for development. The [disabled design reference](examples/windows-release.yml.disabled) is retained for development only; it signs the update manifest, not the executable, and must never be enabled in this repository.
@@ -20,7 +24,7 @@ Core Terminate game and Lock PC actions worked in live smoke testing. Source pub
 - Resolve the known limitations and record formal acceptance evidence.
 
 ## HACS checks
-- Prepare the icon assets for a future home-assistant/brands PR under custom_integrations/parental_control_control/. A local brand/icon.png alone does not satisfy the documented default-catalog Brands check. Verify the latest upstream requirements before submission. Do not submit either upstream PR yet.
+- Preserve the existing local `custom_components/<unique_domain>/brand/icon.png` and `icon@2x.png`; once the unique domain is selected, verify Marketplace **pre-install** imagery against current catalog/release indexing rules and **installed** icons against the local Brands API. Do not submit custom integration images to the legacy `home-assistant/brands` route; follow the HA 2026.3+ local brand conventions.
 - One integration under custom_components/parental_control; runtime files and brand assets within that directory.
 - Root hacs.json and README, identifiable OSI license, useful GitHub metadata.
 - Run local packaging validation on every PR. Run official HACS validation and Hassfest without ignores once public; fix failures before publication.
