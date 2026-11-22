@@ -9,7 +9,7 @@ The source lives in the shared `hal-gaming-control` monorepo, but HA releases an
 | Component | Example | Distribution |
 | --- | --- | --- |
 | HA integration | 0.8.0 | HACS / Marketplace from `mhalak/hal-gaming-control` |
-| Windows agent | 0.2.9 | Separate, operator-approved Windows binary release repository or distribution server |
+| Windows agent | 0.2.10 | Separate, operator-approved Windows binary release repository or distribution server |
 | Windows updater | Initially manually bootstrapped | One-time protected Windows service/task provisioning, then explicitly requested upgrades |
 
 Do **not** tag Windows-only binary releases in the HACS integration repository; HACS looks at the repository's release metadata. The distribution repository has not yet been created or provisioned. It requires an approved build, Windows Authenticode signing, pinned Ed25519 release signatures and an authorized publishing flow. No source code change requires a synchronized HA/Windows version bump unless the wire protocol or capability negotiation actually changes.
