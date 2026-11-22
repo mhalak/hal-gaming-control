@@ -137,6 +137,29 @@ def test_run_advertises_os_hostname_and_preserves_generated_identity(runtime):
     assert resolved["device"]["id"] == (path.parent / "device_id").read_text().strip()
 
 
+def test_no_catalog_starts_and_keeps_raw_foreground_telemetry(runtime):
+    path, bridge, focus = runtime
+    path.write_text(yaml.safe_dump({"mqtt": {"host": "broker"}}), encoding="utf-8")
+    A.run(path, Stop())
+    A.scan.assert_called_once_with([])
+    focus.read.assert_called_once_with([])
+    bridge.publish_raw_foreground.assert_called_once()
+    A.execute.assert_not_called()
+
+
+def test_no_catalog_rejects_manual_terminate_without_scanning():
+    with patch.object(A, "stop_games") as stop:
+        with pytest.raises(ValueError, match="unavailable"):
+            A.execute("terminate_game", [])
+    stop.assert_not_called()
+
+
+def test_empty_rules_do_not_scan_process_list():
+    with patch.object(A.psutil, "pids") as pids:
+        assert A.scan([]) == []
+    pids.assert_not_called()
+
+
 def test_run_dispatches_commands_and_publishes_telemetry(runtime):
     path, bridge, focus = runtime
     request = {"request_id": "synthetic"}
