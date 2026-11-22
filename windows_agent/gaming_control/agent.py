@@ -210,6 +210,23 @@ def pinned_ota_key(config_path, config):
     return key
 
 
+def _build_mqtt_bridge(config_path, config):
+    """Fail closed on incomplete OTA provisioning but preserve normal telemetry."""
+    if config.get('update', {}).get('mqtt_staging_enabled') is not True:
+        return Bridge(config)
+    try:
+        pinned = pinned_ota_key(config_path, config)
+    except (ValueError, OSError, KeyError, subprocess.SubprocessError) as err:
+        LOG.error('Signed OTA disabled (bootstrap incomplete): %s',
+                  type(err).__name__)
+        safe = dict(config)
+        safe['update'] = dict(config.get('update', {})) | {
+            'mqtt_install_enabled': False, 'mqtt_staging_enabled': False}
+        return Bridge(safe)
+    return Bridge(config, ota_root=Path(config_path).parent / 'ota-staging',
+                  ota_public_key=pinned)
+
+
 def run(config_path, stop_event):
     config = yaml.safe_load(Path(config_path).read_text(encoding='utf-8'))
     interval = float(config.get('gaming', {}).get('check_interval_seconds', 1))
@@ -217,27 +234,7 @@ def run(config_path, stop_event):
         raise ValueError('Interval must be between 0.25 and 5 seconds')
     rules = validate_rules(config.get('games', []))
     config = resolve_identity(config, config_path)
-    # The staging directory must be provisioned under protected ProgramData
-    # before this explicit, default-off capability can be enabled.
-    if config.get('update', {}).get('mqtt_staging_enabled') is True:
-        try:
-            pinned = pinned_ota_key(config_path, config)
-        except (ValueError, OSError, KeyError, subprocess.SubprocessError) as err:
-            # Missing signing/bootstrap should NEVER disable the child's normal
-            # gaming telemetry. Drop all OTA subscriptions instead.
-            LOG.error('Signed OTA disabled (bootstrap incomplete): %s',
-                      type(err).__name__)
-            config = dict(config)
-            config['update'] = dict(config.get('update', {})) | {
-                'mqtt_install_enabled': False, 'mqtt_staging_enabled': False}
-            pinned = None
-        if config['update'].get('mqtt_staging_enabled') is True:
-            bridge = Bridge(config, ota_root=Path(config_path).parent / 'ota-staging',
-                            ota_public_key=pinned)
-        else:
-            bridge = Bridge(config)
-    else:
-        bridge = Bridge(config)
+    bridge = _build_mqtt_bridge(config_path, config)
     last_health = float('-inf')
     last_power_poll = float('-inf')
     display_policy = {"ac_timeout_seconds": None, "dc_timeout_seconds": None,
