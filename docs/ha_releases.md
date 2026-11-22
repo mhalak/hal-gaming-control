@@ -1,3 +1,9 @@
+## 0.7.2 — HA-owned targeted manual Terminate active game (#155)
+
+- New HA-native **Terminate active game** button in both MQTT installation modes. It is available only with a fresh non-retained agent termination offer bound to the exact accepted HA-tracked raw foreground sample. No tracked game, idle, unknown, offline, stale token, or session change => unavailable. Pressing consumes the token and sends one fixed, device-scoped, non-retained command; no automated action or policy trigger.
+- Compatible Windows **0.2.9** exposes the new short-lived token protocol only when local legacy `games` rules are absent. PCs that retain their old rules continue using existing manual Terminate game; no silent reconfiguration or process list migration. The HA-owned action has a separate unique ID to prevent registry conflicts; an obsolete direct legacy button can remain unavailable until users hide it.
+- Includes strict process/session validation on Windows, Java discriminator and OS-process protection. **Physical one-PC pilot is not complete**; this is a reviewed-source candidate, not a stable public installer. No automatic termination, mandatory remote updates or broker changes.
+
 ## 0.7.1 — safe scoped MQTT manual-action capability (#155)
 
 - Existing HA config entries keep their device IDs, entity IDs, tracked apps and budgets. The scoped/direct MQTT `Terminate game` button now requires verified current PC discovery metadata advertising a nonempty legacy `games` catalog and the terminate capability; if a PC upgrades to rule-free Windows 0.2.8, a stale previously created button becomes unavailable instead of sending a misleading command.
