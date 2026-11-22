@@ -225,3 +225,109 @@ async def test_preflight_rejects_entity_link_to_native_mqtt_device(hass, source)
         assert "entity_ownership_conflict" in await preflight(hass, source)
     assert registry.async_get(entity.entity_id) == entity
     assert devices.async_get(native.id) == native
+
+
+# Issue #5: an integration domain is not an editable config-entry option.
+# A migration may never assume that replacing a package directory rewrites
+# existing HA entries, nor may it attempt private .storage edits.
+async def test_config_entry_domain_is_immutable_in_public_ha_api(hass, source):
+    original_id, original_domain = source.entry_id, source.domain
+    with pytest.raises(AttributeError):
+        source.domain = "parental"
+    with pytest.raises(TypeError):
+        hass.config_entries.async_update_entry(source, domain="parental")
+    assert source.entry_id == original_id
+    assert source.domain == original_domain
+    assert hass.config_entries.async_entries("parental") == []
+
+
+async def test_read_only_domain_migration_inventory_preserves_all_options(hass, source):
+    from homeassistant.helpers import device_registry as dr
+    from custom_components.smarthouse_gaming.domain_migration_inventory import (
+        async_inventory,
+    )
+
+    # Full HA options are preserved exactly, not a reconstructed defaults
+    # object that loses a parent-configured tracked app or future setting.
+    source_options = {
+        "enabled": True, "daily": 180, "weekly": 4200,
+        "schedule_enabled": True, "schedule_start": "16:00",
+        "schedule_end": "20:00", "weekend_schedule_start": "10:00",
+        "weekend_schedule_end": "22:00",
+        "weekend_bonus": 60, "bonus_date": "2026-11-22",
+        "bonus_minutes": 30,
+        "tracked_apps": [{"process": "RobloxPlayerBeta.exe", "signature": None,
+                          "name": "Roblox"}],
+        "update_catalog_url": "https://example.invalid/catalog",
+    }
+    hass.config_entries.async_update_entry(source, options=source_options)
+    devices = dr.async_get(hass)
+    owned = devices.async_get_or_create(
+        config_entry_id=source.entry_id,
+        identifiers={("mqtt", "smarthouse_gaming_pc1")}, name="Test PC")
+    registry = er.async_get(hass)
+    entity = registry.async_get_or_create(
+        "sensor", DOMAIN, "pc1_active_game",
+        config_entry=source, device_id=owned.id)
+    original_entity = registry.async_get(entity.entity_id)
+    report = await async_inventory(hass, source)
+    assert report == {
+        "source_domain": DOMAIN,
+        "target_domain": "parental",
+        "source_entry_id": source.entry_id,
+        "device_id": "pc1",
+        "unique_id": source.unique_id,
+        "title": source.title,
+        "data": dict(source.data),
+        "options": source_options,
+        "entity_ids": (entity.entity_id,),
+        "device_ids": (owned.id,),
+        "updater_store_key": f"smarthouse_gaming.update.{source.entry_id}",
+    }
+    # Private data/option snapshots are in memory only and must be copies.
+    assert report["options"] is not source.options
+    report["options"]["tracked_apps"][0]["name"] = "Changed in report"
+    assert source.options["tracked_apps"][0]["name"] == "Roblox"
+    assert registry.async_get(entity.entity_id) == original_entity
+    assert hass.config_entries.async_get_entry(source.entry_id) is source
+    assert hass.config_entries.async_entries("parental") == []
+
+
+async def test_domain_migration_inventory_blocks_loaded_source_or_duplicate(hass, source):
+    from custom_components.smarthouse_gaming.domain_migration_inventory import (
+        MigrationBlocked, async_inventory,
+    )
+
+    duplicated = MockConfigEntry(
+        domain="parental", unique_id="pc1",
+        data={**DATA, "device_id": "pc1"})
+    duplicated.add_to_hass(hass)
+    with pytest.raises(MigrationBlocked) as blocked:
+        await async_inventory(hass, source)
+    assert blocked.value.reasons == ("duplicate_device",)
+    assert hass.config_entries.async_entries("parental") == [duplicated]
+
+    # If a source is loaded, transfer would race live subscriptions/commands.
+    entry = MockConfigEntry(domain=DOMAIN, unique_id="pc2",
+                            data={**DATA, "device_id": "pc2"},
+                            state=ConfigEntryState.LOADED)
+    entry.add_to_hass(hass)
+    with pytest.raises(MigrationBlocked) as blocked:
+        await async_inventory(hass, entry)
+    assert blocked.value.reasons == ("source_not_unloaded",)
+
+
+async def test_domain_migration_inventory_fails_closed_on_pending_updater(hass, source):
+    from custom_components.smarthouse_gaming.domain_migration_inventory import (
+        MigrationBlocked, async_inventory,
+    )
+    store = Store(hass, 1, f"smarthouse_gaming.update.{source.entry_id}")
+    path = Path(store.path)
+    await hass.async_add_executor_job(path.parent.mkdir, 0o700, True, True)
+    raw = json.dumps({"version": 1, "minor_version": 1, "key": store.key,
+                      "data": {"pending": {"request_id": "synthetic"}}})
+    await hass.async_add_executor_job(path.write_text, raw, "utf-8")
+    with pytest.raises(MigrationBlocked) as blocked:
+        await async_inventory(hass, source)
+    assert blocked.value.reasons == ("update_pending",)
+    assert await hass.async_add_executor_job(path.read_text, "utf-8") == raw
