@@ -14,7 +14,7 @@ Our robot is enthusiastic. We're a little more careful.
 
 ## What's not ready?
 
-- The **Gaming restriction** signal is implemented in HA 0.5.12 source, but **automatic game closing or locking** is not validated or enabled by default.
+- The **Gaming restriction** signal and a default-off **Gaming rules enabled** switch are implemented in HA 0.5.12 source, but **automatic game closing or locking** is not validated or enabled by default.
 - **AFK bonuses** and the itemized **Budget Overview** are **planned**, not working features.
 - **Windows installation:** There is no verified signed public installer. Windows Smart App Control has blocked an unsigned build. **Don't turn off Smart App Control, Defender or other protections** to make it run.
 - **Updates:** The trusted Windows updater and stable release are still being tested.

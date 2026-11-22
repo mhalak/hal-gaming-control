@@ -1,5 +1,7 @@
 ## 0.5.12 — passive per-PC Gaming restriction signal
 
+- Add **Gaming rules enabled**, a per-PC HA-local switch (default OFF) that controls whether the existing rule engine evaluates restrictions. It never issues MQTT commands. **Unlimited gaming** still provides an independent live bypass.
+
 - New `binary_sensor.<pc>_gaming_restriction` reports **ON** when current verified gaming totals violate Daily budget, Weekly budget, schedule, or an active game's per-game budget. **OFF** means no applicable restriction; **unavailable** means there is not enough fresh verified accounting to decide.
 - The sensor exposes ordered `reasons` (e.g. `daily`, `weekly`, `schedule`, `game:Roblox`) and the first `reason`. It respects the additive Weekend and date-scoped Parent bonuses, plus Unlimited gaming and the enabled flag.
 - Runs in both direct-MQTT and native-MQTT configurations; tied to its own Windows PC device. It is only an observation **and never calls Terminate game or Lock PC**.

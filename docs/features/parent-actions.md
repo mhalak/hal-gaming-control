@@ -39,6 +39,8 @@ Adding a game to the tracked list never closes it by itself.
 
 The per-PC **Gaming restriction** binary sensor exposes the result of the verified budget/schedule rules. `on` means the child has crossed at least one applicable limit; `off` means none apply; `unavailable` means HA cannot establish the truth from reliable live accounting. Its attributes include `reasons` and `reason`, such as `daily`, `weekly`, `schedule` or `game:Roblox`.
 
+**Gaming rules enabled** is a separate HA switch, initially **off**. Turn it on for the selected PC when you want the restriction sensor to evaluate active rules; it does not itself terminate anything. **Unlimited gaming** can still override the rules.
+
 The sensor is **passive** and never shuts down a game. A future parent-authored automation should react to either (1) Gaming restriction changing to `on` **or** (2) Active game changing from idle to a game while restriction is already `on`. Also recheck actual state on HA startup; use a warning/grace period and recheck before a destructive command. Never send a command solely because the sensor becomes unavailable.
 
 ## Why Home Assistant automations?
