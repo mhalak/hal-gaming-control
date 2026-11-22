@@ -307,7 +307,6 @@ async def test_domain_migration_inventory_blocks_loaded_source_or_duplicate(hass
     assert blocked.value.reasons == ("duplicate_device",)
     assert hass.config_entries.async_entries("parental") == [duplicated]
 
-    hass.config_entries.async_remove(duplicated.entry_id)
     # If a source is loaded, transfer would race live subscriptions/commands.
     entry = MockConfigEntry(domain=DOMAIN, unique_id="pc2",
                             data={**DATA, "device_id": "pc2"},
