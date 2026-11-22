@@ -375,3 +375,24 @@ def test_local_rules_cannot_prime_target_offer_without_v3_control_entitlement():
     assert not b.prime_target_receipt(
         candidate, context, sample_time=time.monotonic())
     assert b._raw_receipt is None
+
+
+def test_clean_cut_connection_drops_at_last_retained_tombstone_ack():
+    b = connected_bridge()
+    ack = b.client.publish.return_value
+    def transmit(topic, value, **kwargs):
+        if topic == b.root + "/state/focus_availability" and value == b"":
+            info = Mock(rc=mqtt.MQTT_ERR_SUCCESS)
+            info.wait_for_publish.return_value = True
+            def finish():
+                b.on_disconnect(b.client, None, None, None, None)
+                return True
+            info.is_published.side_effect = finish
+            return info
+        return ack
+    b.client.publish.side_effect = transmit
+    assert not b.publish({}, 12)
+    assert b.synced_generation is None
+    assert b.refresh_requested
+    assert not any(c.args[:2] == (b.root + "/availability", "online")
+                   for c in b.client.publish.call_args_list)
