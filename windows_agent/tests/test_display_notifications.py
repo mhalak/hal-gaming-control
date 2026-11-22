@@ -47,7 +47,9 @@ def test_tracker_requires_event_and_expires_after_age_limit():
     assert model.receive(wire(0))
     assert model.snapshot()["display_sequence"] == 1
     clock.return_value = 11.25
-    assert model.snapshot() == {"display_state": "off", "display_event_age_ms": 1250}
+    assert model.snapshot()["display_state"] == "off"
+    assert model.snapshot()["display_event_age_ms"] == 1250
+    assert model.snapshot()["display_epoch"] == model.epoch
     model.receive(wire(1))
     assert model.snapshot()["display_sequence"] == 2
     assert model.snapshot()["display_state"] == "on"
@@ -133,7 +135,8 @@ def test_registration_failure_does_not_break_existing_focus_probe():
         observer = D.DisplayObserver()
         assert not observer.start()
     assert observer.sample() == {"display_state": "unknown",
-                                 "display_event_age_ms": None}
+                                 "display_event_age_ms": None,
+                                 "display_epoch": None, "display_sequence": None}
 
 
 def test_helper_freshness_and_lock_reset_display_state():
