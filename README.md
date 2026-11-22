@@ -4,6 +4,8 @@
 
 **⚠️ HA 0.6.1 breaking preview:** the integration domain changes from `smarthouse_gaming` to `parental_control`. Remove the old HA integration **before** installing the new version (including any experimental 0.6.0 `parental` installation); there is no migration or dual-installation support. [Clean-install instructions](docs/domain-clean-cut.md). Windows agent 0.2.6 and MQTT topics are unchanged.
 
+**⚠️ Marketplace install blocker:** HA 0.6.1 currently uses `parental_control`, a domain already used by an unrelated integration in the Marketplace catalog. Its icon may appear on our listing, and the identical domains cannot coexist. **Do not install this preview through Marketplace yet.** We are tracking a unique domain and safe clean-cut procedure in [issue #146](https://github.com/mhalak/smarthouse-parental-control/issues/146). The existing Windows agent and MQTT topics are unaffected.
+
 **Because parenting should have an API.**
 
 *Powered by HAL Systems.*
