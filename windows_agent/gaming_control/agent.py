@@ -1,6 +1,9 @@
 """Poll sensors, execute explicit commands; never enforce a local quota."""
 import json
 import logging
+import os
+import re
+import subprocess
 import time
 from pathlib import Path
 import psutil
@@ -167,11 +170,40 @@ def pinned_ota_key(config_path, config):
     key = data.get('public_key_pem')
     if not isinstance(key, str) or 'BEGIN PUBLIC KEY' not in key or len(key) > 8000:
         raise ValueError('Pinned Ed25519 key must be provisioned out of band')
+    cert = data.get('authenticode_thumbprint')
+    if not isinstance(cert, str) or re.fullmatch(r'[0-9a-fA-F]{40}', cert) is None:
+        raise ValueError('Pinned Windows Authenticode publisher must be provisioned')
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
     loaded = serialization.load_pem_public_key(key.encode('ascii'))
     if not isinstance(loaded, Ed25519PublicKey):
         raise ValueError('Signed OTA requires pinned Ed25519 key')
+    # The updater is a separately provisioned, elevated binary. MQTT cannot
+    # install this task, replace its executable or choose a signer.
+    if os.name == 'nt':
+        updater = (Path(os.environ['ProgramFiles']) /
+                   'SmartHouseGamingUpdater' / 'SmartHouseGamingUpdater.exe')
+        if not updater.is_file() or updater.is_symlink():
+            raise ValueError('Trusted SYSTEM updater executable is missing')
+        task = (Path(os.environ['SystemRoot']) / 'System32' / 'schtasks.exe')
+        subprocess.run(
+            [str(task), '/Query', '/TN', r'\SmartHouseGamingControlUpdate'],
+            capture_output=True, timeout=15, check=True)
+        # Refuse to advertise v2 if the independently provisioned updater is
+        # not already validly Authenticode signed by the pinned publisher.
+        ps = (Path(os.environ['SystemRoot']) / 'System32' /
+              'WindowsPowerShell' / 'v1.0' / 'powershell.exe')
+        command = ("$ErrorActionPreference='Stop';"
+                   "$s=Get-AuthenticodeSignature -LiteralPath $env:HAL_OTA_EXE;"
+                   "if($s.Status -ne 'Valid' -or $null -eq $s.SignerCertificate"
+                   " -or $s.SignerCertificate.Thumbprint -ne $env:HAL_OTA_CERT)"
+                   "{exit 2}")
+        env = os.environ.copy()
+        env['HAL_OTA_EXE'] = str(updater)
+        env['HAL_OTA_CERT'] = cert.upper()
+        subprocess.run([str(ps), '-NoProfile', '-NonInteractive',
+                        '-Command', command], env=env, capture_output=True,
+                       timeout=30, check=True)
     return key
 
 
@@ -185,9 +217,22 @@ def run(config_path, stop_event):
     # The staging directory must be provisioned under protected ProgramData
     # before this explicit, default-off capability can be enabled.
     if config.get('update', {}).get('mqtt_staging_enabled') is True:
-        bridge = Bridge(
-            config, ota_root=Path(config_path).parent / 'ota-staging',
-            ota_public_key=pinned_ota_key(config_path, config))
+        try:
+            pinned = pinned_ota_key(config_path, config)
+        except (ValueError, OSError, KeyError, subprocess.SubprocessError) as err:
+            # Missing signing/bootstrap should NEVER disable the child's normal
+            # gaming telemetry. Drop all OTA subscriptions instead.
+            LOG.error('Signed OTA disabled (bootstrap incomplete): %s',
+                      type(err).__name__)
+            config = dict(config)
+            config['update'] = dict(config.get('update', {})) | {
+                'mqtt_install_enabled': False, 'mqtt_staging_enabled': False}
+            pinned = None
+        if config['update'].get('mqtt_staging_enabled') is True:
+            bridge = Bridge(config, ota_root=Path(config_path).parent / 'ota-staging',
+                            ota_public_key=pinned)
+        else:
+            bridge = Bridge(config)
     else:
         bridge = Bridge(config)
     last_health = float('-inf')
