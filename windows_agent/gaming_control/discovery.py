@@ -1,6 +1,10 @@
 def _uptime_v3_template(device_id):
     """A single native MQTT sensor reads only bounded same-device v3 uptime."""
-    # device_id is validated during local identity bootstrap, never from MQTT.
+    # Trust only locally provisioned device IDs; avoid template injection.
+    import re
+    if not isinstance(device_id, str) or not re.fullmatch(
+            r"[A-Za-z0-9_-]{1,64}", device_id):
+        raise ValueError("Invalid Uptime discovery device ID")
     return (
         "{{ value_json.system.uptime_seconds if "
         "value_json.version == 3 and "
