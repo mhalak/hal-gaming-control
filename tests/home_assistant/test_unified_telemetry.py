@@ -135,8 +135,9 @@ def test_unknown_and_stale_samples_never_invent_game_or_monitor_proof():
 def test_java_requires_stable_public_discriminator():
     v = sample()
     v["foreground"]["process"] = "javaw.exe"
-    with pytest.raises(ValueError):
-        decode(v)
+    # Raw ambiguous Java is allowed as *unmapped* evidence. The HA-owned
+    # app registry must never guess Minecraft without a stable discriminator.
+    assert decode(v)["foreground"]["signature"] is None
     v["foreground"]["signature"] = {
         "kind": "java_class", "value": "net.minecraft.client.main.Main"}
     assert decode(v)["foreground"]["signature"]["kind"] == "java_class"
