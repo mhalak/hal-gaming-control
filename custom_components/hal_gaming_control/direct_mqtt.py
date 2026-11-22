@@ -1,4 +1,5 @@
 """Scoped MQTT telemetry and controls for HA installations with discovery disabled."""
+from time import monotonic, time
 
 from homeassistant.components import mqtt
 from homeassistant.components.button import ButtonEntity
@@ -11,6 +12,7 @@ from homeassistant.helpers.entity import Entity, EntityCategory
 from .const import ROOT
 from .action_registry import ACTION_REGISTRY
 from .protocol import parse_discovery
+from .unified_telemetry import TelemetryOrder, decode_telemetry, MAX_AGE
 
 
 def direct_mode(hass):
@@ -84,7 +86,62 @@ class DirectUptime(DirectEntity, SensorEntity):
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, c):
-        super().__init__(c, "uptime", "Uptime", "uptime")
+        self._unified = c.entry.options.get("unified_telemetry_enabled") is True
+        super().__init__(c, "uptime", "Uptime",
+                         None if self._unified else "uptime")
+        self._order = TelemetryOrder() if self._unified else None
+        self._seen_at = None
+
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
+        if self._unified:
+            self.async_on_remove(await mqtt.async_subscribe(
+                self.hass, self._root + "/state/telemetry",
+                self._v3_telemetry, qos=0))
+
+    @callback
+    def _connection(self, connected):
+        if self._order is not None and connected is not True:
+            self._order.suspend()
+            self._seen_at = None
+        super()._connection(connected)
+
+    @callback
+    def _availability(self, message):
+        if self._order is not None and message.payload not in ("online", b"online"):
+            self._order.suspend()
+            self._seen_at = None
+        super()._availability(message)
+
+    @callback
+    def _v3_telemetry(self, message):
+        if not self._connected or not self._online:
+            return
+        now, mono = time(), monotonic()
+        if message.topic != self._root + "/state/telemetry":
+            return
+        try:
+            packet = decode_telemetry(
+                message.payload, self._root.rsplit("/", 1)[-1],
+                retained=getattr(message, "retain", None), wall_now=now)
+        except (ValueError, TypeError, RecursionError):
+            self._value = None
+            self._seen_at = None
+            self.async_write_ha_state()
+            return
+        if not self._order.accept(packet, monotonic_now=mono):
+            return
+        self._value = packet["system"]["uptime_seconds"]
+        self._seen_at = mono
+        self.async_write_ha_state()
+
+    @property
+    def available(self):
+        if not super().available:
+            return False
+        return (not self._unified or (self._value is not None
+                and self._seen_at is not None
+                and 0 <= monotonic() - self._seen_at < MAX_AGE))
 
     @property
     def native_value(self):
