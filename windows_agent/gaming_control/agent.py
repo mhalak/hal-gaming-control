@@ -191,9 +191,9 @@ def run(config_path, stop_event):
             if synchronized:
                 # Power plan values are read-only and polled at 30s intervals;
                 # input age is sampled only inside the interactive user helper.
-                if time.monotonic() - last_power_poll >= 30:
+                if time.perf_counter() - last_power_poll >= 30:
                     display_policy = read_display_policy()
-                    last_power_poll = time.monotonic()
+                    last_power_poll = time.perf_counter()
                 bridge.publish_display_context(
                     display_policy, getattr(focus, "last_input_idle_ms", None),
                     foreground_context)
