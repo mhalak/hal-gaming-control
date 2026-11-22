@@ -262,3 +262,96 @@ async def test_v2_default_has_identical_existing_subscription_and_identity(hass)
         root + "/state/display_context"}
     assert source.telemetry_order is None
     source.close()
+
+
+
+@pytest.mark.usefixtures("recorder_mock")
+async def test_options_explicit_v3_ack_preserves_budgets_and_screen_idle(
+        hass, enable_custom_integrations):
+    from homeassistant import data_entry_flow
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.hal_gaming_control.const import DOMAIN
+    from custom_components.hal_gaming_control.coordinator import GamingCoordinator
+
+    original = {"daily": 180, "weekly": 300, "tracked_apps": [APP],
+                "screen_idle_enabled": False, "unified_telemetry_enabled": False}
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id="pc1", title="PC",
+        data={"device_id": "pc1", "name": "PC", "games": [],
+              "actions": []}, options=original)
+    entry.add_to_hass(hass)
+    manager = hass.config_entries.options
+    init = await manager.async_init(entry.entry_id)
+    assert "unified_telemetry" in init["menu_options"]
+    form = await manager.async_configure(
+        init["flow_id"], {"next_step_id": "unified_telemetry"})
+    assert form["type"] == data_entry_flow.FlowResultType.FORM
+    refused = await manager.async_configure(
+        init["flow_id"], {"unified_telemetry_enabled": True,
+                          "unified_telemetry_acknowledged": False})
+    assert refused["errors"]["base"] == "unified_telemetry_unconfirmed"
+    assert entry.options == original
+    confirmed = await manager.async_configure(
+        init["flow_id"], {"unified_telemetry_enabled": True,
+                          "unified_telemetry_acknowledged": True})
+    assert confirmed["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert confirmed["data"]["unified_telemetry_enabled"] is True
+    assert confirmed["data"]["tracked_apps"] == [APP]
+    assert confirmed["data"]["daily"] == 180
+    assert confirmed["data"]["screen_idle_enabled"] is False
+    assert GamingCoordinator.policy_snapshot(confirmed["data"])[
+        "unified_telemetry_enabled"] is True
+
+
+@pytest.mark.usefixtures("recorder_mock")
+async def test_coordinator_passes_v3_only_when_explicitly_enabled(hass):
+    from unittest.mock import AsyncMock
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.hal_gaming_control import coordinator as co
+    from custom_components.hal_gaming_control.const import DOMAIN
+
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id="pc1", title="PC",
+        data={"device_id": "pc1", "name": "PC", "games": [], "actions": []},
+        options={"tracked_apps": [APP], "unified_telemetry_enabled": True})
+    entry.add_to_hass(hass)
+    c = co.GamingCoordinator(hass, entry)
+    store = Mock()
+    store.async_load = AsyncMock(return_value=())
+    store.async_save = AsyncMock()
+    source = Mock()
+    source.async_start = AsyncMock()
+    source.export_segments.return_value = ()
+    with patch.object(co, "async_activate_cutover", new=AsyncMock(return_value=100)), \
+         patch.object(co, "ForegroundStore", return_value=store), \
+         patch.object(co, "ForegroundSource", return_value=source) as new_source:
+        await c.async_start_foreground()
+    assert new_source.call_args.kwargs["unified_enabled"] is True
+    assert new_source.call_args.kwargs["intervals"] == ()
+    await c.async_stop_foreground()
+    c.close()
+
+
+async def test_existing_active_game_sensor_exposes_diagnostics_as_attributes():
+    from custom_components.hal_gaming_control.sensor import ActiveGameSensor
+    c = Mock()
+    c.device_id = "pc1"
+    c.entry.data = {"name": "PC"}
+    c.data = {
+        "unified_telemetry": True, "active_game": "Roblox",
+        "uptime_seconds": 123456,
+        "display_details": {
+            "state": "on", "scope": "windows_console",
+            "event_age_ms": 120, "ac_timeout_seconds": 600,
+            "dc_timeout_seconds": 300, "power_source": "ac",
+            "last_input_idle_ms": 123000},
+    }
+    entity = ActiveGameSensor(c)
+    assert entity.unique_id == "pc1_active_game"
+    assert entity.native_value == "Roblox"
+    attrs = entity.extra_state_attributes
+    assert attrs["display_ac_timeout_seconds"] == 600
+    assert attrs["display_dc_timeout_seconds"] == 300
+    assert attrs["last_input_idle_ms"] == 123000
+    assert attrs["system_uptime_seconds"] == 123456
+    assert "username" not in attrs and "process" not in attrs
