@@ -550,7 +550,11 @@ async def test_legacy_terminate_button_requires_live_legacy_catalog_capability(
     with patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish:
         async_fire_mqtt_message(hass, ROOT + "/discovery", json.dumps(DATA | {
             "games": [], "actions": ["lock_pc"]}))
-        async_fire_mqtt_message(hass, ROOT + "/availability", "online")
+        for suffix, payload in [
+            ("availability", "online"), ("state/uptime", "100"),
+            ("state/in_game", "ON"), ("state/current_game", "Roblox"),
+        ]:
+            async_fire_mqtt_message(hass, ROOT + "/" + suffix, payload)
         await hass.async_block_till_done()
         assert hass.states.get(lock_id).state != "unavailable", "MQTT connection/availability not established"
         assert hass.states.get(eid).state == "unavailable"
