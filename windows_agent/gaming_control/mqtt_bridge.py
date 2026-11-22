@@ -218,6 +218,7 @@ class Bridge:
                     'candidate': offer['candidate'],
                     'sample_time': offer['sample_time'],
                     'offered_at': offer['offered_at'],
+                    'received_at': now,
                 }, request['request_id'])
             elif msg.payload != b'PRESS':
                 return
