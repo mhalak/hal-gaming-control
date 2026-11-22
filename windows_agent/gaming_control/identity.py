@@ -11,7 +11,7 @@ import socket
 
 # The current MQTT/HA v3 protocol permits ASCII word characters and hyphens.
 # Fail closed rather than publish a different, silently sanitized identity.
-_WINDOWS_NAME = re.compile(r"[A-Za-z0-9_-]{1,64}\\Z", flags=re.ASCII)
+_WINDOWS_NAME = re.compile(r"[A-Za-z0-9_-]{1,64}\Z", flags=re.ASCII)
 
 
 def windows_computer_name(*, computer_name=None):
