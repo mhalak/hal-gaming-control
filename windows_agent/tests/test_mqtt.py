@@ -298,3 +298,33 @@ def test_no_rules_do_not_accept_terminate_and_retract_native_button():
                           if c.args[0] == b.root + "/discovery"]
     assert json.loads(discovery_messages[-1].args[1])["actions"] == ["lock_pc"]
     assert all("pc2" not in c.args[0] for c in b.client.publish.call_args_list)
+
+
+
+def test_unified_v3_bridge_republishes_existing_native_uptime_config_only():
+    import json
+    config = {**CONFIG, 'telemetry': {'unified_v3_enabled': True}}
+    bridge = Bridge(config)
+    assert bridge.unified_enabled
+    native = 'homeassistant/sensor/smarthouse_gaming_pc1_uptime/config'
+    assert native in bridge.configs
+    assert bridge.metadata['unified_telemetry_protocol'] == 3
+    bridge.client = Mock()
+    bridge.client.publish.return_value.rc = mqtt.MQTT_ERR_SUCCESS
+    bridge.client.publish.return_value.is_published.return_value = True
+    bridge.on_connect(bridge.client, None, None,
+                      SimpleNamespace(is_failure=False), None)
+    bridge._refresh_discovery()
+    published = [c for c in bridge.client.publish.call_args_list
+                 if c.args[0] == native]
+    assert len(published) == 1
+    assert published[0].kwargs == {'qos': 1, 'retain': True}
+    body = json.loads(published[0].args[1])
+    assert body['unique_id'] == 'smarthouse_gaming_pc1_uptime'
+    assert body['state_topic'] == bridge.root + '/state/telemetry'
+    assert body['expire_after'] == 10
+    assert not any('pc2' in c.args[0] for c in published)
+    # A legacy PC still gets exactly one unmodified native Uptime identity.
+    old = Bridge(CONFIG)
+    assert old.configs[native]['state_topic'] == old.root + '/state/uptime'
+    assert old.configs[native]['unique_id'] == body['unique_id']
