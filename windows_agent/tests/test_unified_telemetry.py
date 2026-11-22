@@ -1,5 +1,6 @@
 """#176: Windows unified telemetry v3 contract and transport regression tests."""
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -69,6 +70,61 @@ def published(client):
 
 def payloads(client):
     return [json.loads(c.args[1]) for c in published(client)]
+
+
+def load_contract(version, filename):
+    """Independent, version-pinned wire examples also consumed by HA tests."""
+    path = (Path(__file__).resolve().parents[2] / "tests" / "contracts"
+            / version / filename)
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_real_windows_v3_publisher_matches_shared_wire_contract(rig):
+    """Production Bridge MQTT bytes, not a fixture-generated encoder."""
+    bridge, client, clock = rig
+    bridge.metadata["agent_version"] = "0.3.0"
+    expected = load_contract("v3", "telemetry-foreground.json")
+    assert bridge.publish_unified_telemetry(focus(clock), POLICY, 45630)
+    call, = published(client)
+    assert call.args[0] == (
+        f"SmartHouse/Gaming/{expected['device_id']}/state/telemetry")
+    assert call.kwargs["qos"] == 0 and call.kwargs["retain"] is False
+    assert call.kwargs["properties"].MessageExpiryInterval == 6
+    packet = json.loads(call.args[1])
+    assert len(packet["epoch"]) == 32
+    assert all(ch in "0123456789abcdef" for ch in packet["epoch"])
+    # Clock/sample delay variations are allowed, but their *types* and
+    # freshness bounds are verified before canonicalizing the wire sample.
+    for path in (
+        ("foreground", "sample_age_ms"),
+        ("display", "sample_age_ms"),
+        ("display", "event_age_ms"),
+        ("display", "last_input_idle_ms"),
+    ):
+        target, field = path
+        value, reference = packet[target][field], expected[target][field]
+        assert type(value) is int and abs(value - reference) <= 1
+        packet[target][field] = reference
+    packet["epoch"] = expected["epoch"]
+    assert packet == expected  # all remaining keys/values exact
+
+
+def test_real_windows_candidate_publisher_matches_shared_wire_contract(rig):
+    """The independent Add hint has a distinct v1 contract from telemetry."""
+    bridge, client, clock = rig
+    expected = load_contract("v1", "foreground-candidate.json")
+    with patch.object(M.secrets, "token_hex", return_value="a" * 32):
+        assert bridge.publish_candidate((
+            "RobloxPlayerBeta.exe", 321, 456, 2, None))
+    calls = [c for c in client.publish.call_args_list
+             if c.args[0].endswith("/state/foreground_candidate")]
+    assert len(calls) == 1
+    call, = calls
+    assert call.args[0] == (
+        f"SmartHouse/Gaming/{expected['device_id']}/state/foreground_candidate")
+    assert call.kwargs["qos"] == 0 and call.kwargs["retain"] is False
+    assert call.kwargs["properties"].MessageExpiryInterval == 6
+    assert json.loads(call.args[1]) == expected
 
 
 def test_full_v3_snapshot_and_all_agreed_readonly_fields(rig):
