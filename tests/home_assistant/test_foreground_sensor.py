@@ -1,7 +1,7 @@
 """Owner-facing HA Active game and measured day/week sensor contract."""
 from unittest.mock import Mock, patch
 
-from custom_components.smarthouse_gaming.sensor import (
+from custom_components.parental.sensor import (
     ActiveGameSensor, GamingTimeSensor, GamingTimeDisplaySensor, BudgetSensor,
 )
 

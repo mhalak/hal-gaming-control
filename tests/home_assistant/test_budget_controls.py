@@ -9,12 +9,12 @@ import pytest
 from homeassistant.exceptions import HomeAssistantError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.smarthouse_gaming import _remove_legacy_statistics
-from custom_components.smarthouse_gaming.const import DEFAULTS, DOMAIN
-from custom_components.smarthouse_gaming.number import (
+from custom_components.parental import _remove_legacy_statistics
+from custom_components.parental.const import DEFAULTS, DOMAIN
+from custom_components.parental.number import (
     CONTROLS, DISABLED_SLIDER_VALUE, GamingBudget,
 )
-from custom_components.smarthouse_gaming.rule_engine import effective_budget_limit
+from custom_components.parental.rule_engine import effective_budget_limit
 
 
 class StubCoordinator:

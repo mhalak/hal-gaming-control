@@ -1,10 +1,10 @@
 """Single-screen editor preserves stable identities and rejects forged additions."""
 import pytest
 
-from custom_components.smarthouse_gaming.app_editor import (
+from custom_components.parental.app_editor import (
     apply_app_editor, editor_choices, editor_rows, raw_label,
 )
-from custom_components.smarthouse_gaming.app_registry import identity_key
+from custom_components.parental.app_registry import identity_key
 
 JAVA = {"process": "javaw.exe", "signature":
         {"kind": "java_class", "value": "net.minecraft.client.main.Main"},

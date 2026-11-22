@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
-from custom_components.smarthouse_gaming.coverage import heartbeat_intervals, covered_transitions
-from custom_components.smarthouse_gaming.rule_engine import usage
+from custom_components.parental.coverage import heartbeat_intervals, covered_transitions
+from custom_components.parental.rule_engine import usage
 
 
 def seconds(games, uptime, end, game=None):
@@ -39,7 +39,7 @@ def test_stale_and_clock_jumps():
 # The foreground source is a pair of Recorder streams, not the legacy
 # process-presence list. This pure normalization is not yet wired into HA.
 def foreground(games, flags, boundary=0, enrolled=("Roblox", "Minecraft")):
-    from custom_components.smarthouse_gaming.coverage import confirmed_foreground_transitions
+    from custom_components.parental.coverage import confirmed_foreground_transitions
     return confirmed_foreground_transitions(games, flags, enrolled, boundary)
 
 
