@@ -18,7 +18,7 @@
 
 Even royal decrees have rules: bonus time goes to the child's PC you choose, not every gaming device in the kingdom.
 
-**Development preview (HA 0.5.11):** Daily budget, Weekly budget, Weekend bonus and **Add 30 minutes** are available in source. Test the installed version on your own PC.
+**Development preview (HA 0.5.14):** Daily budget, Weekly budget, Weekend bonus and **Add 30 minutes** are available in source. Test the installed version on your own PC.
 
 ## Set the gaming budgets
 
@@ -39,7 +39,7 @@ Royal generosity does not override the calendar.
 
 ## Allowed gaming hours
 
-The per-PC **Configuration** section now includes **Schedule enabled** and **Allowed from** / **Allowed until** time pickers (HA 0.5.13). The window defines when gaming is allowed; both Gaming rules enabled and Schedule enabled must be ON for a passive restriction outside the window. Overnight windows are supported; equal start/end mean all day. This does not alter accrued game time or issue any Windows commands.
+The PC's Configuration section has **Schedule enabled** plus two independent allowed-hour windows: **Weekday allowed from/until** (Mon–Fri) and **Weekend allowed from/until** (Sat–Sun). Weekend hours initially inherit the saved weekday hours until explicitly edited, avoiding policy changes on upgrade. The daily windows may cross midnight, anchored to their starting day; they use HA local time. **Gaming rules enabled** must also be ON for schedule restrictions to apply. They never alter recorded gaming time or issue Windows commands.
 
 ## Other options
 

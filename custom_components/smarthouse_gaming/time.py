@@ -9,8 +9,10 @@ from .entity import GamingEntity
 
 
 SCHEDULE_TIMES = {
-    "schedule_start": ("Allowed from", "mdi:clock-start"),
-    "schedule_end": ("Allowed until", "mdi:clock-end"),
+    "schedule_start": ("Weekday allowed from", "mdi:clock-start"),
+    "schedule_end": ("Weekday allowed until", "mdi:clock-end"),
+    "weekend_schedule_start": ("Weekend allowed from", "mdi:clock-start"),
+    "weekend_schedule_end": ("Weekend allowed until", "mdi:clock-end"),
 }
 
 
@@ -36,8 +38,13 @@ class GamingScheduleTime(GamingEntity, TimeEntity):
 
     @property
     def native_value(self):
+        options = self.coordinator.options
+        # When upgrading a single-window installation, weekend hours follow
+        # the saved weekday hours until the parent explicitly overrides them.
+        key = self.key.removeprefix("weekend_")
+        value = options.get(self.key, options.get(key))
         try:
-            return time.fromisoformat(self.coordinator.options[self.key])
+            return time.fromisoformat(value)
         except (TypeError, ValueError):
             return None
 
@@ -46,7 +53,7 @@ class GamingScheduleTime(GamingEntity, TimeEntity):
             raise HomeAssistantError("Allowed gaming time must be a local time of day")
         formatted = value.isoformat(timespec="seconds" if value.second else "minutes")
         entry = self.coordinator.entry
-        if self.coordinator.options[self.key] != formatted:
+        if self.coordinator.options.get(self.key) != formatted:
             # Read current options to preserve concurrently saved budgets/apps.
             self.hass.config_entries.async_update_entry(
                 entry, options=dict(entry.options) | {self.key: formatted})

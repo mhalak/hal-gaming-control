@@ -87,13 +87,42 @@ def inside_schedule(now, start, end):
     return current >= start or current < end
 
 
+def _schedule_for_weekday(options, weekday):
+    """Return the window anchored to this local day; weekends may inherit."""
+    start, end = options["schedule_start"], options["schedule_end"]
+    if weekday >= 5:
+        start = options.get("weekend_schedule_start", start)
+        end = options.get("weekend_schedule_end", end)
+    return time.fromisoformat(start), time.fromisoformat(end)
+
+
+def inside_weekly_schedule(now, options):
+    """Is local wall time within today's or yesterday's started window?
+
+    Overnight windows belong to their starting day. Friday's overnight
+    allowance can finish on Saturday, and Sunday's can finish on Monday.
+    Compare local clock values to honor DST without inventing elapsed time.
+    """
+    clock = now.time().replace(tzinfo=None)
+    start, end = _schedule_for_weekday(options, now.weekday())
+    if start == end:
+        return True  # Equal endpoints explicitly mean all-day permission.
+    if start < end and start <= clock < end:
+        return True
+    if start > end and clock >= start:
+        return True
+    previous_start, previous_end = _schedule_for_weekday(
+        options, (now.weekday() - 1) % 7)
+    return previous_start > previous_end and clock < previous_end
+
+
 def violations(options, totals, now, active_games):
     options = DEFAULTS | options
     if not options["enabled"] or options["unlimited"]:
         return []
     limits = [(period, effective_budget_limit(options, now, period)) for period in ("daily", "weekly")]
     reasons = [key for key, limit in limits if limit >= 0 and totals[key] >= limit * 60]
-    if options["schedule_enabled"] and not inside_schedule(now, options["schedule_start"], options["schedule_end"]):
+    if options["schedule_enabled"] and not inside_weekly_schedule(now, options):
         reasons.append("schedule")
     for game in sorted(active_games):
         limit = options["per_game"].get(game, -1)
