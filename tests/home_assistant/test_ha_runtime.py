@@ -420,7 +420,8 @@ async def test_legacy_limit_values_survive_opening_configure(
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["menu_options"] == {"mqtt_settings": "MQTT configuration",
                                        "tracked_apps": "Tracked applications",
-                                       "windows_updates": "Windows updates (advanced)"}
+                                       "windows_updates": "Windows updates (advanced)",
+                                       "screen_idle": "Screen idle (experimental)"}
     assert entry.options == old
 
 
@@ -459,7 +460,8 @@ async def test_per_game_editor_hidden_preserving_existing_settings(hass, enable_
     assert result["type"] == data_entry_flow.FlowResultType.MENU
     assert result["menu_options"] == {"mqtt_settings": "MQTT configuration",
                                        "tracked_apps": "Tracked applications",
-                                       "windows_updates": "Windows updates (advanced)"}
+                                       "windows_updates": "Windows updates (advanced)",
+                                       "screen_idle": "Screen idle (experimental)"}
     # Preserve concurrent changes to a hidden legacy setting when the active
     # Tracked applications editor (not the removed Save page) commits.
     hass.config_entries.async_update_entry(entry, options=dict(entry.options) | {
