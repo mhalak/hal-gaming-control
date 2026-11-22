@@ -47,59 +47,102 @@ Here is what a parent's daily budget might look like:
 
 ## Add a Home Assistant dashboard card
 
-The first version uses an ordinary **Markdown card**. There is no additional frontend integration to install. After updating HAL Gaming Control:
+This is a **native Home Assistant vertical-stack dashboard**, not a custom frontend. The large number and status appear first, followed by a daily remaining-percentage gauge, the itemized receipt and a separate weekly gauge. The dashboard does not issue commands or silently change your rules.
 
-1. Open **Settings → Devices & services → HAL Gaming Control**, select your child's PC and find its existing **Daily budget remaining** entity.
-2. Note its actual entity ID (for example, `sensor.lucija_daily_budget_remaining`).
-3. Edit a dashboard, **Add card → Markdown**, switch to YAML editing if necessary and paste the example below.
-4. Change only the `e` value on the first line to the actual entity ID.
+1. In **Settings → Devices & services → HAL Gaming Control**, open the target PC. Find the real entity IDs for **Daily budget remaining**, **Weekly budget remaining** and **Gaming restriction**.
+2. Open an editable dashboard, choose **Add card → Manual** and paste the full YAML below.
+3. Replace the example entity IDs with those from *that same PC* (every `sensor.example_pc_...` and `binary_sensor.example_pc_...`). The example names are placeholders, not guaranteed IDs.
+4. Check the daily and weekly percentages against the sensors. Test with rules disabled, unlimited gaming, exhausted weekly allowance and offline/unknown data before trusting the display.
 
 ```yaml
-type: markdown
-title: "Gaming budget — Today"
-content: |
-  {% set e = 'sensor.lucija_daily_budget_remaining' %}
-  {% set mode = state_attr(e, 'daily_budget_status') %}
-  {% set weekly_mode = state_attr(e, 'weekly_budget_status') %}
-  {% set idle = state_attr(e, 'screen_idle_bonus_minutes') %}
-  {% if states(e) in ['unknown', 'unavailable'] or mode is none %}
-  **Budget data unavailable.** Check that the PC has reported fresh, reliable data.
-  {% elif mode == 'disabled' %}
-  **Gaming rules are disabled.** No active allowance is being enforced.
-  {% elif mode == 'unlimited' %}
-  **Unlimited daily gaming.** There is no finite daily countdown.
-  {% else %}
-  **Daily allowance:** {{ state_attr(e, 'base_daily_minutes') }} min
+type: vertical-stack
+cards:
+  - type: markdown
+    title: "🎮 Gaming budget — Today"
+    content: |-
+      {% set d = 'sensor.example_pc_daily_budget_remaining' %}
+      {% set r = 'binary_sensor.example_pc_gaming_restriction' %}
+      {% set mode = state_attr(d, 'daily_budget_status') %}
+      {% set left = state_attr(d, 'daily_remaining_minutes') %}
+      {% if mode is none %}
+      **⚪ Budget data unavailable** — check the integration and PC.
+      {% elif mode == 'disabled' %}
+      **⚪ Gaming rules disabled** — no restrictions are applied.
+      {% elif mode == 'unlimited' %}
+      **♾️ Unlimited gaming** — no finite daily countdown.
+      {% elif is_state(r, 'on') %}
+      **🔴 Gaming restricted** — {{ state_attr(r, 'reasons') | join(', ') if state_attr(r, 'reasons') else 'check active rules' }}.
+      {% elif is_state(r, 'off') %}
+      **🟢 Gaming permitted by active rules**.
+      {% else %}
+      **⚪ Restriction status unknown** — cannot confirm if play is allowed.
+      {% endif %}
+      {% if mode == 'limited' %}
 
-  **Weekend bonus:** +{{ state_attr(e, 'weekend_bonus_minutes') }} min
+      # {{ left if left is number else 'Unknown' }} min remaining today
+      {% endif %}
 
-  **Parent bonus:** +{{ state_attr(e, 'parent_bonus_minutes') }} min
+  - type: gauge
+    entity: sensor.example_pc_daily_budget_remaining
+    name: "Daily budget remaining (%)"
+    min: 0
+    max: 100
+    severity:
+      red: 0
+      yellow: 20
+      green: 50
 
-  **Screen idle bonus:** {% if idle is number %}+{{ idle }} min{% else %}Pending Smart Idle support{% endif %}
+  - type: markdown
+    title: "🧾 Today's allowance"
+    content: |-
+      {% set e = 'sensor.example_pc_daily_budget_remaining' %}
+      {% set mode = state_attr(e, 'daily_budget_status') %}
+      {% set idle = state_attr(e, 'screen_idle_bonus_minutes') %}
+      {% if mode is none %}
+      **No verified budget snapshot.**
+      {% elif mode == 'disabled' %}
+      **Gaming rules are disabled.** No active allowance is enforced.
+      {% elif mode == 'unlimited' %}
+      **Unlimited daily gaming.** The recorded time remains unchanged.
+      {% else %}
+      | Source | Minutes |
+      |:--|--:|
+      | Base daily budget | {{ state_attr(e, 'base_daily_minutes') }} |
+      | Weekend bonus | +{{ state_attr(e, 'weekend_bonus_minutes') }} |
+      | Parent bonus | +{{ state_attr(e, 'parent_bonus_minutes') }} |
+      | Screen idle bonus | {{ ('+' ~ idle ~ ' min') if idle is number else 'Not available yet' }} |
+      | **Total daily allowance** | **{{ state_attr(e, 'daily_limit_minutes') }}** |
+      | Measured gaming time | {{ ('−' ~ state_attr(e, 'daily_used_minutes') ~ ' min') if state_attr(e, 'daily_used_minutes') is number else 'Unknown' }} |
+      | **Remaining today** | **{{ (state_attr(e, 'daily_remaining_minutes') ~ ' min') if state_attr(e, 'daily_remaining_minutes') is number else 'Unknown' }}** |
+      {% endif %}
+      {% if state_attr(e, 'weekly_budget_status') == 'limited' %}
 
-  ---
+      **Weekly remaining:** {{ state_attr(e, 'weekly_remaining_minutes') if state_attr(e, 'weekly_remaining_minutes') is number else 'Unknown' }} / {{ state_attr(e, 'weekly_limit_minutes') }} min
+      {% elif state_attr(e, 'weekly_budget_status') == 'unlimited' %}
 
-  **Total daily allowance:** {{ state_attr(e, 'daily_limit_minutes') }} min
+      **Weekly limit:** Unlimited
+      {% endif %}
+      {% if state_attr(e, 'coverage_incomplete') == true %}
 
-  **Measured gaming time:** {{ state_attr(e, 'daily_used_minutes') if state_attr(e, 'daily_used_minutes') is number else 'unknown' }} min
+      ⚠️ **Coverage incomplete:** only verified gaming time is counted; gaps may exist.
+      {% endif %}
 
-  **Remaining today:** {{ state_attr(e, 'daily_remaining_minutes') if state_attr(e, 'daily_remaining_minutes') is number else 'unknown' }} min
-  {% endif %}
-
-  {% if weekly_mode == 'limited' %}
-  **Weekly remaining:** {{ state_attr(e, 'weekly_remaining_minutes') if state_attr(e, 'weekly_remaining_minutes') is number else 'unknown' }} / {{ state_attr(e, 'weekly_limit_minutes') }} min
-  {% elif weekly_mode == 'unlimited' %}
-  **Weekly allowance:** unlimited
-  {% endif %}
-
-  {% if state_attr(e, 'coverage_incomplete') == true %}
-  ⚠️ **Coverage incomplete:** offline or unverified periods may be missing from measured gaming time.
-  {% endif %}
+  - type: gauge
+    entity: sensor.example_pc_weekly_budget_remaining
+    name: "Weekly budget remaining (%)"
+    min: 0
+    max: 100
+    severity:
+      red: 0
+      yellow: 20
+      green: 50
 ```
 
-You can create one card per gaming PC by changing the device-specific entity ID. A daily allowance with remaining time **does not override an exhausted weekly budget or an out-of-hours restriction**. Daily and weekly restrictions continue to use exact verified seconds, not rounded dashboard figures.
+The gauges display **percentage remaining**, not elapsed minutes. They may be unknown when rules are disabled, a limit is unlimited, or the data is unavailable. This is expected and different from 0%.
 
-The standard Home Assistant **Device info** page cannot host this injected Markdown card; add it to a dashboard instead. The existing **Daily budget remaining** and **Weekly budget remaining** sensor identities remain unchanged, including automations that already use them.
+For the activity status we deliberately read the existing **Gaming restriction** sensor, because daily remaining minutes alone cannot say whether the weekly budget, playing hours or a per-game limit currently blocks gaming. When its reading is unavailable, the card explicitly says *unknown* rather than claiming that play is allowed.
+
+The standard Home Assistant **Device info** page cannot host injected Markdown. The stack belongs on a Lovelace dashboard, and it uses existing device entities without duplicating unique IDs.
 
 ## Data and privacy
 
