@@ -545,12 +545,14 @@ async def test_legacy_terminate_button_requires_live_legacy_catalog_capability(
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
     eid = er.async_get(hass).async_get_entity_id("button", DOMAIN, "pc1_terminate_game")
-    assert eid
+    lock_id = er.async_get(hass).async_get_entity_id("button", DOMAIN, "pc1_lock_pc")
+    assert eid and lock_id
     with patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish:
         async_fire_mqtt_message(hass, ROOT + "/discovery", json.dumps(DATA | {
             "games": [], "actions": ["lock_pc"]}))
         async_fire_mqtt_message(hass, ROOT + "/availability", "online")
         await hass.async_block_till_done()
+        assert hass.states.get(lock_id).state != "unavailable", "MQTT connection/availability not established"
         assert hass.states.get(eid).state == "unavailable"
         # Home Assistant must refuse instead of publishing a command that
         # would silently do nothing or hit a legacy connected agent.
