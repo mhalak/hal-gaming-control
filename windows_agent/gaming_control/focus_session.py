@@ -15,7 +15,7 @@ import subprocess
 import sys
 import time
 
-from .foreground import classify, candidate_from_sample, sample_window, IDLE, UNKNOWN, MAX_SAMPLE_AGE
+from .foreground import classify, candidate_from_sample, sample_window, IDLE, UNKNOWN, MAX_SAMPLE_AGE, _valid_sample
 from .windows import process_session_id
 from .display_context import read_interactive_input_idle_ms, MAX_INPUT_IDLE_MS
 from .display_notifications import DisplayObserver, MAX_EVENT_AGE_MS
@@ -295,6 +295,8 @@ class FocusProbe:
             self.display_event_age_ms = age
 
     def read(self, rules):
+        self.display_state = "unknown"
+        self.display_event_age_ms = None
         self.last_input_idle_ms = None  # never retain a stale session reading
         self.candidate = None  # never carry identity over a failed or stale probe
         self.last_sample_time = None
@@ -332,7 +334,7 @@ class FocusProbe:
                 self.foreground_state = "idle" if state in ("idle", "locked") else "unknown"
                 self.close()
                 return dict(IDLE if state in ("idle", "locked") else UNKNOWN)
-            if isinstance(sample, dict) and isinstance(sample.get("time"), (int, float)) and now - sample["time"] <= MAX_SAMPLE_AGE:
+            if (_valid_sample(sample, session, now)):
                 self.started = now
                 self._observe_input_idle(sample)
                 self._observe_display(sample)
