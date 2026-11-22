@@ -15,6 +15,21 @@ MAX_PER_EVENT_MINUTES = 120
 _EVENT_EPOCH = re.compile(r"[0-9a-f]{32}")
 
 
+def _validate_event(event, seen):
+    if (not isinstance(event, dict) or event.keys() != {
+            "id", "date", "minutes", "off_at_utc"}
+            or not isinstance(event["id"], str)
+            or not isinstance(event["date"], str)
+            or type(event["minutes"]) is not int
+            or not 0 < event["minutes"] <= MAX_PER_EVENT_MINUTES
+            or type(event["off_at_utc"]) not in (int, float)
+            or not math.isfinite(event["off_at_utc"])
+            or not 0 <= event["off_at_utc"] <= 253402300799
+            or event["id"] in seen):
+        raise ValueError("Corrupt Screen idle bonus event")
+    seen.add(event["id"])
+
+
 def _journal(options, device_id):
     value = options.get(KEY)
     if value is None:
@@ -28,18 +43,7 @@ def _journal(options, device_id):
         raise ValueError("Invalid Screen idle bonus journal")
     seen = set()
     for event in value["events"]:
-        if (not isinstance(event, dict) or event.keys() != {
-                "id", "date", "minutes", "off_at_utc"}
-                or not isinstance(event["id"], str)
-                or not isinstance(event["date"], str)
-                or type(event["minutes"]) is not int
-                or not 0 < event["minutes"] <= MAX_PER_EVENT_MINUTES
-                or type(event["off_at_utc"]) not in (int, float)
-                or not math.isfinite(event["off_at_utc"])
-                or not 0 <= event["off_at_utc"] <= 253402300799
-                or event["id"] in seen):
-            raise ValueError("Corrupt Screen idle bonus event")
-        seen.add(event["id"])
+        _validate_event(event, seen)
     return {"version": 1, "device_id": device_id,
             "events": [dict(event) for event in value["events"]]}
 
