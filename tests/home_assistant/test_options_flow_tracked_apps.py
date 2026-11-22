@@ -302,8 +302,8 @@ async def test_v3_only_windows_agent_shows_detected_app_in_editor(
                                payload=json.dumps(v3_roblox_packet(observed_at=now))))
         return lambda: None
 
-    with patch.object(cf.mqtt, "async_subscribe", side_effect=subscribe), \\
-            patch.object(cf, "_listen_window", new=AsyncMock()), \\
+    with patch.object(cf.mqtt, "async_subscribe", side_effect=subscribe), \
+            patch.object(cf, "_listen_window", new=AsyncMock()), \
             patch.object(cf, "_discover_foreground_candidate",
                          new=AsyncMock(return_value=ROBLOX)):
         manager = hass.config_entries.options
@@ -338,8 +338,8 @@ async def test_v3_rejects_retained_foreign_stale_and_unsafe_preview(
                                    payload=json.dumps(packet)))
         return lambda: None
 
-    with patch.object(cf.mqtt, "async_subscribe", side_effect=subscribe), \\
-            patch.object(cf, "_listen_window", new=AsyncMock()), \\
+    with patch.object(cf.mqtt, "async_subscribe", side_effect=subscribe), \
+            patch.object(cf, "_listen_window", new=AsyncMock()), \
             patch.object(cf, "_discover_foreground_candidate",
                          new=AsyncMock(return_value=None)):
         manager = hass.config_entries.options
