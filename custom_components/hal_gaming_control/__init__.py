@@ -1,5 +1,21 @@
 """SmartHouse Gaming Control integration."""
 
+from homeassistant.core import callback
+from homeassistant.helpers import config_validation as cv
+
+from .const import DOMAIN
+from .services import async_setup_services
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+@callback
+def async_setup(hass, config):
+    """Expose admin actions before gaming PC entries are loaded."""
+    async_setup_services(hass)
+    return True
+
+
 async def async_setup_entry(hass, entry):
     from homeassistant.components import mqtt
     from homeassistant.exceptions import ConfigEntryNotReady
@@ -19,7 +35,7 @@ async def async_setup_entry(hass, entry):
     # Policy/accounting must run even when the administrative update entity is disabled.
     entry.async_on_unload(coordinator.async_add_listener(lambda: None))
     entry.async_on_unload(entry.add_update_listener(_reload))
-    await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "binary_sensor", "button", "switch", "number", "time", "update"])
+    await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "binary_sensor", "button", "switch", "number", "time", "select", "update"])
     _remove_legacy_statistics(hass, entry)
     return True
 
