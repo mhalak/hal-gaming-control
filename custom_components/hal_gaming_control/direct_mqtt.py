@@ -1,10 +1,12 @@
 """Scoped MQTT telemetry and controls for HA installations with discovery disabled."""
 from time import monotonic, time
+from datetime import timedelta
 
 from homeassistant.components import mqtt
 from homeassistant.components.button import ButtonEntity
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.core import callback
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity, EntityCategory
@@ -61,7 +63,7 @@ class DirectEntity(Entity):
 
     @callback
     def _availability(self, message):
-        self._online = message.payload == "online"
+        self._online = message.payload in ("online", b"online")
         if not self._online:
             self._value = None
         self.async_write_ha_state()
@@ -98,6 +100,15 @@ class DirectUptime(DirectEntity, SensorEntity):
             self.async_on_remove(await mqtt.async_subscribe(
                 self.hass, self._root + "/state/telemetry",
                 self._v3_telemetry, qos=0))
+            # Native HA entities may not be polled: explicitly expire old
+            # uptime on missing v3 packets instead of displaying stale data.
+            self.async_on_remove(async_track_time_interval(
+                self.hass, self._v3_tick, timedelta(seconds=5)))
+
+    @callback
+    def _v3_tick(self, _now):
+        if self._unified:
+            self.async_write_ha_state()
 
     @callback
     def _connection(self, connected):
