@@ -2,7 +2,7 @@
 
 [← Feature index](../../README.md#feature-gaming-budgets) · [All guides](../README.md)
 
-[Track applications →](tracked-applications.md)
+[← Local mode](local-mode.md) · [Track applications →](tracked-applications.md)
 
 <table>
   <tr>
@@ -64,4 +64,4 @@ More: [Controls & automations](parent-actions.md) · [Known limitations](../know
 
 ---
 
-**Explore more features:** [Track applications →](tracked-applications.md)
+**Explore more features:** [← Local mode](local-mode.md) · [Track applications →](tracked-applications.md)
