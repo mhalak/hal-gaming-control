@@ -167,3 +167,12 @@ async def test_retires_only_old_number_ids_on_correct_device(hass):
     assert all(registry.async_get(e.entity_id) is None for e in old)
     assert registry.async_get(keep.entity_id) is not None
     assert registry.async_get(other_old.entity_id) is not None
+
+
+def test_fresh_weekly_budget_is_configurable_without_unknown_state():
+    weekly, coordinator, updates = control("weekly")
+    assert weekly.native_value == 4200
+    assert weekly.native_min_value == 0
+    assert weekly.native_step == 60
+    assert coordinator.options["weekly"] == 4200
+    assert not updates  # Reading a default never writes to HA config.

@@ -46,7 +46,7 @@ def calculate(transitions, now, games):
 
 
 def _validated_weekend_bonus(value):
-    """Explicit opt-in bonus; old entries without the key keep legacy semantics."""
+    """Validate the additive weekend bonus; missing entries use zero."""
     if type(value) is not int or not 0 <= value <= 600 or value % 10:
         raise ValueError("Invalid weekend bonus: expected 0–600 minutes in steps of 10")
     return value

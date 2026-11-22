@@ -50,7 +50,7 @@ class GamingBudget(GamingEntity, NumberEntity):
         if self.key == "daily" and value == -1:
             return DISABLED_SLIDER_VALUE
         # Legacy weekly values outside the new scale remain unchanged in config;
-        # the user must choose a new valid hour value if required.
+        # new installations default to the full 4200-minute weekly allowance.
         return value if type(value) is int and 0 <= value <= self.native_max_value else None
 
     @property

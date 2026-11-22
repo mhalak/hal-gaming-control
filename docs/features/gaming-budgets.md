@@ -46,13 +46,13 @@ Royal generosity does not override the calendar.
 
 ## Good to know
 
-**Daily gaming time** and **Weekly gaming time** use hour/minute/second-friendly duration units (for example, 711m 3s becomes 11h 51m 3s in the native HA display). The underlying accounting still counts confirmed seconds. Older automations reading raw numeric sensor values in minutes must switch to hours. Offline PCs can leave gaps in gaming history. **Missing data isn't zero playtime.**
+**Daily gaming time** and **Weekly gaming time** are readable text sensors (for example, `11h 51m 3s` instead of `711m 3s`). Their separate **Daily gaming time (minutes)** / **Weekly gaming time (minutes)** numeric duration sensors remain available under diagnostics for graphs and automations. The numeric value is still in **minutes**. The underlying accounting still counts confirmed seconds. Offline PCs can leave gaps in gaming history. **Missing data isn't zero playtime.**
 
 Don't use budget readings alone to trigger automatic game closing. Test the exact PC and version first.
 
 *The +10 coins in the cartoon are royal decoration, not another released button.*
 
-**Preview clean start:** Budget numbers use new entity IDs; older *_limit number and old percent-budget sensor entities are retired from the entity registry. Existing Recorder history is not purged. Weekly values saved as unlimited (-1) stay unlimited until configured; the new weekly slider accepts only 0–4200 in 60-minute steps.
+**Preview clean start:** Budget numbers use new entity IDs; older *_limit number and old percent-budget sensor entities are retired from the entity registry. Existing Recorder history is not purged. Fresh installations default to a 4200-minute weekly allowance; older saved unlimited (-1) values stay unlimited until configured; the new weekly slider accepts only 0–4200 in 60-minute steps.
 
 **For developers:** [Original technical notes](../reference/features/gaming-budgets-preview-notes.md) · [HA reference](../reference/ha_integration_technical.md).
 

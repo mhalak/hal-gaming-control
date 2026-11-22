@@ -33,3 +33,5 @@ Our robot is enthusiastic. We're a little more careful.
 Older bugs, signing details and version-specific investigations are in the [archived technical history](reference/known_limitations_history.md), [HA engineering notes](reference/ha_integration_technical.md) and [release history](ha_releases.md).
 
 *Please don't disable Windows security just because a cartoon robot is asking nicely.*
+
+- **Gaming time display:** The friendly `h m s` sensors are text; use the separate numeric minute sensors for graphs or numeric automations.

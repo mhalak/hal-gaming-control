@@ -1,6 +1,7 @@
 """Expose raw telemetry and the two owner-requested budget indicators."""
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.const import PERCENTAGE, UnitOfTime
+from homeassistant.const import EntityCategory
 from homeassistant.util import dt as dt_util
 from .direct_mqtt import DirectUptime
 from .agent_version import AgentVersionSensor, IntegrationVersionSensor
@@ -13,8 +14,10 @@ async def async_setup_entry(hass, entry, async_add_entities):
     entities = [BudgetSensor(c, "daily", "Daily budget remaining"),
                 BudgetSensor(c, "weekly", "Weekly budget remaining"),
                 ActiveGameSensor(c),
-                GamingTimeSensor(c, "daily", "Daily gaming time"),
-                GamingTimeSensor(c, "weekly", "Weekly gaming time"),
+                GamingTimeDisplaySensor(c, "daily", "Daily gaming time"),
+                GamingTimeDisplaySensor(c, "weekly", "Weekly gaming time"),
+                GamingTimeSensor(c, "daily", "Daily gaming time (minutes)"),
+                GamingTimeSensor(c, "weekly", "Weekly gaming time (minutes)"),
                 AgentVersionSensor(c), IntegrationVersionSensor(c)]
     if c.direct:
         entities.append(DirectUptime(c))
@@ -74,10 +77,11 @@ class GamingTimeSensor(GamingEntity, SensorEntity):
     """Confirmed-only elapsed time; offline history is marked incomplete."""
 
     _attr_device_class = SensorDeviceClass.DURATION
-    # Frontend formats fractional hours as h/m/s, avoiding 711m 3s.
-    # Keep the numeric duration entity and its stable unique ID for history.
-    _attr_native_unit_of_measurement = UnitOfTime.HOURS
-    _attr_suggested_display_precision = 9
+    # The original numeric entity remains a duration sensor for graphs/history.
+    # A separate text sensor provides true h/m/s because HA's frontend formats
+    # native 'h' durations as h/m only and native 'min' as m/s only.
+    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_icon = "mdi:timer-outline"
 
     def __init__(self, coordinator, period, name):
@@ -100,12 +104,33 @@ class GamingTimeSensor(GamingEntity, SensorEntity):
         if raw is None:
             return None
         elapsed = raw.get(self.period)
-        # Hours as a fractional value preserve sub-minute precision while
-        # letting HA display e.g. 11h 51m 3s rather than 711m 3s.
-        return round(elapsed / 3600, 9) if elapsed is not None else None
+        return round(elapsed / 60, 6) if elapsed is not None else None
 
     @property
     def extra_state_attributes(self):
         data = self.coordinator.data or {}
         return {"coverage_incomplete": data.get("coverage_incomplete", True),
                 "cutover_since": data.get("cutover_since")}
+
+
+class GamingTimeDisplaySensor(GamingTimeSensor):
+    """Exact H/M/S for parents, separate from the numeric Recorder sensor."""
+
+    _attr_device_class = None
+    _attr_native_unit_of_measurement = None
+    _attr_entity_category = None
+
+    def __init__(self, coordinator, period, name):
+        super().__init__(coordinator, period, name)
+        self._attr_unique_id = f"{coordinator.device_id}_gaming_time_display_{period}"
+
+    @property
+    def native_value(self):
+        data = self.coordinator.data or {}
+        raw = data.get("recorded_totals")
+        if raw is None or raw.get(self.period) is None:
+            return None
+        seconds = max(0, int(round(raw[self.period])))
+        hours, rest = divmod(seconds, 3600)
+        minutes, seconds = divmod(rest, 60)
+        return f"{hours}h {minutes}m {seconds}s"
