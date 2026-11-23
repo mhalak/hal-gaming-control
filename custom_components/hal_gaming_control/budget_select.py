@@ -7,7 +7,7 @@ Grant IDs always stay internal; identical labels use stable display ordinals.
 """
 from collections import Counter
 from datetime import datetime, timezone
-from math import isfinite
+from math import ceil, isfinite
 
 from homeassistant.util import dt as dt_util
 
@@ -17,11 +17,16 @@ from .screen_idle_bonus import screen_idle_events_today
 
 FIGURE_SPACE = "\u2007"
 ACTION_GAP = FIGURE_SPACE * 6
+# Native select options must have distinct labels; no-op dividers use
+# slightly different lengths rather than duplicated option names.
+DIVIDER_TOP = "─" * 24
+DIVIDER_BOTTOM = "─" * 25
 
 
-def _amount_label(minutes, title, width):
+def _amount_label(minutes, title, width, sign="+"):
     """Align numeric amounts without collapsible ASCII whitespace."""
-    return f"+{FIGURE_SPACE}{str(minutes).rjust(width, FIGURE_SPACE)} min - {title}"
+    return (f"{sign}{FIGURE_SPACE}"
+            f"{str(minutes).rjust(width, FIGURE_SPACE)} min - {title}")
 
 
 def _fixed_rows(receipt, options, now, width):
@@ -105,6 +110,37 @@ def _total_row(receipt, width):
     return f"∑{FIGURE_SPACE}{str(total).rjust(width, FIGURE_SPACE)} min - TOTAL", None
 
 
+def _usage_rows(receipt, width):
+    """Read-only, conservative whole-minute snapshot of verified daily usage.
+
+    Never turn missing evidence into zero. Round consumed minutes UP and
+    remaining minutes DOWN, without changing the exact-second rule engine.
+    This makes the displayed receipt reconcile for a finite daily budget.
+    """
+    used = receipt["daily_used_seconds"]
+    status = receipt["daily_budget_status"]
+    if type(used) not in (int, float) or not isfinite(used) or used < 0:
+        usage = "- Unknown - Gaming Session"
+        remaining = "∑ Unknown - Remaining Budget"
+    else:
+        usage = _amount_label(ceil(used / 60), "Gaming Session", width, sign="-")
+        if status == "disabled":
+            remaining = "∑ Rules Disabled - Remaining Budget"
+        elif status == "unlimited":
+            remaining = "∑ Unlimited - Remaining Budget"
+        else:
+            remaining_seconds = receipt["daily_remaining_seconds"]
+            if remaining_seconds is None:
+                remaining = "∑ Unknown - Remaining Budget"
+            else:
+                # Rule engine returns ceil(seconds left). Floor whole minutes
+                # from the displayed seconds, never fabricate free minutes.
+                remaining_minutes = remaining_seconds // 60
+                remaining = _amount_label(
+                    remaining_minutes, "Remaining Budget", width, sign="∑")
+    return (usage, None), (remaining, None)
+
+
 def _display_action_column(rows):
     """Right-align the action glyph within the *text*, not the HA control.
 
@@ -130,8 +166,14 @@ def budget_select_rows(options, device_id, data, now):
         options, data.get("totals", {}), now, ready=bool(data.get("ready")),
         coverage_incomplete=data.get("coverage_incomplete", True))
     events = _bonus_events(options, device_id, now)
-    amounts = [receipt["daily_limit_minutes"],
-               receipt["base_daily_minutes"], *(event["minutes"] for event in events)]
+    used = receipt["daily_used_seconds"]
+    remaining = receipt["daily_remaining_seconds"]
+    amounts = [receipt["daily_limit_minutes"], receipt["base_daily_minutes"],
+               *(event["minutes"] for event in events)]
+    if type(used) in (int, float) and isfinite(used) and used >= 0:
+        amounts.append(ceil(used / 60))
+    if type(remaining) is int and remaining >= 0:
+        amounts.append(remaining // 60)
     width = max(3, *(len(str(amount)) for amount in amounts
                      if isinstance(amount, int)))
     rows, spent_before = _fixed_rows(receipt, options, now, width)
@@ -139,5 +181,7 @@ def budget_select_rows(options, device_id, data, now):
         eligible = _can_undo(event, receipt, data, spent_before)
         rows.append((label, event["id"] if eligible else None))
         spent_before += event["minutes"]
-    rows.append(_total_row(receipt, width))
+    usage, remaining = _usage_rows(receipt, width)
+    rows.extend(((DIVIDER_TOP, None), _total_row(receipt, width), usage,
+                 (DIVIDER_BOTTOM, None), remaining))
     return _display_action_column(rows)
