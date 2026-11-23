@@ -16,8 +16,7 @@ from .app_editor import (apply_app_editor, editor_choices, editor_rows,
                          raw_label)
 from .direct_mqtt import direct_mode
 from .protocol import parse_discovery
-from .raw_foreground import decode_raw_identity
-from .unified_telemetry import decode_telemetry, foreground_v2
+from .unified_telemetry import decode_telemetry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -126,9 +125,13 @@ async def _discover_raw_foreground_snapshot(hass, device_id):
         try:
             telemetry = decode_telemetry(
                 message.payload, device_id, retained=False, wall_now=now)
-            packet = decode_raw_identity(
-                foreground_v2(telemetry), device_id)
-            age = now - packet["observed_at"]
+            fg = telemetry["foreground"]
+            observed = telemetry["observed_at"]
+            if fg["sample_age_ms"] is not None:
+                observed -= fg["sample_age_ms"] / 1000
+            packet = {"observed_at": observed, "state": fg["state"],
+                      "process": fg["process"], "signature": fg["signature"]}
+            age = now - observed
         except (ValueError, TypeError, KeyError):
             return
         if -RAW_SNAPSHOT_FUTURE_SKEW <= age < RAW_SNAPSHOT_MAX_AGE:
