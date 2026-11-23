@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Add gaming PC",
-        "description": "Select a gaming PC that currently advertises itself over MQTT. HA MQTT discovery does not need to be enabled.",
+        "description": "Select a Windows gaming PC advertising Unified MQTT v3. HA subscribes only to hostname-scoped v3 telemetry.",
         "data": {
           "device": "Gaming PC"
         }
@@ -17,7 +17,8 @@
     "abort": {
       "already_configured": "This PC is already configured.",
       "invalid_discovery": "Invalid or unsupported discovery metadata.",
-      "no_devices_found": "No new gaming PC found. Make sure the Windows agent is running and publishing to SmartHouse/Gaming/+/discovery, then try again."
+      "no_devices_found": "No new v3 gaming PC found. Start the current Windows agent and check SmartHouse/Gaming/<computer-name>/discovery; older agents and retained legacy identities are not accepted.",
+      "unsupported_unified_telemetry": "This Windows agent does not advertise Unified MQTT telemetry v3. Update to Windows agent 0.4.0+ and enroll the actual Windows computer name."
     }
   },
   "options": {
@@ -29,8 +30,7 @@
           "mqtt_settings": "MQTT configuration",
           "tracked_apps": "Tracked applications",
           "windows_updates": "Windows updates (advanced)",
-          "screen_idle": "Screen idle (experimental)",
-          "unified_telemetry": "Unified MQTT telemetry (experimental)"
+          "screen_idle": "Screen idle (experimental)"
         }
       },
       "mqtt_settings": {
@@ -64,14 +64,6 @@
           "screen_idle_acknowledged": "I understand this is an experimental feature and requires real-PC validation"
         },
         "submit": "Save Screen idle policy"
-      },
-      "unified_telemetry": {
-        "title": "Unified MQTT telemetry v3 — experimental",
-        "description": "Per-PC HA source cutover, OFF by default. Windows 0.3.0 is a BREAKING CLEAN CUT: its monitoring uses ONLY strict, non-retained Unified telemetry v3 and it does NOT publish legacy v2 foreground/display/scalar states. During an approved joint HA+Windows maintenance window, enable this option for the exact PC as part of the coordinated upgrade. Before the v3 publisher is online, HA intentionally shows UNKNOWN and does not fall back, charge unseen gaming minutes, or grant Screen Idle bonuses. To roll back you must restore the compatible previous Windows agent AND this HA selection together. Existing app settings, unique IDs and Recorder history are preserved. This form does NOT deploy or update Windows.",
-        "data": {
-          "unified_telemetry_enabled": "Use Unified MQTT telemetry v3 for this PC",
-          "unified_telemetry_acknowledged": "I understand Windows 0.3.0 has NO v2 fallback; switching telemetry formats requires a coordinated PC + HA upgrade or rollback"
-        }
       }
     },
     "error": {
@@ -80,8 +72,7 @@
       "invalid_application": "Invalid application row, duplicate process, or invalid name. Only the verified foreground process can be added.",
       "no_tracked_apps": "No HA-managed applications to modify yet.",
       "invalid_signed_release": "Use a fixed HTTPS catalog and release directory, a valid Ed25519 PUBLIC PEM key, and all required fields when enabling updates. No settings were changed.",
-      "screen_idle_preview_unconfirmed": "Confirm the experimental limitations before enabling. No settings were changed.",
-      "unified_telemetry_unconfirmed": "Confirm the v3 protocol compatibility requirements before enabling; options were not changed."
+      "screen_idle_preview_unconfirmed": "Confirm the experimental limitations before enabling. No settings were changed."
     },
     "abort": {
       "invalid_app_configuration": "Stored tracked applications are invalid; no changes were made."
