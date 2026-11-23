@@ -11,6 +11,11 @@ def test_exact_interface():
     uptime = a['homeassistant/sensor/smarthouse_gaming_pc1_uptime/config']
     assert uptime['unique_id'] == 'smarthouse_gaming_pc1_uptime'
     assert uptime['expire_after'] == 10
+    assert 'unit_of_measurement' not in uptime
+    assert 'device_class' not in uptime
+    assert uptime['entity_category'] == 'diagnostic'
+    for expr in ('// 86400', '// 3600', '// 60', '% 60'):
+        assert expr in uptime['value_template']
     assert 'value_json.system.uptime_seconds' in uptime['value_template']
     assert "value_json.device_id == 'pc1'" in uptime['value_template']
     assert 'unavailable' in uptime['value_template']
