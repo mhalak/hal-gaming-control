@@ -246,6 +246,76 @@ def test_persistent_journal_survives_restart_and_daily_expiration():
     assert len(stale[KEY]["events"]) == 1
 
 
+
+@pytest.mark.asyncio
+async def test_unknown_display_support_does_not_block_games_or_invent_bonus(hass):
+    """Clean cut: PCs without Windows display events still count valid gameplay."""
+    from pathlib import Path
+
+    callbacks = {}
+    async def subscribe(_hass, topic, callback, qos):
+        callbacks[topic] = callback
+        return lambda: None
+
+    bonus = Mock()
+    with patch.object(mqtt, "is_connected", return_value=True), \
+         patch.object(mqtt, "async_subscribe_connection_status",
+                      return_value=lambda: None), \
+         patch.object(mqtt, "async_subscribe", side_effect=subscribe):
+        source = ForegroundSource(hass, DEV, [APP], Mock(), on_screen_off=bonus)
+        await source.async_start()
+    root = f"SmartHouse/Gaming/{DEV}/"
+    def deliver(suffix, payload, ts):
+        message = SimpleNamespace(topic=root + suffix, payload=payload, retain=False)
+        with patch.object(src, "time", return_value=ts), \
+             patch.object(src, "monotonic", return_value=10000 + ts):
+            callbacks[message.topic](message)
+
+    deliver("discovery", json.dumps({"protocol_version": 1, "device_id": DEV,
+            "name": "PC", "games": [], "actions": [],
+            "unified_telemetry_protocol": 3}), 99)
+    deliver("availability", "online", 99)
+    fixture = (Path(__file__).resolve().parents[1] / "contracts" / "v3"
+               / "telemetry-foreground.json")
+    template = json.loads(fixture.read_text(encoding="utf-8"))
+
+    def packet(ts, seq, display_state="unknown", event=1, edge=None):
+        row = json.loads(json.dumps(template))
+        row.update(device_id=DEV, observed_at=ts, sequence=seq)
+        row["foreground"].update(process=APP["process"],
+                                 signature=APP["signature"],
+                                 state="foreground", sample_age_ms=0)
+        d = row["display"]
+        d["state"] = display_state
+        if display_state == "unknown":
+            d.update(event_epoch=None, event_sequence=None, event_age_ms=None,
+                     sample_age_ms=None, last_input_idle_ms=None)
+        else:
+            d.update(event_epoch="b" * 32, event_sequence=event,
+                     event_age_ms=int((ts - (edge if edge is not None else ts)) * 1000),
+                     sample_age_ms=0, last_input_idle_ms=600000)
+        return json.dumps(row)
+
+    deliver("state/telemetry", packet(100, 1), 100)
+    deliver("state/telemetry", packet(102, 2), 102)
+    assert source.current(10102) == "Roblox"
+    assert source.totals(now(102))["weekly"] > 0
+    bonus.assert_not_called()
+
+    deliver("state/telemetry", packet(104, 3, "on", event=1), 104)
+    deliver("state/telemetry", packet(106, 4, "off", event=2), 106)
+    stopped = source.totals(now(106))["weekly"]
+    assert source.current(10106) == "idle"
+    deliver("state/telemetry", packet(108, 5), 108)
+    assert source.current(10108) is None
+    assert source.totals(now(108))["weekly"] == stopped
+
+    deliver("state/telemetry", packet(110, 6, "on", event=3), 110)
+    assert source.current(10110) is None
+    deliver("state/telemetry", packet(112, 7, "on", event=3, edge=110), 112)
+    assert source.current(10112) == "Roblox"
+    source.close()
+
 @pytest.mark.asyncio
 async def test_end_to_end_unified_v3_suppresses_off_charging_and_recovers_on(hass):
     """Screen Idle is always on but consumes only mandatory v3 telemetry."""
