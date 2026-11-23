@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from homeassistant.components import mqtt
 from homeassistant.components.button import ButtonEntity
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
+from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import callback
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.exceptions import HomeAssistantError
@@ -15,6 +15,16 @@ from .const import ROOT
 from .action_registry import ACTION_REGISTRY
 from .protocol import parse_discovery
 from .unified_telemetry import TelemetryOrder, decode_telemetry, MAX_AGE
+
+
+def format_uptime(seconds):
+    """Friendly presentation; retain raw seconds separately for diagnostics."""
+    if type(seconds) is not int or not 0 <= seconds <= 2**63 - 1:
+        return None
+    days, rem = divmod(seconds, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes, rest = divmod(rem, 60)
+    return f"{days}d {hours}h {minutes}m {rest}s"
 
 
 def direct_mode(hass):
@@ -68,8 +78,10 @@ class DirectEntity(Entity):
 
 
 class DirectUptime(DirectEntity, SensorEntity):
-    _attr_device_class = SensorDeviceClass.DURATION
-    _attr_native_unit_of_measurement = "s"
+    # A string state cannot carry HA numeric-duration metadata. Keep the old
+    # unique_id and raw uptime_seconds attribute; never add another entity.
+    _attr_device_class = None
+    _attr_native_unit_of_measurement = None
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, c):
@@ -138,7 +150,11 @@ class DirectUptime(DirectEntity, SensorEntity):
 
     @property
     def native_value(self):
-        return self._value
+        return format_uptime(self._value)
+
+    @property
+    def extra_state_attributes(self):
+        return {"uptime_seconds": self._value}
 
 
 class DirectAction(DirectEntity, ButtonEntity):
