@@ -30,7 +30,8 @@ def setup_select():
     coordinator = Mock()
     coordinator.device_id = "pc1"
     coordinator.entry = entry
-    coordinator.data = {"ready": False}
+    coordinator.data = {"ready": True, "totals": {"daily": 0, "weekly": 0},
+                        "coverage_incomplete": False}
     coordinator.last_update_success = True
     committed = []
 
@@ -51,13 +52,13 @@ async def test_native_select_lists_each_grant_without_manual_ids():
                return_value=at()), patch.object(entity, "async_write_ha_state"):
         options = entity.options
         assert options[0] == UNSELECTED
-        assert len(options) == 4
+        assert len(options) == 6
         assert len(set(options)) == 4
-        assert "30 min" in options[1]
-        assert all("Parent Bonus" in option for option in options[1:])
+        assert "30min Parent bonus" in options[2]
+        assert all("Parent bonus" in option for option in options[2:-1])
         assert all(
             grant["id"][-10:] not in option
-            for option in options[1:]
+            for option in options[2:-1]
             for grant in parent_bonus_activity_today(entry.options, at())
         )
         assert entity.current_option == UNSELECTED
@@ -80,7 +81,7 @@ async def test_same_minute_bonus_choices_show_id_only_for_ambiguity():
                        entity, "async_write_ha_state"):
         choices = entity._choices(at())
         short_labels = [label for label in choices if label.startswith(
-            "11:40 · +30 min · Parent Bonus")]
+            "+30min Parent bonus (11:40)")]
         assert len(short_labels) == 2
         assert len(set(short_labels)) == 2
         assert all(label.endswith(f"({choices[label][-10:]})")
@@ -115,7 +116,7 @@ def test_same_minute_opaque_short_id_collision_uses_full_id():
                side_effect=lambda instant: instant.astimezone(TZ)):
         labels = entity._choices(at())
     duplicates = [name for name in labels
-                  if name.startswith("11:40 · +30 min · Parent Bonus")]
+                  if name.startswith("+30min Parent bonus (11:40)")]
     assert len(duplicates) == 2
     assert all(name.endswith(f"({labels[name]})") for name in duplicates)
 
@@ -149,7 +150,7 @@ async def test_other_parent_cannot_confirm_a_pending_grant():
                return_value=at()), patch(
                    "custom_components.hal_gaming_control.select.monotonic",
                    return_value=150.0), patch.object(entity, "async_write_ha_state"):
-        await entity.async_select_option(entity.options[1])
+        await entity.async_select_option(entity.options[2])
         entity.prepare("parent-A")
         with pytest.raises(HomeAssistantError, match="your own"):
             entity.confirm("parent-B")
@@ -165,9 +166,9 @@ async def test_interleaved_selection_invalidates_prepared_undo():
                return_value=at()), patch(
                    "custom_components.hal_gaming_control.select.monotonic",
                    return_value=150.0), patch.object(entity, "async_write_ha_state"):
-        await entity.async_select_option(entity.options[1])
-        entity.prepare("parent-A")
         await entity.async_select_option(entity.options[2])
+        entity.prepare("parent-A")
+        await entity.async_select_option(entity.options[3])
         with pytest.raises(HomeAssistantError):
             entity.confirm("parent-A")
         assert not commits
@@ -180,7 +181,7 @@ async def test_preparation_expires_and_does_not_survive_restart():
                return_value=at()), patch.object(entity, "async_write_ha_state"):
         with patch("custom_components.hal_gaming_control.select.monotonic",
                    return_value=1.0):
-            await entity.async_select_option(entity.options[1])
+            await entity.async_select_option(entity.options[2])
             entity.prepare("parent-A")
         with patch("custom_components.hal_gaming_control.select.monotonic",
                    return_value=100.0):
@@ -204,7 +205,7 @@ async def test_date_rollover_and_stale_grant_are_rejected():
     ):
         with patch("custom_components.hal_gaming_control.select.dt_util.now",
                    return_value=at()):
-            await entity.async_select_option(entity.options[1])
+            await entity.async_select_option(entity.options[2])
             entity.prepare("parent-A")
         with patch("custom_components.hal_gaming_control.select.dt_util.now",
                    return_value=at(day=23)):
@@ -224,7 +225,7 @@ async def test_no_success_when_save_fails():
         return_value=100.0,
     ), patch("custom_components.hal_gaming_control.select.dt_util.now",
              return_value=at()):
-        await entity.async_select_option(entity.options[1])
+        await entity.async_select_option(entity.options[2])
         entity.prepare("parent-A")
         with pytest.raises(RuntimeError, match="storage"):
             entity.confirm("parent-A")
@@ -259,7 +260,7 @@ async def test_ha_services_are_admin_only_target_one_real_select(hass):
                    return_value=at()), patch(
                        "custom_components.hal_gaming_control.select.monotonic",
                        return_value=250.0), patch.object(entity, "async_write_ha_state"):
-            await entity.async_select_option(entity.options[1])
+            await entity.async_select_option(entity.options[2])
             target = {"entity_id": "select.pc1_parent_bonus_to_undo"}
             for who in (other.id, None):
                 with pytest.raises((Unauthorized, HomeAssistantError)):
