@@ -15,6 +15,11 @@ from custom_components.hal_gaming_control.parent_bonus import (
 from custom_components.hal_gaming_control.select import ParentBonusGrantSelect
 
 TZ = ZoneInfo("Europe/Zagreb")
+FIGURE = "\u2007"
+
+
+def total(minutes):
+    return f"∑{FIGURE}{minutes} min - TOTAL"
 
 
 def at(hour=14, minute=30, day=23):
@@ -52,8 +57,8 @@ async def test_parent_undo_is_one_step_and_keeps_full_audit():
     entity, entry, committed = setup_select()
     with patch("custom_components.hal_gaming_control.select.dt_util.now",
                return_value=at()), patch.object(entity, "async_write_ha_state"):
-        assert entity.current_option == "∑ 210min TOTAL"
-        parent_labels = [label for label in entity.options if "Parent bonus" in label]
+        assert entity.current_option == total(210)
+        parent_labels = [label for label in entity.options if "Parent Bonus" in label]
         assert len(parent_labels) == 3
         assert all(label.endswith("⛔") for label in parent_labels)
         assert all("🔒" not in label for label in entity.options)
@@ -61,7 +66,7 @@ async def test_parent_undo_is_one_step_and_keeps_full_audit():
         await entity.async_select_option(parent_labels[1])
         assert len(committed) == 1
         assert parent_bonus_total(entry.options, at()) == 60
-        assert entity.current_option == "∑ 180min TOTAL"
+        assert entity.current_option == total(180)
         assert parent_labels[1] not in entity.options
         activity = parent_bonus_activity_today(entry.options, at())
         assert sum(row["status"] == "cancelled" for row in activity) == 1
@@ -82,11 +87,14 @@ async def test_same_minute_grants_have_unique_labels_and_exact_ids():
                        entity, "async_write_ha_state"):
         choices = entity._choices(at())
         ambiguous = [name for name in choices
-                     if "+30min Parent bonus (11:40)" in name]
+                     if "Parent Bonus (11:40" in name]
         assert len(ambiguous) == 2
         assert len(set(ambiguous)) == 2
         assert all(name.endswith("⛔") for name in ambiguous)
-        assert all(choices[name][-10:] in name for name in ambiguous)
+        assert any("(11:40 #1)" in name for name in ambiguous)
+        assert any("(11:40 #2)" in name for name in ambiguous)
+        assert all(choices[name] not in name for name in ambiguous)
+        assert all(choices[name][-10:] not in name for name in ambiguous)
         picked, grant_id = ambiguous[0], choices[ambiguous[0]]
         await entity.async_select_option(picked)
         assert len(committed) == 1
@@ -94,10 +102,10 @@ async def test_same_minute_grants_have_unique_labels_and_exact_ids():
         assert next(item for item in activity if item["id"] == grant_id)[
             "status"] == "cancelled"
         assert sum(item["status"] == "active" for item in activity) == 4
-        assert entity.current_option == "∑ 240min TOTAL"
+        assert entity.current_option == total(240)
 
 
-def test_short_id_collision_falls_back_to_full_id():
+def test_same_minute_internal_id_collision_never_exposes_ids():
     entity, entry, _ = setup_select()
     for _ in range(2):
         entry.options = add_parent_grant(entry.options, "pc1",
@@ -109,9 +117,12 @@ def test_short_id_collision_falls_back_to_full_id():
                side_effect=lambda stamp: stamp.astimezone(TZ)):
         choices = entity._choices(at())
     ambiguous = [label for label in choices
-                 if "+30min Parent bonus (11:40)" in label]
+                 if "Parent Bonus (11:40" in label]
     assert len(ambiguous) == 2
-    assert all(choices[label] in label for label in ambiguous)
+    assert any("(11:40 #1)" in label for label in ambiguous)
+    assert any("(11:40 #2)" in label for label in ambiguous)
+    assert all(choices[label] not in label for label in ambiguous)
+    assert all(choices[label][-10:] not in label for label in ambiguous)
     assert len(set(ambiguous)) == 2
 
 

@@ -1,3 +1,10 @@
+## 0.13.8 — Aligned Budget overview dropdown, readable bonus labels
+
+- The native Budget overview (Undo) dropdown uses a clean allowance receipt: `+ 240 min - Daily Budget`, `+  30 min - Parent Bonus (11:40)`, and `∑ 300 min - TOTAL`. Numeric amounts are padded with Unicode **figure spaces** so digit columns remain reasonably aligned even where HTML would collapse ordinary spaces.
+- Only completely untouched, eligible Parent bonuses show a trailing red `⛔`, visually separated into a padded action column. The native HA Select only permits plain text; true pixel-perfect right alignment across different widths and device fonts requires a custom frontend component, which this change does not introduce.
+- **No grant ID is shown**, even for two same-minute, same-amount bonuses. Such rows are distinguished by human-readable `#1`, `#2`, etc. The selection-to-immutable-grant-ID mapping is still exact and the existing administrator authorization, fresh usage checks, replay protection and full-grant cancellation remain unchanged.
+- **HA source 0.13.8 / Preview 32; Windows 0.4.0 unchanged.** Release publication and deployment are separate actions.
+
 ## 0.13.7 — One-tap Budget overview Undo and cleaner device card
 
 - The native **Budget overview (Undo)** select now always displays the dynamic **∑ TOTAL** row as its current selection. Choosing an eligible Parent bonus **immediately revokes it** and resets selection to updated ∑ TOTAL. No more Prepare/Confirm buttons or two-stage service calls.

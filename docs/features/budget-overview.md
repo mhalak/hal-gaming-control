@@ -58,14 +58,14 @@ Previous bonuses were just an anonymous `bonus_minutes` total. These remain as a
 The native **Budget overview (Undo)** dropdown preserves the original HA select unique ID from Parent bonus Undo, so existing device associations remain intact. Its rows are ordered as a transparent receipt:
 
 ```text
-+180min Daily budget
-+30min Parent bonus (11:40)
-+10min Screen off bonus (12:50)
-+30min Parent bonus (14:00) ⛔
-∑ 250min TOTAL
++ 180 min - Daily Budget
++  30 min - Parent Bonus (11:40)
++  10 min - Screen Off Bonus (12:50)
++  30 min - Parent Bonus (14:00)      ⛔
+∑ 250 min - TOTAL
 ```
 
-Only **⛔** items can be removed; all other entries are information only. The **red ⛔ appears at the end** of the Parent bonus row only while cancellation is permitted. The total is always the currently selected/default row, including after an administrator cancels a bonus. The amount updates immediately. Same-minute, same-size bonuses include a short ID suffix only when needed to distinguish otherwise identical entries; cancellation still uses the full immutable journal ID.
+Only **⛔** items can be removed; all other entries are information only. The **red ⛔ appears at the end** of the Parent bonus row only while cancellation is permitted. The total is always the currently selected/default row, including after an administrator cancels a bonus. The amount updates immediately. Same-minute, same-size bonuses are distinguished as `(11:40 #1)` / `(11:40 #2)`, **never by displaying their opaque grant IDs**. Internally cancellation still targets the full immutable journal ID. Numeric columns use Unicode figure spaces and actionable rows have a padded gap before the red ⛔. Since HA's native Select is a plain-text control, the icon cannot be pinned precisely to the right edge in every screen width/font.
 
 **How Undo works:** an authenticated HA administrator selects a Parent bonus marked ⛔ and the integration immediately cancels that entire bonus, without Prepare/Confirm buttons. It rechecks the current accounting **after refreshing the coordinator**. A Parent bonus is no longer cancellable once even one verified gaming second has consumed it, or if removing it would leave used time greater than the reduced daily allowance. A resulting balance of exactly zero is allowed. The allocation convention is **base allowance first, then existing bonus grants by chronological order**; it is not a claim that individual gaming seconds physically carry bonus IDs. If a PC's usage is unknown, Undo fails closed. Other users and anonymous/automation calls cannot remove a bonus because the integration checks the authenticated HA administrator context.
 

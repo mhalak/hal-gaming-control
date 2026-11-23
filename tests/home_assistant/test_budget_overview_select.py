@@ -15,6 +15,19 @@ from custom_components.hal_gaming_control.parent_bonus import (
 from custom_components.hal_gaming_control.select import ParentBonusGrantSelect
 
 TZ = ZoneInfo("Europe/Zagreb")
+FIGURE = "\u2007"
+
+
+def amount(minutes, title, width=3):
+    return f"+{FIGURE}{str(minutes).rjust(width, FIGURE)} min - {title}"
+
+
+def action(minutes, title):
+    return amount(minutes, title) + FIGURE * 6 + "⛔"
+
+
+def total(minutes):
+    return f"∑{FIGURE}{minutes} min - TOTAL"
 
 
 def at(hour=15, minute=0):
@@ -72,13 +85,16 @@ def test_ordered_receipt_shows_only_actionable_red_icons_and_sigma_total():
     options, data = sample_receipt()
     labels = [label for label, _ in rows(options, data)]
     assert labels == [
-        "+180min Daily budget",
-        "+30min Parent bonus (11:40) ⛔",
-        "+10min Screen off bonus (12:50)",
-        "+30min Parent bonus (14:00) ⛔",
-        "∑ 250min TOTAL",
+        amount(180, "Daily Budget"),
+        action(30, "Parent Bonus (11:40)"),
+        amount(10, "Screen Off Bonus (12:50)"),
+        action(30, "Parent Bonus (14:00)"),
+        total(250),
     ]
     assert all("🔒" not in label for label in labels)
+    assert all("⛔" not in label for label in labels if "Parent Bonus" not in label)
+    assert all(FIGURE in label for label in labels)
+    assert all("1234567890" not in label for label in labels)
     assert sum(label.endswith("⛔") for label in labels) == 2
 
 
@@ -92,7 +108,7 @@ def test_ordered_receipt_shows_only_actionable_red_icons_and_sigma_total():
 def test_bonuses_lock_individually_as_usage_reaches_them(used, unlocked):
     options, data = sample_receipt(used=used)
     parent_rows = [(label, grant_id) for label, grant_id in rows(options, data)
-                   if "Parent bonus" in label]
+                   if "Parent Bonus" in label]
     assert len(parent_rows) == 2
     assert sum(label.endswith("⛔") for label, _ in parent_rows) == unlocked
     assert sum(grant_id is not None for _, grant_id in parent_rows) == unlocked
@@ -103,10 +119,10 @@ def test_two_parent_bonuses_and_50_minutes_remaining_lock_only_first():
     # 180 + 30 + 30 - 190 = 50 minutes.
     labels = [label for label, _ in rows(options, data)]
     assert labels == [
-        "+180min Daily budget",
-        "+30min Parent bonus (11:40)",
-        "+30min Parent bonus (14:00) ⛔",
-        "∑ 240min TOTAL",
+        amount(180, "Daily Budget"),
+        amount(30, "Parent Bonus (11:40)"),
+        action(30, "Parent Bonus (14:00)"),
+        total(240),
     ]
 
 
@@ -129,13 +145,13 @@ async def test_selecting_one_parent_bonus_immediately_cancels_and_resets_total()
     entity, entry, committed = selector(used=190 * 60, screen=False)
     with patch("custom_components.hal_gaming_control.select.dt_util.now",
                return_value=at()), patch.object(entity, "async_write_ha_state"):
-        assert entity.current_option == "∑ 240min TOTAL"
-        label = "+30min Parent bonus (14:00) ⛔"
+        assert entity.current_option == total(240)
+        label = action(30, "Parent Bonus (14:00)")
         assert label in entity.options
         await entity.async_select_option(label)
         assert len(committed) == 1
         assert entity.coordinator.async_refresh.await_count == 1
-        assert entity.current_option == "∑ 210min TOTAL"
+        assert entity.current_option == total(210)
         assert label not in entity.options
         assert parent_bonus_total(entry.options, at()) == 30
         assert sum(e["status"] == "cancelled"
@@ -151,9 +167,10 @@ async def test_no_action_on_sigma_total_and_non_action_rows_are_rejected():
     with patch("custom_components.hal_gaming_control.select.dt_util.now",
                return_value=at()), patch.object(entity, "async_write_ha_state"):
         await entity.async_select_option(entity.current_option)
-        for label in ("+180min Daily budget", "+30min Parent bonus (11:40)"):
+        for label in (amount(180, "Daily Budget"),
+                      amount(30, "Parent Bonus (11:40)")):
             await entity.async_select_option(label)
-            assert entity.current_option == "∑ 240min TOTAL"
+            assert entity.current_option == total(240)
         assert not committed
 
 
@@ -175,8 +192,8 @@ async def test_non_admin_or_anonymous_select_cannot_revoke(user_id, admin):
     with patch("custom_components.hal_gaming_control.select.dt_util.now",
                return_value=at()), patch.object(entity, "async_write_ha_state"):
         with pytest.raises(HomeAssistantError, match="administrator"):
-            await entity.async_select_option("+30min Parent bonus (14:00) ⛔")
-        assert entity.current_option == "∑ 240min TOTAL"
+            await entity.async_select_option(action(30, "Parent Bonus (14:00)"))
+        assert entity.current_option == total(240)
         assert not committed
         assert parent_bonus_total(entry.options, at()) == 60
 
@@ -189,11 +206,11 @@ async def test_spending_one_second_while_dropdown_open_rejects_stale_action():
             {"daily": 220 * 60 + 1}))
     with patch("custom_components.hal_gaming_control.select.dt_util.now",
                return_value=at()), patch.object(entity, "async_write_ha_state"):
-        label = "+30min Parent bonus (14:00) ⛔"
+        label = action(30, "Parent Bonus (14:00)")
         assert label in entity.options
         with pytest.raises(HomeAssistantError, match="used or budget changed"):
             await entity.async_select_option(label)
-        assert entity.current_option == "∑ 250min TOTAL"
+        assert entity.current_option == total(250)
         assert parent_bonus_total(entry.options, at()) == 60
         assert not committed
 
@@ -204,9 +221,9 @@ async def test_exactly_zero_remaining_after_cancel_is_allowed():
     with patch("custom_components.hal_gaming_control.select.dt_util.now",
                return_value=at()), patch.object(entity, "async_write_ha_state"):
         # The last Parent is untouched; removing it leaves 210-210 = 0.
-        await entity.async_select_option("+30min Parent bonus (14:00) ⛔")
+        await entity.async_select_option(action(30, "Parent Bonus (14:00)"))
         assert len(committed) == 1
-        assert entity.current_option == "∑ 210min TOTAL"
+        assert entity.current_option == total(210)
         assert parent_bonus_total(entry.options, at()) == 30
 
 
@@ -217,7 +234,7 @@ async def test_failed_save_never_claims_undo_succeeded():
     with patch("custom_components.hal_gaming_control.select.dt_util.now",
                return_value=at()), patch.object(entity, "async_write_ha_state"):
         with pytest.raises(HomeAssistantError, match="not saved"):
-            await entity.async_select_option("+30min Parent bonus (14:00) ⛔")
+            await entity.async_select_option(action(30, "Parent Bonus (14:00)"))
         assert not committed
         assert parent_bonus_total(entry.options, at()) == 60
 
@@ -231,6 +248,6 @@ async def test_date_rollover_before_fresh_check_cannot_revoke_yesterday_grant():
                side_effect=lambda: next(times, tomorrow)), patch.object(
                    entity, "async_write_ha_state"):
         with pytest.raises(HomeAssistantError, match="used or budget changed"):
-            await entity.async_select_option("+30min Parent bonus (14:00) ⛔")
+            await entity.async_select_option(action(30, "Parent Bonus (14:00)"))
         assert not committed
         assert parent_bonus_total(entry.options, today) == 60
