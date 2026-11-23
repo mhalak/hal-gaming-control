@@ -1,7 +1,7 @@
-"""Plain-text, read-only gaming allowance receipt for the native HA select.
+"""Per-PC native select receipt: inspect allowances or remove an untouched bonus.
 
-Home Assistant SelectEntity does not support disabled individual options. The
-lock glyph is explanatory; the service layer must reject locked selections.
+SelectEntity has no individually disabled choices; non-removable entries are
+visible for context, but the backend never accepts them as Undo targets.
 """
 from collections import Counter
 from datetime import datetime, timezone
@@ -17,14 +17,14 @@ from .screen_idle_bonus import screen_idle_events_today
 def _fixed_rows(receipt, options, now):
     """Non-revocable base, Weekend and legacy rows and their accumulated pool."""
     base = receipt["base_daily_minutes"]
-    rows = [(f"🔒 +{base}min Daily budget" if base is not None
-             else "🔒 Unlimited Daily budget", None)]
+    rows = [(f"+{base}min Daily budget" if base is not None
+             else "Unlimited Daily budget", None)]
     weekend = receipt["weekend_bonus_minutes"]
     if weekend:
-        rows.append((f"🔒 +{weekend}min Weekend bonus", None))
+        rows.append((f"+{weekend}min Weekend bonus", None))
     legacy = parent_bonus_legacy_today(options, now)
     if legacy:
-        rows.append((f"🔒 +{legacy}min Legacy Parent bonus", None))
+        rows.append((f"+{legacy}min Legacy Parent bonus", None))
     return rows, (base or 0) + weekend + legacy
 
 
@@ -95,10 +95,10 @@ def _can_undo(event, receipt, data, spent_before):
 def _total_row(receipt):
     status, total = receipt["daily_budget_status"], receipt["daily_limit_minutes"]
     if status == "disabled":
-        return "🔒 Rules disabled", None
+        return "∑ Rules disabled", None
     if total is None:
-        return "🔒 Unlimited TOTAL", None
-    return f"🔒 {total}min TOTAL", None
+        return "∑ Unlimited TOTAL", None
+    return f"∑ {total}min TOTAL", None
 
 
 def budget_select_rows(options, device_id, data, now):
@@ -116,7 +116,7 @@ def budget_select_rows(options, device_id, data, now):
     events = _bonus_events(options, device_id, now)
     for event, label in zip(events, _event_labels(events)):
         eligible = _can_undo(event, receipt, data, spent_before)
-        rows.append((label if eligible else f"🔒 {label}",
+        rows.append((f"{label} ⛔" if eligible else label,
                      event["id"] if eligible else None))
         spent_before += event["minutes"]
     rows.append(_total_row(receipt))

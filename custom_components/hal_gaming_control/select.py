@@ -1,10 +1,10 @@
-"""Device-scoped native HA selection for safe Parent bonus cancellation.
+"""Per-PC Budget overview with administrator-only, one-tap Parent bonus Undo.
 
-A select entity contains only the current target. It never revokes by itself.
-The two admin-only actions use a short-lived, actor-bound prepare/confirm step.
+HA SelectEntity displays every allowance row but has no per-option disabled
+state. Only rows marked with ⛔ are actions; all other rows are read-only.
+The native select service supplies the acting user's context through
+Entity.async_set_context. Anonymous and non-admin calls fail closed.
 """
-from time import monotonic
-
 from homeassistant.components.select import SelectEntity
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
@@ -13,31 +13,24 @@ from .entity import GamingEntity
 from .budget_select import budget_select_rows
 from .parent_bonus import parent_bonus_legacy_today, revoke_parent_grant
 
-UNSELECTED = "Choose a Parent bonus to undo"
-UNDO_TTL_SECONDS = 90
-
 
 async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities([ParentBonusGrantSelect(entry.runtime_data)])
 
 
 class ParentBonusGrantSelect(GamingEntity, SelectEntity):
-    """One immutable grant ID per option, with a transient confirmation guard."""
+    """The last TOTAL row is always selected; a bonus click revokes it."""
 
-    _attr_icon = "mdi:backup-restore"
+    _attr_icon = "mdi:calculator-variant-outline"
 
     def __init__(self, coordinator):
-        # Preserve unique_id/entity_id so existing Undo service targets survive.
+        # Keep the original unique ID: existing HA dashboards stay attached.
         super().__init__(coordinator, "parent_bonus_undo_target",
                          "Budget overview (Undo)")
-        self._selected = UNSELECTED
-        self._pending = {}
-        self._undo_status = "Choose a grant, then prepare Undo"
-        self._prepared_label = None
+        self._undo_status = "Choose a ⛔ Parent bonus to cancel it immediately"
 
     @property
     def available(self):
-        # Parent config is entirely local to HA; the gaming PC may be offline.
         return True
 
     def _rows(self, now):
@@ -46,97 +39,77 @@ class ParentBonusGrantSelect(GamingEntity, SelectEntity):
             self.coordinator.data, now)
 
     def _choices(self, now):
-        # The full receipt is visible, but only safe untouched Parent bonus
-        # rows can ever become the Undo target.
         return {label: grant_id for label, grant_id in self._rows(now)
                 if grant_id is not None}
 
     @property
     def options(self):
-        return [UNSELECTED, *(label for label, _ in self._rows(dt_util.now()))]
+        return [label for label, _ in self._rows(dt_util.now())]
 
     @property
     def current_option(self):
-        return self._selected if self._selected in self.options else UNSELECTED
+        # Never remember a selected bonus: no repeat-click or stale selection.
+        # It also updates automatically when the day's allowance changes.
+        return self.options[-1]
 
     @property
     def extra_state_attributes(self):
         return {
             "undo_status": self._undo_status,
-            "prepared_grant": self._prepared_label,
             "legacy_parent_bonus_minutes": parent_bonus_legacy_today(
                 self.coordinator.entry.options, dt_util.now()),
         }
 
-    async def async_select_option(self, option):
-        if option not in self.options:
-            raise HomeAssistantError("Budget item is no longer active")
-        if option != UNSELECTED and option not in self._choices(dt_util.now()):
-            # The built-in HA Select has no per-option disabled metadata.
-            # This backend check also blocks direct select.select_option calls.
+    async def _require_admin(self):
+        # Core's select service sets context before calling this method.
+        # Direct integration calls, scripts, and anonymous actions have no
+        # authenticated administrator; never silently remove a bonus.
+        context = getattr(self, "_context", None)
+        user_id = context.user_id if context is not None else None
+        if not user_id:
             raise HomeAssistantError(
-                "This budget item is locked or the Parent bonus was already used")
-        if option != self._selected:
-            # Cross-user selection is shared by HA; invalidate all outstanding
-            # confirmations rather than risk a different grant being cancelled.
-            self._pending.clear()
-            self._prepared_label = None
-            self._undo_status = "Choose Prepare Undo for the selected grant"
-        self._selected = option
-        self.async_write_ha_state()
+                "Cancelling a Parent bonus requires an HA administrator")
+        user = await self.hass.auth.async_get_user(user_id)
+        if user is None or not user.is_admin:
+            raise HomeAssistantError(
+                "Cancelling a Parent bonus requires an HA administrator")
 
-    def prepare(self, actor_id):
-        """Freeze the exact selected grant for this authenticated HA user."""
-        if not actor_id:
-            raise HomeAssistantError("Parent bonus Undo requires an HA user")
-        label = self.current_option
-        choices = self._choices(dt_util.now())
-        if label == UNSELECTED or label not in choices:
-            raise HomeAssistantError("Select an active Parent bonus first")
-        self._pending[actor_id] = (choices[label], label, monotonic())
-        self._prepared_label = label
-        self._undo_status = f"Prepared: {label}; confirm within 90 seconds"
-        self.async_write_ha_state()
+    async def async_select_option(self, option):
+        now = dt_util.now()
+        rows = self._rows(now)
+        if option not in (label for label, _ in rows):
+            raise HomeAssistantError("Budget entry is no longer active")
+        # Clicking TOTAL does nothing. Native select cannot prevent tapping
+        # any read-only row, so other rows are rejected without modifying HA.
+        if option == rows[-1][0]:
+            self.async_write_ha_state()
+            return
+        grant_id = dict(rows).get(option)
+        if grant_id is None:
+            # An informational row is not a command. Re-publish ∑ TOTAL
+            # instead of leaving a misleading selection in the HA UI.
+            self._undo_status = "Read-only allowance item; nothing cancelled"
+            self.async_write_ha_state()
+            return
+        await self._require_admin()
 
-    def confirm(self, actor_id):
-        """Commit only the prepared grant of the same HA user and selection."""
-        pending = self._pending.get(actor_id)
-        if pending is None:
-            raise HomeAssistantError("Prepare your own Undo first")
-        grant_id, label, prepared_at = pending
-        if monotonic() - prepared_at > UNDO_TTL_SECONDS:
-            self._pending.pop(actor_id, None)
-            raise HomeAssistantError("Prepared Parent bonus Undo expired")
-        choices = self._choices(dt_util.now())
-        if self.current_option != label or choices.get(label) != grant_id:
-            self._pending.pop(actor_id, None)
-            raise HomeAssistantError("Parent bonus selection changed; prepare again")
+        # Refresh confirmed foreground usage before cancellation. The child's
+        # measured seconds may have advanced since the dropdown was opened.
+        await self.coordinator.async_refresh()
+        refreshed = self._choices(dt_util.now())
+        if refreshed.get(option) != grant_id:
+            raise HomeAssistantError(
+                "Parent bonus was used or budget changed; open the list again")
         entry = self.coordinator.entry
         try:
             updated = revoke_parent_grant(
                 entry.options, self.coordinator.device_id, grant_id, dt_util.now())
         except ValueError as err:
-            self._pending.pop(actor_id, None)
             raise HomeAssistantError(str(err)) from err
         result = self.hass.config_entries.async_update_entry(entry, options=updated)
         if result is False:
             raise HomeAssistantError("Parent bonus cancellation was not saved")
-        self._pending.clear()
-        self._selected = UNSELECTED
-        self._prepared_label = None
-        self._undo_status = f"Cancelled: {label}. Today's budget has been recalculated."
+        self._undo_status = f"Cancelled: {option}. Allowance recalculated."
+        # State always points back to ∑ TOTAL; the selected grant vanishes
+        # immediately as soon as the config-entry update takes effect.
         self.async_write_ha_state()
-
-    async def async_added_to_hass(self):
-        await super().async_added_to_hass()
-        from .const import DOMAIN
-        self.hass.data.setdefault(DOMAIN, {}).setdefault(
-            "parent_bonus_undo_selects", {})[self.entity_id] = self
-
-    async def async_will_remove_from_hass(self):
-        from .const import DOMAIN
-        selectors = self.hass.data.get(DOMAIN, {}).get(
-            "parent_bonus_undo_selects", {})
-        if selectors.get(self.entity_id) is self:
-            selectors.pop(self.entity_id)
-        await super().async_will_remove_from_hass()

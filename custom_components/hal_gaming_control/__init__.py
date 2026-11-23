@@ -11,9 +11,7 @@ CONFIG_SCHEMA = _config_entry_only
 
 
 async def async_setup(hass, config):
-    """Expose admin actions before gaming PC entries are loaded."""
-    from .services import async_setup_services
-    async_setup_services(hass)
+    """Native Budget overview select handles authenticated Undo directly."""
     return True
 
 
@@ -78,6 +76,7 @@ def _remove_legacy_statistics(hass, entry):
     prefix = entry.data["device_id"] + "_"
     old_sensors = {
         "played_daily", "played_weekly", "played_weekend_total",
+        "budget_overview",
         "remaining_daily", "remaining_weekly", "remaining_weekend_total",
         "restriction", "budget_daily", "budget_weekly",
     }
