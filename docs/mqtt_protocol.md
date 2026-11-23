@@ -1,40 +1,31 @@
-# MQTT protocol v1
+# MQTT protocol — current Unified v3 monitoring
 
-**Cross-component contract tests:** [shared immutable MQTT wire fixtures](../tests/contracts/README.md) are checked by production Windows publisher tests and HA consumer/Options Flow tests. Contract changes require paired regressions and explicit versioning; passing isolated encoder and decoder tests alone is insufficient.
-# MQTT protocol v1
+[← Guides](README.md) · [Operational upgrade](unified_mqtt_telemetry.md)
 
-**Current Preview 21 / Windows 0.4.0 identity:** `<device_id>` is exactly the validated Windows computer name, not a configurable or persisted ID. All old `device:` YAML overrides are rejected; re-enroll HA and update MQTT ACLs when migrating from earlier installations. This document preserves historical v1/v2 protocol behavior for older versions; current monitoring is v3. See [the migration](windows_deployment.md#agent-040-preview-21--breaking-hostname-only-device-identity).
+**The supported Home Assistant monitoring protocol is Unified MQTT v3 only** (HA 0.13.0+, Windows 0.4.0+). Older v2/scalar gameplay and screen topics are not subscribed to, parsed as telemetry, or available as fallback. There is **no protocol configuration switch**.
 
-**Historical v1/v2 behavior only (Windows <= 0.3.0):**
+## Device identity and discovery
 
-Root: SmartHouse/Gaming/<device_id>/ (unique ASCII ID). Earlier Windows agents generated an ID into protected ProgramData/device_id or retained an existing legacy config device.id even when the Windows computer name changed. Discovery name defaulted to the OS computer name; HA allowed user-facing labels. Provision broker ACLs against the actual selected ID for that version.
+The root for a Windows PC is `SmartHouse/Gaming/<device_id>/`. Windows 0.4.0+ derives `device_id` and discovery `name` from the OS computer name; both must match the broker ACLs. A Windows rename changes the MQTT namespace and requires supervised HA re-enrollment. A previously retained old ID is not a second live device.
 
-Retained discovery metadata on discovery: {"protocol_version":1,"device_id":"gaming_pc_01","name":"Gaming PC 1","games":["Minecraft Java","Roblox"],"actions":["terminate_game","lock_pc"]}. This is metadata, not an additional sensor. This example shows baseline metadata. Agent 0.2.x adds foreground capability (`focus_protocol=1`), `agent_version` metadata and two additional foreground entities. Legacy process-presence telemetry remains unchanged.
+Retained `discovery` carries `protocol_version: 1` for the **discovery/control metadata format** and explicitly `unified_telemetry_protocol: 3` for **monitoring**. These numbers describe different envelopes; `protocol_version: 1` does **not** imply v1 or v2 gameplay monitoring. HA requires the v3 capability for new enrollment. Retained `availability` reports online/offline and is not proof of fresh foreground evidence.
 
-Commands: command/lock_pc always accepts PRESS; legacy command/terminate_game accepts PRESS only if local game rules exist. QoS 0, retain false. The new targeted manual command has a separate expiring result event (not a guaranteed synchronous acknowledgement). Availability and state changes are not action acknowledgements. No offline quota enforcement.
+## Single live monitoring topic
 
-Broker ACL: per-agent write to own state, availability, discovery and native MQTT discovery config; read only own command topics and HA birth. HA may read these topics and publish fixed commands. MQTT 5 broker required. HA must validate metadata and intersect actions with supported registry.
+`state/telemetry` contains the complete non-retained JSON version 3 snapshot. MQTT 5 / QoS 0 / six-second expiry / maximum 4096 bytes. Required root keys are `version`, `device_id`, `epoch`, `sequence`, `observed_at`, `foreground`, `display` and `system`. Full exact field names and types are in the [shared, immutable protocol fixture](../tests/contracts/v3/telemetry-foreground.json). Windows source and HA receiver tests validate the same wire example.
 
-## Foreground extension (agent 0.2.x)
+Each observation is validated against its own sample age. Epoch/sequence and timestamp reject duplicates, retained replay and old sessions. No telemetry packet can carry a command or grant gaming time. HA derives Active game, exact gaming time, budget indicators and gaming restriction from validated observations and HA-owned settings. Unknown or unavailable data never becomes fabricated idle.
 
-Retained `state/active_game` reports one configured game name, `idle`, or `unknown`. Retained `state/gaming_active` reports ON/OFF/UNKNOWN. `state/focus_availability` reports online/offline independently of agent availability. Native discovery advertises both foreground entities, gated by agent and focus availability. HA 0.4.3 adds scoped foreground display using the same topics and coherent pair validation. Retained messages alone do not establish freshness; foreground-only accounting, migration boundary and live validation remain pending. The planned 0.5.0 budget changes do not replace process-presence accounting.
+## Separate authenticated control and enrollment channels
 
-## Planned extensions
+- `command/lock_pc` and authorized termination channels carry explicit parent actions, not measurements.
+- `state/foreground_candidate` provides a short-lived, non-retained enrollment hint for tracked applications. The editor matches it against the **v3** foreground snapshot before offering Add.
+- `state/terminate_offer` and `command/terminate_target` use separate short-lived tokens for a verified, explicitly tracked process; a game quota reaching its limit alone does not initiate a termination.
+- `update/status`, signed OTA transport and acknowledgements remain isolated from the monitoring stream.
+- Native MQTT discovery continues to expose its existing Uptime entity, with `state_topic` pointed at `state/telemetry` and a bounded `system.uptime_seconds` template.
 
-Application enrollment and remaining-budget popup will require versioned, device-scoped protocol extensions. No topic names or payload schemas are finalized here. HA remains authoritative for quotas and automation decisions; no local automatic enforcement. Do not transmit arbitrary command lines, window titles or browser URLs. See [product direction](product_direction.md).
+A control message's own version number may be 1 or 2 without introducing another **monitoring** protocol.
 
-## Targeted manual termination v1 (Windows 0.2.9 + HA 0.7.2; issue #155)
+## Upgrading
 
-On a **rule-free** PC only, the Windows service publishes a one-use token for its last validated foreground process. Home Assistant has the authoritative **Tracked applications** list and shows its **Terminate active game** button only if the offer matches the **same accepted, current raw v2 foreground observation** for an explicitly tracked application. Nothing about a quota breach automatically sends this command.
-
-All three new topics are relative to `SmartHouse/Gaming/<device_id>/`, MQTT 5, **QoS 0, non-retained**, and use a short `MessageExpiryInterval`:
-
-- `state/terminate_offer`: `{"version":1,"device_id":"pc1","epoch":"<32 lowercase hex>","sequence":42,"observed_at":1700000000.0,"process":"RobloxPlayerBeta.exe","signature":null,"token":"<32 lowercase hex>"}`. Valid for less than 4 seconds, tied to a single live foreground snapshot. There is **no PID, process path, session, full argv or username** on the wire. The agent issues a new token on a new valid raw sample and revokes old tokens on focus changes and MQTT reconnect.
-- `command/terminate_target`: `{"version":1,"device_id":"pc1","epoch":"<32 lowercase hex>","token":"<32 lowercase hex>","request_id":"<32 lowercase hex>"}`. No arbitrary PID, executable, path, command line, wildcard or user-supplied process selection. A retained, stale, wrong-device/epoch or replayed request is rejected. Broker ACLs must give only the authorized HA/parent account publish access to this exact device's command topic.
-- `state/terminate_result`: `{"version":1,"device_id":"pc1","request_id":"<32 lowercase hex>","outcome":"terminated"}` or `"rejected"`. This is a best-effort event, not proof that a game saved its progress; never infer success from the command publish alone.
-
-Before calling Windows `TerminateProcess` on **one** process, the agent requires a *newer* trusted interactive foreground sample and revalidates its private PID, creation timestamp, same unlocked Windows session, name, safe Java entry-point signature (if applicable), process still running and executable not under Windows' system directory or in the protected OS process set. Missing, ambiguous, changed, stale or inaccessible observations fail closed. Background/idle/untracked applications cannot be selected from HA. Generic Java without a safe signature is rejected.
-
-**Compatibility:** If a PC keeps legacy local `games` rules, it keeps the old `command/terminate_game` and native MQTT button and does **not** offer the new targeted action. Without local rules, the old native button is retired; the new **HA-owned** button is present in both native-discovery and scoped/direct modes. An older scoped/direct legacy button may remain visible but unavailable after a rules-free migration. New protocol does not change IDs, budgets, Recorder segments, time tracking or Lock PC. Real user-session acceptance is required before deployment.
-
-**Trust boundary:** An authenticated local broker with per-device topic ACLs is required. These opaque tokens are not cryptographic proof of a trustworthy broker or a defence against a compromised HA/MQTT administrator; do not grant children or untrusted clients control-topic publish access. No cloud relay, command-line execution, browser-title collection or automatic enforcement is added.
+On HA 0.13.0+ there is nothing to enable under Configure: v3 is mandatory. Old saved per-PC `unified_telemetry_enabled` is removed while retaining settings and Recorder data. If all sensors show Unavailable, verify the stored entry's `device_id`, live Windows hostname topic, capability 3 discovery, MQTT online state and fresh complete v3 packets. Do **not** manually enable old monitoring topics. See the [clean-cut upgrade guide](unified_mqtt_telemetry.md).
