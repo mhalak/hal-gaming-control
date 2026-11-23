@@ -1,100 +1,22 @@
 ## Agent 0.4.0 Preview 21 — 🚨 BREAKING: hostname-only device identity
 
-**Not a transparent upgrade.** From Windows **0.4.0**, both the MQTT routing ID and discovery `name` are the current Windows computer name, for example `DESKTOP-F29J1R1`. The agent no longer uses or creates a random/persisted `device_id`; neither `device.id` nor `device.name` can override the OS name. **An existing `device:` section in `config.yaml` is rejected at startup.** The existing ProgramData `device_id` file is ignored (not deleted automatically, so rollback remains possible).
+**Current compatible Home Assistant:** 0.13.0+ consumes **Unified MQTT v3 only**. The Windows agent 0.4.0+ also publishes v3-only monitoring. There is no v2/scalar stream, HA protocol toggle or dual-publisher migration.
 
-**HA 0.12.2 follow-up:** The Add gaming PC selector now shows each validated MQTT candidate as `name (device_id)`, e.g. `DESKTOP-9KHJGVL (desktop_lucija)` and `DESKTOP-9KHJGVL (DESKTOP-9KHJGVL)`. It deliberately leaves both choices visible to help identify stale retained aliases. Existing broker topics, configured entries, and Recorder data remain unchanged until explicit scoped migration.
+The **sole** MQTT `device_id` and retained discovery `name` come from the actual Windows computer name (for example `DESKTOP-F29J1R1`). The old YAML `device:` section is rejected. An old ProgramData `device_id` file is ignored and must not be copied to select an identity.
 
-**Before installing on each PC (one-PC pilot first):**
+**One-PC supervised clean-cut upgrade:**
 
-1. Confirm the Windows OS name using `$env:COMPUTERNAME` and record the **old** exact MQTT prefix (e.g. `SmartHouse/Gaming/desktop_lucija`), HA device/config entry, tracked applications, budgets, bonus state, automations and Recorder history. Make a HA backup and a protected ProgramData backup. **Renaming the Windows PC later is another breaking identity migration.**
-2. Verify HA **0.12.0+** and its Unified MQTT v3 support. Prepare broker ACLs permitting that PC's MQTT account to publish/subscribe under the **new, hostname-based** prefix. Ensure hostnames are unique; if this is not possible, do not deploy. Do not disable broker access control to work around an ACL mismatch.
-3. From the protected `%ProgramData%\SmartHouseGamingControl\config.yaml`, **remove the entire legacy `device:` block**. Keep only the broker details and other supported options. The old `device_id` file may be kept for rollback but **has no effect** on 0.4.0. Do not copy/delete it as a way to rename the device.
-4. Install the **reviewed** Windows 0.4.0 build using the normal supervised deployment method. Expect discovery under `SmartHouse/Gaming/<WINDOWS_COMPUTERNAME>/discovery` and v3 observations under `.../state/telemetry`, with matching `device_id` and `name` values. Check live MQTT traffic, no unauthorized cross-device messages and the actual reported agent version.
-5. Home Assistant sees a **new device identity**, not an update to the old one. Enroll it, enable the v3 telemetry source **for the new HA config entry**, and restore/review the necessary app mappings, quotas, schedules, controls and automations before any enforcement. Test verified live foreground, Uptime and availability. The new device's Recorder history is **not** automatically joined to the old device's history.
-6. Only after verifying the replacement, remove the **old HA entry** and, if needed, clear **exact old project-owned retained discovery/availability/config topics** on the broker with authorized tools. Do not delete broad `SmartHouse/Gaming/#` trees, unrelated MQTT discovery or Recorder data. If cleanup fails, keep the old retained topics documented and do not enable enforcement on stale entities. Retain the backed-up identity file until rollback is no longer needed.
+1. Record the old exact MQTT ID, current PC hostname, HA tracked apps, budgets, bonuses, automations and historical data. Make protected backups before changing anything.
+2. Update restricted broker ACLs for the new exact hostname namespace. Verify the computer name is unique and valid.
+3. Remove the obsolete `device:` block from the protected Windows `config.yaml`. Keep broker credentials and other supported settings.
+4. Deploy reviewed Windows agent **0.4.0+** and verify `SmartHouse/Gaming/<hostname>/discovery` includes `unified_telemetry_protocol: 3`, availability is online, and fresh non-retained `.../state/telemetry` v3 packets arrive.
+5. Upgrade HA to **0.13.0+**. No protocol option is presented: v3 is mandatory. A prior `unified_telemetry_enabled: false` is automatically discarded without changing other HA options or Recorder data.
+6. Old HA entries still scoped to an old MQTT ID **cannot receive** the hostname stream. Explicitly add the new hostname-based PC, reconfigure per-device settings and test every sensor before enabling parent controls. Do not assume histories or entity IDs cross different device IDs automatically.
+7. After verifying operation, remove exact obsolete project-owned discovery/availability entries only if authorized. Never delete the entire broker tree, unrelated entities or Recorder data.
 
-**Rollback:** restore the previous Windows binary/config, old device-scoped broker ACLs and compatible HA config/source selection together. Never rely on the new hostname namespace to receive an old-device update command. Signed OTA and on-device acceptance remain separately gated; this changelog does **not** mean deployment was completed.
+**Rollback:** restore matched known-good HA and Windows backups. There is no telemetry v2 fallback or dual-source mode. Signed OTA distribution and real-device pilot remain separately gated by [#56](https://github.com/mhalak/hal-gaming-control/issues/56). The [Unified MQTT v3 guide](unified_mqtt_telemetry.md) is authoritative for the live protocol.
 
-## Windows agent 0.2.12 Preview 18 — stable updater status identity (#166 follow-up)
-
-Fixes the separate Windows SYSTEM updater's MQTT status client for the default minimal Windows configuration: the auto-generated per-installation `device_id` is persisted in protected ProgramData, while `config.yaml` contains no `device.id`. Update progress now uses the persisted ID and stays device-scoped, rejects symlinks, malformed IDs and conflicting YAML/persisted identities, and preserves legacy YAML-only installations. Adds regressions for all four paths. Screen Idle bonus support (#92) in HA 0.11.0 is also opt-in and still needs a physical Windows acceptance test. Signed OTA activation remains default OFF and the [integrated deployment gate](https://github.com/mhalak/hal-gaming-control/issues/56) remains HOLD pending authentic signed artifacts, bootstrap, backups and one-PC Smart App Control acceptance.
-
-## Windows agent 0.2.11 Preview 17 — signed MQTT OTA Install handoff (#166)
-
-This is **source code readiness**, not proof of a safe production installation. The optional v2 receiver requires all of `update.enabled`, `update.mqtt_staging_enabled`, and `update.mqtt_install_enabled` to be explicitly true plus a protected ProgramData `updater.json` with `mqtt_install_enabled: true`, a locally pinned Ed25519 PUBLIC key and a preapproved Authenticode signer thumbprint. The directory `ota-staging` must exist and be protected. Without this supervised bootstrap the receiver remains v1 stage-only or disabled and the HA Install button must not start MQTT installs. Never disable Smart App Control/Defender or rerun the fresh-service installer over an existing installation.
-
-For the exact wire format, two-part Windows signature verification, safe transactional update and one-PC acceptance criteria, see [Signed MQTT OTA v2](mqtt_ota.md#signed-mqtt-ota-v2--preview-17-source-candidate-166). No signed Windows release binary or production signing key is bundled in this repository, and the live TrueNAS deployment remains on HOLD.
-
-## Windows 0.2.10 Preview 15 — optional stage-only MQTT OTA receiver (#166)
-
-**Developer-only, deliberately disabled.** Adds an explicit `update.mqtt_staging_enabled: true` mode requiring `update.enabled: true` and a pre-existing protected ProgramData `ota-staging` directory. In this mode the agent receives bounded, device-scoped MQTT 5 packages and publishes non-retained ACKs, but **never installs, unpacks, runs or passes a staged file to the Windows updater**. Staged ZIP content is untrusted. Normal installations do not subscribe to OTA topics, and cannot enable them through HA. The source-only HA sender exists, but no runtime HA OTA sender/Install flow is connected. Do not enable on family PCs; use an isolated, signed-build-capable development VM. See [MQTT OTA protocol](mqtt_ota.md). HACS integration stays at **0.8.0**; a Windows-only version bump does not require an HA release.
-
-# Windows deployment guide
-
-## Windows 0.2.9 Preview 8 — safe HA-targeted manual termination (#155)
-
-A **new PC still needs only MQTT broker details** in its Windows config; its ID and name are automatic. Together with **HA 0.7.2**, it offers an HA-owned **Terminate active game** button without a Windows `games` catalog. The button is available only when the selected PC has a recently verified **tracked foreground app** and an expiring agent-issued one-use token for that exact observation. Windows reads a fresh interactive-user foreground sample after the command, checks private PID/process start/session/signature and system-process protections, and terminates **one** verified process. A change of window or session, stale state, generic unidentifiable Java, missing sample, replay or reconnection causes a safe refusal. This is *manual* only; gaming restrictions never automatically kill apps.
-
-Existing PCs with a legacy `games` block keep the original native MQTT **Terminate game** button and its previously limited allowlist-based behaviour. No targeted offer is issued in that mode. You may keep that block through upgrade. Only a deliberate move to a rule-free config enables the new HA-controlled targeted button; the old native button is then withdrawn and a stale direct-mode legacy button remains unavailable. No registry purge, recorder reset or new device ID is required.
-
-**Pilot checklist before deployment:** back up the protected ProgramData config and `device_id` file, keep automatic enforcement disabled, upgrade HA first, then agent on one PC. Confirm raw foreground identity and HA Tracked applications are correct; verify the new control is unavailable when idle/offline/untracked or when another window is focused. Use a disposable game session for an explicitly authorized manual terminate, and check that *only that exact process* stops. Verify lock still works, reboot/reconnect, and use the complete binary rollback if a service/session/security check fails. The CI pipeline cannot substitute for the physical LocalSystem-to-interactive-session test.
-
-See [targeted MQTT protocol](mqtt_protocol.md) and [acceptance checklist](acceptance.md). **No physical pilot or public signed installer is claimed.**
-
-## Windows 0.2.8 Preview 7 — MQTT-only setup, safe manual-control compatibility (#155)
-
-A **new Windows installation no longer needs a local `games` catalog**. Configure only `mqtt.host`, `mqtt.username` and `mqtt.password` (and TLS/port when needed). Agent ID remains stable in protected `device_id`; its advertised name comes from Windows. App enrollment/naming, budgets and limits remain in Home Assistant; raw v2 foreground telemetry works without Windows rules.
-
-**Manual controls:** `Lock PC` remains available. The legacy `Terminate game` button requires a non-empty local `games` allowlist: without rules the agent *does not subscribe* to that command, does not advertise it as a capability, and publishes an exact retained tombstone only for its own previous native MQTT terminate button. An existing HA direct/scoped button created before migration is marked unavailable after the agent's live discovery metadata revokes the capability. No arbitrary process termination, automatic enforcement or updater is introduced. For existing PCs, keep the old `games` block unchanged to preserve manual termination until an HA-authoritative safe command is implemented in a separate reviewed step of #155.
-
-**No surprise migration:** Removing `games` is optional. Neither a service upgrade nor HA update deletes the legacy configuration, tracked-app mapping, stable device ID, budgets or history. If deliberately switching an existing PC to rules-free mode, back up its config first and restart the service; confirm `Lock PC`, uptime and foreground tracking, and check that `Terminate game` is unavailable. On rollback restore the previous binaries and prior `games` config. One-PC physical acceptance remains required; do not enable automatic enforcement.
-
-Minimal local config:
-
-```yaml
-mqtt:
-  host: BROKER_HOST
-  username: THIS_PC_MQTT_ACCOUNT
-  password: REPLACE_WITH_SECRET
-```
-
-## Windows 0.2.7 Preview 6 — automatic PC identity (issue #155, first safe increment)
-
-The Windows agent now derives its discovery name from the **current Windows computer name**. Do not type or maintain `device.name`. On a fresh installation without `device.id`, it generates a random, stable per-install ID and saves it as `%ProgramData%\\SmartHouseGamingControl\\device_id` in the same administrator/SYSTEM-protected directory as `config.yaml`. It reuses this ID after service restart, PC renaming, or binary update. Keep this file with the ProgramData directory across reinstalls, because a lost ID creates a new HA device and MQTT topic root. Do not copy the identity file between PCs.
-
-**Upgrade:** if the installed `config.yaml` still specifies `device.id`, the existing ID is kept and written to `device_id` the first time this version starts. You may then remove the entire legacy `device` section; the identity stays the same. If a stored ID and explicit configured ID disagree, the service deliberately fails to start rather than silently creating a second identity. Back up both before making manual changes. The old `device.name` value is ignored; rename the device in Home Assistant to your preferred visible label. User-defined HA device names take precedence over the default discovered name.
-
-**Not yet zero-config:** the legacy `games` list is still required for safe manual `Terminate game` support. Foreground app enrollment and display names are configured in HA, but we must migrate the termination command before removing Windows rules. This is tracked in #155. No forced shutdown and no remote updater are enabled by this change.
-
-## Windows 0.2.6 Preview 5 — retire native agent-derived activity discovery
-
-This source prepares the native MQTT discovery side of issue #67: new Windows agents
-stop advertising the legacy `Current game`, `In game`, `Gaming active`, and
-agent-derived `Active game` entities. On a verified full discovery resync,
-their **exact agent-owned retained discovery config topics** receive empty
-tombstone payloads. The agent still advertises Uptime, Lock PC and Terminate
-game, and it still sends raw v2 foreground identity data to the HA-owned
-`Active game` entity. Legacy wire telemetry and local rule handling may
-temporarily remain for rollback and manual termination; neither is used by
-the HA foreground budget accounting.
-
-**Clean-start dependency (owner-approved):** use reviewed HA 0.5.4
-and Windows 0.2.6, and follow `docs/foreground_migration.md`. Old gaming
-Recorder history and original native `Active game` entity ID **do not need
-preservation**. Capture the exact old PC entity IDs before deletion and
-purge only their history with HA's `recorder.purge_entities`, never the
-shared HA database. The HA-owned new Active game may receive a new entity
-ID; prevent duplicates by verifying native tombstones and scoped cleanup.
-Keep the one-PC TrueNAS pilot and safe rollback gates. No automatic
-enforcement or remote updater activation.
-
-
-## Windows 0.2.5 Preview 4 — additive HA-owned foreground identity transport
-
-A new **non-retained, expiring MQTT v2** message on `SmartHouse/Gaming/<device_id>/state/foreground_identity` carries `{version:2, device_id, epoch, sequence, observed_at, state, process, signature}`. `state` is `foreground`, `idle`, or `unknown`. A verified foreground application sends only a safe executable basename and optional vetted Java main-class/JAR/module signature; PID, process path, full argv, credentials, window title and user names remain local. This stream does **not** consult the Windows `games` rules.
-
-This update is **transport preparation**, not a completed HA cutover. The legacy `foreground_snapshot`, legacy rules and explicit manual commands coexist temporarily for compatibility. HA source normalization, durable accounting, old entity cleanup and the one-time re-enrollment of applications in HA still require reviewed follow-up work (#4/#7); do not deploy v2 alone as a completed feature. The HA config-entry `options.tracked_apps` persists aliases across upgrades and is not sent to Windows. Preserve OS protections, verify the exact source/build SHA, roll out one approved gaming PC at a time and keep restrictions disabled until validated (#56).
-
+**Historical preview notes:** Older Windows 0.2.x transport/identity experiments and per-release details are kept in the [changelog](changelog.md) and [HA release history](ha_releases.md), not presented as supported installation paths.
 
 Home Assistant (HA) and HACS run independently of the Windows companion. HACS installs only the HA integration; install one Windows service on each managed PC.
 
@@ -102,7 +24,7 @@ Home Assistant (HA) and HACS run independently of the Windows companion. HACS in
 
 - Windows 10/11 x64; administrator access on the target PC.
 - Running HA with MQTT and Recorder, and a reachable MQTT 5 broker.
-- A unique restricted MQTT account per PC; the Windows name and stable device ID are generated/resolved automatically (see above). Follow [MQTT setup](mqtt_setup.md).
+- A unique restricted MQTT account per PC, scoped to the actual Windows hostname (the only supported `device_id`). Follow [MQTT setup](mqtt_setup.md).
 - A trusted Windows build machine with Python 3.12 x64 when building from source.
 - Disable automatic restrictions during installation, upgrade and testing. Close valuable game sessions.
 
