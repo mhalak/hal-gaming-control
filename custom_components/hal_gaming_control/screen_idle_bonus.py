@@ -1,7 +1,7 @@
 """HA-local, idempotent Screen idle bonus receipts for verified #92 events.
 
 Never changes measured usage. The bonus is a distinct *daily* allowance,
-never a weekly extension. Disabled unless explicitly opted in on that PC.
+never a weekly extension. Active automatically for validated telemetry on each PC.
 """
 from datetime import datetime, timedelta, timezone
 import math
@@ -49,9 +49,7 @@ def _journal(options, device_id):
 
 
 def screen_idle_bonus_total(options, now, device_id=None):
-    """Read-only current-day approved bonus, zero when opt-in is disabled."""
-    if options.get("screen_idle_enabled") is not True:
-        return 0
+    """Read-only current-day bonus; missing or invalid evidence yields zero."""
     journal = options.get(KEY)
     if journal is None:
         return 0
@@ -108,8 +106,6 @@ def maybe_add_screen_idle_grant(options, device_id, row, segments, now):
     Only call after a fresh, verified ON->OFF edge with the matching helper
     epoch/sequence. The caller atomically commits via HA config-entry options.
     """
-    if options.get("screen_idle_enabled") is not True:
-        return options
     if (not isinstance(device_id, str)
             or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", device_id)
             or row.get("device_id") != device_id
