@@ -1,3 +1,12 @@
+## 0.13.13 — Completed-minute gaming diagnostics, Uptime text and valid icons (#136)
+
+- Diagnostic **Daily/Weekly gaming time (minutes)** now use floor of completed verified minutes; unknown or invalid readings stay Unknown. Parent-facing `h m s` states, internal per-second policy, exact history and budget enforcement are unchanged.
+- **Direct MQTT Uptime** changes only its displayed state to `Xd Yh Zm Ss` (e.g. `1d 4h 12m 9s`), preserving the existing entity unique ID and exposing the original value in the `uptime_seconds` attribute. Remove numeric-duration unit/device-class from the text sensor; automations expecting numeric Uptime states must switch to raw seconds.
+- **Native MQTT Uptime** retains the same discovery unique ID, device, telemetry topic and freshness expiry. **Windows agent 0.4.1** changes only its retained MQTT discovery value template to render the same text. No new HA entities or MQTT monitoring topics; Windows 0.4.0 remains protocol-compatible but its native Uptime stays numeric until the agent update.
+- **Gaming restriction** uses existing supported MDI gamepad variant/outline icons for true/false/unavailable, replacing an invalid icon identifier. Binary state, fail-safe availability and restriction decisions are unchanged.
+- Regression tests cover minute threshold boundaries, unknowns, Uptime rollover, native Jinja and direct state formatting, stable identities, and icon states. **HA 0.13.13 / Windows 0.4.1 / Preview 37**, source only. Real HA/Windows deployment remains separately gated by #56.
+
+
 ## 0.13.12 — Clean Budget overview list, minus first
 
 - Removes **both decorative divider rows** from the built-in Budget overview (Undo) dropdown. The native Select now has only meaningful allowance, bonus and summary entries. No faux separators that appear as selectable options.
