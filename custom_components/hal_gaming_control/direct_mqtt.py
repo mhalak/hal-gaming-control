@@ -89,38 +89,33 @@ class DirectUptime(DirectEntity, SensorEntity):
 
     def __init__(self, c):
         self.coordinator = c
-        self._unified = c.entry.options.get("unified_telemetry_enabled") is True
-        super().__init__(c, "uptime", "Uptime",
-                         None if self._unified else "uptime")
-        self._order = TelemetryOrder() if self._unified else None
+        super().__init__(c, "uptime", "Uptime")
+        self._order = TelemetryOrder()
         self._seen_at = None
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
-        if self._unified:
-            self.async_on_remove(await mqtt.async_subscribe(
-                self.hass, self._root + "/state/telemetry",
-                self._v3_telemetry, qos=0))
-            # Native HA entities may not be polled: explicitly expire old
-            # uptime on missing v3 packets instead of displaying stale data.
-            self.async_on_remove(async_track_time_interval(
-                self.hass, self._v3_tick, timedelta(seconds=5)))
+        self.async_on_remove(await mqtt.async_subscribe(
+            self.hass, self._root + "/state/telemetry",
+            self._v3_telemetry, qos=0))
+        # Expire uptime when the single v3 stream is no longer fresh.
+        self.async_on_remove(async_track_time_interval(
+            self.hass, self._v3_tick, timedelta(seconds=5)))
 
     @callback
     def _v3_tick(self, _now):
-        if self._unified:
-            self.async_write_ha_state()
+        self.async_write_ha_state()
 
     @callback
     def _connection(self, connected):
-        if self._order is not None and connected is not True:
+        if connected is not True:
             self._order.suspend()
             self._seen_at = None
         super()._connection(connected)
 
     @callback
     def _availability(self, message):
-        if self._order is not None and message.payload not in ("online", b"online"):
+        if message.payload not in ("online", b"online"):
             self._order.suspend()
             self._seen_at = None
         super()._availability(message)
@@ -153,9 +148,8 @@ class DirectUptime(DirectEntity, SensorEntity):
     def available(self):
         if not super().available:
             return False
-        return (not self._unified or (self._value is not None
-                and self._seen_at is not None
-                and 0 <= monotonic() - self._seen_at < MAX_AGE))
+        return (self._value is not None and self._seen_at is not None
+                and 0 <= monotonic() - self._seen_at < MAX_AGE)
 
     @property
     def native_value(self):
