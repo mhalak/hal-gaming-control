@@ -40,7 +40,10 @@ def v3(device="pc1", seq=1, *, process="RobloxPlayerBeta.exe",
         state="unknown", event_epoch=None, event_sequence=None,
         event_age_ms=None, sample_age_ms=None)
     packet["system"].update(uptime_seconds=100, agent_version="0.4.0")
-    return json.dumps(packet)
+    raw = json.dumps(packet)
+    from custom_components.hal_gaming_control.unified_telemetry import decode_telemetry
+    assert decode_telemetry(raw, device, retained=False, wall_now=time())["version"] == 3
+    return raw
 
 
 def discovery_v3(device="pc1", games=None):
@@ -92,6 +95,8 @@ async def test_scoped_entities_and_safe_controls(hass, enable_custom_integration
                                 ("state/uptime", "999999"), ("state/current_game", "Roblox")]:
             async_fire_mqtt_message(hass, ROOT+"/"+suffix, payload)
         await hass.async_block_till_done()
+        assert entry.runtime_data.foreground.v3_capable is True
+        assert entry.runtime_data.foreground.telemetry_order.received is not None
         assert hass.states.get(ids["uptime"]).state == "100"
         assert not publish.called
         await hass.services.async_call("button","press",{"entity_id":ids["lock_pc"]},blocking=True)
@@ -352,7 +357,10 @@ async def test_ha_owned_active_game_uses_only_v3_not_legacy_scalar_topics(
                    ("state/active_game", "Roblox"),
                    ("state/gaming_active", "ON"))
         assert hass.states.get(game).state == "unavailable"
+        assert entry.runtime_data.foreground._online is True
+        assert entry.runtime_data.foreground.v3_capable is True
         await emit(("state/telemetry", v3()))
+        assert entry.runtime_data.foreground.telemetry_order.received is not None
         assert hass.states.get(game).state == "Roblox"
         await emit(("state/active_game", "Spoofed Windows label"),
                    ("state/uptime", "9000"))
@@ -398,6 +406,9 @@ async def test_v3_foreground_is_device_scoped_and_resets_on_disconnect(
         await emit(pc, "availability", "online")
         await emit(pc, "discovery", discovery_v3(pc))
         await emit(pc, "state/telemetry", v3(pc))
+    assert entries[0].runtime_data.foreground._online is True
+    assert entries[0].runtime_data.foreground.v3_capable is True
+    assert entries[0].runtime_data.foreground.telemetry_order.received is not None
     assert hass.states.get(ids["pc1"]).state == "Roblox"
     assert hass.states.get(ids["pc2"]).state == "idle"
     await emit("pc1", "availability", "offline")
