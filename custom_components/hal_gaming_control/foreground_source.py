@@ -135,6 +135,15 @@ class ForegroundSource:
             self._screen_off_latched = True
             self._needs_post_on = False
             self._post_on_sequence = self._post_on_timestamp = None
+        elif packet["display"]["state"] == "off":
+            # The v3 envelope contains a fresh OFF observation, but its event
+            # receipt failed DisplayGate ordering/consistency checks. Do not
+            # conflate this with an unsupported UNKNOWN-only PC and silently
+            # continue charging foreground gaming. Suspend without treating
+            # the rejected event as verified OFF or awarding a bonus.
+            self._screen_off_latched = True
+            self._needs_post_on = False
+            self._post_on_sequence = self._post_on_timestamp = None
         elif current == "on" and previous != "on":
             # A new verified ON must be followed by a later foreground
             # observation, whether it is the first or a post-OFF ON.
@@ -206,8 +215,12 @@ class ForegroundSource:
             return  # Duplicate/replay cannot mutate display or accounting.
         self.system_uptime = packet["system"]["uptime_seconds"]
         self.system_status = dict(packet["system"])
-        self.display_details = dict(packet["display"])
         display_state = self._v3_display(packet, wall, mono)
+        # Parent-facing status must reflect the *accepted* display state,
+        # not an OFF value that the event gate refused as untrusted.
+        self.display_details = dict(packet["display"])
+        self.display_details["reported_state"] = self.display_details["state"]
+        self.display_details["state"] = display_state
         self._v3_foreground(packet, wall, mono, display_state)
         self.on_update()
 

@@ -80,7 +80,7 @@ class ActiveGameSensor(GamingEntity, SensorEntity):
         # per-field HA entities, no Windows process/window paths, no bonuses.
         data = self.coordinator.data or {}
         display = data.get("display_details") or {}
-        return {
+        attributes = {
             "telemetry_protocol": 3,
             "display_state": display.get("state", "unknown"),
             "display_scope": display.get("scope"),
@@ -91,6 +91,12 @@ class ActiveGameSensor(GamingEntity, SensorEntity):
             "last_input_idle_ms": display.get("last_input_idle_ms"),
             "system_uptime_seconds": data.get("uptime_seconds"),
         }
+        if (display.get("reported_state") is not None
+                and display["reported_state"] != display.get("state")):
+            # Diagnostic only: the incoming event was not accepted for
+            # accounting, so never present it as verified display state.
+            attributes["display_reported_state"] = display["reported_state"]
+        return attributes
 
 
 class GamingTimeSensor(GamingEntity, SensorEntity):

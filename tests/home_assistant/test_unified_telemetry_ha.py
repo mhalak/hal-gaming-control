@@ -206,6 +206,57 @@ async def test_stale_display_and_foreground_are_unknown_not_confirmed_idle(hass)
     s.close()
 
 
+async def test_fresh_off_with_rejected_event_receipt_never_charges_game(hass):
+    """An invalid OFF receipt is NOT an unsupported display-only PC.
+
+    Incoming OFF must not appear as a verified OFF attribute, and must never
+    allow continuing gaming accrual while awaiting a genuinely new ON edge.
+    """
+    s, cb, _, bonus, _ = await start(hass)
+    root = "SmartHouse/Gaming/pc1"
+    deliver(cb, root + "/availability", "online", ts=99)
+    for ts, seq in ((100, 1), (102, 2), (104, 3)):
+        deliver(cb, root + "/state/telemetry",
+                v3(ts=ts, seq=seq, event=5), ts=ts)
+    before_off = total(s)
+    assert before_off == 2
+    assert s.current(10104) == "Roblox"
+
+    # Fresh validated v3 OFF, but the Windows display receipt regresses from
+    # event sequence 5 to 4. The DisplayGate rejects it.
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=106, seq=4, screen="off", event=4), ts=106)
+    assert s.display.current(10106) == "unknown"
+    assert s.display_details["state"] == "unknown"
+    assert s.display_details["reported_state"] == "off"
+    assert s.current(10106) is None
+    assert total(s) == before_off
+    assert bonus.call_count == 0
+
+    # Repeated rejected OFF receipts must never restart gaming charging.
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=108, seq=5, screen="off", event=4), ts=108)
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=110, seq=6, screen="off", event=4), ts=110)
+    assert s.current(10110) is None
+    assert total(s) == before_off
+    assert bonus.call_count == 0
+
+    # A new verified ON and then a subsequent fresh foreground are required.
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=112, seq=7, screen="on", event=6), ts=112)
+    assert s.current(10112) is None
+    assert total(s) == before_off
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=114, seq=8, screen="on", event=6), ts=114)
+    assert s.current(10114) == "Roblox"
+    assert total(s) == before_off
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=116, seq=9, screen="on", event=6), ts=116)
+    assert total(s) > before_off
+    s.close()
+
+
 async def test_two_devices_do_not_share_epoch_or_off_bonus(hass):
     one, a, _, bonusa, _ = await start(hass, "pc1")
     two, b, _, bonusb, _ = await start(hass, "pc2")
@@ -359,6 +410,12 @@ async def test_existing_active_game_sensor_exposes_diagnostics_as_attributes():
     assert attrs["last_input_idle_ms"] == 123000
     assert attrs["system_uptime_seconds"] == 123456
     assert "username" not in attrs and "process" not in attrs
+    assert "display_reported_state" not in attrs
+    c.data["display_details"] = dict(
+        c.data["display_details"], state="unknown", reported_state="off")
+    attrs = entity.extra_state_attributes
+    assert attrs["display_state"] == "unknown"
+    assert attrs["display_reported_state"] == "off"
 
 
 
