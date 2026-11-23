@@ -1,4 +1,4 @@
-> **Archived engineering notes (21 November 2026).** These notes cover specific development versions and may be outdated. For the shorter parent-facing guide, [start here](../../features/screen-idle-bonus.md).
+> **Archived engineering notes (21 November 2026): superseded by HA 0.13.1 / #204.** The old concept of parent-controlled Screen idle opt-in is retired. Current source enables verified Screen idle automatically with no configuration switch. These notes document the original proposal and are not current user instructions. For the shorter parent-facing guide, [start here](../../features/screen-idle-bonus.md).
 
 ---
 
