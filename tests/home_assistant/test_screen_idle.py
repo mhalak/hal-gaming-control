@@ -180,7 +180,7 @@ def test_bonus_only_measured_before_off_with_timeout_evidence():
     receipt_attrs = budget_overview(granted, {"daily": 120, "weekly": 120}, now(),
                                     ready=True)
     assert receipt_attrs["screen_idle_bonus_minutes"] == 9
-    assert receipt_attrs["screen_idle_bonus_status"] == "preview"
+    assert receipt_attrs["screen_idle_bonus_status"] == "automatic"
     assert receipt_attrs["daily_used_seconds"] == 120
     assert receipt_attrs["weekly_limit_minutes"] == 300
 
