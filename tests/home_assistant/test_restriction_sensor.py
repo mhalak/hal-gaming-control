@@ -43,12 +43,14 @@ def test_identity_and_initial_disabled_policy():
     entity, c = restriction()
     assert entity.name == "Gaming restriction"
     assert entity.unique_id == "pc1_gaming_restriction"
+    assert entity.icon == "mdi:gamepad-variant-outline"
     assert entity.available
     assert entity.is_on is False
     assert entity.extra_state_attributes["reasons"] == []
     assert entity.extra_state_attributes["reason"] is None
     c.last_update_success = False
     assert not entity.available
+    assert entity.icon == "mdi:gamepad-variant-outline"
 
 
 @pytest.mark.parametrize("options,daily,weekly,expected", [
@@ -68,6 +70,7 @@ def test_budget_and_safe_override(options, daily, weekly, expected):
                return_value=at(18)):
         assert entity.available
         assert entity.is_on is bool(expected)
+        assert entity.icon == ("mdi:gamepad-variant" if expected else "mdi:gamepad-variant-outline")
         assert entity.extra_state_attributes["reasons"] == expected
         assert entity.extra_state_attributes["reason"] == (expected[0] if expected else None)
 
