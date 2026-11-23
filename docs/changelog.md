@@ -8,11 +8,16 @@ This is the **human-readable development changelog**. For full technical release
 
 > **Preview software, not a deployment log.** Version numbers below describe changes recorded in source; they do **not** prove that a tagged GitHub Release, a signed Windows installer or an update on any real PC/HA instance exists. Always check the deployed build and the [current compatibility/deployment instructions](known_limitations.md).
 
-**Current source (Preview 36, 23 November 2026):** **Home Assistant 0.13.12** and **Windows agent 0.4.0**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
+**Current source (Preview 37, 23 November 2026):** **Home Assistant 0.13.13** and **Windows agent 0.4.1**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
 
 **🚨 BREAKING CHANGE** means an upgrade can require manual action or break compatibility with prior configs, entity IDs or MQTT payloads. Follow the linked migration instructions before updating; do not assume a normal in-place upgrade is safe.
 
 ## Home Assistant integration
+
+### 0.13.13 — Whole-minute diagnostics, readable Uptime and visible Gaming restriction (#136)
+- Daily/weekly **Gaming time (minutes)** diagnostics now show completed integer minutes (floor), while parent-facing H/M/S, Recorder segments, exact-second policy and budgets are unchanged.
+- Direct MQTT Uptime shows `d h m s` as text with the same entity ID; native MQTT Uptime gets an equivalent text template via Windows agent **0.4.1** without changing telemetry topic, payload or discovery unique ID. Existing numeric Uptime consumers should read `system_uptime_seconds` on Active game (or `uptime_seconds` on Direct Uptime) instead.
+- Replace nonexistent `mdi:gamepad-off` with real gamepad-variant/outline icons in Gaming restriction. Policy stays passive and unchanged. No device has been updated by this source revision.
 
 ### 0.13.12 — No decorative Budget separators, minus-first alignment
 - Removes both native dropdown divider options, leaving a clean list of allowances, bonuses, TOTAL, Gaming Session and Remaining Budget.
@@ -184,6 +189,10 @@ This is the **human-readable development changelog**. For full technical release
 - Initial HA integration and Windows agent protocol used during early development.
 
 ## Windows agent
+
+### 0.4.1 — Native MQTT Uptime display formatting (#136)
+- The **existing** Uptime discovery config formats the unchanged Unified MQTT v3 integer seconds as `d h m s`, with no unit or duration device class for this text state. Keep the same unique ID and topic; no new telemetry or commands.
+- HA Direct MQTT uses the corresponding HA-side formatting in **0.13.13**. Windows 0.4.0 and HA 0.13.13 remain wire-compatible, but native MQTT Uptime stays numeric until Windows 0.4.1 publishes updated retained discovery config. No new binary/signing/live deployment is implied.
 
 Windows agent version numbers are **separate** from HA versions, even when they share a number.
 
