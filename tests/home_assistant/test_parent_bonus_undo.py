@@ -124,7 +124,7 @@ async def test_wrong_device_grant_never_cancelled():
     with patch("custom_components.hal_gaming_control.select.dt_util.now",
                return_value=at()), patch.object(entity, "async_write_ha_state"):
         label = next(label for label in entity.options
-                     if "Parent bonus" in label)
+                     if "Parent bonus (14:03)" in label)
         # The journal is still displayed but neither device scope nor
         # append-only audit fields can be circumvented in revoke_parent_grant.
         with pytest.raises(HomeAssistantError, match="another device"):
