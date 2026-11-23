@@ -22,7 +22,6 @@ def total(minutes):
     return f"∑{FIGURE}{minutes} min - TOTAL"
 
 
-
 def at(hour=14, minute=30, day=23):
     return datetime(2026, 11, day, hour, minute, tzinfo=TZ)
 
