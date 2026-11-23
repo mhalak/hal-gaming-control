@@ -3,6 +3,7 @@
 A select entity contains only the current target. It never revokes by itself.
 The two admin-only actions use a short-lived, actor-bound prepare/confirm step.
 """
+from collections import Counter
 from datetime import datetime
 from time import monotonic
 
@@ -42,15 +43,27 @@ class ParentBonusGrantSelect(GamingEntity, SelectEntity):
         return True
 
     def _choices(self, now):
-        choices = {}
+        # HA Select needs unique labels, but the opaque journal IDs are not
+        # useful to parents. Show them only to disambiguate two grants with
+        # the same local minute, amount and source.
+        grants = []
         for grant in parent_grants_today(self.coordinator.entry.options, now):
             timestamp = datetime.fromisoformat(grant["created_at_utc"])
             local_clock = dt_util.as_local(timestamp).strftime("%H:%M")
-            label = f'{local_clock} · +{grant["minutes"]} min · {grant["id"][-10:]}'
-            # A rare short-ID collision must never make a choice ambiguous.
-            if label in choices:
-                label = f'{local_clock} · +{grant["minutes"]} min · {grant["id"]}'
-            choices[label] = grant["id"]
+            label = f'{local_clock} · +{grant["minutes"]} min · Parent Bonus'
+            grants.append((label, grant["id"]))
+        counts = Counter(label for label, _ in grants)
+        short_counts = Counter(
+            (label, grant_id[-10:]) for label, grant_id in grants
+            if counts[label] > 1)
+        choices = {}
+        for label, grant_id in grants:
+            if counts[label] > 1:
+                suffix = (grant_id[-10:]
+                          if short_counts[(label, grant_id[-10:])] == 1
+                          else grant_id)
+                label = f"{label} ({suffix})"
+            choices[label] = grant_id
         return choices
 
     @property

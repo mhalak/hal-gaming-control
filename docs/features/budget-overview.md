@@ -53,7 +53,7 @@ Previous bonuses were just an anonymous `bonus_minutes` total. These remain as a
 
 ### Safely undo one specific bonus
 
-The updated native HA dashboard offers a device-scoped **Parent bonus to undo** dropdown, **Prepare Undo**, and **Confirm Undo** buttons. Unlike Markdown-only fake buttons, these call real HA admin actions. The flow is:
+The updated native HA dashboard offers a device-scoped **Parent bonus to undo** dropdown, **Prepare Undo**, and **Confirm Undo** buttons. In HA 0.13.5+, choices read like `11:40 · +30 min · Parent Bonus`; IDs appear only when two grants share an otherwise identical label. The full grant ID still identifies the exact bonus internally. Unlike Markdown-only fake buttons, these call real HA admin actions. The flow is:
 
 1. Choose a visible timestamped +30 minute grant from the dropdown. The shortened ID suffix distinguishes same-minute clicks; no IDs need to be typed.
 2. Press **Prepare Undo**. The dropdown's `undo_status` and `prepared_grant` attributes show which grant was armed.

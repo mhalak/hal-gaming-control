@@ -1,3 +1,9 @@
+## 0.13.5 — Readable Parent Bonus Undo choices
+
+- The native **Parent bonus to undo** dropdown now identifies each entry by local time, duration and source (for example `11:40 · +30 min · Parent Bonus`), rather than displaying an opaque grant ID in every option.
+- When two or more grants have the same time and amount, the label includes a short ID suffix only to disambiguate them; a rare truncated-ID collision falls back to the full ID. Cancellation continues to target the original immutable grant ID, preserving prepared-grant validation, actor-bound confirmation and audit history.
+- New regression tests cover normally hidden IDs, duplicate-grant disambiguation and exact-grant cancellation. **HA-only 0.13.5 / Preview 29**; Windows remains **0.4.0**. Source change does not install/deploy or publish a GitHub Release automatically.
+
 ## 0.13.4 — Fix OFF event-age normalization and continued gaming charging (#212)
 
 - **Confirmed live MQTT bug:** Windows publishes fresh Unified MQTT v3 snapshots while the screen is OFF for hours. HA incorrectly normalized `display.state=off` to `unknown` whenever `display.event_age_ms` exceeded 36 seconds, even with a fresh display sample (156 ms in the reported reproduction), allowing Roblox gaming time to accrue. This confused the *age of the last display-state transition* with *freshness of the current observation*.
