@@ -70,7 +70,7 @@ Turn on the per-PC **Gaming rules enabled** switch to opt into rule evaluation (
 
 ## Preview dashboard and what's next
 
-- **AFK / Screen idle bonus** — future screen-off tracking and daily bonuses; not available yet.
+- **AFK / Screen idle bonus** — included and always enabled on HA 0.13.1+. With fresh verified Windows screen OFF evidence, new gaming time stops counting; the separate daily bonus requires eligible pre-OFF inactivity. HA 0.13.4 fixes hours-old OFF events being misclassified as stale. Physical edge-case validation remains outstanding.
 - **Budget Overview** — source preview under [#93](https://github.com/mhalak/hal-gaming-control/issues/93): a read-only per-PC daily/weekly allowance breakdown with a native dashboard stack; installed versions must include the merged change.
 - Safe, fully tested automatic restriction enforcement.
 

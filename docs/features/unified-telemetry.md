@@ -12,7 +12,7 @@ Windows announces `unified_telemetry_protocol: 3` in its retained device `discov
 
 ## Fail-closed safety
 
-HA validates message size, field types, topic/device identity, freshness, non-retained flag, epoch/sequence ordering, foreground process identity, screen events and uptime. Missing or invalid activity is **unknown/unavailable**: it is never counted as idle, gaming, an unauthorized action or a Screen Idle bonus. Confirmed gameplay intervals and existing Recorder history remain HA-owned. Screen Idle bonus remains an **independent feature option**; it does not select the telemetry protocol.
+HA validates message size, field types, topic/device identity, freshness, non-retained flag, epoch/sequence ordering, foreground process identity, screen events and uptime. Missing or invalid activity is **unknown/unavailable**: it is never counted as idle, gaming, an unauthorized action or a Screen Idle bonus. Confirmed gameplay intervals and existing Recorder history remain HA-owned. **Screen Idle is always active, without an opt-in/opt-out switch**; it does not select the telemetry protocol. For OFF/ON reporting, the latest helper **sample age** determines freshness. An OFF transition can be hours old while a new sample still confirms the screen is OFF (HA 0.13.4+, #212).
 
 Existing parent-facing HA entities remain the same: Active game, daily/weekly gaming time, daily/weekly remaining budget and Gaming restriction. Display/uptime diagnostics are attributes or existing Uptime entity, not a swarm of new entities.
 
