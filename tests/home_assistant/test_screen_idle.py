@@ -166,7 +166,7 @@ def test_gate_restart_unknown_and_unsupported_epoch_fails_closed():
 
 
 def test_bonus_only_measured_before_off_with_timeout_evidence():
-    options = {"enabled": True, "screen_idle_enabled": True, "daily": 180, "weekly": 300}
+    options = {"enabled": True, "daily": 180, "weekly": 300}
     event = receipt()
     granted = maybe_add_screen_idle_grant(options, DEV, event, segments(), now())
     assert granted is not options
@@ -176,7 +176,7 @@ def test_bonus_only_measured_before_off_with_timeout_evidence():
     assert effective_budget_limit(granted, now(), "weekly") == 300
     assert maybe_add_screen_idle_grant(granted, DEV, event, segments(), now()) is granted
     assert len(granted[KEY]["events"]) == 1
-    assert options == {"enabled": True, "screen_idle_enabled": True, "daily": 180, "weekly": 300}
+    assert options == {"enabled": True, "daily": 180, "weekly": 300}
     receipt_attrs = budget_overview(granted, {"daily": 120, "weekly": 120}, now(),
                                     ready=True)
     assert receipt_attrs["screen_idle_bonus_minutes"] == 9
@@ -199,12 +199,12 @@ def test_bonus_only_measured_before_off_with_timeout_evidence():
 def test_never_grant_from_manual_unknown_or_wrong_device(changed):
     event = receipt()
     event.update(changed)
-    opts = {"screen_idle_enabled": True, "daily": 180}
+    opts = {"daily": 180}
     assert maybe_add_screen_idle_grant(opts, DEV, event, segments(), now()) is opts
 
 
 def test_no_bonus_on_unverified_gaps_or_not_all_tracked():
-    options = {"screen_idle_enabled": True}
+    options = {}
     event = receipt()
     assert maybe_add_screen_idle_grant(
         options, DEV, event, [], now()) is options
@@ -217,7 +217,7 @@ def test_no_bonus_on_unverified_gaps_or_not_all_tracked():
 
 
 def test_midnight_and_clock_crossing_never_create_unassigned_bonus():
-    options = {"screen_idle_enabled": True}
+    options = {}
     off = datetime(2026, 11, 23, 0, 5, tzinfo=timezone.utc).timestamp()
     event = receipt(off)
     measured = segments(off)
@@ -225,32 +225,30 @@ def test_midnight_and_clock_crossing_never_create_unassigned_bonus():
         options, DEV, event, measured, now(off)) is options
 
 
-def test_disabled_or_corrupt_journal_never_increases_allowance():
-    opts = {"screen_idle_enabled": False}
-    assert maybe_add_screen_idle_grant(opts, DEV, receipt(), segments(), now()) is opts
+def test_missing_or_corrupt_journal_never_increases_allowance():
+    opts = {}
     assert screen_idle_bonus_total(opts, now()) == 0
-    corrupt = {"screen_idle_enabled": True, KEY: {"version": 999,
-                                               "device_id": DEV, "events": []}}
+    corrupt = {KEY: {"version": 999, "device_id": DEV, "events": []}}
     assert screen_idle_bonus_total(corrupt, now()) == 0
     with pytest.raises(ValueError):
         maybe_add_screen_idle_grant(corrupt, DEV, receipt(), segments(), now())
 
 
 def test_persistent_journal_survives_restart_and_daily_expiration():
-    opts = {"screen_idle_enabled": True}
+    opts = {}
     one = maybe_add_screen_idle_grant(opts, DEV, receipt(), segments(), now())
     persisted = json.loads(json.dumps(one))
     assert maybe_add_screen_idle_grant(
         persisted, DEV, receipt(), segments(), now()) is persisted
     assert screen_idle_bonus_total(persisted, now(T0+86400)) == 0
-    disabled = dict(persisted, screen_idle_enabled=False)
-    assert screen_idle_bonus_total(disabled, now()) == 0
-    assert len(disabled[KEY]["events"]) == 1
+    stale = dict(persisted, screen_idle_enabled=False)
+    assert screen_idle_bonus_total(stale, now()) == 9  # obsolete toggle is inert
+    assert len(stale[KEY]["events"]) == 1
 
 
 @pytest.mark.asyncio
 async def test_end_to_end_unified_v3_suppresses_off_charging_and_recovers_on(hass):
-    """Screen Idle remains optional, but consumes only mandatory v3 telemetry."""
+    """Screen Idle is always on but consumes only mandatory v3 telemetry."""
     from pathlib import Path
 
     callbacks, unsubscribed = {}, []
@@ -265,8 +263,7 @@ async def test_end_to_end_unified_v3_suppresses_off_charging_and_recovers_on(has
                       return_value=lambda: unsubscribed.append("connection")), \
          patch.object(mqtt, "async_subscribe", side_effect=subscribe):
         source = ForegroundSource(
-            hass, DEV, [APP], changed, screen_enabled=True,
-            on_screen_off=off_events)
+            hass, DEV, [APP], changed, on_screen_off=off_events)
         await source.async_start()
     root = f"SmartHouse/Gaming/{DEV}/"
     assert set(callbacks) == {
