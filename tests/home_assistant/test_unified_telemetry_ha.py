@@ -53,8 +53,7 @@ async def start(hass, device="pc1", *, screen=True):
                       return_value=lambda: unsubscribed.append("connection")), \
          patch.object(mqtt, "async_subscribe", side_effect=subscribe):
         watcher = ForegroundSource(hass, device, [APP], changed,
-                                   screen_enabled=screen, on_screen_off=bonuses,
-                                   unified_enabled=True)
+                                   screen_enabled=screen, on_screen_off=bonuses)
         await watcher.async_start()
     # The matching Windows publisher advertises this capability on a
     # retained discovery topic; the parent toggle alone is insufficient.
@@ -228,7 +227,7 @@ async def test_two_devices_do_not_share_epoch_or_off_bonus(hass):
 async def test_direct_uptime_preserves_unique_id_and_rejects_bad_v3(hass):
     c = Mock()
     c.device_id = "pc1"
-    c.entry.options = {"unified_telemetry_enabled": True}
+    c.entry.options = {"unified_telemetry_enabled": False}
     c.entry.data = {"name": "PC"}
     c.foreground.v3_capable = True
     direct = DirectUptime(c)
@@ -260,7 +259,8 @@ async def test_direct_uptime_preserves_unique_id_and_rejects_bad_v3(hass):
     assert not direct.available
 
 
-async def test_v2_default_has_identical_existing_subscription_and_identity(hass):
+async def test_default_source_is_unconditionally_v3_only(hass):
+    """Without any per-PC toggle, HA subscribes to v3 only."""
     callbacks = {}
     async def sub(_, topic, cb, qos):
         callbacks[topic] = cb
@@ -273,21 +273,23 @@ async def test_v2_default_has_identical_existing_subscription_and_identity(hass)
         await source.async_start()
     root = "SmartHouse/Gaming/pc1"
     assert set(callbacks) == {
-        root + "/availability", root + "/state/foreground_identity",
-        root + "/state/display_context"}
-    assert source.telemetry_order is None
+        root + "/availability", root + "/discovery", root + "/state/telemetry"}
+    assert root + "/state/foreground_identity" not in callbacks
+    assert root + "/state/display_context" not in callbacks
+    assert source.telemetry_order is not None
     source.close()
 
 
 
 @pytest.mark.usefixtures("recorder_mock")
-async def test_options_explicit_v3_ack_preserves_budgets_and_screen_idle(
+async def test_options_menu_has_no_telemetry_switch_and_keeps_existing_policy(
         hass, enable_custom_integrations):
     from homeassistant import data_entry_flow
     from pytest_homeassistant_custom_component.common import MockConfigEntry
     from custom_components.hal_gaming_control.const import DOMAIN
     from custom_components.hal_gaming_control.coordinator import GamingCoordinator
 
+    # A stale false option from the previous release must not disable v3.
     original = {"daily": 180, "weekly": 300, "tracked_apps": [APP],
                 "screen_idle_enabled": False, "unified_telemetry_enabled": False}
     entry = MockConfigEntry(
@@ -295,31 +297,17 @@ async def test_options_explicit_v3_ack_preserves_budgets_and_screen_idle(
         data={"device_id": "pc1", "name": "PC", "games": [],
               "actions": []}, options=original)
     entry.add_to_hass(hass)
-    manager = hass.config_entries.options
-    init = await manager.async_init(entry.entry_id)
-    assert "unified_telemetry" in init["menu_options"]
-    form = await manager.async_configure(
-        init["flow_id"], {"next_step_id": "unified_telemetry"})
-    assert form["type"] == data_entry_flow.FlowResultType.FORM
-    refused = await manager.async_configure(
-        init["flow_id"], {"unified_telemetry_enabled": True,
-                          "unified_telemetry_acknowledged": False})
-    assert refused["errors"]["base"] == "unified_telemetry_unconfirmed"
+    init = await hass.config_entries.options.async_init(entry.entry_id)
+    assert init["type"] == data_entry_flow.FlowResultType.MENU
+    assert "unified_telemetry" not in init["menu_options"]
     assert entry.options == original
-    confirmed = await manager.async_configure(
-        init["flow_id"], {"unified_telemetry_enabled": True,
-                          "unified_telemetry_acknowledged": True})
-    assert confirmed["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
-    assert confirmed["data"]["unified_telemetry_enabled"] is True
-    assert confirmed["data"]["tracked_apps"] == [APP]
-    assert confirmed["data"]["daily"] == 180
-    assert confirmed["data"]["screen_idle_enabled"] is False
-    assert GamingCoordinator.policy_snapshot(confirmed["data"])[
-        "unified_telemetry_enabled"] is True
+    assert "unified_telemetry_enabled" not in GamingCoordinator.policy_snapshot(original)
+    assert entry.options["tracked_apps"] == [APP]
+    assert entry.options["daily"] == 180
 
 
 @pytest.mark.usefixtures("recorder_mock")
-async def test_coordinator_passes_v3_only_when_explicitly_enabled(hass):
+async def test_coordinator_uses_v3_even_with_stale_disabled_option(hass):
     from unittest.mock import AsyncMock
     from pytest_homeassistant_custom_component.common import MockConfigEntry
     from custom_components.hal_gaming_control import coordinator as co
@@ -328,7 +316,7 @@ async def test_coordinator_passes_v3_only_when_explicitly_enabled(hass):
     entry = MockConfigEntry(
         domain=DOMAIN, unique_id="pc1", title="PC",
         data={"device_id": "pc1", "name": "PC", "games": [], "actions": []},
-        options={"tracked_apps": [APP], "unified_telemetry_enabled": True})
+        options={"tracked_apps": [APP], "unified_telemetry_enabled": False})
     entry.add_to_hass(hass)
     c = co.GamingCoordinator(hass, entry)
     store = Mock()
@@ -341,7 +329,7 @@ async def test_coordinator_passes_v3_only_when_explicitly_enabled(hass):
          patch.object(co, "ForegroundStore", return_value=store), \
          patch.object(co, "ForegroundSource", return_value=source) as new_source:
         await c.async_start_foreground()
-    assert new_source.call_args.kwargs["unified_enabled"] is True
+    assert "unified_enabled" not in new_source.call_args.kwargs
     assert new_source.call_args.kwargs["intervals"] == ()
     await c.async_stop_foreground()
     c.close()
@@ -494,7 +482,7 @@ async def test_v3_only_hostname_recovers_every_parent_facing_sensor(hass):
         domain=DOMAIN, unique_id=host, title="Lucija Desktop",
         data={"device_id": host, "name": "Lucija Desktop",
               "games": [], "actions": []},
-        options={"unified_telemetry_enabled": True,
+        options={"unified_telemetry_enabled": False,
                  "tracked_apps": [APP], "enabled": True,
                  "daily": 320, "weekly": 4200},
     )
@@ -563,7 +551,7 @@ async def test_old_mqtt_identity_cannot_make_new_hostname_sensors_look_live(hass
         domain=DOMAIN, unique_id=old, title="Lucija Desktop",
         data={"device_id": old, "name": "Lucija Desktop",
               "games": [], "actions": []},
-        options={"unified_telemetry_enabled": True,
+        options={"unified_telemetry_enabled": False,
                  "tracked_apps": [APP], "enabled": True,
                  "daily": 320, "weekly": 4200},
     )
