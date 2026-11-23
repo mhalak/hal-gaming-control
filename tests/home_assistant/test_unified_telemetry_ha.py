@@ -384,6 +384,8 @@ async def test_direct_uptime_preserves_unique_id_and_rejects_bad_v3(hass):
     direct = DirectUptime(c)
     direct.async_write_ha_state = Mock()
     assert direct.unique_id == "pc1_uptime"
+    assert direct.device_class is None
+    assert direct.native_unit_of_measurement is None
     assert not hasattr(direct, "_state_key")
     direct._connected = direct._online = True
     topic = "SmartHouse/Gaming/pc1/state/telemetry"
@@ -392,7 +394,8 @@ async def test_direct_uptime_preserves_unique_id_and_rejects_bad_v3(hass):
     with patch.object(direct_mqtt, "time", return_value=100), \
          patch.object(direct_mqtt, "monotonic", return_value=1000):
         direct._v3_telemetry(msg(v3(ts=100)))
-        assert direct.native_value == 100100
+        assert direct.native_value == "1d 3h 48m 20s"
+        assert direct.extra_state_attributes["uptime_seconds"] == 100100
         assert direct.available
     with patch.object(direct_mqtt, "time", return_value=102), \
          patch.object(direct_mqtt, "monotonic", return_value=1002):
@@ -402,7 +405,7 @@ async def test_direct_uptime_preserves_unique_id_and_rejects_bad_v3(hass):
     with patch.object(direct_mqtt, "time", return_value=104), \
          patch.object(direct_mqtt, "monotonic", return_value=1004):
         direct._v3_telemetry(msg(v3(ts=104, seq=3)))
-        assert direct.native_value == 100104
+        assert direct.native_value == "1d 3h 48m 24s"
     with patch.object(direct_mqtt, "monotonic", return_value=1020):
         assert not direct.available
     direct._connection(False)
@@ -764,3 +767,51 @@ async def test_old_mqtt_identity_cannot_make_new_hostname_sensors_look_live(hass
     await hass.async_block_till_done()
     await coordinator.async_stop_foreground()
     coordinator.close()
+
+
+@pytest.mark.parametrize("seconds, expected", [
+    (0, "0d 0h 0m 0s"), (1, "0d 0h 0m 1s"),
+    (59, "0d 0h 0m 59s"), (60, "0d 0h 1m 0s"),
+    (3599, "0d 0h 59m 59s"), (3600, "0d 1h 0m 0s"),
+    (86399, "0d 23h 59m 59s"), (86400, "1d 0h 0m 0s"),
+    (101529, "1d 4h 12m 9s"), (2**63 - 1, "106751991167300d 15h 30m 7s"),
+])
+def test_direct_uptime_human_readable_boundaries(seconds, expected):
+    from custom_components.hal_gaming_control.direct_mqtt import format_uptime
+    assert format_uptime(seconds) == expected
+
+
+@pytest.mark.parametrize("seconds", [None, -1, True, "42", 1.1, 2**63, float("nan")])
+def test_direct_uptime_invalid_seconds_are_unknown(seconds):
+    from custom_components.hal_gaming_control.direct_mqtt import format_uptime
+    assert format_uptime(seconds) is None
+
+
+def test_native_discovery_uptime_uses_same_text_format_as_direct():
+    from jinja2 import Environment
+    from windows_agent.gaming_control.discovery import discovery
+    config = discovery("pc1", "Gaming PC")[
+        "homeassistant/sensor/smarthouse_gaming_pc1_uptime/config"]
+    assert config["unique_id"] == "smarthouse_gaming_pc1_uptime"
+    assert config["entity_category"] == "diagnostic"
+    assert "device_class" not in config
+    assert "unit_of_measurement" not in config
+    rendered = Environment().from_string(config["value_template"])
+    for seconds, expected in (
+        (0, "0d 0h 0m 0s"), (59, "0d 0h 0m 59s"),
+        (60, "0d 0h 1m 0s"), (3600, "0d 1h 0m 0s"),
+        (86400, "1d 0h 0m 0s"), (101529, "1d 4h 12m 9s"),
+        (2**63 - 1, "106751991167300d 15h 30m 7s"),
+    ):
+        packet = {"version": 3, "device_id": "pc1", "system": {"uptime_seconds": seconds}}
+        assert rendered.render(value_json=packet).strip() == expected
+    for packet in (
+        {"version": 3, "device_id": "pc2", "system": {"uptime_seconds": 60}},
+        {"version": 2, "device_id": "pc1", "system": {"uptime_seconds": 60}},
+        {"version": 3, "device_id": "pc1", "system": {"uptime_seconds": -1}},
+        {"version": 3, "device_id": "pc1", "system": {"uptime_seconds": None}},
+        {"version": 3, "device_id": "pc1", "system": {"uptime_seconds": True}},
+        {"version": 3, "device_id": "pc1", "system": {"uptime_seconds": 2**63}},
+        {},
+    ):
+        assert rendered.render(value_json=packet).strip() == "unavailable"
