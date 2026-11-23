@@ -2,7 +2,7 @@
 
 # HAL Gaming Control
 
-**🚨 BREAKING — HA 0.13.7 / Windows agent 0.4.0:** HAL Gaming Control now uses **Unified MQTT v3 only**. Screen idle bonuses are automatic for supported verified display telemetry, with no per-PC opt-out; unknown display state does not prevent normal verified gameplay accounting. The Windows computer name is the MQTT device ID. Home Assistant has **no v2 monitoring, old Uptime fallback or telemetry selection option**; a legacy per-PC `unified_telemetry_enabled` setting is discarded automatically. Existing old-ID devices need explicit re-enrollment under the Windows hostname; settings and history are not silently remapped. [Upgrade guide](docs/unified_mqtt_telemetry.md) · [Release notes](docs/ha_releases.md). No deployment is implied by this source change.
+**🚨 BREAKING — HA 0.13.8 / Windows agent 0.4.0:** HAL Gaming Control now uses **Unified MQTT v3 only**. Screen idle bonuses are automatic for supported verified display telemetry, with no per-PC opt-out; unknown display state does not prevent normal verified gameplay accounting. The Windows computer name is the MQTT device ID. Home Assistant has **no v2 monitoring, old Uptime fallback or telemetry selection option**; a legacy per-PC `unified_telemetry_enabled` setting is discarded automatically. Existing old-ID devices need explicit re-enrollment under the Windows hostname; settings and history are not silently remapped. [Upgrade guide](docs/unified_mqtt_telemetry.md) · [Release notes](docs/ha_releases.md). No deployment is implied by this source change.
 
 **Because parenting should have an API.**
 
