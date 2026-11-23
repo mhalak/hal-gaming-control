@@ -1,3 +1,9 @@
+## 0.13.2 — Readable MQTT configuration view (#207)
+
+- Reformat the read-only **MQTT configuration** screen into clear Connection, Broker, Gaming PC and Help sections, with actual Markdown line breaks instead of literal `\n` characters. Keep broker settings and scoped MQTT topics separately readable, shorten explanatory copy and format technical values as code.
+- Maintain the same underlying HA shared MQTT connection, device identity, scoped discovery, protected Windows configuration and existing options. No broker credentials or secrets are displayed and no configuration is changed by opening the view.
+- Add translation/format regression coverage for both strings.json and en.json. HA **0.13.2 / Preview 26** only; Windows remains **0.4.0**. Installation requires a separate update; no Windows or MQTT changes.
+
 ## 0.13.1 — Screen idle bonus always on; no policy toggle (#204)
 
 - Clean cut: remove the Screen idle configuration page, enable/disable switch and acknowledgement. Valid Screen idle support is automatic on every enrolled Windows PC. At HA entry setup, obsolete screen_idle_enabled / screen_idle_acknowledged fields are discarded while retaining budgets, tracked apps, bonus journals and Recorder history. A legacy false value cannot disable Screen idle.

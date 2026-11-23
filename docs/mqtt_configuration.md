@@ -1,6 +1,6 @@
 # MQTT connection settings in HAL Gaming Control
 
-The HAL Gaming Control **MQTT configuration** Options Flow step is **read-only**. It reports whether Home Assistant's shared MQTT connection is connected, the configured broker address and port when safely available, the selected PC identity, the device topic root and the current MQTT discovery mode.
+The HAL Gaming Control **MQTT configuration** Options Flow step is **read-only**. Since HA 0.13.2, it presents **Connection**, **Broker**, **Gaming PC** and **Help** as separate Markdown sections with real line breaks, not escaped `\\n` text. Topics appear as code-style values for readability. It reports whether Home Assistant's shared MQTT connection is connected, the configured broker address and port when safely available, the selected PC identity, the device topic root and the current MQTT discovery mode.
 
 **To change Home Assistant's MQTT broker, port, credentials or TLS:**
 

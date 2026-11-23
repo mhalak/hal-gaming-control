@@ -485,6 +485,29 @@ def test_strings_cover_manual_onboarding():
         assert "discovery_only" not in config["abort"]
 
 
+def test_mqtt_info_translation_is_sectioned_markdown_with_real_newlines():
+    """Regression #207: HA must not display literal backslash-n in the description."""
+    from pathlib import Path
+    from string import Formatter
+    base = Path(cf.__file__).parent
+    descriptions = []
+    for rel in ("strings.json", "translations/en.json"):
+        doc = json.loads((base / rel).read_text(encoding="utf-8"))
+        description = doc["options"]["step"]["mqtt_settings"]["description"]
+        assert r"\\n" not in description  # Escaped backslashes were visible in HA.
+        assert description.count("\\n") == 0
+        assert description.count("\n\n") >= 3
+        for title in ("### Connection", "### Broker", "### Gaming PC", "### Help"):
+            assert title in description
+        assert "`{root}`" in description
+        assert "`{device_id}`" in description
+        assert set(field for _, field, _, _ in Formatter().parse(description) if field) == {
+            "connection", "connection_help", "broker", "port", "tls",
+            "device_id", "root", "mode"}
+        descriptions.append(description)
+    assert descriptions[0] == descriptions[1]
+
+
 async def test_legacy_limit_values_survive_opening_configure(
         hass, enable_custom_integrations):
     old = {"daily": 60, "weekend_daily": 120, "weekend_total": 90,
