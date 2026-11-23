@@ -495,7 +495,8 @@ async def test_v3_only_hostname_recovers_every_parent_facing_sensor(hass):
         data={"device_id": host, "name": "Lucija Desktop",
               "games": [], "actions": []},
         options={"unified_telemetry_enabled": True,
-                 "tracked_apps": [APP], "daily": 320, "weekly": 4200},
+                 "tracked_apps": [APP], "enabled": True,
+                 "daily": 320, "weekly": 4200},
     )
     entry.add_to_hass(hass)
     coordinator = co.GamingCoordinator(hass, entry)
@@ -563,7 +564,8 @@ async def test_old_mqtt_identity_cannot_make_new_hostname_sensors_look_live(hass
         data={"device_id": old, "name": "Lucija Desktop",
               "games": [], "actions": []},
         options={"unified_telemetry_enabled": True,
-                 "tracked_apps": [APP], "daily": 320, "weekly": 4200},
+                 "tracked_apps": [APP], "enabled": True,
+                 "daily": 320, "weekly": 4200},
     )
     entry.add_to_hass(hass)
     coordinator = co.GamingCoordinator(hass, entry)
