@@ -1,3 +1,11 @@
+## 0.13.7 — One-tap Budget overview Undo and cleaner device card
+
+- The native **Budget overview (Undo)** select now always displays the dynamic **∑ TOTAL** row as its current selection. Choosing an eligible Parent bonus **immediately revokes it** and resets selection to updated ∑ TOTAL. No more Prepare/Confirm buttons or two-stage service calls.
+- Only completely untouched, removable Parent grants have a trailing red **⛔**. The formerly displayed **🔒** prefixes are removed from every read-only row. Base, Screen off, Weekend, Legacy and total entries are visible but backend-rejected as mutation targets because HA's native Select cannot individually disable options.
+- **Administrator-only:** authenticated HA administrator identity is verified from the native select action's context; children, anonymous calls and automation calls cannot revoke. The coordinator refreshes measured usage immediately before a grant is revoked, and the exact grant journal ID is revalidated. Even one second of bonus use locks it; remaining time may be exactly zero but never negative.
+- The failed plain-text **Budget overview** sensor in the device Sensors section is removed. It could not render a multiline receipt in a normal HA row; the existing structured Daily budget remaining attributes and optional Markdown dashboard are retained. The stale sensor registry entry is cleaned up on setup.
+- Added HA regression tests for 2×30-minute grants with 50 minutes left, immediate cancellation, dynamic total state, permissions, stale data/replay, zero-boundary and exact grant audit. **HA source 0.13.7 / Preview 31; Windows 0.4.0 unchanged.** A source bump is not proof of a GitHub release or installation.
+
 ## 0.13.6 — Native Budget overview text sensor per Windows PC
 
 - Each enrolled Windows PC now has **two Budget overview views** on its HA device page: a read-only text sensor in **Sensors** (`<device_id>_budget_overview`) and an ordered allowance receipt in the existing, renamed **Budget overview (Undo)** dropdown in **Controls**. No manual dashboard configuration is required for either.
