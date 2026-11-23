@@ -9,7 +9,7 @@ from homeassistant.core import Context
 from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.hal_gaming_control.budget_select import (
-    DIVIDER_TOP, DIVIDER_BOTTOM, TOTAL_ROW_INDEX, budget_select_rows,
+    TOTAL_ROW_INDEX, budget_select_rows,
 )
 from custom_components.hal_gaming_control.parent_bonus import (
     add_parent_grant, parent_bonus_activity_today, parent_bonus_total,
@@ -33,7 +33,7 @@ def total(minutes):
 
 
 def played(minutes):
-    return f"{FIGURE}−{FIGURE}{str(minutes).rjust(3, FIGURE)} min - Gaming Session"
+    return f"−{FIGURE}{str(minutes).rjust(3, FIGURE)} min - Gaming Session"
 
 
 def remaining(minutes):
@@ -99,24 +99,21 @@ def test_ordered_receipt_shows_only_actionable_red_icons_and_sigma_total():
         action(30, "Parent Bonus (11:40)"),
         amount(10, "Screen Off Bonus (12:50)"),
         action(30, "Parent Bonus (14:00)"),
-        DIVIDER_TOP,
         total(250),
         played(0),
-        DIVIDER_BOTTOM,
         remaining(250),
     ]
     assert all("🔒" not in label for label in labels)
     assert all("⛔" not in label for label in labels if "Parent Bonus" not in label)
-    assert all(FIGURE in label for label in labels
-               if label not in (DIVIDER_TOP, DIVIDER_BOTTOM))
+    assert all(FIGURE in label for label in labels)
     assert all("1234567890" not in label for label in labels)
     assert sum(label.endswith("⛔") for label in labels) == 2
     assert len(labels) == len(set(labels))  # HA Select option uniqueness
     assert labels[-1] == remaining(250)
-    assert sum("─" in label for label in labels) == 2
-    assert len(DIVIDER_TOP) == 10
-    assert len(DIVIDER_BOTTOM) == 11
-    assert TOTAL_ROW_INDEX == -4
+    assert not any("─" in label for label in labels)
+    assert TOTAL_ROW_INDEX == -3
+    assert labels[-2].startswith("−")
+    assert not labels[-2].startswith(FIGURE)
     assert labels[TOTAL_ROW_INDEX] == total(250)
 
 
@@ -144,10 +141,8 @@ def test_two_parent_bonuses_and_50_minutes_remaining_lock_only_first():
         amount(180, "Daily Budget"),
         amount(30, "Parent Bonus (11:40)"),
         action(30, "Parent Bonus (14:00)"),
-        DIVIDER_TOP,
         total(240),
         played(190),
-        DIVIDER_BOTTOM,
         remaining(50),
     ]
 
@@ -168,16 +163,27 @@ def test_receipt_reconciles_conservative_whole_minutes(
         seconds, expected_played, expected_remaining):
     options, data = sample_receipt(used=seconds, screen=False)
     labels = [label for label, _ in rows(options, data)]
-    assert labels[-3] == played(expected_played)
+    assert labels[-2] == played(expected_played)
     assert labels[-1] == remaining(expected_remaining)
-    assert labels[-4] == total(240)
+    assert labels[-3] == total(240)
+
+
+def test_gaming_session_minus_is_first_character_with_one_gap():
+    options, data = sample_receipt(used=276 * 60, screen=False)
+    labels = [label for label, _ in rows(options, data)]
+    gaming = next(label for label in labels if "Gaming Session" in label)
+    assert gaming.startswith("−" + FIGURE + "276 min - Gaming Session")
+    assert gaming[0] == "−"
+    assert gaming[1] == FIGURE
+    assert all(not label.startswith(" ") for label in labels)
+    assert not any("─" in label for label in labels)
 
 
 def test_unverified_time_is_never_misrepresented_as_zero():
     options, data = sample_receipt(screen=False)
     data["ready"] = False
     lines = rows(options, data)
-    assert lines[-3] == (f"{FIGURE}− Unknown - Gaming Session", None)
+    assert lines[-2] == ("− Unknown - Gaming Session", None)
     assert lines[-1] == ("∑ Unknown - Remaining Budget", None)
     assert all(grant is None for _, grant in lines)
     data["ready"] = True
@@ -195,7 +201,7 @@ def test_no_fake_numeric_remaining_when_rules_disabled_or_unlimited(
     options, data = sample_receipt(used=120 * 60, screen=False)
     options.update(policy)
     labels = [label for label, _ in rows(options, data)]
-    assert labels[-3] == played(120)
+    assert labels[-2] == played(120)
     assert labels[-1] == final_label
 
 
@@ -259,7 +265,7 @@ async def test_no_action_on_sigma_total_and_non_action_rows_are_rejected():
         await entity.async_select_option(entity.current_option)
         for label in (amount(180, "Daily Budget"),
                       amount(30, "Parent Bonus (11:40)"),
-                      DIVIDER_TOP, played(190), DIVIDER_BOTTOM, remaining(50)):
+                      played(190), remaining(50)):
             await entity.async_select_option(label)
             assert entity.current_option == total(240)
         assert not committed
