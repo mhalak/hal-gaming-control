@@ -62,6 +62,20 @@ def screen_idle_bonus_total(options, now, device_id=None):
         return 0  # Never expand allowances from corrupted state.
 
 
+def screen_idle_events_today(options, now, device_id):
+    """Read-only verified per-event Screen idle grants for budget receipts.
+
+    Only validated, same-local-day events are returned. A corrupt/missing
+    journal must not invent a bonus or grant an Undo opportunity.
+    """
+    try:
+        rows = _journal(options, device_id)["events"]
+        today = now.date().isoformat()
+        return [row for row in rows if row["date"] == today]
+    except (ValueError, TypeError, AttributeError):
+        return []
+
+
 def _verified_minutes(row, segments, now):
     """Require a continuous, measured tracked-game interval since last input."""
     if now.tzinfo is None or now.utcoffset() is None:
