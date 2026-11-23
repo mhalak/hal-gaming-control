@@ -41,7 +41,7 @@ def v3(device="pc1", ts=100, seq=1, *, epoch=DEVICE_EPOCH,
     })
 
 
-async def start(hass, device="pc1", *, screen=True):
+async def start(hass, device="pc1"):
     callbacks, unsubscribed = {}, []
     async def subscribe(_hass, topic, callback, qos):
         callbacks[topic] = (callback, qos)
@@ -53,10 +53,10 @@ async def start(hass, device="pc1", *, screen=True):
                       return_value=lambda: unsubscribed.append("connection")), \
          patch.object(mqtt, "async_subscribe", side_effect=subscribe):
         watcher = ForegroundSource(hass, device, [APP], changed,
-                                   screen_enabled=screen, on_screen_off=bonuses)
+                                   on_screen_off=bonuses)
         await watcher.async_start()
     # The matching Windows publisher advertises this capability on a
-    # retained discovery topic; the parent toggle alone is insufficient.
+    # retained discovery topic; screen handling has no parent toggle.
     watcher._v3_discovery(SimpleNamespace(
         topic=f"SmartHouse/Gaming/{device}/discovery",
         payload=json.dumps({
@@ -79,7 +79,7 @@ def total(source, ts=150):
 
 
 async def test_v3_subscribes_single_read_only_source_and_ignores_legacy(hass):
-    s, cb, changed, _, unsub = await start(hass, screen=True)
+    s, cb, changed, _, unsub = await start(hass)
     root = "SmartHouse/Gaming/pc1"
     assert set(cb) == {
         root + "/availability", root + "/discovery", root + "/state/telemetry"}
@@ -135,11 +135,12 @@ async def test_off_and_repeated_raw_focus_never_fabricate_game_time_or_bonus(has
 
 
 async def test_legacy_v2_never_double_counts_when_v3_selected(hass):
-    s, cb, _, _, _ = await start(hass, screen=False)
+    s, cb, _, _, _ = await start(hass)
     root = "SmartHouse/Gaming/pc1"
     deliver(cb, root + "/availability", b"online", ts=99)
     deliver(cb, root + "/state/telemetry", v3(ts=100, seq=1), ts=100)
     deliver(cb, root + "/state/telemetry", v3(ts=102, seq=2), ts=102)
+    deliver(cb, root + "/state/telemetry", v3(ts=104, seq=3), ts=104)
     assert total(s) == 2
     assert root + "/state/foreground_identity" not in cb
     assert root + "/state/display_context" not in cb
@@ -269,7 +270,7 @@ async def test_default_source_is_unconditionally_v3_only(hass):
          patch.object(mqtt, "async_subscribe_connection_status",
                       return_value=lambda: None), \
          patch.object(mqtt, "async_subscribe", side_effect=sub):
-        source = ForegroundSource(hass, "pc1", [APP], Mock(), screen_enabled=True)
+        source = ForegroundSource(hass, "pc1", [APP], Mock())
         await source.async_start()
     root = "SmartHouse/Gaming/pc1"
     assert set(callbacks) == {
@@ -361,7 +362,7 @@ async def test_existing_active_game_sensor_exposes_diagnostics_as_attributes():
 
 
 
-async def test_v3_requires_verified_discovery_not_just_parent_toggle(hass):
+async def test_v3_requires_verified_discovery_not_just_local_config(hass):
     s, cb, _, _, _ = await start(hass)
     root = "SmartHouse/Gaming/pc1"
     deliver(cb, root + "/availability", "online", ts=99)
@@ -488,7 +489,7 @@ async def test_v3_only_hostname_recovers_every_parent_facing_sensor(hass):
     )
     entry.add_to_hass(hass)
     coordinator = co.GamingCoordinator(hass, entry)
-    watcher, callbacks, _, _, _ = await start(hass, host, screen=True)
+    watcher, callbacks, _, _, _ = await start(hass, host)
     coordinator.foreground = watcher
     coordinator.storage_healthy = True
     coordinator.cutover_since = datetime.fromtimestamp(95, timezone.utc)
@@ -557,7 +558,7 @@ async def test_old_mqtt_identity_cannot_make_new_hostname_sensors_look_live(hass
     )
     entry.add_to_hass(hass)
     coordinator = co.GamingCoordinator(hass, entry)
-    watcher, callbacks, _, _, _ = await start(hass, old, screen=False)
+    watcher, callbacks, _, _, _ = await start(hass, old)
     coordinator.foreground = watcher
     coordinator.storage_healthy = True
     coordinator.cutover_since = datetime.fromtimestamp(95, timezone.utc)
