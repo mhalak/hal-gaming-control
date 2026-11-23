@@ -8,7 +8,9 @@ import pytest
 from homeassistant.core import Context
 from homeassistant.exceptions import HomeAssistantError
 
-from custom_components.hal_gaming_control.budget_select import budget_select_rows
+from custom_components.hal_gaming_control.budget_select import (
+    DIVIDER_TOP, DIVIDER_BOTTOM, budget_select_rows,
+)
 from custom_components.hal_gaming_control.parent_bonus import (
     add_parent_grant, parent_bonus_activity_today, parent_bonus_total,
 )
@@ -28,6 +30,14 @@ def action(minutes, title):
 
 def total(minutes):
     return f"∑{FIGURE}{minutes} min - TOTAL"
+
+
+def played(minutes):
+    return f"-{FIGURE}{str(minutes).rjust(3, FIGURE)} min - Gaming Session"
+
+
+def remaining(minutes):
+    return f"∑{FIGURE}{str(minutes).rjust(3, FIGURE)} min - Remaining Budget"
 
 
 def at(hour=15, minute=0):
@@ -89,13 +99,21 @@ def test_ordered_receipt_shows_only_actionable_red_icons_and_sigma_total():
         action(30, "Parent Bonus (11:40)"),
         amount(10, "Screen Off Bonus (12:50)"),
         action(30, "Parent Bonus (14:00)"),
+        DIVIDER_TOP,
         total(250),
+        played(0),
+        DIVIDER_BOTTOM,
+        remaining(250),
     ]
     assert all("🔒" not in label for label in labels)
     assert all("⛔" not in label for label in labels if "Parent Bonus" not in label)
-    assert all(FIGURE in label for label in labels)
+    assert all(FIGURE in label for label in labels
+               if label not in (DIVIDER_TOP, DIVIDER_BOTTOM))
     assert all("1234567890" not in label for label in labels)
     assert sum(label.endswith("⛔") for label in labels) == 2
+    assert len(labels) == len(set(labels))  # HA Select option uniqueness
+    assert labels[-1] == remaining(250)
+    assert sum("─" in label for label in labels) == 2
 
 
 @pytest.mark.parametrize("used,unlocked", [
@@ -122,8 +140,59 @@ def test_two_parent_bonuses_and_50_minutes_remaining_lock_only_first():
         amount(180, "Daily Budget"),
         amount(30, "Parent Bonus (11:40)"),
         action(30, "Parent Bonus (14:00)"),
+        DIVIDER_TOP,
         total(240),
+        played(190),
+        DIVIDER_BOTTOM,
+        remaining(50),
     ]
+
+
+
+@pytest.mark.parametrize("seconds,expected_played,expected_remaining", [
+    (0, 0, 240),
+    (1, 1, 239),
+    (59.1, 1, 239),
+    (60, 1, 239),
+    (61, 2, 238),
+    (190 * 60, 190, 50),
+    (240 * 60 - 1, 240, 0),
+    (240 * 60, 240, 0),
+    (250 * 60, 250, 0),
+])
+def test_receipt_reconciles_conservative_whole_minutes(
+        seconds, expected_played, expected_remaining):
+    options, data = sample_receipt(used=seconds, screen=False)
+    labels = [label for label, _ in rows(options, data)]
+    assert labels[-3] == played(expected_played)
+    assert labels[-1] == remaining(expected_remaining)
+    assert labels[-4] == total(240)
+
+
+def test_unverified_time_is_never_misrepresented_as_zero():
+    options, data = sample_receipt(screen=False)
+    data["ready"] = False
+    lines = rows(options, data)
+    assert lines[-3] == ("- Unknown - Gaming Session", None)
+    assert lines[-1] == ("∑ Unknown - Remaining Budget", None)
+    assert all(grant is None for _, grant in lines)
+    data["ready"] = True
+    data["totals"] = {}
+    assert rows(options, data)[-1] == ("∑ Unknown - Remaining Budget", None)
+
+
+@pytest.mark.parametrize("policy,final_label", [
+    ({"enabled": False}, "∑ Rules Disabled - Remaining Budget"),
+    ({"unlimited": True}, "∑ Unlimited - Remaining Budget"),
+    ({"daily": -1}, "∑ Unlimited - Remaining Budget"),
+])
+def test_no_fake_numeric_remaining_when_rules_disabled_or_unlimited(
+        policy, final_label):
+    options, data = sample_receipt(used=120 * 60, screen=False)
+    options.update(policy)
+    labels = [label for label, _ in rows(options, data)]
+    assert labels[-3] == played(120)
+    assert labels[-1] == final_label
 
 
 @pytest.mark.parametrize("policy", [
@@ -145,13 +214,13 @@ async def test_selecting_one_parent_bonus_immediately_cancels_and_resets_total()
     entity, entry, committed = selector(used=190 * 60, screen=False)
     with patch("custom_components.hal_gaming_control.select.dt_util.now",
                return_value=at()), patch.object(entity, "async_write_ha_state"):
-        assert entity.current_option == total(240)
+        assert entity.current_option == remaining(50)
         label = action(30, "Parent Bonus (14:00)")
         assert label in entity.options
         await entity.async_select_option(label)
         assert len(committed) == 1
         assert entity.coordinator.async_refresh.await_count == 1
-        assert entity.current_option == total(210)
+        assert entity.current_option == remaining(20)
         assert label not in entity.options
         assert parent_bonus_total(entry.options, at()) == 30
         assert sum(e["status"] == "cancelled"
@@ -168,9 +237,10 @@ async def test_no_action_on_sigma_total_and_non_action_rows_are_rejected():
                return_value=at()), patch.object(entity, "async_write_ha_state"):
         await entity.async_select_option(entity.current_option)
         for label in (amount(180, "Daily Budget"),
-                      amount(30, "Parent Bonus (11:40)")):
+                      amount(30, "Parent Bonus (11:40)"),
+                      DIVIDER_TOP, total(240), played(190), DIVIDER_BOTTOM):
             await entity.async_select_option(label)
-            assert entity.current_option == total(240)
+            assert entity.current_option == remaining(50)
         assert not committed
 
 
@@ -193,7 +263,7 @@ async def test_non_admin_or_anonymous_select_cannot_revoke(user_id, admin):
                return_value=at()), patch.object(entity, "async_write_ha_state"):
         with pytest.raises(HomeAssistantError, match="administrator"):
             await entity.async_select_option(action(30, "Parent Bonus (14:00)"))
-        assert entity.current_option == total(240)
+        assert entity.current_option == remaining(50)
         assert not committed
         assert parent_bonus_total(entry.options, at()) == 60
 
@@ -210,7 +280,7 @@ async def test_spending_one_second_while_dropdown_open_rejects_stale_action():
         assert label in entity.options
         with pytest.raises(HomeAssistantError, match="used or budget changed"):
             await entity.async_select_option(label)
-        assert entity.current_option == total(250)
+        assert entity.current_option == remaining(30)
         assert parent_bonus_total(entry.options, at()) == 60
         assert not committed
 
@@ -223,7 +293,7 @@ async def test_exactly_zero_remaining_after_cancel_is_allowed():
         # The last Parent is untouched; removing it leaves 210-210 = 0.
         await entity.async_select_option(action(30, "Parent Bonus (14:00)"))
         assert len(committed) == 1
-        assert entity.current_option == total(210)
+        assert entity.current_option == remaining(0)
         assert parent_bonus_total(entry.options, at()) == 30
 
 

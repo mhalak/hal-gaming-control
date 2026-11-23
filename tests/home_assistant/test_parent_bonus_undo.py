@@ -18,8 +18,8 @@ TZ = ZoneInfo("Europe/Zagreb")
 FIGURE = "\u2007"
 
 
-def total(minutes):
-    return f"∑{FIGURE}{minutes} min - TOTAL"
+def remaining(minutes):
+    return f"∑{FIGURE}{minutes} min - Remaining Budget"
 
 
 def at(hour=14, minute=30, day=23):
@@ -57,7 +57,7 @@ async def test_parent_undo_is_one_step_and_keeps_full_audit():
     entity, entry, committed = setup_select()
     with patch("custom_components.hal_gaming_control.select.dt_util.now",
                return_value=at()), patch.object(entity, "async_write_ha_state"):
-        assert entity.current_option == total(210)
+        assert entity.current_option == remaining(210)
         parent_labels = [label for label in entity.options if "Parent Bonus" in label]
         assert len(parent_labels) == 3
         assert all(label.endswith("⛔") for label in parent_labels)
@@ -66,7 +66,7 @@ async def test_parent_undo_is_one_step_and_keeps_full_audit():
         await entity.async_select_option(parent_labels[1])
         assert len(committed) == 1
         assert parent_bonus_total(entry.options, at()) == 60
-        assert entity.current_option == total(180)
+        assert entity.current_option == remaining(180)
         assert parent_labels[1] not in entity.options
         activity = parent_bonus_activity_today(entry.options, at())
         assert sum(row["status"] == "cancelled" for row in activity) == 1
@@ -102,7 +102,7 @@ async def test_same_minute_grants_have_unique_labels_and_exact_ids():
         assert next(item for item in activity if item["id"] == grant_id)[
             "status"] == "cancelled"
         assert sum(item["status"] == "active" for item in activity) == 4
-        assert entity.current_option == total(240)
+        assert entity.current_option == remaining(240)
 
 
 def test_same_minute_internal_id_collision_never_exposes_ids():

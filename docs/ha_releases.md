@@ -1,3 +1,10 @@
+## 0.13.10 — Budget overview receipt with gaming usage and remaining minutes
+
+- Extends the existing native **Budget overview (Undo)** select, keeping its entity ID, figure-space numeric alignment, ID-free bonus rows, and spaced ⛔ one-tap admin Undo.
+- The receipt now includes two visually distinct, **read-only** Unicode line separators, **∑ TOTAL** as a subtotal, **− Gaming Session** for cumulative verified gaming minutes used today and **∑ Remaining Budget** as the **always-selected** last row. A separator is merely a distinct no-op option: native Home Assistant Select does not support custom HTML separator elements.
+- The readout reuses the existing daily rule-engine numbers. The minute-only display is conservative (gaming used **ceil**, remaining **floor**); exact-second budgets, weekly limits, Recorder history and grant cancellation safety remain unchanged. Unknown daily usage displays **Unknown**, not 0; unlimited or disabled modes show explicit states. Displayed session means the day's total, not necessarily a single continuous foreground session. If historical coverage is incomplete, reported usage remains a confirmed lower bound.
+- Regression tests cover visual receipt order and unique options, non-actionable dividers, zero/exceeded/partial-minute usage, offline/unlimited/disabled policies, and Undo reset to Remaining Budget. **HA source 0.13.10 / Preview 34; Windows 0.4.0 unchanged.**
+
 ## 0.13.9 — Active game stays visible while console monitor is OFF
 
 - The existing **Active game** HA sensor now has a **dynamic monitor icon**: `mdi:monitor` when validated Windows console display is ON/DIM, `mdi:monitor-off` when OFF, and `mdi:gamepad-variant` when display state is unknown. It remains the same entity; no additional screen sensor or MQTT fields are introduced.

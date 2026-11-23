@@ -19,7 +19,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class ParentBonusGrantSelect(GamingEntity, SelectEntity):
-    """The last TOTAL row is always selected; a bonus click revokes it."""
+    """The last Remaining Budget row is always selected; bonus Undo stays instant."""
 
     _attr_icon = "mdi:calculator-variant-outline"
 
@@ -79,14 +79,14 @@ class ParentBonusGrantSelect(GamingEntity, SelectEntity):
         rows = self._rows(now)
         if option not in (label for label, _ in rows):
             raise HomeAssistantError("Budget entry is no longer active")
-        # Clicking TOTAL does nothing. Native select cannot prevent tapping
+        # Clicking Remaining Budget does nothing. Native select cannot prevent tapping
         # any read-only row, so other rows are rejected without modifying HA.
         if option == rows[-1][0]:
             self.async_write_ha_state()
             return
         grant_id = dict(rows).get(option)
         if grant_id is None:
-            # An informational row is not a command. Re-publish ∑ TOTAL
+            # An informational row is not a command. Re-publish ∑ Remaining Budget
             # instead of leaving a misleading selection in the HA UI.
             self._undo_status = "Read-only allowance item; nothing cancelled"
             self.async_write_ha_state()
@@ -110,6 +110,6 @@ class ParentBonusGrantSelect(GamingEntity, SelectEntity):
         if result is False:
             raise HomeAssistantError("Parent bonus cancellation was not saved")
         self._undo_status = f"Cancelled: {option}. Allowance recalculated."
-        # State always points back to ∑ TOTAL; the selected grant vanishes
+        # State always points back to ∑ Remaining Budget; the grant vanishes
         # immediately as soon as the config-entry update takes effect.
         self.async_write_ha_state()

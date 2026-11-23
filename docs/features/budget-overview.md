@@ -27,9 +27,9 @@ So if the kids somehow have *another hour*, we can finally ask: **Did the little
 
 It's a transparent breakdown, **not an automatic cheat detector**. Unusual numbers should be easy to question, while the independent weekly budget still applies.
 
-**Native Budget overview (Undo) (HA 0.13.7+ source).** Each Windows device has one built-in allowance dropdown inside **Settings → Devices & services → HAL Gaming Control → your PC → Controls**. It shows the base allowance, each Parent and Screen off bonus in time order, and the current **∑ TOTAL**. The former text sensor in **Sensors** has been retired because the native device page clipped its multiline content. The full structured receipt remains available in the **Daily budget remaining** attributes, and the optional dashboard YAML below provides a richer read-only breakdown.
+**Native Budget overview (Undo) (HA 0.13.10+ source).** Each Windows device has one built-in allowance dropdown inside **Settings → Devices & services → HAL Gaming Control → your PC → Controls**. It shows the base allowance, each Parent and Screen off bonus in time order, a read-only separator, the **∑ TOTAL** daily allowance, today's **Gaming Session** (cumulative verified daily playtime), another separator and **∑ Remaining Budget** as the always-selected final row. The former text sensor in **Sensors** has been retired because the native device page clipped its multiline content. The full structured receipt remains available in the **Daily budget remaining** attributes, and the optional dashboard YAML below provides a richer read-only breakdown.
 
-**Daily usage stays HA-owned and validated.** If today's gaming-time evidence is missing, no Parent bonus can be revoked. The dropdown cannot disable individual rows visually, so informational rows do nothing except reject action. Only actionable Parent bonus rows carry a red **⛔** suffix. After a permitted administrator click, HA revokes that single bonus immediately and returns the displayed value to **∑ TOTAL**. No separate confirmation buttons, remote Windows commands or duplicate accounting store.
+**Daily usage stays HA-owned and validated.** If today's gaming-time evidence is missing, no Parent bonus can be revoked. The dropdown cannot disable individual rows visually, so informational rows do nothing except reject action. Only actionable Parent bonus rows carry a red **⛔** suffix. After a permitted administrator click, HA revokes that single bonus immediately and returns the displayed value to **∑ Remaining Budget**. No separate confirmation buttons, remote Windows commands or duplicate accounting store.
 
 ## The gaming-time receipt
 
@@ -62,16 +62,23 @@ The native **Budget overview (Undo)** dropdown preserves the original HA select 
 +  30 min - Parent Bonus (11:40)
 +  10 min - Screen Off Bonus (12:50)
 +  30 min - Parent Bonus (14:00)      ⛔
+────────────────────────
 ∑ 250 min - TOTAL
+- 170 min - Gaming Session
+─────────────────────────
+∑  80 min - Remaining Budget
 ```
 
-Only **⛔** items can be removed; all other entries are information only. The **red ⛔ appears at the end** of the Parent bonus row only while cancellation is permitted. The total is always the currently selected/default row, including after an administrator cancels a bonus. The amount updates immediately. Same-minute, same-size bonuses are distinguished as `(11:40 #1)` / `(11:40 #2)`, **never by displaying their opaque grant IDs**. Internally cancellation still targets the full immutable journal ID. Numeric columns use Unicode figure spaces and actionable rows have a padded gap before the red ⛔. Since HA's native Select is a plain-text control, the icon cannot be pinned precisely to the right edge in every screen width/font.
+Only **⛔** items can be removed; all other entries are information only, including both separator lines. The **red ⛔ appears at the end** of the Parent bonus row only while cancellation is permitted. **∑ Remaining Budget** is always the selected/default row, including after an administrator cancels a bonus. **∑ TOTAL** is a non-interactive subtotal. The amount updates immediately. Same-minute, same-size bonuses are distinguished as `(11:40 #1)` / `(11:40 #2)`, **never by displaying their opaque grant IDs**. Internally cancellation still targets the full immutable journal ID. Numeric columns use Unicode figure spaces and actionable rows have a padded gap before the red ⛔. Since HA's native Select is a plain-text control, the icon cannot be pinned precisely to the right edge in every screen width/font.
+
+
+**Displayed minute precision:** The numbers come from the existing, verified HA daily accounting. `Gaming Session` means the total gaming time **today**, not just the current uninterrupted session. Since the native Select accepts plain text only, consumed minutes are rounded **up** and remaining minutes **down** for a conservative whole-minute receipt; the underlying rules, bonus eligibility, and Recorder remain exact to the second. If confirmed daily usage is missing, both rows say **Unknown**, never 0 minutes. Disabled/unlimited budgets show a clear text status instead of inventing a remaining figure. When the device reports incomplete historical coverage, the displayed consumed time is only a verified lower bound. The two separators are separate, unique, read-only option labels (slightly different line lengths); HA cannot render real HTML dividers in a built-in select.
 
 **How Undo works:** an authenticated HA administrator selects a Parent bonus marked ⛔ and the integration immediately cancels that entire bonus, without Prepare/Confirm buttons. It rechecks the current accounting **after refreshing the coordinator**. A Parent bonus is no longer cancellable once even one verified gaming second has consumed it, or if removing it would leave used time greater than the reduced daily allowance. A resulting balance of exactly zero is allowed. The allocation convention is **base allowance first, then existing bonus grants by chronological order**; it is not a claim that individual gaming seconds physically carry bonus IDs. If a PC's usage is unknown, Undo fails closed. Other users and anonymous/automation calls cannot remove a bonus because the integration checks the authenticated HA administrator context.
 
 **Home Assistant limitation:** the standard Select entity cannot gray out individual read-only rows. Clicking a non-removable item is rejected without changing allowances. No cloud or custom frontend is involved.
 
-**Release status:** 0.13.7 is the next HA source version for this UI correction. Published version and actual installed version must be verified independently.
+**Release status:** The extended native receipt is allocated to HA source **0.13.10 / Preview 34**. Verify the published version and installed HA version separately.
 
 ## Add a Home Assistant dashboard card
 
