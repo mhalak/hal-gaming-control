@@ -69,18 +69,12 @@ async def test_legacy_configured_actions_never_publish_automatically(hass, direc
     entry.add_to_hass(hass)
     with patch("custom_components.hal_gaming_control.coordinator.direct_mode", return_value=direct):
         c = GamingCoordinator(hass, entry)
-    states = {("sensor", "current_game"): "sensor.test_game",
-              ("binary_sensor", "in_game"): "binary_sensor.test_in_game",
-              ("sensor", "uptime"): "sensor.test_uptime"}
+    # Historical scalar entities are no longer an authoritative fallback.
     hass.states.async_set("sensor.test_game", "Roblox")
     hass.states.async_set("binary_sensor.test_in_game", "on")
     hass.states.async_set("sensor.test_uptime", "500")
-    with patch.object(c, "entity_id", side_effect=lambda domain, key: states.get((domain, key))), \
-         patch.object(c, "_prepare_source", new_callable=AsyncMock), \
-         patch.object(c.liveness, "observe", return_value=True), \
-         patch("homeassistant.components.mqtt.async_publish", new_callable=AsyncMock) as publish:
+    with patch("homeassistant.components.mqtt.async_publish",
+               new_callable=AsyncMock) as publish:
         data = await c._async_update_data()
-    assert data["ready"] and data["online"]
-    assert data["active"] == ["Roblox"]
-    assert "daily" in data["reasons"]
+    assert data == {"ready": False, "online": False}
     publish.assert_not_awaited()
