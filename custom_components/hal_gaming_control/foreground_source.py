@@ -131,22 +131,27 @@ class ForegroundSource:
         self._observe_display(display_v2(packet), wall, mono)
         current = self.display.current(mono)
         if current == "off":
-            # Do not infer a return from an unknown or stale display sample.
+            # Never infer return from missing or stale screen evidence.
             self._screen_off_latched = True
             self._needs_post_on = False
             self._post_on_sequence = self._post_on_timestamp = None
-        elif current == "on" and self._screen_off_latched and previous != "on":
-            # A post-ON fresh foreground is required before charging resumes.
+        elif current == "on" and previous != "on":
+            # A new verified ON must be followed by a later foreground
+            # observation, whether it is the first or a post-OFF ON.
             self._needs_post_on = True
             self._post_on_sequence = packet["sequence"]
             self._post_on_timestamp = (
                 packet["observed_at"] - packet["display"]["event_age_ms"] / 1000)
+        elif current == "unknown" and not self._screen_off_latched:
+            # An unsupported helper with UNKNOWN must not block games.
+            self._needs_post_on = False
+            self._post_on_sequence = self._post_on_timestamp = None
         return current
 
     def _post_on_ready(self, packet, display_state):
-        if not self._screen_off_latched:
-            # A PC without display notifications has state UNKNOWN.
-            # It still accrues valid v3 gaming intervals, with no idle bonus.
+        if not self._screen_off_latched and not self._needs_post_on:
+            # No previous verified OFF: unsupported UNKNOWN still counts
+            # strictly validated foreground and never awards an idle bonus.
             return display_state != "off"
         if display_state != "on" or not self._needs_post_on:
             return False
