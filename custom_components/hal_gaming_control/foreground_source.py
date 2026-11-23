@@ -23,7 +23,7 @@ class ForegroundSource:
     """Consume only non-retained unified v3 for one gaming PC."""
 
     def __init__(self, hass, device_id, tracked_apps, on_update, *, intervals=(),
-                 screen_enabled=False, on_screen_off=None):
+                 on_screen_off=None):
         self.hass = hass
         self.device_id = device_id
         self.on_update = on_update
@@ -34,7 +34,10 @@ class ForegroundSource:
         self._unsub = []
         self._closed = False
         self.last_raw = None  # latest verified foreground from unified v3
-        self.display = DisplayGate(device_id) if screen_enabled else None
+        self.display = DisplayGate(device_id)
+        # Only a verified OFF latches accounting off; unsupported UNKNOWN
+        # observations must not deprive older PCs of normal v3 gaming time.
+        self._screen_off_latched = False
         self.on_screen_off = on_screen_off
         self.telemetry_order = TelemetryOrder()
         self.v3_capable = False
@@ -124,30 +127,34 @@ class ForegroundSource:
                 self.on_update()
 
     def _v3_display(self, packet, wall, mono):
-        if self.display is None:
-            return None
         previous = self.display.current(mono)
         self._observe_display(display_v2(packet), wall, mono)
         current = self.display.current(mono)
-        if previous != current and current == "on":
+        if current == "off":
+            # Never infer return from missing or stale screen evidence.
+            self._screen_off_latched = True
+            self._needs_post_on = False
+            self._post_on_sequence = self._post_on_timestamp = None
+        elif current == "on" and previous != "on":
+            # A new verified ON must be followed by a later foreground
+            # observation, whether it is the first or a post-OFF ON.
             self._needs_post_on = True
             self._post_on_sequence = packet["sequence"]
-            # The helper event predates envelope capture by its age. A later
-            # MQTT packet can still carry an older helper foreground sample.
             self._post_on_timestamp = (
                 packet["observed_at"] - packet["display"]["event_age_ms"] / 1000)
-        elif current != "on":
+        elif current == "unknown" and not self._screen_off_latched:
+            # An unsupported helper with UNKNOWN must not block games.
             self._needs_post_on = False
             self._post_on_sequence = self._post_on_timestamp = None
         return current
 
     def _post_on_ready(self, packet, display_state):
-        if self.display is None:
-            return True
-        if display_state != "on":
+        if not self._screen_off_latched and not self._needs_post_on:
+            # No previous verified OFF: unsupported UNKNOWN still counts
+            # strictly validated foreground and never awards an idle bonus.
+            return display_state != "off"
+        if display_state != "on" or not self._needs_post_on:
             return False
-        if not self._needs_post_on:
-            return True
         fg = packet["foreground"]
         age = fg["sample_age_ms"]
         return (age is not None and fg["state"] in ("foreground", "idle")
@@ -174,6 +181,7 @@ class ForegroundSource:
                 packet["foreground"]["state"] == "foreground"):
             self.last_raw = json.loads(foreground_v2(packet))
         if accepted and ready and self._needs_post_on:
+            self._screen_off_latched = False
             self._needs_post_on = False
             self._post_on_sequence = self._post_on_timestamp = None
 

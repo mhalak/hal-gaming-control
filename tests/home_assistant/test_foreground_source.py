@@ -80,11 +80,11 @@ async def test_v3_only_transport_and_confirmed_foreground(hass):
     discover(cb, "pc1")
     deliver(cb, "pc1", "availability", "online", ts=99)
     deliver(cb, "pc1", "state/telemetry", packet("pc1", 100, 1), ts=100)
-    assert watcher.current(10100) == "Roblox"  # No Screen Idle display gate.
+    assert watcher.current(10100) is None  # Fresh ON needs a later foreground sample.
     deliver(cb, "pc1", "state/telemetry", packet("pc1", 102, 2), ts=102)
     assert watcher.current(10102) == "Roblox"
     deliver(cb, "pc1", "state/telemetry", packet("pc1", 104, 3), ts=104)
-    assert total(watcher) == 4
+    assert total(watcher) == 2
     assert changed.call_count >= 4
     watcher.close()
     assert len(unsub) == 4

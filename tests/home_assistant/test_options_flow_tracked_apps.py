@@ -75,7 +75,6 @@ async def test_menu_exposes_only_live_settings_without_mutating_saved_options(
     assert view["menu_options"] == {"mqtt_settings": "MQTT configuration",
                                        "tracked_apps": "Tracked applications",
                                        "windows_updates": "Windows updates (advanced)",
-                                       "screen_idle": "Screen idle (experimental)",
                                        }
     assert entry.options == saved
 
@@ -738,12 +737,11 @@ async def test_translations_explain_single_page_editor_and_mqtt(
         hass, enable_custom_integrations):
     for relative in ("strings.json", "translations/en.json"):
         steps = json.loads((PACKAGE / relative).read_text())["options"]["step"]
-        assert set(steps) == {"settings_menu", "mqtt_settings", "tracked_apps", "windows_updates", "screen_idle"}
+        assert set(steps) == {"settings_menu", "mqtt_settings", "tracked_apps", "windows_updates"}
         assert steps["settings_menu"]["menu_options"] == {
             "mqtt_settings": "MQTT configuration",
             "tracked_apps": "Tracked applications",
             "windows_updates": "Windows updates (advanced)",
-            "screen_idle": "Screen idle (experimental)",
                                        }
         assert "{actions}" not in steps["settings_menu"]["description"]
         assert steps["settings_menu"]["title"] == "HAL Gaming Control"

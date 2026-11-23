@@ -31,8 +31,8 @@ def test_parent_bonus_is_additive_and_recorded_gaming_time_is_unchanged():
     assert result["base_daily_minutes"] == 180
     assert result["parent_bonus_minutes"] == 30
     assert result["weekend_bonus_minutes"] == 0
-    assert result["screen_idle_bonus_minutes"] is None
-    assert result["screen_idle_bonus_status"] == "pending"
+    assert result["screen_idle_bonus_minutes"] == 0
+    assert result["screen_idle_bonus_status"] == "automatic"
     assert result["daily_limit_minutes"] == 210
     assert result["daily_used_minutes"] == 210
     assert result["daily_remaining_minutes"] == 0
@@ -116,7 +116,7 @@ def test_budget_receipt_attaches_to_existing_daily_sensor_identity():
     assert attrs["used_minutes"] == attrs["daily_used_minutes"] == 210
     assert attrs["parent_bonus_minutes"] == 30
     assert attrs["weekly_remaining_minutes"] == 50
-    assert attrs["screen_idle_bonus_minutes"] is None
+    assert attrs["screen_idle_bonus_minutes"] == 0
     assert attrs["coverage_incomplete"] is True
     assert "daily_limit_minutes" not in BudgetSensor(
         coordinator, "weekly", "Weekly budget remaining").extra_state_attributes

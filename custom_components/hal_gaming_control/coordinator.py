@@ -40,8 +40,7 @@ class GamingCoordinator(DataUpdateCoordinator):
     def policy_snapshot(options):
         # All gaming settings are read live. Only catalog changes need a reload.
         return {"update_catalog_url": options.get("update_catalog_url", ""),
-                "tracked_apps": json.dumps(options.get("tracked_apps", []), sort_keys=True),
-                "screen_idle_enabled": options.get("screen_idle_enabled") is True}
+                "tracked_apps": json.dumps(options.get("tracked_apps", []), sort_keys=True)}
 
 
     async def async_start_foreground(self):
@@ -53,14 +52,11 @@ class GamingCoordinator(DataUpdateCoordinator):
         self.foreground_store = store
         self._saved_segments = segments
         self.storage_healthy = True
-        screen = self.entry.options.get("screen_idle_enabled") is True
-        kwargs = {"intervals": segments}
-        if screen:
-            kwargs.update(screen_enabled=True, on_screen_off=self._screen_off)
         self.foreground = ForegroundSource(
             self.hass, self.device_id,
             self.entry.options.get("tracked_apps", []),
-            self._live_foreground_changed, **kwargs)
+            self._live_foreground_changed, intervals=segments,
+            on_screen_off=self._screen_off)
         try:
             await self.foreground.async_start()
         except BaseException:
@@ -71,8 +67,7 @@ class GamingCoordinator(DataUpdateCoordinator):
     @callback
     def _screen_off(self, event, confirmed_segments):
         """Offer an idempotent daily grant only from verified measured game time."""
-        if (not self.storage_healthy or self.foreground is None
-                or self.entry.options.get("screen_idle_enabled") is not True):
+        if not self.storage_healthy or self.foreground is None:
             return
         try:
             updated = maybe_add_screen_idle_grant(
@@ -148,7 +143,8 @@ class GamingCoordinator(DataUpdateCoordinator):
 
     @property
     def options(self):
-        return DEFAULTS | {k: v for k, v in self.entry.options.items() if k not in {"weekend_total", "weekend_daily"}}
+        return DEFAULTS | {k: v for k, v in self.entry.options.items() if k not in {"weekend_total", "weekend_daily",
+                    "screen_idle_enabled", "screen_idle_acknowledged"}}
 
     def entity_id(self, domain, key):
         registry = er.async_get(self.hass)

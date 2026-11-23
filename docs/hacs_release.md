@@ -1,6 +1,6 @@
 # HACS / Marketplace publication and version policy
 
-**Current source:** HAL Gaming Control Preview 24 — HA integration **0.13.0**, Windows agent **0.4.0**. The HA integration consumes Unified MQTT telemetry v3 exclusively; no per-PC protocol option or v2 monitoring fallback exists. New enrollment requires a v3-capable Windows discovery and the actual Windows computer name as MQTT identity. The HA domain is `hal_gaming_control`. This remains unaccepted **development preview software**, not a signed Windows distribution and not approval for deployment to the household. See [#56 HOLD](https://github.com/mhalak/hal-gaming-control/issues/56).
+**Current source:** HAL Gaming Control Preview 25 — HA integration **0.13.1**, Windows agent **0.4.0**. The HA integration runs verified Screen idle automatically without an opt-out and consumes Unified MQTT telemetry v3 exclusively; no per-PC protocol option or v2 monitoring fallback exists. New enrollment requires a v3-capable Windows discovery and the actual Windows computer name as MQTT identity. The HA domain is `hal_gaming_control`. This remains unaccepted **development preview software**, not a signed Windows distribution and not approval for deployment to the household. See [#56 HOLD](https://github.com/mhalak/hal-gaming-control/issues/56).
 
 ## #189 — why Marketplace showed a commit after release
 

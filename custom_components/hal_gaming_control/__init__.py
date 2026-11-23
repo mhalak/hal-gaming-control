@@ -23,12 +23,14 @@ async def async_setup_entry(hass, entry):
     from .coordinator import GamingCoordinator
     if not await mqtt.async_wait_for_mqtt_client(hass):
         raise ConfigEntryNotReady("MQTT unavailable")
-    # Clean-cut migration: delete retired per-PC protocol selection only.
-    # Preserve every budget, tracked application, bonus and Recorder identity.
-    if "unified_telemetry_enabled" in entry.options:
+    # One clean cut of retired policy switches; preserve every unrelated
+    # setting, daily/weekly budget, tracked app and bonus journal.
+    obsolete = {"unified_telemetry_enabled", "screen_idle_enabled",
+                "screen_idle_acknowledged"}
+    if obsolete.intersection(entry.options):
         hass.config_entries.async_update_entry(
             entry, options={key: value for key, value in entry.options.items()
-                            if key != "unified_telemetry_enabled"})
+                            if key not in obsolete})
     coordinator = GamingCoordinator(hass, entry)
     try:
         await coordinator.async_start_foreground()
