@@ -58,6 +58,9 @@ class HaReleaseTests(unittest.TestCase):
         notes = module.build_notes("0.12.1", "A fix.", SHA)
         for fragment in ("source-only development preview", "0.12.1", "issue #56", "Redownload"):
             self.assertIn(fragment, notes)
+        self.assertIn("Unified MQTT v3", notes)
+        self.assertNotIn("option must be enabled", notes)
+        self.assertIn("re-enrollment.\n\n**Deployment HOLD:**", notes)
         with self.assertRaises(ValueError):
             module.build_notes("0.12.1", "A fix.", "not-a-sha")
 
