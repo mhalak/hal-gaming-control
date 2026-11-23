@@ -3,8 +3,6 @@
 A select entity contains only the current target. It never revokes by itself.
 The two admin-only actions use a short-lived, actor-bound prepare/confirm step.
 """
-from collections import Counter
-from datetime import datetime
 from time import monotonic
 
 from homeassistant.components.select import SelectEntity
@@ -12,9 +10,8 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 
 from .entity import GamingEntity
-from .parent_bonus import (
-    parent_grants_today, parent_bonus_legacy_today, revoke_parent_grant,
-)
+from .budget_select import budget_select_rows
+from .parent_bonus import parent_bonus_legacy_today, revoke_parent_grant
 
 UNSELECTED = "Choose a Parent bonus to undo"
 UNDO_TTL_SECONDS = 90
@@ -30,8 +27,9 @@ class ParentBonusGrantSelect(GamingEntity, SelectEntity):
     _attr_icon = "mdi:backup-restore"
 
     def __init__(self, coordinator):
+        # Preserve unique_id/entity_id so existing Undo service targets survive.
         super().__init__(coordinator, "parent_bonus_undo_target",
-                         "Parent bonus to undo")
+                         "Budget overview (Undo)")
         self._selected = UNSELECTED
         self._pending = {}
         self._undo_status = "Choose a grant, then prepare Undo"
@@ -42,33 +40,20 @@ class ParentBonusGrantSelect(GamingEntity, SelectEntity):
         # Parent config is entirely local to HA; the gaming PC may be offline.
         return True
 
+    def _rows(self, now):
+        return budget_select_rows(
+            self.coordinator.entry.options, self.coordinator.device_id,
+            self.coordinator.data, now)
+
     def _choices(self, now):
-        # HA Select needs unique labels, but the opaque journal IDs are not
-        # useful to parents. Show them only to disambiguate two grants with
-        # the same local minute, amount and source.
-        grants = []
-        for grant in parent_grants_today(self.coordinator.entry.options, now):
-            timestamp = datetime.fromisoformat(grant["created_at_utc"])
-            local_clock = dt_util.as_local(timestamp).strftime("%H:%M")
-            label = f'{local_clock} · +{grant["minutes"]} min · Parent Bonus'
-            grants.append((label, grant["id"]))
-        counts = Counter(label for label, _ in grants)
-        short_counts = Counter(
-            (label, grant_id[-10:]) for label, grant_id in grants
-            if counts[label] > 1)
-        choices = {}
-        for label, grant_id in grants:
-            if counts[label] > 1:
-                suffix = (grant_id[-10:]
-                          if short_counts[(label, grant_id[-10:])] == 1
-                          else grant_id)
-                label = f"{label} ({suffix})"
-            choices[label] = grant_id
-        return choices
+        # The full receipt is visible, but only safe untouched Parent bonus
+        # rows can ever become the Undo target.
+        return {label: grant_id for label, grant_id in self._rows(now)
+                if grant_id is not None}
 
     @property
     def options(self):
-        return [UNSELECTED, *self._choices(dt_util.now())]
+        return [UNSELECTED, *(label for label, _ in self._rows(dt_util.now()))]
 
     @property
     def current_option(self):
@@ -85,7 +70,12 @@ class ParentBonusGrantSelect(GamingEntity, SelectEntity):
 
     async def async_select_option(self, option):
         if option not in self.options:
-            raise HomeAssistantError("Parent bonus grant is no longer active")
+            raise HomeAssistantError("Budget item is no longer active")
+        if option != UNSELECTED and option not in self._choices(dt_util.now()):
+            # The built-in HA Select has no per-option disabled metadata.
+            # This backend check also blocks direct select.select_option calls.
+            raise HomeAssistantError(
+                "This budget item is locked or the Parent bonus was already used")
         if option != self._selected:
             # Cross-user selection is shared by HA; invalidate all outstanding
             # confirmations rather than risk a different grant being cancelled.

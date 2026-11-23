@@ -27,7 +27,9 @@ So if the kids somehow have *another hour*, we can finally ask: **Did the little
 
 It's a transparent breakdown, **not an automatic cheat detector**. Unusual numbers should be easy to question, while the independent weekly budget still applies.
 
-**Source preview (issue #93).** The HA Budget Overview attributes and dashboard example are available only on builds that contain the merged change. Check your installed integration before using the example. Screen idle support remains a separate future feature.
+**Native per-PC sensor (HA 0.13.6+ source).** Each Windows device has one **Budget overview** read-only sensor inside **Settings → Devices & services → HAL Gaming Control → your PC → Sensors**. The ordinary device row displays a concise summary such as `Today: 5m 55s left · Week: 1h 35m 55s left`. Tap the entity to inspect the multiline `overview_text` attribute for daily base, Weekend bonus, Parent bonus, automatic Screen Idle bonus, total allowance, used/remaining time and weekly totals. The text state is deliberately short because HA limits sensor states to 255 characters and its automatic device card cannot format a multiline receipt. **No manual YAML dashboard card is needed for this built-in overview row.** The richer dashboard example below remains optional.
+
+**Important:** If the PC is offline or accounting is not verified, the row displays `Budget data unavailable` rather than treating missing time as zero. The text breakdown remains readable with unknown usage. Gaming rules disabled and Unlimited gaming are identified explicitly. This sensor displays information only and never changes a quota or sends a Windows command. As always, a source version is not proof that it is installed on your Home Assistant.
 
 ## The gaming-time receipt
 
@@ -53,9 +55,13 @@ Previous bonuses were just an anonymous `bonus_minutes` total. These remain as a
 
 ### Safely undo one specific bonus
 
-The updated native HA dashboard offers a device-scoped **Parent bonus to undo** dropdown, **Prepare Undo**, and **Confirm Undo** buttons. In HA 0.13.5+, choices read like `11:40 · +30 min · Parent Bonus`; IDs appear only when two grants share an otherwise identical label. The full grant ID still identifies the exact bonus internally. Unlike Markdown-only fake buttons, these call real HA admin actions. The flow is:
+The existing native HA dropdown (same persistent entity ID as **Parent bonus to undo**, now named **Budget overview (Undo)**) lists **all daily allowance sources chronologically**: base budget, Weekend/legacy bonus when applicable, individual Parent bonuses, individual Screen off bonuses, and the total. Entries such as `🔒 +180min Daily budget`, `🔒 +10min Screen off bonus (12:50)` and `🔒 250min TOTAL` are read-only. Only a completely untouched Parent bonus can be selected and then cancelled through **Prepare Undo → Confirm Undo**. Opaque IDs appear only when entries otherwise look identical. The backend retains the exact ID and admin-only confirmation guard.
 
-1. Choose a visible timestamped +30 minute grant from the dropdown. The shortened ID suffix distinguishes same-minute clicks; no IDs need to be typed.
+**Important native HA limitation:** The standard dropdown cannot gray out individual options. Locked entries are marked `🔒` and any attempt to select them is rejected by the integration; they cannot become Undo targets, even via the `select.select_option` service. A Parent bonus becomes locked as soon as verified playtime passes the base, Weekend/legacy and earlier chronological bonuses into that grant by even one second. The integration also requires the full grant to remain removable without daily usage exceeding the reduced allowance, including a fresh recheck at confirmation. Bonus consumption is allocated **base first, then oldest bonus first** for this display; this is a deterministic accounting convention, not a claim that gaming seconds have intrinsic source IDs. Unknown live usage also locks Undo.
+
+The flow is:
+
+1. Inspect the ordered receipt and choose an **unlocked Parent bonus**. Same-minute grants include a short ID suffix to distinguish clicks; no IDs need to be typed.
 2. Press **Prepare Undo**. The dropdown's `undo_status` and `prepared_grant` attributes show which grant was armed.
 3. Recheck the displayed grant and press **Confirm Undo**. HA asks whether you want to remove the selected grant, warning that remaining gaming time might decrease immediately.
 4. The backend checks the same HA administrator, exact grant, local day, and 90-second deadline. If another person changes the global dropdown, the preparation is invalidated. If anything fails, **nothing is revoked**. Start again.
@@ -64,7 +70,7 @@ The actions are admin-only, require an authenticated HA user and a specific sele
 
 **Important:** Selecting a grant is shared HA state, but each prepared confirmation belongs to the acting administrator. Never confirm a grant without rechecking the select's `prepared_grant`. The state is transient, so a Home Assistant reload also cancels pending confirmations.
 
-**Release status:** PR #169 has been merged and the implementation is in HA **0.9.0 source**. It has **not** been deployed or verified on the family's actual HA/Android installation. HA 0.8.0 does not include Undo. The native dashboard YAML is a manual opt-in card; it is not automatically injected into the Device info screen.
+**Release status:** HA 0.13.6 source adds both built-in Budget overview views: a read-only text sensor under **Sensors**, and the native select receipt under **Controls** (preserving its existing entity ID). The richer Markdown dashboard YAML is still optional. Source merges and a declared version do not prove installation on the family's HA instance.
 
 ## Add a Home Assistant dashboard card
 
