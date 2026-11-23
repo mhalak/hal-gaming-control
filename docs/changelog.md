@@ -8,11 +8,15 @@ This is the **human-readable development changelog**. For full technical release
 
 > **Preview software, not a deployment log.** Version numbers below describe changes recorded in source; they do **not** prove that a tagged GitHub Release, a signed Windows installer or an update on any real PC/HA instance exists. Always check the deployed build and the [current compatibility/deployment instructions](known_limitations.md).
 
-**Current source (Preview 35, 23 November 2026):** **Home Assistant 0.13.11** and **Windows agent 0.4.0**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
+**Current source (Preview 36, 23 November 2026):** **Home Assistant 0.13.12** and **Windows agent 0.4.0**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
 
 **🚨 BREAKING CHANGE** means an upgrade can require manual action or break compatibility with prior configs, entity IDs or MQTT payloads. Follow the linked migration instructions before updating; do not assume a normal in-place upgrade is safe.
 
 ## Home Assistant integration
+
+### 0.13.12 — No decorative Budget separators, minus-first alignment
+- Removes both native dropdown divider options, leaving a clean list of allowances, bonuses, TOTAL, Gaming Session and Remaining Budget.
+- Gaming Session now starts with a minus as its first character, followed by one figure space before the number. TOTAL stays the default selection, including after Parent Undo. Windows remains 0.4.0; gaming accounting is unchanged.
 
 ### 0.13.11 — Marketplace cleanup and native Budget overview polish
 - Removes the redundant Local-first introductory paragraph so the illustrated **100% local** feature appears first and explains the architecture once. Its dedicated guide stays linked.
