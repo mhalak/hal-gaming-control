@@ -1,3 +1,10 @@
+## 0.13.1 — Screen idle bonus always on; no policy toggle (#204)
+
+- Clean cut: remove the Screen idle configuration page, enable/disable switch and acknowledgement. Valid Screen idle support is automatic on every enrolled Windows PC. At HA entry setup, obsolete screen_idle_enabled / screen_idle_acknowledged fields are discarded while retaining budgets, tracked apps, bonus journals and Recorder history. A legacy false value cannot disable Screen idle.
+- A verified Windows console OFF stops new gaming-time charging; after ON, a fresh foreground sample is required to resume. Verified pre-OFF inactivity can grant an idempotent daily Screen idle bonus. Measured daily/weekly usage remains unchanged, and the weekly cap does not expand. The feature never terminates games or changes Windows power settings.
+- Missing/unsupported display data (state unknown, no prior verified OFF) must **not** suppress otherwise verified v3 gaming-time accounting or generate fabricated bonus minutes. Once OFF was genuinely confirmed, later unknown observations may not resume charging until a verified return.
+- HA-only 0.13.1 / Preview 25. Windows stays 0.4.0. Physical monitoring acceptance and live deployment remain separate (#56).
+
 ## 0.13.0 — BREAKING: Home Assistant consumes Unified MQTT v3 only (#201, #176)
 
 - **Clean cut:** the HA integration now unconditionally subscribes to `SmartHouse/Gaming/<Windows-computer-name>/state/telemetry` (plus discovery and availability). Removed v2 `state/foreground_identity` and `state/display_context` subscriptions, scalar Uptime fallback, and the Tracked applications editor's v2 preview fallback.
