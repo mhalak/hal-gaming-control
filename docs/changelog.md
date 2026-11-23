@@ -8,11 +8,15 @@ This is the **human-readable development changelog**. For full technical release
 
 > **Preview software, not a deployment log.** Version numbers below describe changes recorded in source; they do **not** prove that a tagged GitHub Release, a signed Windows installer or an update on any real PC/HA instance exists. Always check the deployed build and the [current compatibility/deployment instructions](known_limitations.md).
 
-**Current source (Preview 33, 23 November 2026):** **Home Assistant 0.13.9** and **Windows agent 0.4.0**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
+**Current source (Preview 34, 23 November 2026):** **Home Assistant 0.13.10** and **Windows agent 0.4.0**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
 
 **🚨 BREAKING CHANGE** means an upgrade can require manual action or break compatibility with prior configs, entity IDs or MQTT payloads. Follow the linked migration instructions before updating; do not assume a normal in-place upgrade is safe.
 
 ## Home Assistant integration
+
+### 0.13.10 — Native Budget overview: used and remaining minutes
+- Adds two read-only separator lines, cumulative today's Gaming Session minutes and the always-current ∑ Remaining Budget below ∑ TOTAL. Maintains aligned numbers and ⛔ bonus Undo with no exposed internal grant IDs.
+- Conservative whole-minute display rounds consumed up and remaining down; unavailable usage stays Unknown. Daily/weekly accounting remains exact in seconds, and Windows stays at 0.4.0.
 
 ### 0.13.9 — Dynamic monitor status on Active game
 - When the Windows monitor goes OFF, the existing Active game sensor retains the **currently verified foreground game name**, such as Roblox, and switches its icon from monitor to monitor-off. OFF continues to suspend gaming-time charging independently.
