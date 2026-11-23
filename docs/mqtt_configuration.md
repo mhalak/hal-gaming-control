@@ -18,7 +18,7 @@ Since HA 0.5.6, **Configure** exposes only **MQTT configuration** and **Tracked 
 
 ## Windows computer name and Home Assistant friendly name
 
-The Windows agent reads the **actual OS computer name** at service startup and uses it as the default discovery label. There is no separate Windows-side display-name setting. The `device_id` is a different concept: it is a persistent random ID stored under protected ProgramData (or preserved from an existing legacy `device.id`) and remains unchanged if Windows is renamed.
+Windows agent 0.4.0+ reads the **actual OS computer name** at service startup and uses it as its sole MQTT device ID and discovery name. HA 0.13.0+ consumes Unified v3 telemetry without a protocol switch. There is no separate Windows-side display-name setting. The `device_id` is a different concept: it is a persistent random ID stored under protected ProgramData (or preserved from an existing legacy `device.id`) and remains unchanged if Windows is renamed.
 
 Rename the device in **Home Assistant → Settings → Devices & services → Devices** to show any preferred friendly name. HA's user-specified device name (`name_by_user`) takes precedence over the discovered name; do not alter the Windows computer name or the stable MQTT device ID to customize the HA UI. Existing integration config-entry titles may retain their previous label until changed manually. For complete installation and upgrade guidance, see [Windows deployment](windows_deployment.md).
 
