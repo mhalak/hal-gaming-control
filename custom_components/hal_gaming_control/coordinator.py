@@ -1,25 +1,19 @@
-"""HA-side enforcement and Recorder-based historical accounting."""
+"""HA-owned confirmed gaming accounting from unified MQTT v3 only."""
 import json
 import logging
 from time import monotonic
-from homeassistant.components.recorder import get_instance, history
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.event import async_track_state_change_event
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.core import callback
 from homeassistant.util import dt as dt_util
 from datetime import timedelta
 from .const import DEFAULTS, DOMAIN, SCAN_SECONDS
-from .protocol import games_from_state
-from .liveness import UptimeLiveness, MAX_HEARTBEAT_AGE
-from .coverage import heartbeat_intervals, covered_transitions
 from .direct_mqtt import direct_mode
 from .foreground_source import ForegroundSource
 from .foreground_store import ForegroundStore, ForegroundStoreError
 from .foreground_cutover import async_activate_cutover
 from .screen_idle_bonus import maybe_add_screen_idle_grant
-from .rule_engine import calculate, violations, windows
+from .rule_engine import violations
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,16 +29,6 @@ class GamingCoordinator(DataUpdateCoordinator):
         self.games = entry.data["games"]
         # Manual buttons use the advertised action capabilities; no auto-enforcement.
         self.advertised = entry.data["actions"]
-        self.source = None
-        self.uptime_source = None
-        self.heartbeats = []
-        self.pending_heartbeats = []
-        self.unsubscribe = None
-        self.transitions = []
-        self.pending = []
-        self.loaded = False
-        self.coverage_start = None
-        self.liveness = UptimeLiveness()
         self.foreground = None
         self.foreground_store = None
         self.cutover_since = None
@@ -172,113 +156,15 @@ class GamingCoordinator(DataUpdateCoordinator):
             return registry.async_get_entity_id(domain, DOMAIN, f"{self.device_id}_{key}")
         return registry.async_get_entity_id(domain, "mqtt", f"smarthouse_gaming_{self.device_id}_{key}")
 
-    @callback
-    def _changed(self, event):
-        state = event.data.get("new_state")
-        value = state.state if state else STATE_UNAVAILABLE
-        ts = state.last_changed.timestamp() if state else event.time_fired.timestamp()
-        destination = self.pending_heartbeats if event.data.get('entity_id') == self.uptime_source else self.pending
-        destination.append((ts, value))
-        self.hass.async_create_task(self.async_request_refresh())
-
-    def _read_history(self, source, start, end, anchor=True):
-        items = history.state_changes_during_period(self.hass, start, end, source,
-            include_start_time_state=anchor, no_attributes=True).get(source, [])
-        return [(item.last_changed.timestamp(), item.state) for item in items]
-
-    async def _prepare_source(self, source, uptime_source, now):
-        if (self.source, self.uptime_source) != (source, uptime_source):
-            if self.unsubscribe:
-                self.unsubscribe()
-            self.source = source
-            self.uptime_source = uptime_source
-            self.heartbeats = []
-            self.pending_heartbeats = []
-            self.liveness.reset()
-            self.pending = []
-            self.transitions = []
-            self.loaded = False
-            self.coverage_start = None
-            self.unsubscribe = async_track_state_change_event(self.hass, [source, uptime_source], self._changed)
-        start = windows(now)["weekly"]
-        if self.loaded and self.coverage_start == start:
-            return
-        # Await the recorder executor rather than querying the database in the event loop.
-        snapshot = self.hass.states.get(source)
-        uptime_snapshot = self.hass.states.get(uptime_source)
-        # Read only actual uptime events, including a heartbeat just before Monday.
-        heartbeat_start = start - timedelta(seconds=MAX_HEARTBEAT_AGE)
-        recorder = get_instance(self.hass)
-        initial = await recorder.async_add_executor_job(self._read_history, source, heartbeat_start, now)
-        beats = await recorder.async_add_executor_job(self._read_history, uptime_source, heartbeat_start, now, False)
-        if uptime_snapshot and uptime_snapshot.last_changed >= heartbeat_start:
-            beats.append((uptime_snapshot.last_changed.timestamp(), uptime_snapshot.state))
-        self.heartbeats = sorted(dict(beats + [item for item in self.heartbeats if item[0] >= heartbeat_start.timestamp()]).items())
-        if snapshot:
-            initial.append((snapshot.last_changed.timestamp(), snapshot.state))
-        # Do not extrapolate the previous HA run across a known unavailable snapshot.
-        if snapshot is None or snapshot.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
-            initial.append((now.timestamp(), STATE_UNAVAILABLE))
-        # Preserve live transitions across a week boundary: Recorder may not have
-        # committed the latest events yet. A live event wins on equal timestamp.
-        anchor = heartbeat_start.timestamp()
-        combined = initial + self.transitions
-        older = [item for item in combined if item[0] <= anchor]
-        recent = [item for item in combined if item[0] > anchor]
-        if older:
-            recent.insert(0, max(older, key=lambda item: item[0]))
-        self.transitions = sorted(dict(recent).items())
-        self.coverage_start = start
-        self.loaded = True
-
-    def _apply_pending_events(self):
-        if self.pending:
-            # Stable chronological order; preserve the anchor state before the week.
-            self.transitions.extend(self.pending)
-            self.pending.clear()
-            self.transitions.sort(key=lambda x: x[0])
-        if self.pending_heartbeats:
-            self.heartbeats = sorted(dict(self.heartbeats + self.pending_heartbeats).items())
-            self.pending_heartbeats.clear()
-
     async def _async_update_data(self):
-        now = dt_util.now()
-        if self.foreground is not None:
-            return self._foreground_data(now)
-        source = self.entity_id("sensor", "current_game")
-        uptime_id = self.entity_id("sensor", "uptime")
-        if not source or not uptime_id:
-            self.liveness.reset()
+        """Never replay old scalar MQTT/Recorder game or uptime observations."""
+        if self.foreground is None:
+            # Setup has not established a valid unified v3 reader. No backup
+            # monitoring source exists after this breaking clean cut.
             return {"ready": False, "online": False}
-        try:
-            await self._prepare_source(source, uptime_id, now)
-        except Exception as err:
-            raise UpdateFailed("Cannot load Recorder history") from err
-        self._apply_pending_events()
-        now = dt_util.now()
-        current = self.hass.states.get(source)
-        in_game_id = self.entity_id("binary_sensor", "in_game")
-        in_game = self.hass.states.get(in_game_id) if in_game_id else None
-        online = bool(current and current.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE)
-                      and in_game and in_game.state in ("on", "off"))
-        active = games_from_state(current.state) if online else frozenset()
-        uptime = self.hass.states.get(uptime_id)
-        # A retained first observation is not evidence of a live PC. Require
-        # a changed uptime value after startup or an unavailable observation.
-        fresh = self.liveness.observe(uptime.state if uptime and online else None, monotonic())
-        if online and (bool(active) != (in_game.state == "on")):
-            # During two separate MQTT state publications, do not enforce inconsistent data.
-            online = False
-        intervals = heartbeat_intervals(self.heartbeats)
-        totals = calculate(covered_transitions(self.transitions, intervals), now, set(self.games) | active)
-        reason = violations(self.options, totals, now, active)
-        return {"ready": True, "online": online and fresh, "totals": totals, "reasons": reason,
-                "active": sorted(active)}
+        return self._foreground_data(dt_util.now())
 
     @callback
     def close(self):
         if self.foreground is not None:
             self.foreground.close()
-        if self.unsubscribe:
-            self.unsubscribe()
-            self.unsubscribe = None
