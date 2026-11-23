@@ -19,8 +19,10 @@ FIGURE_SPACE = "\u2007"
 ACTION_GAP = FIGURE_SPACE * 6
 # Native select options must have distinct labels; no-op dividers use
 # slightly different lengths rather than duplicated option names.
-DIVIDER_TOP = "─" * 24
-DIVIDER_BOTTOM = "─" * 25
+DIVIDER_TOP = "─" * 10
+DIVIDER_BOTTOM = "─" * 11
+# The default selected subtotal precedes usage, second divider and remaining.
+TOTAL_ROW_INDEX = -4
 
 
 def _amount_label(minutes, title, width, sign="+"):
@@ -121,8 +123,11 @@ def _usage_rows(receipt, width):
     status = receipt["daily_budget_status"]
     verified = type(used) in (int, float) and isfinite(used) and used >= 0
     played_minutes = ceil(used / 60) if verified else None
-    usage = (_amount_label(played_minutes, "Gaming Session", width, sign="-")
-             if verified else "- Unknown - Gaming Session")
+    # Give the debit line a small inset; the narrow ASCII hyphen previously
+    # made its number look left-shifted relative to the + and ∑ rows.
+    usage = (_amount_label(played_minutes, "Gaming Session", width,
+                           sign=FIGURE_SPACE + "−")
+             if verified else f"{FIGURE_SPACE}− Unknown - Gaming Session")
     if status == "disabled":
         remaining = "∑ Rules Disabled - Remaining Budget"
     elif status == "unlimited":
