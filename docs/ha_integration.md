@@ -39,7 +39,7 @@ To save an app, confirm the small **Add** dialog, then press **Save changes** in
 
 Open the PC device page to find **Daily budget**, **Weekly budget**, **Weekend bonus** and **Add 30 minutes**, in HA 0.5.11 preview. Daily budget has 10-minute increments up to 600 min, Weekly budget has 60-minute increments up to 4200 min, and Weekend bonus adds up to 600 min to the daily allowance separately on Saturday and Sunday. The bonus does **not** increase the independent weekly budget.
 
-**Daily budget remaining** and **Weekly budget remaining** show remaining percentages. **Daily gaming time** and **Weekly gaming time** show explicit `h m s` text. Separate diagnostic **Daily gaming time (minutes)** and **Weekly gaming time (minutes)** sensors remain numeric durations for graphs and automations.
+**Daily budget remaining** and **Weekly budget remaining** show remaining percentages. **Budget overview** (HA 0.13.6+ source) is a single read-only text sensor under each PC's **Sensors**, with the short daily/weekly summary visible on the device page and a longer allowance/bonus breakdown in its `overview_text` attribute. **Daily gaming time** and **Weekly gaming time** show explicit `h m s` text. Separate diagnostic **Daily gaming time (minutes)** and **Weekly gaming time (minutes)** sensors remain numeric durations for graphs and automations.
 
 **Parent bonus history and guarded Undo are available in the HA 0.9.0 source candidate (#165).** New Add 30 presses get unique grants; the dashboard includes a native selection and two administrator-only actions for confirmed cancellation. Existing 0.8.0 installations do not have Undo. See the [Budget Overview walkthrough](features/budget-overview.md#parent-bonus-history-and-undo-ha-090-165).
 
