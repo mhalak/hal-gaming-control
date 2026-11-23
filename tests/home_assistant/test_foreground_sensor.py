@@ -1,6 +1,8 @@
 """Owner-facing HA Active game and measured day/week sensor contract."""
 from unittest.mock import Mock, patch
 
+import pytest
+
 from custom_components.hal_gaming_control.sensor import (
     ActiveGameSensor, GamingTimeSensor, GamingTimeDisplaySensor, BudgetSensor,
 )
@@ -65,8 +67,8 @@ def test_gaming_time_displays_verified_elapsed_with_incomplete_coverage():
     c = coordinator(ready=True)
     day = GamingTimeSensor(c, "daily", "Daily gaming time")
     week = GamingTimeSensor(c, "weekly", "Weekly gaming time")
-    assert day.native_value == round(120 / 60, 6)
-    assert week.native_value == round(240 / 60, 6)
+    assert day.native_value == 2
+    assert week.native_value == 4
     assert day.extra_state_attributes["coverage_incomplete"] is True
     assert day.extra_state_attributes["cutover_since"] == 100
     assert day.unique_id == "pc1_gaming_time_daily"
@@ -78,7 +80,7 @@ def test_previous_confirmed_history_remains_readable_when_offline():
     c = coordinator(ready=False, recorded=60, segments=True)
     sensor = GamingTimeSensor(c, "daily", "Daily gaming time")
     assert sensor.available is True
-    assert sensor.native_value == round(60 / 60, 6)
+    assert sensor.native_value == 1
     c.foreground.export_segments.return_value = []
     assert sensor.available is False
 
@@ -99,7 +101,7 @@ def test_long_duration_keeps_hours_minutes_and_seconds():
     assert pretty.device_class is None
     assert pretty.unique_id == "pc1_gaming_time_display_daily"
     assert numeric.native_unit_of_measurement == UnitOfTime.MINUTES
-    assert abs(numeric.native_value * 60 - (711 * 60 + 3)) < 0.001
+    assert numeric.native_value == 711
     assert numeric.unique_id == "pc1_gaming_time_daily"
 
 
@@ -117,3 +119,26 @@ def test_formatted_time_zero_short_and_unavailable():
     assert day.native_value is None
     c.data.pop("recorded_totals")
     assert not day.available
+
+
+@pytest.mark.parametrize("seconds, expected", [
+    (0, 0), (1, 0), (59, 0), (60, 1), (119, 1), (120, 2),
+    (3599, 59), (3599.99, 59), (3600, 60),
+    (59 * 60 + 37, 59), (59 * 60 + 59, 59),
+    (60 * 60 + 1, 60), (2 * 86400 + 125, 2882),
+    (-1, 0),
+])
+def test_diagnostic_gaming_minutes_are_completed_integer_minutes(seconds, expected):
+    c = coordinator(ready=True, recorded=seconds)
+    diagnostic = GamingTimeSensor(c, "daily", "Daily gaming time (minutes)")
+    assert diagnostic.native_value == expected
+    assert type(diagnostic.native_value) is int
+    assert diagnostic.unique_id == "pc1_gaming_time_daily"
+    assert diagnostic.native_unit_of_measurement == "min"
+
+
+@pytest.mark.parametrize("invalid", [None, True, "120", float("nan"), float("inf"), float("-inf")])
+def test_diagnostic_gaming_minutes_invalid_evidence_is_unknown(invalid):
+    c = coordinator(ready=True)
+    c.data["recorded_totals"]["daily"] = invalid
+    assert GamingTimeSensor(c, "daily", "Daily gaming time (minutes)").native_value is None
