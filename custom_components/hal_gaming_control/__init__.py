@@ -29,6 +29,13 @@ async def async_setup_entry(hass, entry):
         hass.config_entries.async_update_entry(
             entry, options={key: value for key, value in entry.options.items()
                             if key != "unified_telemetry_enabled"})
+    # Clean cut: purge obsolete opt-in/acknowledgement settings, keeping all
+    # budgets, bonus receipts and unrelated policies untouched.
+    obsolete = {"screen_idle_enabled", "screen_idle_acknowledged"}
+    if obsolete.intersection(entry.options):
+        hass.config_entries.async_update_entry(
+            entry, options={k: v for k, v in entry.options.items()
+                            if k not in obsolete})
     coordinator = GamingCoordinator(hass, entry)
     try:
         await coordinator.async_start_foreground()
