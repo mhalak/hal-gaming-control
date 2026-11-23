@@ -249,12 +249,16 @@ def test_persistent_journal_survives_restart_and_daily_expiration():
 
 
 @pytest.mark.asyncio
-async def test_end_to_end_source_suppresses_off_charging_and_recovers_on(hass):
-    callbacks = {}
-    unsubscribed = []
+async def test_end_to_end_unified_v3_suppresses_off_charging_and_recovers_on(hass):
+    """Screen Idle remains optional, but consumes only mandatory v3 telemetry."""
+    from pathlib import Path
+
+    callbacks, unsubscribed = {}, []
+
     async def subscribe(_hass, topic, callback, qos):
         callbacks[topic] = callback
         return lambda: unsubscribed.append(topic)
+
     changed, off_events = Mock(), Mock()
     with patch.object(mqtt, "is_connected", return_value=True), \
          patch.object(mqtt, "async_subscribe_connection_status",
@@ -264,35 +268,56 @@ async def test_end_to_end_source_suppresses_off_charging_and_recovers_on(hass):
             hass, DEV, [APP], changed, screen_enabled=True,
             on_screen_off=off_events)
         await source.async_start()
-    assert len(callbacks) == 3
+    root = f"SmartHouse/Gaming/{DEV}/"
+    assert set(callbacks) == {
+        root + "availability", root + "discovery", root + "state/telemetry"}
+    fixture = (Path(__file__).resolve().parents[1] / "contracts" / "v3"
+               / "telemetry-foreground.json")
+    template = json.loads(fixture.read_text(encoding="utf-8"))
 
-    def deliver(topic, payload, ts, retain=False):
-        msg = SimpleNamespace(
-            topic=f"SmartHouse/Gaming/{DEV}/{topic}",
-            payload=payload, retain=retain)
+    def deliver(suffix, payload, ts, retain=False):
+        msg = SimpleNamespace(topic=root + suffix, payload=payload,
+                              retain=retain)
         with patch.object(src, "time", return_value=ts), \
              patch.object(src, "monotonic", return_value=10000 + ts):
             callbacks[msg.topic](msg)
 
-    deliver("availability", "online", 100)
-    # Initial ON event does not grant; it arms the later OFF.
-    deliver("state/display_context", display(101, "on", 1), 101)
-    deliver("state/foreground_identity", raw(102, 1), 102)
-    deliver("state/foreground_identity", raw(104, 2), 104)
-    assert source.totals(now(110))["weekly"] == 2
-    deliver("state/display_context", display(105, "off", 2, age=0), 105)
-    assert source.current(10105) == "idle"
+    def snapshot(ts, seq, state="on", event=1, edge=100):
+        packet = json.loads(json.dumps(template))
+        packet.update(device_id=DEV, observed_at=ts, sequence=seq)
+        packet["foreground"].update(
+            process=APP["process"], signature=APP["signature"],
+            state="foreground", sample_age_ms=0)
+        packet["display"].update(
+            state=state, event_sequence=event,
+            event_epoch="b" * 32, event_age_ms=int((ts-edge) * 1000),
+            sample_age_ms=0)
+        return json.dumps(packet)
+
+    deliver("discovery", json.dumps({
+        "protocol_version": 1, "device_id": DEV, "name": "PC",
+        "games": [], "actions": [], "unified_telemetry_protocol": 3}), 99)
+    deliver("availability", "online", 99)
+    deliver("state/telemetry", snapshot(100, 1), 100)
+    deliver("state/telemetry", snapshot(102, 2, edge=100), 102)
+    deliver("state/telemetry", snapshot(104, 3, edge=100), 104)
+    before_off = source.totals(now(104))["weekly"]
+    assert before_off > 0
+
+    deliver("state/telemetry", snapshot(106, 4, state="off", event=2, edge=106), 106)
+    assert source.current(10106) == "idle"
     assert off_events.call_count == 1
-    assert source.last_raw is None  # disallow targeting a game behind OFF.
-    deliver("state/foreground_identity", raw(106, 3), 106)
-    deliver("state/foreground_identity", raw(108, 4), 108)
-    assert source.totals(now(110))["weekly"] == 2
-    deliver("state/display_context", display(109, "on", 3), 109)
-    deliver("state/foreground_identity", raw(110, 5), 110)
-    deliver("state/foreground_identity", raw(112, 6), 112)
-    assert source.totals(now(120))["weekly"] == 4
+    assert source.last_raw is None
+    deliver("state/telemetry", snapshot(108, 5, state="off", event=2, edge=106), 108)
+    assert source.totals(now(108))["weekly"] == before_off
+
+    deliver("state/telemetry", snapshot(110, 6, state="on", event=3, edge=110), 110)
+    assert source.current(10110) is None
+    deliver("state/telemetry", snapshot(112, 7, state="on", event=3, edge=110), 112)
     assert source.current(10112) == "Roblox"
+    deliver("state/telemetry", snapshot(114, 8, state="on", event=3, edge=110), 114)
+    assert source.totals(now(114))["weekly"] > before_off
     source._connection(False)
-    assert source.current(10112) is None
+    assert source.current(10114) is None
     source.close()
     assert len(unsubscribed) == 4
