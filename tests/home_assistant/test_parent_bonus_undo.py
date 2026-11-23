@@ -54,11 +54,73 @@ async def test_native_select_lists_each_grant_without_manual_ids():
         assert len(options) == 4
         assert len(set(options)) == 4
         assert "30 min" in options[1]
+        assert all("Parent Bonus" in option for option in options[1:])
+        assert all(
+            grant["id"][-10:] not in option
+            for option in options[1:]
+            for grant in parent_bonus_activity_today(entry.options, at())
+        )
         assert entity.current_option == UNSELECTED
         await entity.async_select_option(options[2])
         assert entity.current_option == options[2]
         assert not committed
         assert parent_bonus_total(entry.options, at()) == 90
+
+
+
+@pytest.mark.asyncio
+async def test_same_minute_bonus_choices_show_id_only_for_ambiguity():
+    entity, entry, committed = setup_select()
+    for _ in range(2):
+        entry.options = add_parent_grant(entry.options, "pc1",
+                                         at(hour=11, minute=40), 30)
+    with patch("custom_components.hal_gaming_control.select.dt_util.now",
+               return_value=at()), patch(
+                   "custom_components.hal_gaming_control.select.dt_util.as_local",
+                   side_effect=lambda instant: instant.astimezone(TZ)), patch.object(
+                       entity, "async_write_ha_state"):
+        choices = entity._choices(at())
+        short_labels = [label for label in choices if label.startswith(
+            "11:40 · +30 min · Parent Bonus")]
+        assert len(short_labels) == 2
+        assert len(set(short_labels)) == 2
+        assert all(label.endswith(f"({choices[label][-10:]})")
+                   for label in short_labels)
+        assert all(" (" not in label for label in choices
+                   if label not in short_labels)
+
+        # Still cancel the precise stored ID, never the other same-minute grant.
+        picked = short_labels[0]
+        chosen_id = choices[picked]
+        await entity.async_select_option(picked)
+        with patch("custom_components.hal_gaming_control.select.monotonic",
+                   return_value=100.0):
+            entity.prepare("parent-A")
+            entity.confirm("parent-A")
+        assert committed
+        activity = parent_bonus_activity_today(entry.options, at())
+        assert next(row for row in activity if row["id"] == chosen_id)[
+            "status"] == "cancelled"
+        assert sum(row["status"] == "active" for row in activity) == 4
+
+
+def test_same_minute_opaque_short_id_collision_uses_full_id():
+    entity, entry, _ = setup_select()
+    for _ in range(2):
+        entry.options = add_parent_grant(entry.options, "pc1",
+                                         at(hour=11, minute=40), 30)
+    events = entry.options["parent_bonus_journal"]["events"]
+    events[-2]["id"] = "a" * 22 + "1234567890"
+    events[-1]["id"] = "b" * 22 + "1234567890"
+    with patch("custom_components.hal_gaming_control.select.dt_util.as_local",
+               side_effect=lambda instant: instant.astimezone(TZ)):
+        labels = entity._choices(at())
+    duplicates = [name for name in labels
+                  if name.startswith("11:40 · +30 min · Parent Bonus")]
+    assert len(duplicates) == 2
+    assert all(name.endswith(f"({labels[name]})") for name in duplicates)
+
+
 
 
 @pytest.mark.asyncio
