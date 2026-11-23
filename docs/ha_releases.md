@@ -1,8 +1,9 @@
-## 0.13.11 — Marketplace Local Mode content cleanup
+## 0.13.11 — Marketplace Local Mode cleanup and Budget overview polish
 
 - Removes the redundant introductory **Local-first** explanation from the Marketplace README. The illustrated **100% local** feature remains the **first** feature and is now the single introductory explanation with its link to the dedicated Local Mode guide.
 - The independent Local Mode guide still explains the local Windows service, MQTT and Home Assistant architecture and clarifies when internet access may be needed for updates and optional integrations.
-- Documentation-only presentation correction; no behavior, sensor, MQTT or Windows change. **HA source 0.13.11 / Preview 35; Windows 0.4.0 unchanged.**
+- **Budget overview UI polish:** the built-in select has two shorter 10/11-character read-only separators instead of long divider rows, and a small visual inset and typographic minus for **Gaming Session**. **∑ TOTAL is once again the selected default** and the post-Undo selection, with Remaining Budget still shown last as information. Undo authorization, bonus accounting and telemetry are unchanged.
+- Marketplace/docs presentation plus native select display-only correction; no changes to gaming seconds, sensors, MQTT or Windows. **HA 0.13.11 / Preview 35; Windows 0.4.0 unchanged.**
 
 ## 0.13.10 — Budget overview receipt with gaming usage and remaining minutes
 

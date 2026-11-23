@@ -14,8 +14,9 @@ This is the **human-readable development changelog**. For full technical release
 
 ## Home Assistant integration
 
-### 0.13.11 — Marketplace Local Mode duplication cleanup
-- Removes the redundant Local-first introductory paragraph so the illustrated **100% local** feature appears first and explains the architecture once. Its dedicated guide stays linked; core behavior and Windows agent remain unchanged.
+### 0.13.11 — Marketplace cleanup and native Budget overview polish
+- Removes the redundant Local-first introductory paragraph so the illustrated **100% local** feature appears first and explains the architecture once. Its dedicated guide stays linked.
+- Shortens the decorative Budget dropdown dividers, adds a small indent and typographic minus to Gaming Session, and restores **∑ TOTAL** as the selected row (also after Undo). Remaining Budget stays as a read-only last line. No changes to accounting or Windows agent.
 
 ### 0.13.10 — Native Budget overview: used and remaining minutes
 - Adds two read-only separator lines, cumulative today's Gaming Session minutes and the always-current ∑ Remaining Budget below ∑ TOTAL. Maintains aligned numbers and ⛔ bonus Undo with no exposed internal grant IDs.

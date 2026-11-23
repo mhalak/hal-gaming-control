@@ -10,7 +10,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 
 from .entity import GamingEntity
-from .budget_select import budget_select_rows
+from .budget_select import TOTAL_ROW_INDEX, budget_select_rows
 from .parent_bonus import parent_bonus_legacy_today, revoke_parent_grant
 
 
@@ -19,7 +19,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class ParentBonusGrantSelect(GamingEntity, SelectEntity):
-    """The last Remaining Budget row is always selected; bonus Undo stays instant."""
+    """The TOTAL subtotal is always selected; bonus Undo stays instant."""
 
     _attr_icon = "mdi:calculator-variant-outline"
 
@@ -50,7 +50,7 @@ class ParentBonusGrantSelect(GamingEntity, SelectEntity):
     def current_option(self):
         # Never remember a selected bonus: no repeat-click or stale selection.
         # It also updates automatically when the day's allowance changes.
-        return self.options[-1]
+        return self.options[TOTAL_ROW_INDEX]
 
     @property
     def extra_state_attributes(self):
@@ -79,14 +79,14 @@ class ParentBonusGrantSelect(GamingEntity, SelectEntity):
         rows = self._rows(now)
         if option not in (label for label, _ in rows):
             raise HomeAssistantError("Budget entry is no longer active")
-        # Clicking Remaining Budget does nothing. Native select cannot prevent tapping
-        # any read-only row, so other rows are rejected without modifying HA.
-        if option == rows[-1][0]:
+        # Clicking selected TOTAL is a no-op. Native select cannot disable
+        # read-only items (dividers, played time or remaining budget).
+        if option == rows[TOTAL_ROW_INDEX][0]:
             self.async_write_ha_state()
             return
         grant_id = dict(rows).get(option)
         if grant_id is None:
-            # An informational row is not a command. Re-publish ∑ Remaining Budget
+            # An informational row is not a command. Re-publish ∑ TOTAL
             # instead of leaving a misleading selection in the HA UI.
             self._undo_status = "Read-only allowance item; nothing cancelled"
             self.async_write_ha_state()
@@ -110,6 +110,6 @@ class ParentBonusGrantSelect(GamingEntity, SelectEntity):
         if result is False:
             raise HomeAssistantError("Parent bonus cancellation was not saved")
         self._undo_status = f"Cancelled: {option}. Allowance recalculated."
-        # State always points back to ∑ Remaining Budget; the grant vanishes
+        # State always points back to ∑ TOTAL; the grant vanishes
         # immediately as soon as the config-entry update takes effect.
         self.async_write_ha_state()
