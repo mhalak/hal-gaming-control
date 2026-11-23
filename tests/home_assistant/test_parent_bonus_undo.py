@@ -1,38 +1,37 @@
-"""Issue #165: safe native HA Parent bonus undo workflow."""
-from datetime import datetime, timedelta
+"""Native parent grant selection is instant, scoped and auditable."""
+from datetime import datetime
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from zoneinfo import ZoneInfo
 
 import pytest
+from homeassistant.core import Context
 from homeassistant.exceptions import HomeAssistantError
 
+from custom_components.hal_gaming_control.const import DOMAIN
 from custom_components.hal_gaming_control.parent_bonus import (
     add_parent_grant, parent_bonus_activity_today, parent_bonus_total,
 )
-from custom_components.hal_gaming_control.select import (
-    ParentBonusGrantSelect, UNSELECTED,
-)
+from custom_components.hal_gaming_control.select import ParentBonusGrantSelect
 
 TZ = ZoneInfo("Europe/Zagreb")
 
 
-def at(hour=14, minute=30, day=22):
+def at(hour=14, minute=30, day=23):
     return datetime(2026, 11, day, hour, minute, tzinfo=TZ)
 
 
 def setup_select():
-    opts = {"enabled": True, "daily": 120, "weekly": 300}
+    options = {"enabled": True, "daily": 120, "weekly": 300}
     for i in range(3):
-        opts = add_parent_grant(opts, "pc1", at(minute=i + 1), 30)
+        options = add_parent_grant(options, "pc1", at(minute=i + 1), 30)
     entry = SimpleNamespace(data={"device_id": "pc1", "name": "Gaming PC"},
-                            options=opts)
-    coordinator = Mock()
-    coordinator.device_id = "pc1"
-    coordinator.entry = entry
-    coordinator.data = {"ready": True, "totals": {"daily": 0, "weekly": 0},
+                            options=options)
+    coordinator = Mock(device_id="pc1", entry=entry, last_update_success=True)
+    coordinator.data = {"ready": True,
+                        "totals": {"daily": 0, "weekly": 0},
                         "coverage_incomplete": False}
-    coordinator.last_update_success = True
+    coordinator.async_refresh = AsyncMock()
     committed = []
 
     def save(_entry, *, options):
@@ -41,70 +40,64 @@ def setup_select():
 
     entity = ParentBonusGrantSelect(coordinator)
     entity.hass = SimpleNamespace(
+        auth=SimpleNamespace(
+            async_get_user=AsyncMock(return_value=SimpleNamespace(is_admin=True))),
         config_entries=SimpleNamespace(async_update_entry=save))
+    entity.async_set_context(Context(user_id="parent-A"))
     return entity, entry, committed
 
 
 @pytest.mark.asyncio
-async def test_native_select_lists_each_grant_without_manual_ids():
+async def test_parent_undo_is_one_step_and_keeps_full_audit():
     entity, entry, committed = setup_select()
     with patch("custom_components.hal_gaming_control.select.dt_util.now",
                return_value=at()), patch.object(entity, "async_write_ha_state"):
-        options = entity.options
-        assert options[0] == UNSELECTED
-        assert len(options) == 6
-        assert len(set(options)) == 6
-        assert "30min Parent bonus" in options[2]
-        assert all("Parent bonus" in option for option in options[2:-1])
-        assert all(
-            grant["id"][-10:] not in option
-            for option in options[2:-1]
-            for grant in parent_bonus_activity_today(entry.options, at())
-        )
-        assert entity.current_option == UNSELECTED
-        await entity.async_select_option(options[2])
-        assert entity.current_option == options[2]
-        assert not committed
-        assert parent_bonus_total(entry.options, at()) == 90
+        assert entity.current_option == "∑ 210min TOTAL"
+        parent_labels = [label for label in entity.options if "Parent bonus" in label]
+        assert len(parent_labels) == 3
+        assert all(label.endswith("⛔") for label in parent_labels)
+        assert all("🔒" not in label for label in entity.options)
+
+        await entity.async_select_option(parent_labels[1])
+        assert len(committed) == 1
+        assert parent_bonus_total(entry.options, at()) == 60
+        assert entity.current_option == "∑ 180min TOTAL"
+        assert parent_labels[1] not in entity.options
+        activity = parent_bonus_activity_today(entry.options, at())
+        assert sum(row["status"] == "cancelled" for row in activity) == 1
+        assert sum(row["status"] == "active" for row in activity) == 2
+        assert "Cancelled:" in entity.extra_state_attributes["undo_status"]
 
 
 @pytest.mark.asyncio
-async def test_same_minute_bonus_choices_show_id_only_for_ambiguity():
+async def test_same_minute_grants_have_unique_labels_and_exact_ids():
     entity, entry, committed = setup_select()
     for _ in range(2):
         entry.options = add_parent_grant(entry.options, "pc1",
                                          at(hour=11, minute=40), 30)
     with patch("custom_components.hal_gaming_control.select.dt_util.now",
                return_value=at()), patch(
-                   "custom_components.hal_gaming_control.select.dt_util.as_local",
-                   side_effect=lambda instant: instant.astimezone(TZ)), patch.object(
+                   "custom_components.hal_gaming_control.budget_select.dt_util.as_local",
+                   side_effect=lambda stamp: stamp.astimezone(TZ)), patch.object(
                        entity, "async_write_ha_state"):
         choices = entity._choices(at())
-        short_labels = [label for label in choices if label.startswith(
-            "+30min Parent bonus (11:40)")]
-        assert len(short_labels) == 2
-        assert len(set(short_labels)) == 2
-        assert all(label.endswith(f"({choices[label][-10:]})")
-                   for label in short_labels)
-        assert all(label.count("(") == 1 for label in choices
-                   if label not in short_labels)
-
-        # Still cancel the precise stored ID, never the other same-minute grant.
-        picked = short_labels[0]
-        chosen_id = choices[picked]
+        ambiguous = [name for name in choices
+                     if "+30min Parent bonus (11:40)" in name]
+        assert len(ambiguous) == 2
+        assert len(set(ambiguous)) == 2
+        assert all(name.endswith("⛔") for name in ambiguous)
+        assert all(choices[name][-10:] in name for name in ambiguous)
+        picked, grant_id = ambiguous[0], choices[ambiguous[0]]
         await entity.async_select_option(picked)
-        with patch("custom_components.hal_gaming_control.select.monotonic",
-                   return_value=100.0):
-            entity.prepare("parent-A")
-            entity.confirm("parent-A")
-        assert committed
+        assert len(committed) == 1
         activity = parent_bonus_activity_today(entry.options, at())
-        assert next(row for row in activity if row["id"] == chosen_id)[
+        assert next(item for item in activity if item["id"] == grant_id)[
             "status"] == "cancelled"
-        assert sum(row["status"] == "active" for row in activity) == 4
+        assert sum(item["status"] == "active" for item in activity) == 4
+        assert entity.current_option == "∑ 240min TOTAL"
 
 
-def test_same_minute_opaque_short_id_collision_uses_full_id():
+def test_short_id_collision_falls_back_to_full_id():
     entity, entry, _ = setup_select()
     for _ in range(2):
         entry.options = add_parent_grant(entry.options, "pc1",
@@ -112,173 +105,67 @@ def test_same_minute_opaque_short_id_collision_uses_full_id():
     events = entry.options["parent_bonus_journal"]["events"]
     events[-2]["id"] = "a" * 22 + "1234567890"
     events[-1]["id"] = "b" * 22 + "1234567890"
-    with patch("custom_components.hal_gaming_control.select.dt_util.as_local",
-               side_effect=lambda instant: instant.astimezone(TZ)):
-        labels = entity._choices(at())
-    duplicates = [name for name in labels
-                  if name.startswith("+30min Parent bonus (11:40)")]
-    assert len(duplicates) == 2
-    assert all(name.endswith(f"({labels[name]})") for name in duplicates)
+    with patch("custom_components.hal_gaming_control.budget_select.dt_util.as_local",
+               side_effect=lambda stamp: stamp.astimezone(TZ)):
+        choices = entity._choices(at())
+    ambiguous = [label for label in choices
+                 if "+30min Parent bonus (11:40)" in label]
+    assert len(ambiguous) == 2
+    assert all(choices[label] in label for label in ambiguous)
+    assert len(set(ambiguous)) == 2
 
 
 @pytest.mark.asyncio
-async def test_prepare_confirm_revokes_only_selected_grant_and_preserves_history():
+async def test_wrong_device_grant_never_cancelled():
     entity, entry, committed = setup_select()
-    with patch("custom_components.hal_gaming_control.select.dt_util.now",
-               return_value=at()), patch(
-                   "custom_components.hal_gaming_control.select.monotonic",
-                   return_value=150.0), patch.object(entity, "async_write_ha_state"):
-        picked = entity.options[2]
-        await entity.async_select_option(picked)
-        entity.prepare("parent-A")
-        assert len(committed) == 0
-        assert entity.extra_state_attributes["prepared_grant"] == picked
-        entity.confirm("parent-A")
-        assert len(committed) == 1
-        assert parent_bonus_total(entry.options, at()) == 60
-        assert len([e for e in parent_bonus_activity_today(entry.options, at())
-                    if e["status"] == "cancelled"]) == 1
-        assert entity.current_option == UNSELECTED
-        with pytest.raises(HomeAssistantError):
-            entity.confirm("parent-A")
-
-
-@pytest.mark.asyncio
-async def test_other_parent_cannot_confirm_a_pending_grant():
-    entity, entry, commits = setup_select()
-    with patch("custom_components.hal_gaming_control.select.dt_util.now",
-               return_value=at()), patch(
-                   "custom_components.hal_gaming_control.select.monotonic",
-                   return_value=150.0), patch.object(entity, "async_write_ha_state"):
-        await entity.async_select_option(entity.options[2])
-        entity.prepare("parent-A")
-        with pytest.raises(HomeAssistantError, match="your own"):
-            entity.confirm("parent-B")
-        assert not commits
-        entity.confirm("parent-A")
-        assert len(commits) == 1
-
-
-@pytest.mark.asyncio
-async def test_interleaved_selection_invalidates_prepared_undo():
-    entity, entry, commits = setup_select()
-    with patch("custom_components.hal_gaming_control.select.dt_util.now",
-               return_value=at()), patch(
-                   "custom_components.hal_gaming_control.select.monotonic",
-                   return_value=150.0), patch.object(entity, "async_write_ha_state"):
-        await entity.async_select_option(entity.options[2])
-        entity.prepare("parent-A")
-        await entity.async_select_option(entity.options[3])
-        with pytest.raises(HomeAssistantError):
-            entity.confirm("parent-A")
-        assert not commits
-
-
-@pytest.mark.asyncio
-async def test_preparation_expires_and_does_not_survive_restart():
-    entity, entry, commits = setup_select()
+    # A foreign journal record is invalid for this device and must not be
+    # removable; no guessed grant IDs can bypass the dropdown choices.
+    entry.options["parent_bonus_journal"]["events"][-1]["device_id"] = "pc2"
     with patch("custom_components.hal_gaming_control.select.dt_util.now",
                return_value=at()), patch.object(entity, "async_write_ha_state"):
-        with patch("custom_components.hal_gaming_control.select.monotonic",
-                   return_value=1.0):
-            await entity.async_select_option(entity.options[2])
-            entity.prepare("parent-A")
-        with patch("custom_components.hal_gaming_control.select.monotonic",
-                   return_value=100.0):
-            with pytest.raises(HomeAssistantError, match="expired"):
-                entity.confirm("parent-A")
-        assert not commits
-        fresh = ParentBonusGrantSelect(entity.coordinator)
-        fresh.hass = entity.hass
-        with patch("custom_components.hal_gaming_control.select.monotonic",
-                   return_value=1.0):
-            with pytest.raises(HomeAssistantError):
-                fresh.confirm("parent-A")
+        label = next(label for label in entity.options
+                     if "Parent bonus" in label)
+        # The journal is still displayed but neither device scope nor
+        # append-only audit fields can be circumvented in revoke_parent_grant.
+        with pytest.raises(HomeAssistantError, match="another device"):
+            await entity.async_select_option(label)
+        assert not committed
 
 
 @pytest.mark.asyncio
-async def test_date_rollover_and_stale_grant_are_rejected():
-    entity, entry, commits = setup_select()
-    with patch.object(entity, "async_write_ha_state"), patch(
-        "custom_components.hal_gaming_control.select.monotonic",
-        return_value=100.0,
-    ):
-        with patch("custom_components.hal_gaming_control.select.dt_util.now",
-                   return_value=at()):
-            await entity.async_select_option(entity.options[2])
-            entity.prepare("parent-A")
-        with patch("custom_components.hal_gaming_control.select.dt_util.now",
-                   return_value=at(day=23)):
-            with pytest.raises(HomeAssistantError):
-                entity.confirm("parent-A")
-        assert not commits
-
-
-@pytest.mark.asyncio
-async def test_no_success_when_save_fails():
-    entity, entry, commits = setup_select()
-    def broken(*args, **kwargs):
-        raise RuntimeError("storage error")
-    entity.hass.config_entries.async_update_entry = broken
-    with patch.object(entity, "async_write_ha_state"), patch(
-        "custom_components.hal_gaming_control.select.monotonic",
-        return_value=100.0,
-    ), patch("custom_components.hal_gaming_control.select.dt_util.now",
-             return_value=at()):
-        await entity.async_select_option(entity.options[2])
-        entity.prepare("parent-A")
-        with pytest.raises(RuntimeError, match="storage"):
-            entity.confirm("parent-A")
-        assert parent_bonus_total(entry.options, at()) == 90
-        assert "Cancelled" not in entity.extra_state_attributes.get("undo_status", "")
-
-
-@pytest.mark.asyncio
-async def test_ha_services_are_admin_only_target_one_real_select(hass):
-    from homeassistant.auth.const import GROUP_ID_ADMIN
-    from homeassistant.core import Context
-    from homeassistant.exceptions import Unauthorized
-    from custom_components.hal_gaming_control.const import DOMAIN
-    from custom_components.hal_gaming_control.services import async_setup_services
-
+async def test_replay_selection_does_not_cancel_other_grants():
     entity, entry, committed = setup_select()
-    entity.hass = hass
-    def save(_entry, *, options):
-        entry.options = options
-        committed.append(options)
-
-    with patch.object(hass.config_entries, "async_update_entry", side_effect=save):
-        hass.data[DOMAIN] = {"parent_bonus_undo_selects": {
-            "select.pc1_parent_bonus_to_undo": entity,
-        }}
-        async_setup_services(hass)
-        admin = await hass.auth.async_create_user(
-            "Parent admin", group_ids=[GROUP_ID_ADMIN])
-        other = await hass.auth.async_create_user("Child")
-
-        with patch("custom_components.hal_gaming_control.select.dt_util.now",
-                   return_value=at()), patch(
-                       "custom_components.hal_gaming_control.select.monotonic",
-                       return_value=250.0), patch.object(entity, "async_write_ha_state"):
-            await entity.async_select_option(entity.options[2])
-            target = {"entity_id": "select.pc1_parent_bonus_to_undo"}
-            for who in (other.id, None):
-                with pytest.raises((Unauthorized, HomeAssistantError)):
-                    await hass.services.async_call(
-                        DOMAIN, "prepare_parent_bonus_undo", target,
-                        blocking=True, context=Context(user_id=who))
-            assert not committed
-            await hass.services.async_call(
-                DOMAIN, "prepare_parent_bonus_undo", target, blocking=True,
-                context=Context(user_id=admin.id))
-            with pytest.raises(HomeAssistantError):
-                await hass.services.async_call(
-                    DOMAIN, "confirm_parent_bonus_undo",
-                    {"entity_id": "select.other_pc_parent_bonus_to_undo"},
-                    blocking=True, context=Context(user_id=admin.id))
-            assert not committed
-            await hass.services.async_call(
-                DOMAIN, "confirm_parent_bonus_undo", target, blocking=True,
-                context=Context(user_id=admin.id))
+    with patch("custom_components.hal_gaming_control.select.dt_util.now",
+               return_value=at()), patch.object(entity, "async_write_ha_state"):
+        label = next(label for label in entity.options if label.endswith("⛔"))
+        await entity.async_select_option(label)
+        with pytest.raises(HomeAssistantError):
+            await entity.async_select_option(label)
         assert len(committed) == 1
         assert parent_bonus_total(entry.options, at()) == 60
+
+
+@pytest.mark.asyncio
+async def test_admin_user_context_required_for_select_on_ha_devices():
+    entity, entry, committed = setup_select()
+    with patch("custom_components.hal_gaming_control.select.dt_util.now",
+               return_value=at()), patch.object(entity, "async_write_ha_state"):
+        label = next(label for label in entity.options if label.endswith("⛔"))
+        for context, identity in ((Context(user_id="child"), False),
+                                  (Context(), None)):
+            entity.async_set_context(context)
+            if identity is False:
+                entity.hass.auth.async_get_user.return_value = (
+                    SimpleNamespace(is_admin=False))
+            with pytest.raises(HomeAssistantError, match="administrator"):
+                await entity.async_select_option(label)
+        assert not committed
+        assert parent_bonus_total(entry.options, at()) == 90
+
+
+@pytest.mark.asyncio
+async def test_old_prepare_confirm_ha_services_are_gone(hass):
+    from custom_components.hal_gaming_control import async_setup
+    assert await async_setup(hass, {})
+    assert not hass.services.has_service(DOMAIN, "prepare_parent_bonus_undo")
+    assert not hass.services.has_service(DOMAIN, "confirm_parent_bonus_undo")
