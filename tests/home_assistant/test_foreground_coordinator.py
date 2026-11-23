@@ -36,17 +36,16 @@ def fake_source():
     return source
 
 
-async def test_production_uses_v2_only_and_maps_stable_keys_to_ha_names(hass):
+async def test_production_uses_unified_v3_only_and_maps_stable_keys_to_ha_names(hass):
     obj = entry(hass)
     c = co.GamingCoordinator(hass, obj)
     stream = fake_source()
     c.foreground = stream
     c.cutover_since = 99
     c.storage_healthy = True
-    with patch.object(c, "_prepare_source", side_effect=AssertionError(
-            "legacy process-presence must never load during v2 cutover")), \
-            patch.object(co.dt_util, "now",
-                         return_value=datetime(2026, 11, 21, tzinfo=timezone.utc)):
+    assert not hasattr(c, "_prepare_source")
+    with patch.object(co.dt_util, "now",
+                      return_value=datetime(2026, 11, 21, tzinfo=timezone.utc)):
         result = await c._async_update_data()
     assert result["ready"] is True
     assert result["active_game"] == "Minecraft"
