@@ -86,7 +86,11 @@ class ParentBonusGrantSelect(GamingEntity, SelectEntity):
             return
         grant_id = dict(rows).get(option)
         if grant_id is None:
-            raise HomeAssistantError("This budget entry is not cancellable")
+            # An informational row is not a command. Re-publish ∑ TOTAL
+            # instead of leaving a misleading selection in the HA UI.
+            self._undo_status = "Read-only allowance item; nothing cancelled"
+            self.async_write_ha_state()
+            return
         await self._require_admin()
 
         # Refresh confirmed foreground usage before cancellation. The child's
