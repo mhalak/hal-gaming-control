@@ -1,3 +1,10 @@
+## 0.13.3 — Reliable Screen OFF accounting and truthful display diagnostics (#209, #210)
+
+- A fresh Unified MQTT v3 packet reporting Windows console `off` can have a conflicting or regressing display event receipt. HA no longer confuses this rejected OFF report with an unsupported `unknown` display and continues counting gaming time. It suspends new confirmed foreground charging until a valid ON event and a later fresh foreground observation.
+- The existing Active game entity now exposes the **trusted, validated** `display_state`. If a rejected incoming report differs, its `display_reported_state` appears as a diagnostic attribute. A rejected OFF is not treated as verified idle and never awards an unverified Screen idle bonus.
+- Added regression tests for inconsistent OFF receipts, repeated rejected OFF, no additional counted minutes, no fabricated bonuses, and validated ON recovery. PCs whose display telemetry is genuinely `unknown` remain allowed to count verified foreground activity.
+- **HA-only 0.13.3 / Preview 27**; Windows stays **0.4.0**. Unified MQTT v3 only, no compatibility toggle or extra MQTT topics/entities, no local deployment implied. Physical ON/OFF acceptance is still required.
+
 ## 0.13.2 — Readable MQTT configuration view (#207)
 
 - Reformat the read-only **MQTT configuration** screen into clear Connection, Broker, Gaming PC and Help sections, with actual Markdown line breaks instead of literal `\n` characters. Keep broker settings and scoped MQTT topics separately readable, shorten explanatory copy and format technical values as code.
