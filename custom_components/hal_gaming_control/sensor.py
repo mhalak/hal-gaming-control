@@ -79,8 +79,6 @@ class ActiveGameSensor(GamingEntity, SensorEntity):
         # Existing Active game entity carries read-only diagnostics. No new
         # per-field HA entities, no Windows process/window paths, no bonuses.
         data = self.coordinator.data or {}
-        if not data.get("unified_telemetry"):
-            return {}
         display = data.get("display_details") or {}
         return {
             "telemetry_protocol": 3,
