@@ -17,12 +17,8 @@ from .screen_idle_bonus import screen_idle_events_today
 
 FIGURE_SPACE = "\u2007"
 ACTION_GAP = FIGURE_SPACE * 6
-# Native select options must have distinct labels; no-op dividers use
-# slightly different lengths rather than duplicated option names.
-DIVIDER_TOP = "─" * 10
-DIVIDER_BOTTOM = "─" * 11
-# The default selected subtotal precedes usage, second divider and remaining.
-TOTAL_ROW_INDEX = -4
+# The default selected TOTAL is followed by two read-only usage rows.
+TOTAL_ROW_INDEX = -3
 
 
 def _amount_label(minutes, title, width, sign="+"):
@@ -123,11 +119,10 @@ def _usage_rows(receipt, width):
     status = receipt["daily_budget_status"]
     verified = type(used) in (int, float) and isfinite(used) and used >= 0
     played_minutes = ceil(used / 60) if verified else None
-    # Give the debit line a small inset; the narrow ASCII hyphen previously
-    # made its number look left-shifted relative to the + and ∑ rows.
-    usage = (_amount_label(played_minutes, "Gaming Session", width,
-                           sign=FIGURE_SPACE + "−")
-             if verified else f"{FIGURE_SPACE}− Unknown - Gaming Session")
+    # Minus remains the FIRST character, with one figure-space to the
+    # amount column; avoid shifting the minus itself to the right.
+    usage = (_amount_label(played_minutes, "Gaming Session", width, sign="−")
+             if verified else "− Unknown - Gaming Session")
     if status == "disabled":
         remaining = "∑ Rules Disabled - Remaining Budget"
     elif status == "unlimited":
@@ -184,6 +179,5 @@ def budget_select_rows(options, device_id, data, now):
         rows.append((label, event["id"] if eligible else None))
         spent_before += event["minutes"]
     usage, remaining = _usage_rows(receipt, width)
-    rows.extend(((DIVIDER_TOP, None), _total_row(receipt, width), usage,
-                 (DIVIDER_BOTTOM, None), remaining))
+    rows.extend((_total_row(receipt, width), usage, remaining))
     return _display_action_column(rows)
