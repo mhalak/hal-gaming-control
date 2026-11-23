@@ -233,7 +233,7 @@ async def test_direct_uptime_preserves_unique_id_and_rejects_bad_v3(hass):
     direct = DirectUptime(c)
     direct.async_write_ha_state = Mock()
     assert direct.unique_id == "pc1_uptime"
-    assert direct._state_key is None
+    assert not hasattr(direct, "_state_key")
     direct._connected = direct._online = True
     topic = "SmartHouse/Gaming/pc1/state/telemetry"
     msg = lambda payload, retain=False: SimpleNamespace(
