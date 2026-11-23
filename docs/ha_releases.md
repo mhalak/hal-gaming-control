@@ -1,3 +1,10 @@
+## 0.13.6 — Native Budget overview text sensor per Windows PC
+
+- Each enrolled Windows PC now has one read-only **Budget overview** sensor in its native HA device **Sensors** section (unique ID `<device_id>_budget_overview`). No manual dashboard configuration is required for the short summary.
+- The HA state is a concise daily/weekly remaining-time summary, safely below the 255-character state limit. A multiline `overview_text` attribute contains daily base, Weekend, Parent and Screen Idle bonus sources, total allowance, confirmed played time, remaining time, weekly allowance/usage and the incomplete-coverage warning. This is plain text, not a custom Markdown card; tapping the entity exposes attributes, while formatted dashboard layouts still require a Markdown card.
+- Reuses the authoritative `budget_overview()` receipt already powering Daily budget remaining; no second accounting ledger. When live data is unavailable, the sensor says so instead of fabricating zero usage. Disabled and Unlimited policy modes are explicit. Existing per-PC IDs, MQTT v3-only protocol, budgets and history remain unchanged.
+- Test cases cover normal display, PC offline/unknown, rules disabled/Unlimited, weekend/midnight rollover and one registered sensor per PC. **HA 0.13.6 / Preview 30**; Windows stays **0.4.0**. Source only: no GitHub Release or deployment is initiated.
+
 ## 0.13.5 — Readable Parent Bonus Undo choices
 
 - The native **Parent bonus to undo** dropdown now identifies each entry by local time, duration and source (for example `11:40 · +30 min · Parent Bonus`), rather than displaying an opaque grant ID in every option.
