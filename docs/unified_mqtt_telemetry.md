@@ -1,107 +1,32 @@
-# Unified Windows telemetry v3 — issue #176
+# Unified MQTT v3 — operational protocol and clean-cut upgrade
 
-**Implementation status:** Windows Preview 20 / agent **0.3.0** uses a **breaking clean cut**: v3 monitoring is mandatory, old retained scalar monitoring states are explicitly cleared, native Uptime discovery reads only the one `state/telemetry` JSON. **No deployment has happened.** This is not an automatic HA migration; HA 0.12.0+ must explicitly select per-PC v3 first. See [issue #176](https://github.com/mhalak/hal-gaming-control/issues/176)
-for the complete authoritative contract and HA acceptance checklist.
+[← MQTT protocol](mqtt_protocol.md) · [HA integration](ha_integration.md) · [Wire fixture](../tests/contracts/v3/telemetry-foreground.json)
 
-> **Preview 21 / Windows 0.4.0 identity cutover:** MQTT v3 monitoring remains unchanged, but its `<device_id>` is now the **actual Windows computer name**. Upgrading from a persisted or manually configured ID changes the full per-PC MQTT namespace, HA entity/config-entry identity, broker ACL and OTA scope. Follow the [separate mandatory hostname-only migration](windows_deployment.md#agent-040-preview-21--breaking-hostname-only-device-identity) before applying the v3 protocol upgrade. No automatic migration or physical deployment is claimed.
+**HA 0.13.0+ and Windows 0.4.0+ use Unified MQTT v3 exclusively.** Neither component offers a switch between monitoring formats. HA drops saved `unified_telemetry_enabled` settings automatically, subscribes only to v3 telemetry, and never reverts to v2.
 
-## Windows publisher and protocol
+## Windows publisher
 
-There is **no** `telemetry.unified_v3_enabled` opt-out in new Windows agent builds. Remove any old disabled `telemetry.unified_v3_enabled: false` key before testing. Use a supervised local migration pilot only. This does not alter
-Windows display power settings, enforce any gaming policy or grant a bonus.
-When enabled, the Windows service publishes:
+The Windows service derives `device_id` and discovery `name` directly from the OS computer name. It rejects the former configurable `device:` section. It sends all monitoring values in:
 
-- Topic: `SmartHouse/Gaming/<device_id>/state/telemetry`
-- MQTT v5, QoS 0, **retain=false**, `MessageExpiryInterval=6` seconds
-- Full atomic JSON object, not a partial patch; maximum **4096 bytes**
-- At most once per approximately 2 seconds while unchanged; **immediate**
-  foreground (including same-executable window switch), display, or power-plan
-  transitions. Every refreshed observation has a strictly increasing positive
-  int64 `sequence`. Sequence gaps are allowed after dropped QoS0 sends.
-- Publisher `epoch`: new random 128-bit lowercase hex per MQTT connection;
-  never the display-helper `event_epoch`. Both clocks and the MQTT connection
-  must be valid and the pre-existing availability sync complete. Disconnect,
-  failed publish, invalid system uptime or clock regression never replay
-  an earlier packet. No backfill or retained snapshot.
+`SmartHouse/Gaming/<device_id>/state/telemetry`
 
-### Example full snapshot
+Properties: MQTT 5, QoS 0, **retain=false**, message expiry six seconds, maximum 4096-byte complete JSON snapshot. The packet schema is version **3**, with precise field definitions in the [source-controlled shared fixture](../tests/contracts/v3/telemetry-foreground.json). It includes session `epoch`, increasing `sequence`, `observed_at`, verified `foreground` sample and age, `display` state / event evidence / configured timeout, and `system` uptime / agent version. Snapshots are refreshed periodically and on relevant changes. Gaps and reordered/replayed packets are never backfilled.
 
-```json
-{
-  "version": 3,
-  "device_id": "pc_example",
-  "epoch": "0123456789abcdef0123456789abcdef",
-  "sequence": 19,
-  "observed_at": 1790000000.25,
-  "foreground": {
-    "state": "foreground",
-    "process": "RobloxPlayerBeta.exe",
-    "signature": null,
-    "sample_age_ms": 120
-  },
-  "display": {
-    "state": "off",
-    "scope": "windows_console",
-    "event_epoch": "fedcba9876543210fedcba9876543210",
-    "event_sequence": 37,
-    "event_age_ms": 1600,
-    "sample_age_ms": 150,
-    "ac_timeout_seconds": 600,
-    "dc_timeout_seconds": 300,
-    "power_source": "ac",
-    "last_input_idle_ms": 620000
-  },
-  "system": {
-    "uptime_seconds": 45630,
-    "agent_version": "0.2.12",
-    "agent_build_sha": null
-  }
-}
-```
+Retained `discovery` must declare `unified_telemetry_protocol: 3`. MQTT `availability` remains separately published. Signed OTA commands, protected actions, foreground enrollment candidates and verified termination receipts remain separate because they are **not monitoring measurements**.
 
-Values are illustrative. The example intentionally shows an executable
-remaining focused while the Windows **logical console** is OFF. It does **not**
-prove all monitors are physically off or that Windows turned them off
-automatically.
+## HA consumer
 
-### Source-specific freshness and privacy
+HA 0.13.0+ always subscribes to `availability`, `discovery`, and `state/telemetry` for the exact configured device ID. The Tracked applications editor previews the validated v3 foreground only. Direct MQTT Uptime and the native MQTT Uptime entity both derive uptime exclusively from `system.uptime_seconds` in v3. There are no v2 monitoring subscriptions, scalar state topic fallback, or per-PC source controls.
 
-`foreground.state` is `foreground | idle | unknown` and is derived only
-from the authenticated interactive-user helper's *current verified* sample.
-`idle` requires actual fresh helper evidence; a Windows lock, unavailable
-helper, invalid process identity or stale sample becomes `unknown` with
-null process, signature and sample age. Stable Java class/jar/module
-discriminators are validated using the existing strict allowlist rules.
+Strict decoding checks exact schema, device identity, non-retention, timestamps, anti-replay session order and independent foreground/display sample freshness. Missing, stale, foreign or malformed data becomes **unknown/unavailable**, not assumed idle or free time. HA owns tracked-app names, budgets, measured totals and bonus journals; it never trusts Windows to enforce a quota. Existing sensor unique IDs and Recorder history are retained for an unchanged MQTT device ID.
 
-`display.state` is `on | dim | off | unknown`. Its notification
-`event_epoch`, `event_sequence` and age refer to an independently
-validated Windows `GUID_CONSOLE_DISPLAY_STATE` event. Its
-`sample_age_ms` is the age of the authenticated helper observation, not
-the time since last MQTT publish; notification age is advanced at packet
-capture. On missing, locked, invalid, stale or ambiguous source, all
-display event identifiers are null and state is `unknown`. AC/DC
-`VIDEOIDLE` seconds, power source and input idle age share the object as
-attributes, without extra MQTT topics or HA entities. If a power-plan
-read fails, unavailable fields are null/unknown, never invented.
+## Upgrade checklist
 
-`system.uptime_seconds` is nonnegative Windows `GetTickCount64`
-uptime, not a continuous-gaming guarantee. Agent version and build SHA
-are from locally validated release metadata. No executable path,
-PID, child name, username, full command line, window title, broker
-credentials, tokens, grants, policy or private player data is exposed.
+1. Back up HA config/Recorder and the Windows service + configuration. Do not remove Windows security protections to sidestep installer policy.
+2. Confirm Windows agent 0.4.0+ is publishing live v3 data under the **actual OS hostname** and that broker ACLs use that exact topic namespace.
+3. Update HA to 0.13.0+; no telemetry toggle exists. A stale saved `unified_telemetry_enabled: false` is removed during HA setup. All other options and recorded data remain.
+4. **Old HA entries with an older device ID are not automatically retargeted.** Back up their per-PC tracked apps and policy, then explicitly add the new hostname-based device and configure its settings; do not interpret old retained discovery as the currently live PC.
+5. Check Active game, daily/weekly budget, daily/weekly gaming time, Gaming restriction, Uptime, reconnect/idle/unknown transitions, and two-PC separation before enabling automated restrictions.
+6. If the rollout fails, restore matching known-good HA/Windows backups; there is deliberately no protocol fallback or dual-stream migration.
 
-A full snapshot is schema v3 only, with no temporary `legacy` section.
-Legacy scalar and v2 foreground/display **monitoring messages are no longer published**. The exact previously retained scalar device-state topics are tombstoned on synchronization; old native Uptime `unique_id` is preserved but reads JSON with an expiry. Control channels remain independent: `command/*`, OTA,
-`update/status`, one-use terminate offers, `foreground_candidate`,
-`availability`, `discovery` and native MQTT discovery are **not
-combined** with routine telemetry.
-
-## Coordinated clean-cut HA migration and rollback
-
-1. **BREAKING CHANGE / release hold:** Windows agent 0.3.0 is v3-only for read-only monitoring. HA 0.12.0+ supports v3 but its per-PC `unified_telemetry_enabled` option remains OFF until explicitly switched. Install/configure compatible HA v3 source **before** installing the Windows release. Old HA v2-only accounting will become unavailable (not silently fall back) with the new Windows agent. No legacy dual-publisher compatibility window.
-2. Native Uptime retains exactly `smarthouse_gaming_<device_id>_uptime` and exactly the same discovery config topic, but updates the `state_topic` to `state/telemetry`, uses a strictly bounded numeric `value_template`, and expires after 10 seconds. Direct MQTT Uptime already supports the same source while retaining its own unique ID. No duplicate sensor/entity registration.
-3. Windows continues to publish `availability`, device `discovery` capabilities, distinct command/OTA and signed update status, and short-lived tracked-app enrollment/targeted termination offers. These are security/control flows, not ordinary telemetry.
-4. A supervised Windows SYSTEM + logged-in user / HA pilot must verify exact source compatibility, screen off/on/bonus replay, gamepad and multiple monitors, uptime in native and direct MQTT modes, reconnect, ordering, Recorder, two PCs, target-offer authorization, and rollback. Maintain #56 deployment HOLD until documented acceptance; no signing or binaries are claimed by this source change.
-5. **Rollback is coordinated**, not silent: stop/revert the Windows service to a trusted older package **and** explicitly switch HA's per-PC source to v2, then verify without resetting original entity unique IDs, Recorder history or bonus journal. Do not wildcard-delete MQTT or HA registries.
-
-The Windows agent rejects an explicitly disabled legacy `telemetry.unified_v3_enabled: false` configuration and will not start rather than silently publish incompatible monitoring. This is intentionally breaking in development. Old agent-specific retained uptime/activity state topics are tombstoned with QoS 1 acknowledgments on connection. No OTA, command or availability protocol migration occurs in #176.
+Source approval, green CI and a successful installation on the actual devices are **separate facts**. Follow [deployment hold #56](https://github.com/mhalak/hal-gaming-control/issues/56) and [regression #201](https://github.com/mhalak/hal-gaming-control/issues/201) before changing household PCs.
