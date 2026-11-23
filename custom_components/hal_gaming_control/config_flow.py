@@ -284,9 +284,9 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
         root = f"{ROOT}/{self.config_entry.data['device_id']}"
         broker, port, tls = _mqtt_broker_details(self.hass)
         connected = mqtt.is_connected(self.hass)
-        help_text = ("No action needed: Home Assistant is connected to its MQTT broker."
+        help_text = ("No action needed."
                      if connected else
-                     "Open Settings → Devices & services → MQTT to check the connection, then review the Home Assistant log.")
+                     "Check Settings → Devices & services → MQTT and the HA log.")
         return self.async_show_form(step_id="mqtt_settings",
             data_schema=vol.Schema({}),
             description_placeholders={
