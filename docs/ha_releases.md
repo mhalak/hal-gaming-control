@@ -1,3 +1,10 @@
+## 0.13.12 — Clean Budget overview list, minus first
+
+- Removes **both decorative divider rows** from the built-in Budget overview (Undo) dropdown. The native Select now has only meaningful allowance, bonus and summary entries. No faux separators that appear as selectable options.
+- **Gaming Session** now starts with `−` as its **very first character**, with one figure space between the minus and the aligned numeric amount (one gap shorter than 0.13.11). Preserve the rest of the figure-space numeric layout.
+- **∑ TOTAL** stays selected by default and after instant admin-only Parent Undo; **∑ Remaining Budget** remains the final read-only option. The parent ⛔ action, exact grant IDs, confirmed daily usage, budget accounting and permissions are unchanged.
+- Updated tests assert exact minus-first spacing, absence of decorative rows, native Select option uniqueness and previous Undo security cases. **HA 0.13.12 / Preview 36; Windows 0.4.0 unchanged.**
+
 ## 0.13.11 — Marketplace Local Mode cleanup and Budget overview polish
 
 - Removes the redundant introductory **Local-first** explanation from the Marketplace README. The illustrated **100% local** feature remains the **first** feature and is now the single introductory explanation with its link to the dedicated Local Mode guide.

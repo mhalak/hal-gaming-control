@@ -80,7 +80,7 @@ class ParentBonusGrantSelect(GamingEntity, SelectEntity):
         if option not in (label for label, _ in rows):
             raise HomeAssistantError("Budget entry is no longer active")
         # Clicking selected TOTAL is a no-op. Native select cannot disable
-        # read-only items (dividers, played time or remaining budget).
+        # read-only items (played time and remaining budget).
         if option == rows[TOTAL_ROW_INDEX][0]:
             self.async_write_ha_state()
             return
