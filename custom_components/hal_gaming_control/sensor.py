@@ -13,7 +13,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
     c = entry.runtime_data
     entities = [BudgetSensor(c, "daily", "Daily budget remaining"),
                 BudgetSensor(c, "weekly", "Weekly budget remaining"),
-                BudgetOverviewSensor(c),
                 ActiveGameSensor(c),
                 GamingTimeDisplaySensor(c, "daily", "Daily gaming time"),
                 GamingTimeDisplaySensor(c, "weekly", "Weekly gaming time"),
@@ -61,109 +60,6 @@ class BudgetSensor(GamingEntity, SensorEntity):
                 options, totals, now, ready=bool(data.get("ready")),
                 coverage_incomplete=data.get("coverage_incomplete", True)))
         return attributes
-
-
-def _duration_text(seconds):
-    """Human-readable seconds; None must never silently turn into zero."""
-    if seconds is None:
-        return "Unknown"
-    hours, remainder = divmod(max(0, int(round(seconds))), 3600)
-    minutes, secs = divmod(remainder, 60)
-    if hours:
-        return f"{hours}h {minutes}m {secs}s"
-    return f"{minutes}m {secs}s"
-
-
-def _budget_overview_text(receipt, *, ready):
-    """A compact device-row state plus an explicit, read-only breakdown."""
-    status = receipt["daily_budget_status"]
-    daily = receipt["daily_remaining_seconds"]
-    weekly = receipt["weekly_remaining_seconds"]
-    if not ready:
-        summary = "Budget data unavailable"
-    elif status == "disabled":
-        summary = "Gaming rules disabled"
-    elif receipt["unlimited_gaming_active"]:
-        summary = "Unlimited gaming"
-    else:
-        today = ("Unlimited" if status == "unlimited"
-                 else _duration_text(daily) + " left"
-                 if daily is not None else "Unknown")
-        weekly_status = receipt["weekly_budget_status"]
-        week = ("Unlimited" if weekly_status == "unlimited"
-                else _duration_text(weekly) + " left"
-                if weekly is not None else "Unknown")
-        summary = f"Today: {today} · Week: {week}"
-
-    allowance = receipt["daily_limit_minutes"]
-    weekly_limit = receipt["weekly_limit_minutes"]
-    lines = [
-        f'Daily base: {receipt["base_daily_minutes"]} min'
-        if receipt["base_daily_minutes"] is not None else
-        "Daily base: Unlimited",
-        f'Weekend bonus: +{receipt["weekend_bonus_minutes"]} min',
-        f'Parent bonus: +{receipt["parent_bonus_minutes"]} min',
-        f'Screen idle bonus: +{receipt["screen_idle_bonus_minutes"]} min',
-        "Daily allowance: " + (
-            f"{allowance} min" if allowance is not None
-            else "Disabled" if status == "disabled" else "Unlimited"),
-        "Played today: " + _duration_text(receipt["daily_used_seconds"]),
-        "Remaining today: " + (
-            _duration_text(daily) if daily is not None
-            else "Unknown" if not ready
-            else "Disabled" if status == "disabled" else "Unlimited"),
-        "Weekly allowance: " + (
-            f"{weekly_limit} min" if weekly_limit is not None
-            else "Disabled" if receipt["weekly_budget_status"] == "disabled"
-            else "Unlimited"),
-        "Played this week: " + _duration_text(receipt["weekly_used_seconds"]),
-        "Remaining this week: " + (
-            _duration_text(weekly) if weekly is not None
-            else "Unknown" if not ready
-            else "Disabled" if receipt["weekly_budget_status"] == "disabled"
-            else "Unlimited"),
-    ]
-    if receipt["coverage_incomplete"]:
-        lines.append("Coverage incomplete: only verified gaming time is counted")
-    return summary, "\n".join(lines)
-
-
-class BudgetOverviewSensor(GamingEntity, SensorEntity):
-    """One short text row per PC; full allowance receipt is an attribute."""
-
-    _attr_icon = "mdi:clipboard-text-outline"
-
-    def __init__(self, coordinator):
-        super().__init__(coordinator, "budget_overview", "Budget overview")
-
-    @property
-    def available(self):
-        # The allowance configuration is HA-owned and readable offline.
-        # No fresh/verified gaming data is explicitly marked unavailable.
-        return True
-
-    def _receipt(self):
-        data = self.coordinator.data or {}
-        return budget_overview(
-            self.coordinator.options, data.get("totals", {}), dt_util.now(),
-            ready=bool(data.get("ready")),
-            coverage_incomplete=data.get("coverage_incomplete", True),
-        )
-
-    @property
-    def native_value(self):
-        data = self.coordinator.data or {}
-        summary, _ = _budget_overview_text(
-            self._receipt(), ready=bool(data.get("ready")))
-        return summary
-
-    @property
-    def extra_state_attributes(self):
-        data = self.coordinator.data or {}
-        _, overview = _budget_overview_text(
-            self._receipt(), ready=bool(data.get("ready")))
-        return {"overview_text": overview,
-                "coverage_incomplete": data.get("coverage_incomplete", True)}
 
 
 class ActiveGameSensor(GamingEntity, SensorEntity):
