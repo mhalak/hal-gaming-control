@@ -81,7 +81,7 @@ async def test_scoped_entities_and_safe_controls(hass, enable_custom_integration
     assert all(ids.values())
     assert all(registry.async_get(eid) is None for eid in legacy)
     owned = er.async_entries_for_config_entry(registry, entry.entry_id)
-    assert {e.unique_id for e in owned if e.entity_id.split(".")[0] in ("sensor","binary_sensor")} == {"pc1_uptime","pc1_daily_budget_remaining","pc1_weekly_budget_remaining","pc1_agent_version","pc1_integration_version","pc1_active_game","pc1_gaming_time_daily","pc1_gaming_time_weekly", "pc1_gaming_time_display_daily", "pc1_gaming_time_display_weekly", "pc1_gaming_restriction"}
+    assert {e.unique_id for e in owned if e.entity_id.split(".")[0] in ("sensor","binary_sensor")} == {"pc1_uptime","pc1_daily_budget_remaining","pc1_weekly_budget_remaining","pc1_budget_overview","pc1_agent_version","pc1_integration_version","pc1_active_game","pc1_gaming_time_daily","pc1_gaming_time_weekly", "pc1_gaming_time_display_daily", "pc1_gaming_time_display_weekly", "pc1_gaming_restriction"}
     for old_key, old_domain in (("current_game", "sensor"), ("in_game", "binary_sensor"),
                                 ("gaming_active", "binary_sensor")):
         assert registry.async_get_entity_id(old_domain, DOMAIN, "pc1_" + old_key) is None
