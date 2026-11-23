@@ -27,10 +27,9 @@ class DirectEntity(Entity):
     _attr_has_entity_name = True
     _attr_should_poll = False
 
-    def __init__(self, coordinator, key, name, state_key=None):
+    def __init__(self, coordinator, key, name):
         self._root = f"{ROOT}/{coordinator.device_id}"
         self._key = key
-        self._state_key = state_key
         self._attr_unique_id = f"{coordinator.device_id}_{key}"
         self._attr_name = name
         self._attr_device_info = DeviceInfo(
@@ -43,15 +42,13 @@ class DirectEntity(Entity):
 
     @property
     def available(self):
-        return self._connected and self._online and (self._state_key is None or self._value is not None)
+        return self._connected and self._online
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
         self._connected = mqtt.is_connected(self.hass)
         self.async_on_remove(mqtt.async_subscribe_connection_status(self.hass, self._connection))
         self.async_on_remove(await mqtt.async_subscribe(self.hass, self._root + "/availability", self._availability, qos=1))
-        if self._state_key:
-            self.async_on_remove(await mqtt.async_subscribe(self.hass, self._root + "/state/" + self._state_key, self._state, qos=1))
 
     @callback
     def _connection(self, connected):
@@ -68,18 +65,6 @@ class DirectEntity(Entity):
             self._value = None
         self.async_write_ha_state()
 
-    @callback
-    def _state(self, message):
-        value = message.payload
-        if self._state_key == "uptime":
-            if isinstance(value, str) and value.isascii() and value.isdecimal() and len(value) <= 16:
-                value = int(value)
-            else:
-                value = None
-        elif not isinstance(value, str) or not value or len(value) > 255 or value in ("unknown", "unavailable"):
-            value = None
-        self._value = value
-        self.async_write_ha_state()
 
 
 class DirectUptime(DirectEntity, SensorEntity):
