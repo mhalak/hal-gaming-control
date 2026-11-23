@@ -43,13 +43,13 @@ def test_device_sensor_is_read_only_and_shows_both_budgets_without_yaml():
                return_value=at()):
         assert sensor.native_value == (
             "Today: 5m 55s left · Week: 1h 35m 55s left")
+        assert len(sensor.native_value) < 255
         details = sensor.extra_state_attributes
     assert sensor.unique_id == "pc1_budget_overview"
     assert sensor.name == "Budget overview"
     assert sensor.device_info["identifiers"] == {
         ("mqtt", "smarthouse_gaming_pc1")}
     assert sensor.entity_category is None  # Visible in the device's Sensors card.
-    assert len(sensor.native_value) < 255
     assert details["overview_text"].splitlines() == [
         "Daily base: 180 min",
         "Weekend bonus: +0 min",
