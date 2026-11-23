@@ -134,6 +134,9 @@ class GamingCoordinator(DataUpdateCoordinator):
         # The restriction signal is policy-only; never publish a command here.
         reasons = violations(self.options, totals, now, active) if ready else None
         return {"ready": ready, "online": ready, "active_game": alias if ready else None,
+                # UI-only fresh Windows observation: may remain Roblox while
+                # screen OFF forces the independent accounting game to idle.
+                "observed_game": self.foreground.observed_game if ready else None,
                 "totals": totals if ready else {}, "recorded_totals": totals,
                 "coverage_incomplete": True, "cutover_since": self.cutover_since,
                 "reasons": reasons, "active": active,
