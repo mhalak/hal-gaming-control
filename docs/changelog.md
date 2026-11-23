@@ -8,11 +8,15 @@ This is the **human-readable development changelog**. For full technical release
 
 > **Preview software, not a deployment log.** Version numbers below describe changes recorded in source; they do **not** prove that a tagged GitHub Release, a signed Windows installer or an update on any real PC/HA instance exists. Always check the deployed build and the [current compatibility/deployment instructions](known_limitations.md).
 
-**Current source (Preview 29, 23 November 2026):** **Home Assistant 0.13.5** and **Windows agent 0.4.0**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
+**Current source (Preview 30, 23 November 2026):** **Home Assistant 0.13.6** and **Windows agent 0.4.0**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
 
 **🚨 BREAKING CHANGE** means an upgrade can require manual action or break compatibility with prior configs, entity IDs or MQTT payloads. Follow the linked migration instructions before updating; do not assume a normal in-place upgrade is safe.
 
 ## Home Assistant integration
+
+### 0.13.6 — Native per-PC Budget overview sensor
+- Adds a read-only Budget overview row to every PC's Sensors section. Short daily/weekly remaining summary is visible directly; tap for a complete text breakdown of base allowance, individual bonus sources, played/remaining time and coverage warnings. No dashboard YAML required for the short view.
+- Uses existing verified receipt data and displays missing data, rules disabled and Unlimited explicitly. Windows 0.4.0 unchanged; no release or deployment implied.
 
 ### 0.13.5 — Parent Bonus Undo labels
 - The Undo dropdown now shows time, bonus duration and **Parent Bonus**. Opaque IDs are hidden unless two grants otherwise have identical labels; internal cancellation safety stays unchanged.
