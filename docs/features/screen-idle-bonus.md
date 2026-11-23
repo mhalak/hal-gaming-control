@@ -59,6 +59,8 @@ Each v3 snapshot contains distinct, strictly validated nested `foreground` and `
 
 The Windows helper uses `GUID_CONSOLE_DISPLAY_STATE` notifications and `GetLastInputInfo`; missing or ambiguous observations become `unknown`. HA applies validated console OFF before foreground accounting, suspending new measured gaming seconds but never deleting already-confirmed usage. After ON, a subsequent verified foreground sample is required. Retained, replayed, stale and foreign packets cannot grant time.
 
+**HA 0.13.4 freshness correction (#212):** `display.event_age_ms` measures how long ago Windows changed to ON/OFF; `display.sample_age_ms` measures how recently the helper observed the **current** state. An OFF transition from hours ago can still be a valid current OFF if the helper keeps sending fresh, ordered samples (the real-device report had a ~3h39m event age but a 156ms sample age). HA does **not** resume charging after 36 seconds merely because the transition was old. It expires trusted state after live samples stop arriving, and an actual new ON plus later fresh foreground observation is required to resume gaming charges.
+
 ### Automatic daily Screen Idle bonus
 
 There is no Screen idle configuration page, acknowledgement or opt-out. The v3 monitoring stream and evidence-qualified Screen idle policy are **always active**. If a PC reports only an `unknown` display state, verified gaming time still counts normally, but it receives no speculative Screen idle bonus.
