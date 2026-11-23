@@ -11,7 +11,7 @@ HAL Gaming Control connects your child's Windows PC to Home Assistant, so you ca
 > If upgrading from any earlier preview (`smarthouse_gaming` 0.5.x, `parental` 0.6.0, or `parental_control` 0.6.1), **do not run a normal
 > in-place update**. First follow the [one-time clean-cut installation
 > guide](domain-clean-cut.md); saved HA settings and tracked apps must be
-> configured again. The Windows/MQTT protocol stays unchanged.
+> configured again. **Current HA 0.13.0+ requires Unified MQTT v3** and Windows 0.4.0+ uses the OS hostname as device ID; no old-protocol fallback exists.
 
 ## What you'll need
 
@@ -26,7 +26,7 @@ Windows reports activity. Home Assistant displays it and keeps the settings.
 1. Read [known limitations](known_limitations.md). There's no verified signed Windows installer yet. **Don't disable Windows security** to force it to install.
 2. Set up the [Windows companion](windows_deployment.md). Start with **one test PC**, not every computer in the house.
 3. Follow the [Home Assistant setup guide](ha_integration.md). Both systems must be able to reach your MQTT broker.
-4. Check that the PC appears in Home Assistant and that **fresh activity data** arrives.
+4. Check that the PC appears in Home Assistant using its actual Windows hostname, that retained discovery announces `unified_telemetry_protocol: 3` and **fresh `state/telemetry` activity** arrives. There is no protocol selection toggle.
 5. [Track an app](features/tracked-applications.md), [set a budget](features/gaming-budgets.md) and try the [manual parent controls](features/parent-actions.md) when safe.
 
 **Keep automatic locking and game termination off** until you've tested your PC and version. Closing a game may lose unsaved progress.

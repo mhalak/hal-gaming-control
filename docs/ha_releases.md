@@ -1,3 +1,11 @@
+## 0.13.0 — BREAKING: Home Assistant consumes Unified MQTT v3 only (#201, #176)
+
+- **Clean cut:** the HA integration now unconditionally subscribes to `SmartHouse/Gaming/<Windows-computer-name>/state/telemetry` (plus discovery and availability). Removed v2 `state/foreground_identity` and `state/display_context` subscriptions, scalar Uptime fallback, and the Tracked applications editor's v2 preview fallback.
+- Removed the **Unified MQTT telemetry (experimental)** Configure option entirely. Previously stored `unified_telemetry_enabled` is discarded at setup, preserving all other settings, tracked apps, bonus journals and Recorder histories. A stale `false` setting no longer renders all sensors unavailable.
+- New PC enrollment requires a valid `unified_telemetry_protocol: 3` discovery capability. Retained older discovery messages lacking v3 are ignored. Current Windows agent **0.4.0** publishes v3-only using its actual OS computer name as the MQTT device ID; existing entries using an old MQTT ID require explicit re-enrollment under the new name. No invisible identity migration, dual monitoring or data backfill occurs.
+- Invalid, replayed, stale, wrong-PC or retained telemetry remains unknown/unavailable rather than fabricated idle or gameplay. Screen Idle bonus opt-in and security controls are separate from telemetry protocol selection and are unchanged.
+- **HA-only source release** `0.13.0` / Preview 24; Windows version remains `0.4.0`. A passed CI build does not prove the user's installation has been updated. See [Unified MQTT v3 operational guide](unified_mqtt_telemetry.md).
+
 ## 0.12.2 — Show device name and MQTT identity when adding a gaming PC (#198)
 
 - **Add gaming PC** now displays every candidate as `name (device_id)`, including both current Windows hostname-scoped entries and old retained discovery aliases. Example: `DESKTOP-9KHJGVL (desktop_lucija)` versus `DESKTOP-9KHJGVL (DESKTOP-9KHJGVL)`. This lets the operator identify which MQTT namespace belongs to each choice.

@@ -1,4 +1,4 @@
-> **Historical engineering reference.** For currently supported HA 0.7.0 setup with the `hal_gaming_control` domain, see [the clean-cut guide](../domain-clean-cut.md). Older baseline notes below describe previous previews.
+> **Historical engineering reference only.** This archive describes old HA preview formats, including retired v2 monitoring. For current HA **0.13.0+**, only [Unified MQTT v3](../unified_mqtt_telemetry.md) is supported; ignore old subscription/Configure instructions below.
 
 > **Archived engineering notes (21 November 2026).** These notes cover specific development versions and may be outdated. For the shorter parent-facing guide, [start here](../ha_integration.md).
 

@@ -8,15 +8,21 @@ This is the **human-readable development changelog**. For full technical release
 
 > **Preview software, not a deployment log.** Version numbers below describe changes recorded in source; they do **not** prove that a tagged GitHub Release, a signed Windows installer or an update on any real PC/HA instance exists. Always check the deployed build and the [current compatibility/deployment instructions](known_limitations.md).
 
-**Source snapshot (Preview 21, 22 November 2026):** **Home Assistant 0.12.0** and **Windows agent 0.4.0**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
+**Current source (Preview 24, 23 November 2026):** **Home Assistant 0.13.0** and **Windows agent 0.4.0**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
 
 **🚨 BREAKING CHANGE** means an upgrade can require manual action or break compatibility with prior configs, entity IDs or MQTT payloads. Follow the linked migration instructions before updating; do not assume a normal in-place upgrade is safe.
 
 ## Home Assistant integration
 
+### 0.13.0 — BREAKING: Unified MQTT v3 only (#201)
+- One mandatory v3 telemetry stream for all PC monitoring; no protocol toggle, v2 subscription or scalar Uptime fallback.
+- Stale protocol options are removed without affecting budgets, tracked applications, bonuses or history. Devices are enrolled using the Windows hostname and v3 discovery capability.
+- Review the [v3 clean-cut deployment guide](unified_mqtt_telemetry.md) before updating.
+
+
 ### 0.12.0 — Unified MQTT telemetry v3 (Preview 19, #176)
 - Adds a strict per-PC v3 JSON telemetry consumer with freshness, device, replay and reconnect checks, plus source-specific display and uptime diagnostics.
-- **Compatibility warning:** the experimental v3 option remains **OFF by default**, and HA does not silently fall back to v2 once v3 is selected. **Windows 0.3.0 requires HA 0.12.0+ with v3 enabled for that PC before rollout.** Missing data is unknown, not free gaming time. [Coordinated upgrade](unified_mqtt_telemetry.md).
+- **Historical note:** this was an experimental opt-in in 0.12.0. HA 0.13.0 removes that option and requires v3 on every enrolled PC. [Current setup](unified_mqtt_telemetry.md).
 
 ### 0.11.0 — Experimental Screen Idle bonus (#92)
 - Adds replay-safe screen display event processing, safer accounting during unverified intervals and an optional daily Screen Idle bonus.

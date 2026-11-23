@@ -1,8 +1,8 @@
-"""Device-scoped, fail-closed Home Assistant MQTT v2 foreground source.
+"""Device-scoped, fail-closed Unified MQTT telemetry v3 source.
 
-The raw stream is authoritative for activity; Windows legacy game rules are
-never consulted. The caller owns persistent accounting checkpoints and UI
-registration, and must not backfill unavailable time.
+The single Windows v3 stream is authoritative for live activity.
+Verified HA accounting checkpoints remain intact; missing evidence never
+becomes synthetic idle or gaming time.
 """
 import json
 from time import monotonic, time
@@ -12,7 +12,7 @@ from homeassistant.core import callback
 
 from .const import ROOT
 from .protocol import parse_discovery
-from .raw_foreground import HAOwnedForeground, decode_raw_identity
+from .raw_foreground import HAOwnedForeground
 from .screen_idle import DisplayGate
 from .unified_telemetry import (
     MAX_AGE, TelemetryOrder, decode_telemetry, display_v2, foreground_v2,
@@ -20,11 +20,10 @@ from .unified_telemetry import (
 
 
 class ForegroundSource:
-    """Consume safe, non-retained v2 observations for one gaming PC."""
+    """Consume only non-retained unified v3 for one gaming PC."""
 
     def __init__(self, hass, device_id, tracked_apps, on_update, *, intervals=(),
-                 screen_enabled=False, on_screen_off=None,
-                 unified_enabled=False):
+                 screen_enabled=False, on_screen_off=None):
         self.hass = hass
         self.device_id = device_id
         self.on_update = on_update
@@ -34,11 +33,10 @@ class ForegroundSource:
         self._online = False
         self._unsub = []
         self._closed = False
-        self.last_raw = None  # most recent independently verified live v2 packet
+        self.last_raw = None  # latest verified foreground from unified v3
         self.display = DisplayGate(device_id) if screen_enabled else None
         self.on_screen_off = on_screen_off
-        self.unified_enabled = unified_enabled
-        self.telemetry_order = TelemetryOrder() if unified_enabled else None
+        self.telemetry_order = TelemetryOrder()
         self.v3_capable = False
         self.system_uptime = None
         self.system_status = None
@@ -48,32 +46,19 @@ class ForegroundSource:
         self._post_on_timestamp = None
 
     async def async_start(self):
-        """Subscribe to the same scoped MQTT topics in both discovery modes."""
+        """Subscribe only to Unified v3; no legacy monitoring subscriptions."""
         self._connected = mqtt.is_connected(self.hass)
         try:
             self._unsub.append(mqtt.async_subscribe_connection_status(
                 self.hass, self._connection))
             self._unsub.append(await mqtt.async_subscribe(
                 self.hass, self.root + "/availability", self._availability, qos=1))
-            if self.unified_enabled:
-                # Require the exact per-PC Windows v3 discovery capability;
-                # a parent setting or old retained availability is not proof.
-                self._unsub.append(await mqtt.async_subscribe(
-                    self.hass, self.root + "/discovery",
-                    self._v3_discovery, qos=1))
-                # Strict either/or migration: never subscribe v2 and v3
-                # accounting sources at the same time for one PC.
-                self._unsub.append(await mqtt.async_subscribe(
-                    self.hass, self.root + "/state/telemetry",
-                    self._telemetry_snapshot, qos=0))
-            else:
-                self._unsub.append(await mqtt.async_subscribe(
-                    self.hass, self.root + "/state/foreground_identity",
-                    self._snapshot, qos=0))
-                if self.display is not None:
-                    self._unsub.append(await mqtt.async_subscribe(
-                        self.hass, self.root + "/state/display_context",
-                        self._screen_snapshot, qos=0))
+            self._unsub.append(await mqtt.async_subscribe(
+                self.hass, self.root + "/discovery",
+                self._v3_discovery, qos=1))
+            self._unsub.append(await mqtt.async_subscribe(
+                self.hass, self.root + "/state/telemetry",
+                self._telemetry_snapshot, qos=0))
         except BaseException:
             self.close()
             raise
@@ -87,12 +72,11 @@ class ForegroundSource:
             self._online = False
             self.last_raw = None
             self.ledger.invalidate()
-            if self.telemetry_order is not None:
-                self.telemetry_order.suspend()
-                self.system_uptime = self.system_status = self.display_details = None
-                self.v3_capable = False
-                self._needs_post_on = False
-                self._post_on_sequence = self._post_on_timestamp = None
+            self.telemetry_order.suspend()
+            self.system_uptime = self.system_status = self.display_details = None
+            self.v3_capable = False
+            self._needs_post_on = False
+            self._post_on_sequence = self._post_on_timestamp = None
             if self.display is not None:
                 self.display.invalidate()
         self.on_update()
@@ -107,55 +91,18 @@ class ForegroundSource:
         if not self._online:
             self.last_raw = None
             self.ledger.invalidate()
-            if self.telemetry_order is not None:
-                self.telemetry_order.suspend()
-                self.system_uptime = self.system_status = self.display_details = None
-                self.v3_capable = False
-                self._needs_post_on = False
-                self._post_on_sequence = self._post_on_timestamp = None
+            self.telemetry_order.suspend()
+            self.system_uptime = self.system_status = self.display_details = None
+            self.v3_capable = False
+            self._needs_post_on = False
+            self._post_on_sequence = self._post_on_timestamp = None
             if self.display is not None:
                 self.display.invalidate()
         self.on_update()
 
     @callback
-    def _snapshot(self, message):
-        if self._closed:
-            return
-        if (message.topic != self.root + "/state/foreground_identity"
-                or not self._connected or not self._online):
-            self.last_raw = None
-            self.ledger.invalidate()
-            self.on_update()
-            return
-        payload = message.payload
-        if self.display is not None and self.display.current(monotonic()) == "off":
-            try:
-                original = decode_raw_identity(payload, self.device_id)
-                if original["state"] == "foreground":
-                    # Preserve verified device/epoch/sequence/timestamp while
-                    # gating counted foreground to confirmed console-idle.
-                    original.update(state="idle", process=None, signature=None)
-                    payload = json.dumps(original)
-            except (ValueError, TypeError, RecursionError):
-                pass  # Raw accounting still validates and fails closed.
-        accepted = self.ledger.observe(
-            payload, retained=getattr(message, "retain", None),
-            wall_now=time(), monotonic_now=monotonic())
-        self.last_raw = None
-        if accepted:
-            try:
-                raw = decode_raw_identity(message.payload, self.device_id)
-                if (raw["state"] == "foreground" and not (
-                        self.display is not None and
-                        self.display.current(monotonic()) == "off")):
-                    self.last_raw = raw
-            except (ValueError, TypeError, RecursionError):
-                self.ledger.invalidate()
-        self.on_update()
-
-    @callback
     def _v3_discovery(self, message):
-        if self._closed or not self.unified_enabled:
+        if self._closed:
             return
         capable = False
         if message.topic == self.root + "/discovery":
@@ -233,8 +180,7 @@ class ForegroundSource:
     @callback
     def _telemetry_snapshot(self, message):
         """Apply one ordered atomic v3 packet, display before foreground."""
-        if (self._closed or self.telemetry_order is None
-                or not self.v3_capable):
+        if self._closed or not self.v3_capable:
             return
         if (message.topic != self.root + "/state/telemetry"
                 or not self._connected or not self._online):
@@ -258,7 +204,7 @@ class ForegroundSource:
         self.on_update()
 
     def _observe_display(self, payload, wall, mono):
-        """Shared v2 gate: keep exact helper event identity and bonus journal."""
+        """Preserve helper event identity and HA-owned bonus journal."""
         before = self.display.current(mono)
         active_before = self.ledger.current(mono)
         accepted, event = self.display.observe(
@@ -272,44 +218,21 @@ class ForegroundSource:
             self.on_screen_off(event, self.ledger.export_segments())
         return accepted or before != after
 
-    @callback
-    def _screen_snapshot(self, message):
-        """Display and foreground are independent, device-scoped live streams."""
-        if self._closed or self.display is None:
-            return
-        if (message.topic != self.root + "/state/display_context"
-                or not self._connected or not self._online):
-            self.display.invalidate()
-            self.ledger.invalidate()
-            self.last_raw = None
-            self.on_update()
-            return
-        if getattr(message, "retain", None) is not False:
-            self.display.invalidate()
-            self.ledger.invalidate()
-            self.last_raw = None
-            self.on_update()
-            return
-        if self._observe_display(message.payload, time(), monotonic()):
-            self.on_update()
-
     def current(self, monotonic_now=None):
         """Friendly HA alias, 'idle', or None (unknown/unavailable)."""
         if not (self._connected and self._online) or self._closed:
             return None
         observed = monotonic() if monotonic_now is None else monotonic_now
-        if self.telemetry_order is not None:
-            last = self.telemetry_order.received
-            if (not self.v3_capable or last is None
-                    or not 0 <= observed - last < MAX_AGE):
-                # A cached OFF cannot appear to be freshly confirmed idle
-                # after v3 telemetry stops; do not extrapolate across gaps.
-                self.last_raw = None
-                self.ledger.invalidate()
-                self.system_uptime = self.system_status = self.display_details = None
-                if self.display is not None:
-                    self.display.invalidate()
-                return None
+        last = self.telemetry_order.received
+        if (not self.v3_capable or last is None
+                or not 0 <= observed - last < MAX_AGE):
+            # Missing or stale evidence is unknown, not confirmed idle.
+            self.last_raw = None
+            self.ledger.invalidate()
+            self.system_uptime = self.system_status = self.display_details = None
+            if self.display is not None:
+                self.display.invalidate()
+            return None
         if self.display is not None and self.display.current(observed) == "off":
             return "idle"
         return self.ledger.current(observed)

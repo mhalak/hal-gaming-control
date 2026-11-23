@@ -76,7 +76,7 @@ async def test_menu_exposes_only_live_settings_without_mutating_saved_options(
                                        "tracked_apps": "Tracked applications",
                                        "windows_updates": "Windows updates (advanced)",
                                        "screen_idle": "Screen idle (experimental)",
-                                       "unified_telemetry": "Unified MQTT telemetry (experimental)"}
+                                       }
     assert entry.options == saved
 
 
@@ -227,28 +227,26 @@ async def test_raw_identity_change_prevents_cross_app_add_default(
     assert field.config["fields"]["detected"].get("default") is None
 
 
-async def test_raw_snapshot_rejects_stale_retained_foreign_and_unsafe_packets(
+async def test_v3_raw_preview_rejects_invalid_and_never_subscribes_to_v2(
         hass, enable_custom_integrations):
     entry = add_device(hass, DATA1)
-    device_topic = "SmartHouse/Gaming/pc1/state/foreground_identity"
+    topic = "SmartHouse/Gaming/pc1/state/telemetry"
     now = cf.dt_util.utcnow().timestamp()
-    base = {"version": 2, "device_id": "pc1", "epoch": "a" * 32,
-            "sequence": 1, "observed_at": now,
-            "state": "foreground", "process": "chrome.exe", "signature": None}
     captured = []
+    base = v3_roblox_packet(observed_at=now)
+    base["foreground"]["process"] = "chrome.exe"
 
-    async def subscribe(_hass, topic, cb, qos=0):
-        captured.append((topic, qos))
-        cb(SimpleNamespace(topic=device_topic, payload=json.dumps(base),
-                           retain=True))
-        cb(SimpleNamespace(topic=device_topic, payload=json.dumps(
-            base | {"device_id": "pc2"}), retain=False))
-        cb(SimpleNamespace(topic=device_topic, payload=json.dumps(
-            base | {"process": "C:/private/file.exe"}), retain=False))
-        cb(SimpleNamespace(topic=device_topic, payload=json.dumps(
-            base | {"observed_at": now - 90}), retain=False))
-        cb(SimpleNamespace(topic=device_topic, payload=json.dumps(base),
-                           retain=False))
+    async def subscribe(_hass, requested, cb, qos=0):
+        captured.append((requested, qos))
+        for payload, retained in (
+                (base, True),
+                (base | {"device_id": "pc2"}, False),
+                (base | {"observed_at": now - 90}, False),
+                (base | {"foreground": base["foreground"] |
+                         {"process": "C:/unsafe/file.exe"}}, False),
+                (base, False)):
+            cb(SimpleNamespace(topic=requested, payload=json.dumps(payload),
+                               retain=retained))
         return lambda: captured.append(("unsubscribed", 0))
 
     with patch.object(cf.mqtt, "async_subscribe", side_effect=subscribe), \
@@ -256,12 +254,10 @@ async def test_raw_snapshot_rejects_stale_retained_foreign_and_unsafe_packets(
             patch.object(cf, "_discover_foreground_candidate",
                          new=AsyncMock(return_value=None)):
         manager = hass.config_entries.options
-        view = await manager.async_init(entry.entry_id)
+        menu = await manager.async_init(entry.entry_id)
         view = await manager.async_configure(
-            view["flow_id"], {"next_step_id": "tracked_apps"})
-    assert captured == [(device_topic, 0),
-                        ("SmartHouse/Gaming/pc1/state/telemetry", 0),
-                        ("unsubscribed", 0), ("unsubscribed", 0)]
+            menu["flow_id"], {"next_step_id": "tracked_apps"})
+    assert captured == [(topic, 0), ("unsubscribed", 0)]
     assert view["description_placeholders"]["raw_value"] == "chrome.exe"
     assert view["description_placeholders"]["preview_name"] == "Not tracked"
 
@@ -312,7 +308,7 @@ async def test_shared_golden_wire_fixtures_decode_with_real_ha_parsers():
 
 async def test_v3_only_windows_agent_shows_detected_app_in_editor(
         hass, enable_custom_integrations):
-    """Preview must work without old v2 MQTT, even if v3 accounting is disabled."""
+    """Preview must work on the single mandatory v3 stream."""
     entry = add_device(hass, DATA1)
     now = cf.dt_util.utcnow().timestamp()
     v3_topic = "SmartHouse/Gaming/pc1/state/telemetry"
@@ -378,7 +374,7 @@ async def test_windows_v3_only_mqtt_capture_add_save_roundtrip(
         hass, enable_custom_integrations):
     """Actual MQTT callbacks, Options Flow and persisted HA list; zero v2 packets."""
     saved = {"daily": 75, "weekly": 600, "unlimited": False,
-             "unified_telemetry_enabled": True}
+             "unified_telemetry_enabled": False}
     entry = add_device(hass, DATA1, saved)
     now = cf.dt_util.utcnow().timestamp()
     root = "SmartHouse/Gaming/pc1/state/"
@@ -413,8 +409,7 @@ async def test_windows_v3_only_mqtt_capture_add_save_roundtrip(
         publish.assert_not_called()
 
     assert set(subscribed) == {
-        root + "foreground_candidate", root + "foreground_identity",
-        root + "telemetry"}
+        root + "foreground_candidate", root + "telemetry"}
     assert set(unsubscribed) == set(subscribed)
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
     assert result["data"]["tracked_apps"] == [{
@@ -423,25 +418,19 @@ async def test_windows_v3_only_mqtt_capture_add_save_roundtrip(
         assert result["data"][key] == value
 
 
-async def test_v3_takes_precedence_over_stale_or_conflicting_v2(
+async def test_old_v2_preview_is_not_subscribed_after_clean_cut(
         hass, enable_custom_integrations):
-    """Legacy packets cannot overwrite confirmed v3 foreground preview."""
+    """Even a valid old v2 packet must have no HA preview subscription."""
     entry = add_device(hass, DATA1)
     now = cf.dt_util.utcnow().timestamp()
     root = "SmartHouse/Gaming/pc1/state/"
+    subscriptions = []
 
     async def subscribe(_hass, topic, cb, qos=0):
+        subscriptions.append(topic)
         if topic == root + "telemetry":
             cb(SimpleNamespace(topic=topic, retain=False,
                                payload=json.dumps(v3_roblox_packet(observed_at=now))))
-        elif topic == root + "foreground_identity":
-            cb(SimpleNamespace(topic=topic, retain=False,
-                               payload=json.dumps({
-                                   "version": 2, "device_id": "pc1",
-                                   "epoch": "a" * 32, "sequence": 42,
-                                   "observed_at": now, "state": "foreground",
-                                   "process": "chrome.exe", "signature": None,
-                               })))
         return lambda: None
 
     with patch.object(cf.mqtt, "async_subscribe", side_effect=subscribe), \
@@ -453,10 +442,9 @@ async def test_v3_takes_precedence_over_stale_or_conflicting_v2(
         view = await manager.async_configure(
             menu["flow_id"], {"next_step_id": "tracked_apps"})
 
+    assert subscriptions == [root + "telemetry"]
+    assert root + "foreground_identity" not in subscriptions
     assert view["description_placeholders"]["raw_value"] == ROBLOX["process"]
-    assert view["description_placeholders"]["preview_name"] == "Not tracked"
-    field = next(iter(view["data_schema"].schema.values()))
-    assert field.config["fields"]["detected"]["default"] == ROBLOX["process"]
 
 
 async def test_v3_foreground_without_candidate_is_preview_only(
@@ -750,14 +738,13 @@ async def test_translations_explain_single_page_editor_and_mqtt(
         hass, enable_custom_integrations):
     for relative in ("strings.json", "translations/en.json"):
         steps = json.loads((PACKAGE / relative).read_text())["options"]["step"]
-        assert set(steps) == {"settings_menu", "mqtt_settings", "tracked_apps", "windows_updates", "screen_idle", "unified_telemetry"}
+        assert set(steps) == {"settings_menu", "mqtt_settings", "tracked_apps", "windows_updates", "screen_idle"}
         assert steps["settings_menu"]["menu_options"] == {
             "mqtt_settings": "MQTT configuration",
             "tracked_apps": "Tracked applications",
             "windows_updates": "Windows updates (advanced)",
             "screen_idle": "Screen idle (experimental)",
-                                       "unified_telemetry": "Unified MQTT telemetry (experimental)",
-        }
+                                       }
         assert "{actions}" not in steps["settings_menu"]["description"]
         assert steps["settings_menu"]["title"] == "HAL Gaming Control"
         assert steps["tracked_apps"]["submit"] == "Save changes"

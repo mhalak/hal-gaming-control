@@ -51,43 +51,20 @@ More: [Gaming budgets](gaming-budgets.md)
 
 **Explore more features:** [← Controls & automations](parent-actions.md) · [Budget Overview →](budget-overview.md)
 
-## Developer preview — Windows display context
+## Developer reference — Unified MQTT v3 (HA 0.13.0+)
 
-In the Windows agent source, `display_context.py` reads `VIDEOIDLE` for the active power plan using Win32 power APIs, reporting configured **AC** and **DC** timeouts in seconds. `0` means Windows is configured to **never** turn the display off automatically on that power source. The foreground helper (which runs in the active interactive user session, not Session 0) separately reads `GetLastInputInfo` and returns the approximate age in milliseconds of the last session input. Failures, a locked or unconfirmed session, or input-age ambiguity yield `null` rather than fabricated activity.
+Screen Idle remains an optional **bonus feature**, not an optional telemetry protocol. HA and Windows both use the mandatory, non-retained **Unified v3** monitoring stream at `SmartHouse/Gaming/<Windows-computer-name>/state/telemetry`. There is **no** separate `state/display_context` or `state/foreground_identity` subscriber and no v2 compatibility setting.
 
-The agent can publish a non-retained, 45-second-expiry, device-scoped MQTT JSON snapshot on `SmartHouse/Gaming/<device_id>/state/display_context` approximately every 30 seconds after its normal telemetry is synchronized. The schema is:
+Each v3 snapshot contains distinct, strictly validated nested `foreground` and `display` objects, alongside `system` uptime. The `display` block includes the logical Windows console state (`on`, `dim`, `off` or `unknown`), event epoch/sequence, observation and event ages, AC/DC display timeout settings, power source and last input idle age. See the exact [shared v3 wire fixture](../../tests/contracts/v3/telemetry-foreground.json) and [full monitoring contract](../unified_mqtt_telemetry.md).
 
-```json
-{
-  "version": 2,
-  "device_id": "example_pc",
-  "observed_at": 1790000000.0,
-  "display_state": "off",
-  "display_scope": "windows_console",
-  "display_event_age_ms": 1500,
-  "display_epoch": "0123456789abcdef0123456789abcdef",
-  "display_sequence": 12,
-  "ac_timeout_seconds": 600,
-  "dc_timeout_seconds": 300,
-  "power_source": "ac",
-  "last_input_idle_ms": 120000
-}
-```
+The Windows helper uses `GUID_CONSOLE_DISPLAY_STATE` notifications and `GetLastInputInfo`; missing or ambiguous observations become `unknown`. HA applies validated console OFF before foreground accounting, suspending new measured gaming seconds but never deleting already-confirmed usage. After ON, a subsequent verified foreground sample is required. Retained, replayed, stale and foreign packets cannot grant time.
 
-Values are illustrative, not readings from a family PC. An interactive-user helper registers a hidden, non-focus-stealing Windows top-level window using `RegisterPowerSettingNotification(GUID_CONSOLE_DISPLAY_STATE)`, and reports console `on`, `dim`, `off` or `unknown` with `display_event_age_ms`. It invalidates stale/locked-session, sleep/resume, topology-change and missing-event results to `unknown`. All values share this existing `display_context` JSON packet; no new HA entities were introduced. **A console `off` event cannot prove all physical monitors are off**, does not distinguish automatic from manual off, and `GetLastInputInfo` cannot reliably see every game controller. Neither timeout nor state by itself authorizes a Screen idle bonus. A real SYSTEM + interactive-user pilot and later HA source-of-truth accounting are still needed. No Windows power setting or game process is modified.
+### Optional daily Screen Idle bonus
 
-[High-priority issue #176](https://github.com/mhalak/hal-gaming-control/issues/176) covers future consolidation of **all** Windows monitoring into one versioned per-PC JSON snapshot. The present Windows change stays on the existing display-context topic until HA and Windows can migrate their authoritative gaming telemetry together, without double-counting.
+**Configure → Screen idle (experimental)** controls only whether qualifying events may add a daily Screen Idle bonus. The v3 monitoring stream itself stays **always enabled** and cannot be switched to older formats.
 
-## HA experimental Screen idle opt-in (issue #92)
+An eligible, recent ON→OFF event needs a fresh confirmed measured gaming interval, event freshness, plausible AC/DC timeout, independent idle evidence and an unambiguous helper receipt. Gaps, unknown power source, manual-off ambiguity and missing evidence fail closed. Eligible whole minutes are capped at 120 per event and 180 per local HA day. A device-scoped `screen_idle_bonus_journal` prevents duplicate grants across reconnect and restart. This increases daily allowance only; it cannot erase played seconds or affect the weekly cap.
 
-Screen idle is **disabled by default**. In the configured PC's Home Assistant integration, open **Configure → Screen idle (experimental)** and explicitly acknowledge the preview limitations before enabling. Do not enable it on children's devices until a supervised Windows SYSTEM + interactive-session test verifies real hardware behavior and trusted MQTT publishing. The Windows service remains telemetry-only; HA retains all policy and time accounting.
+**Validation:** physical Windows SYSTEM + interactive-session tests, game-controller and multiple-monitor acceptance remain outstanding. Keep this bonus disabled on family devices until real hardware verification. No Windows protection should be disabled for testing.
 
-Under the preview, HA subscribes to the **existing one-packet** `SmartHouse/Gaming/<device_id>/state/display_context` JSON alongside the raw foreground stream. The current **display protocol v2** adds `display_epoch` (128-bit session identifier) and `display_sequence` (monotonic per-observer event receipt) to the previously combined ON/OFF state, `display_event_age_ms`, AC/DC timeout, power source and input age. The future *all-telemetry* consolidation remains [P1 issue #176](https://github.com/mhalak/hal-gaming-control/issues/176); the legacy game/activity MQTT topics are **not** removed here.
-
-HA requires non-retained, per-device, correctly typed v2 packets that are fresh by wall clock, with valid event IDs. It discards or invalidates malformed, cross-device, replayed, disconnected or expired observations. When a live authenticated console OFF is current, the HA-owned **Active game** alias becomes `idle` and new tracked foreground intervals stop accumulating. Measured and persisted time *before* OFF is never subtracted. After ON, new positive accounting requires a fresh pair of successive verified raw foreground samples; unknown or missing display observations never create free minutes.
-
-A **daily Screen idle bonus** is only possible for a distinct, newly observed ON→OFF event from the same helper session, seen within five seconds of the actual event, with fresh previously *confirmed, continuously measured* foreground intervals and plausible AC/DC timeout evidence. An OFF event immediately following user input, an unset/zero timeout, unknown power source, missing input evidence, gaps in measured game activity, stale events or a local-midnight/DST boundary fail closed to **zero**. Windows GetLastInputInfo does not capture every controller, and logical console OFF cannot distinguish all manual/multi-monitor cases: that's why the entire preview requires deliberate opt-in and real-PC verification.
-
-Eligible verified whole minutes are bounded at 120 per event and 180 per local HA day, persisted in a separate config-entry `screen_idle_bonus_journal` using the Windows helper epoch/sequence. Duplicates and reconnect/restart replays do not grant again. It **adds to daily allowance only**; it does not alter daily/weekly measured time, the independent weekly limit, the Parent bonus history or weekend bonus. Budget Overview exposes `screen_idle_bonus_minutes` and a preview/disabled status as attributes of the existing daily budget sensor, **without adding separate HA entities**. Daily bonuses reset for effective allowance at local midnight while retaining a bounded audit history.
-
-**Validation status:** unit/integration test coverage and CI are necessary but not sufficient; hardware acceptance and full controller/multiple-monitor verification remain outstanding. Do not disable Windows Defender, Smart App Control or OS security to run this preview.
+[Protocol contract](../mqtt_protocol.md) · [Issue #92](https://github.com/mhalak/hal-gaming-control/issues/92) · [Clean-cut issue #201](https://github.com/mhalak/hal-gaming-control/issues/201)

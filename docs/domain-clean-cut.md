@@ -1,3 +1,5 @@
+> **Historical domain migration only:** HA 0.13.0+ uses Unified MQTT v3 exclusively. Do not follow old foreground-v2 steps in this archive to set up a current PC. See [current setup](unified_mqtt_telemetry.md).
+
 # HA 0.7.0 domain clean cut — one-time installation procedure
 
 **Breaking development preview.** The single supported Home Assistant integration domain is now `hal_gaming_control` in `custom_components/hal_gaming_control`. It replaces all experimental predecessors: `smarthouse_gaming` (0.5.x), `parental` (0.6.0), and `parental_control` (0.6.1, which collided with another project's Marketplace domain). **This is not an in-place upgrade.** No automatic migration, alias, dual installation, or HA registry editing is provided. See [issue #146](https://github.com/mhalak/hal-gaming-control/issues/146).

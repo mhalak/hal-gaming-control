@@ -1,5 +1,6 @@
 """Native Config / Options Flow with manual-action ownership."""
 import asyncio
+import json
 import logging
 import re
 import voluptuous as vol
@@ -15,8 +16,7 @@ from .app_editor import (apply_app_editor, editor_choices, editor_rows,
                          raw_label)
 from .direct_mqtt import direct_mode
 from .protocol import parse_discovery
-from .raw_foreground import decode_raw_identity
-from .unified_telemetry import decode_telemetry, foreground_v2
+from .unified_telemetry import decode_telemetry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,6 +32,17 @@ async def _listen_window():
     await asyncio.sleep(DISCOVERY_WINDOW)
 
 
+def _supports_unified_v3(payload):
+    """Only v3-capable Windows discovery is eligible for new HA enrollment."""
+    try:
+        metadata = json.loads(payload)
+    except (TypeError, ValueError, UnicodeError):
+        return False
+    return (isinstance(metadata, dict)
+            and type(metadata.get("unified_telemetry_protocol")) is int
+            and metadata["unified_telemetry_protocol"] == 3)
+
+
 def _collect(found, message):
     """Validate one discovery message; ignore anything invalid, oversized or foreign. Never raises."""
     try:
@@ -39,7 +50,8 @@ def _collect(found, message):
         if not isinstance(payload, (str, bytes)) or len(payload) > MAX_DISCOVERY_PAYLOAD:
             return
         device = parse_discovery(message.topic, payload)
-        found[device["device_id"]] = device
+        if _supports_unified_v3(payload):
+            found[device["device_id"]] = device
     except Exception:  # noqa: BLE001 - foreign/garbled payloads must not break the flow
         return
 
@@ -100,51 +112,44 @@ async def _discover_foreground_candidate(hass, device_id):
 
 
 async def _discover_raw_foreground_snapshot(hass, device_id):
-    """Capture fresh v2 or v3 foreground for display, never for accounting.
-
-    The 0.3.0 Windows clean cut no longer emits v2 identities; the native
-    application editor must still work before a parent enables v3 accounting.
-    A validated v3 packet wins when both are seen; no legacy state can
-    overwrite its current foreground preview.
-    """
-    root = f"{ROOT}/{device_id}/state/"
-    v2_topic, v3_topic = root + "foreground_identity", root + "telemetry"
+    """Preview only validated v3 foreground; never subscribe to v2 topics."""
+    topic = f"{ROOT}/{device_id}/state/telemetry"
     found = {}
-    unsubscribes = []
+    unsubscribe = None
 
     def collect(message):
-        if (message.topic not in (v2_topic, v3_topic)
+        if (message.topic != topic
                 or getattr(message, "retain", None) is not False):
             return
         now = dt_util.utcnow().timestamp()
         try:
-            if message.topic == v3_topic:
-                telemetry = decode_telemetry(
-                    message.payload, device_id, retained=False, wall_now=now)
-                packet = decode_raw_identity(
-                    foreground_v2(telemetry), device_id)
-            else:
-                packet = decode_raw_identity(message.payload, device_id)
-            age = now - packet["observed_at"]
+            telemetry = decode_telemetry(
+                message.payload, device_id, retained=False, wall_now=now)
+            fg = telemetry["foreground"]
+            observed = telemetry["observed_at"]
+            if fg["sample_age_ms"] is not None:
+                observed -= fg["sample_age_ms"] / 1000
+            packet = {"observed_at": observed, "state": fg["state"],
+                      "process": fg["process"], "signature": fg["signature"]}
+            age = now - observed
         except (ValueError, TypeError, KeyError):
             return
         if -RAW_SNAPSHOT_FUTURE_SKEW <= age < RAW_SNAPSHOT_MAX_AGE:
-            found["v3" if message.topic == v3_topic else "v2"] = packet
+            found["packet"] = packet
 
     try:
-        for topic in (v2_topic, v3_topic):
-            unsubscribes.append(
-                await mqtt.async_subscribe(hass, topic, collect, qos=0))
+        unsubscribe = await mqtt.async_subscribe(
+            hass, topic, collect, qos=0)
         await _listen_window()
     except asyncio.CancelledError:
         raise
-    except Exception as err:  # noqa: BLE001 - absent data is unavailable
-        _LOGGER.debug("Raw foreground snapshot unavailable (%s)",
+    except Exception as err:  # noqa: BLE001 - no live preview is safe
+        _LOGGER.debug("Unified foreground snapshot unavailable (%s)",
                       type(err).__name__)
     finally:
-        for unsubscribe in unsubscribes:
+        if unsubscribe is not None:
             unsubscribe()
-    return found.get("v3") or found.get("v2")
+    return found.get("packet")
 
 def _raw_foreground_labels(snapshot, apps):
     """Show the HA alias, or a distinct UI-only snapshot state and raw identity."""
@@ -187,6 +192,8 @@ class GamingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         except (ValueError, TypeError) as err:
             _LOGGER.debug("Rejected gaming MQTT discovery (%s)", type(err).__name__)
             return self.async_abort(reason="invalid_discovery")
+        if not _supports_unified_v3(discovery_info.payload):
+            return self.async_abort(reason="unsupported_unified_telemetry")
         _LOGGER.debug("Received valid gaming MQTT discovery for device %s", self.device["device_id"])
         await self.async_set_unique_id(self.device["device_id"])
         self._abort_if_unique_id_configured(updates=self.device)
@@ -267,29 +274,8 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
                 "mqtt_settings": "MQTT configuration",
                 "tracked_apps": "Tracked applications",
                 "screen_idle": "Screen idle (experimental)",
-                "unified_telemetry": "Unified MQTT telemetry (experimental)",
                 "windows_updates": "Windows updates (advanced)",
             },
-        )
-
-    async def async_step_unified_telemetry(self, user_input=None):
-        """Explicit safe per-PC v3 cutover; v2 stays default until Windows ready."""
-        options = dict(self.config_entry.options)
-        errors = {}
-        if user_input is not None:
-            enabled = user_input.get("unified_telemetry_enabled") is True
-            if enabled and user_input.get("unified_telemetry_acknowledged") is not True:
-                errors["base"] = "unified_telemetry_unconfirmed"
-            if not errors:
-                options["unified_telemetry_enabled"] = enabled
-                return self.async_create_entry(title="", data=options)
-        return self.async_show_form(
-            step_id="unified_telemetry", errors=errors,
-            data_schema=vol.Schema({
-                vol.Required("unified_telemetry_enabled",
-                             default=options.get("unified_telemetry_enabled", False)): bool,
-                vol.Required("unified_telemetry_acknowledged", default=False): bool,
-            }),
         )
 
     async def async_step_screen_idle(self, user_input=None):

@@ -1,3 +1,5 @@
+> **Current protocol (HA 0.13.0+):** only Unified MQTT v3 telemetry from Windows agent 0.4.0+. There is no legacy compatibility option. See the [clean-cut upgrade](unified_mqtt_telemetry.md).
+
 # Home Assistant setup & everyday use
 
 [← All guides](README.md) · [← Project home](../README.md)
@@ -11,7 +13,7 @@ Home Assistant is the family's control panel: see gaming time, choose apps, give
 > If upgrading from any earlier preview (`smarthouse_gaming` 0.5.x, `parental` 0.6.0, or `parental_control` 0.6.1), **do not run a normal
 > in-place update**. First follow the [one-time clean-cut installation
 > guide](domain-clean-cut.md); saved HA settings and tracked apps must be
-> configured again. The Windows/MQTT protocol stays unchanged.
+> configured again. Current HA 0.13.0+ monitoring is Unified MQTT v3 only.
 
 ## Set it up
 
@@ -25,7 +27,7 @@ Home Assistant is the family's control panel: see gaming time, choose apps, give
 
 ## Track an app
 
-Open **Settings → Devices & services → HAL Gaming Control**, choose the PC and select **Configure → Tracked applications**.
+Open **Settings → Devices & services → HAL Gaming Control**, choose the Windows hostname-based PC and select **Configure → Tracked applications**. Only fresh Unified v3 foreground samples are accepted; there is no telemetry protocol selection under Configure.
 
 Home Assistant shows the app detected when the editor opened. It's a **snapshot**, not a live display. If the child switches apps, close and reopen the editor to see the new one.
 

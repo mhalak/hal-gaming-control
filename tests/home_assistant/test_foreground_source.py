@@ -1,6 +1,7 @@
-"""ForegroundSource MQTT integration: device isolation and replay safety."""
+"""Unified MQTT v3-only foreground source: transport and device isolation."""
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -11,33 +12,30 @@ from custom_components.hal_gaming_control import foreground_source as src
 from custom_components.hal_gaming_control.foreground_source import ForegroundSource
 
 pytestmark = pytest.mark.asyncio
-
-MINECRAFT = {"process": "javaw.exe",
-             "signature": {"kind": "java_class",
-                           "value": "net.minecraft.client.main.Main"},
-             "name": "Minecraft"}
+ROOT = "SmartHouse/Gaming"
+FIXTURE = (Path(__file__).resolve().parents[1] / "contracts" / "v3"
+           / "telemetry-foreground.json")
 ROBLOX = {"process": "RobloxPlayerBeta.exe", "signature": None, "name": "Roblox"}
 
 
-def packet(device, ts, seq, *, process="javaw.exe", signature=None,
-           state="foreground", epoch="a" * 32):
-    if process == "javaw.exe" and signature is None:
-        signature = MINECRAFT["signature"]
-    if state != "foreground":
-        process = signature = None
-    return json.dumps({"version": 2, "device_id": device, "epoch": epoch,
-                       "sequence": seq, "observed_at": ts, "state": state,
-                       "process": process, "signature": signature})
+def packet(device, ts, seq, *, process="RobloxPlayerBeta.exe", state="foreground"):
+    data = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    data.update(device_id=device, observed_at=ts, sequence=seq)
+    data["foreground"].update(
+        state=state, process=process if state == "foreground" else None,
+        signature=None, sample_age_ms=0)
+    data["display"].update(sample_age_ms=0, event_age_ms=100)
+    return json.dumps(data)
 
 
-def message(device, topic, payload, retain=False):
+def message(device, suffix, payload, retain=False):
     return SimpleNamespace(
-        topic=f"SmartHouse/Gaming/{device}/{topic}",
-        payload=payload, retain=retain)
+        topic=f"{ROOT}/{device}/{suffix}", payload=payload, retain=retain)
 
 
 async def make_source(hass, device, apps):
     callbacks, unsubscribed = {}, []
+
     async def subscribe(_hass, topic, callback, qos=0):
         callbacks[topic] = (callback, qos)
         return lambda: unsubscribed.append(topic)
@@ -52,76 +50,77 @@ async def make_source(hass, device, apps):
     return watcher, callbacks, notify, unsubscribed
 
 
-def deliver(callbacks, device, topic, payload, *, ts=100, retain=False):
-    cb = callbacks[f"SmartHouse/Gaming/{device}/{topic}"][0]
+def deliver(callbacks, device, suffix, payload, *, ts=100, retain=False):
+    cb = callbacks[f"{ROOT}/{device}/{suffix}"][0]
     with patch.object(src, "time", return_value=ts), \
             patch.object(src, "monotonic", return_value=10000 + ts):
-        cb(message(device, topic, payload, retain))
+        cb(message(device, suffix, payload, retain))
+
+
+def discover(callbacks, device):
+    deliver(callbacks, device, "discovery", json.dumps({
+        "protocol_version": 1, "device_id": device,
+        "name": device, "games": [], "actions": [],
+        "unified_telemetry_protocol": 3}))
 
 
 def total(watcher, ts=110):
     return watcher.totals(datetime.fromtimestamp(ts, timezone.utc))["weekly"]
 
 
-async def test_live_foreground_aliases_without_legacy_rules(hass):
-    watcher, cb, changed, unsub = await make_source(hass, "pc1", [MINECRAFT, ROBLOX])
-    assert cb["SmartHouse/Gaming/pc1/state/foreground_identity"][1] == 0
-    assert cb["SmartHouse/Gaming/pc1/availability"][1] == 1
-    deliver(cb, "pc1", "availability", b"online")
-    deliver(cb, "pc1", "state/foreground_identity", packet("pc1", 100, 1))
-    assert watcher.current(10100) == "Minecraft"
-    deliver(cb, "pc1", "state/foreground_identity", packet("pc1", 102, 2), ts=102)
-    assert total(watcher) == 2
-    deliver(cb, "pc1", "state/foreground_identity",
-            packet("pc1", 104, 3, process="chrome.exe"), ts=104)
-    assert watcher.current(10104) == "idle"
-    deliver(cb, "pc1", "state/foreground_identity",
-            packet("pc1", 106, 4, process="RobloxPlayerBeta.exe"), ts=106)
-    assert watcher.current(10106) == "Roblox"
+async def test_v3_only_transport_and_confirmed_foreground(hass):
+    watcher, cb, changed, unsub = await make_source(hass, "pc1", [ROBLOX])
+    assert set(cb) == {
+        f"{ROOT}/pc1/availability",
+        f"{ROOT}/pc1/discovery",
+        f"{ROOT}/pc1/state/telemetry"}
+    assert cb[f"{ROOT}/pc1/state/telemetry"][1] == 0
+    assert f"{ROOT}/pc1/state/foreground_identity" not in cb
+    assert f"{ROOT}/pc1/state/display_context" not in cb
+    discover(cb, "pc1")
+    deliver(cb, "pc1", "availability", "online", ts=99)
+    deliver(cb, "pc1", "state/telemetry", packet("pc1", 100, 1), ts=100)
+    assert watcher.current(10100) == "Roblox"  # No Screen Idle display gate.
+    deliver(cb, "pc1", "state/telemetry", packet("pc1", 102, 2), ts=102)
+    assert watcher.current(10102) == "Roblox"
+    deliver(cb, "pc1", "state/telemetry", packet("pc1", 104, 3), ts=104)
+    assert total(watcher) == 4
     assert changed.call_count >= 4
     watcher.close()
-    assert len(unsub) == 3
-    assert watcher.current(10106) is None
+    assert len(unsub) == 4
 
 
-async def test_retained_foreign_stale_and_disconnect_never_count(hass):
-    watcher, cb, changed, _ = await make_source(hass, "pc1", [MINECRAFT])
-    deliver(cb, "pc1", "state/foreground_identity", packet("pc1", 100, 1))
-    assert watcher.current(10100) is None
+async def test_v3_rejects_wrong_identity_retained_and_old_protocol(hass):
+    watcher, cb, _, _ = await make_source(hass, "pc1", [ROBLOX])
+    discover(cb, "pc1")
     deliver(cb, "pc1", "availability", "online")
-    deliver(cb, "pc1", "state/foreground_identity",
-            packet("pc1", 100, 1), retain=True)
+    assert f"{ROOT}/pc1/state/foreground_identity" not in cb
+    deliver(cb, "pc1", "state/telemetry", packet("pc2", 100, 1), ts=100)
     assert watcher.current(10100) is None
-    deliver(cb, "pc1", "state/foreground_identity", packet("pc2", 101, 1), ts=101)
-    assert watcher.current(10101) is None
-    deliver(cb, "pc1", "state/foreground_identity", packet("pc1", 102, 2), ts=102)
-    deliver(cb, "pc1", "state/foreground_identity", packet("pc1", 104, 3), ts=104)
-    assert total(watcher) == 2
-    deliver(cb, "pc1", "state/foreground_identity", packet("pc1", 90, 4), ts=110)
-    assert watcher.current(10110) is None
-    assert total(watcher) == 2
-    watcher._connection(False)
-    assert watcher.current(10110) is None
-    deliver(cb, "pc1", "availability", "online")
-    assert watcher.current(10110) is None
+    deliver(cb, "pc1", "state/telemetry",
+            packet("pc1", 102, 2), ts=102, retain=True)
+    assert watcher.current(10102) is None
+    deliver(cb, "pc1", "state/telemetry", '{"version": 2}', ts=104)
+    assert watcher.current(10104) is None
+    assert total(watcher) == 0
     watcher.close()
 
 
-async def test_two_devices_have_independent_connection_and_alias(hass):
-    one, callbacks1, _, _ = await make_source(hass, "pc1", [MINECRAFT])
-    two, callbacks2, _, _ = await make_source(hass, "pc2", [ROBLOX])
-    deliver(callbacks1, "pc1", "availability", "online")
-    deliver(callbacks2, "pc2", "availability", "online")
-    deliver(callbacks1, "pc1", "state/foreground_identity", packet("pc1", 100, 1))
-    deliver(callbacks2, "pc2", "state/foreground_identity",
-            packet("pc2", 100, 1, process="RobloxPlayerBeta.exe"))
-    assert one.current(10100) == "Minecraft"
-    assert two.current(10100) == "Roblox"
-    one._connection(False)
-    assert one.current(10100) is None
-    assert two.current(10100) == "Roblox"
-    one.close()
-    two.close()
+async def test_v3_devices_stay_separate_through_disconnect(hass):
+    a, cb_a, _, _ = await make_source(hass, "pc1", [ROBLOX])
+    b, cb_b, _, _ = await make_source(hass, "pc2", [ROBLOX])
+    for name, callbacks in (("pc1", cb_a), ("pc2", cb_b)):
+        discover(callbacks, name)
+        deliver(callbacks, name, "availability", "online")
+        deliver(callbacks, name, "state/telemetry", packet(name, 100, 1), ts=100)
+        deliver(callbacks, name, "state/telemetry", packet(name, 102, 2), ts=102)
+    assert a.current(10102) == "Roblox"
+    assert b.current(10102) == "Roblox"
+    a._connection(False)
+    assert a.current(10102) is None
+    assert b.current(10102) == "Roblox"
+    a.close()
+    b.close()
 
 
 async def test_partial_subscribe_failure_unsubscribes_earlier_topics(hass):
@@ -131,7 +130,7 @@ async def test_partial_subscribe_failure_unsubscribes_earlier_topics(hass):
                          return_value=unsub), \
             patch.object(mqtt, "async_subscribe",
                          side_effect=RuntimeError("missing MQTT transport")):
-        watcher = ForegroundSource(hass, "pc1", [MINECRAFT], Mock())
+        watcher = ForegroundSource(hass, "pc1", [ROBLOX], Mock())
         with pytest.raises(RuntimeError):
             await watcher.async_start()
     unsub.assert_called_once()
