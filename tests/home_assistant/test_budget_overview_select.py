@@ -152,9 +152,8 @@ async def test_no_action_on_sigma_total_and_non_action_rows_are_rejected():
                return_value=at()), patch.object(entity, "async_write_ha_state"):
         await entity.async_select_option(entity.current_option)
         for label in ("+180min Daily budget", "+30min Parent bonus (11:40)"):
-            with pytest.raises(HomeAssistantError, match="not cancellable"):
-                await entity.async_select_option(label)
-        assert entity.current_option == "∑ 240min TOTAL"
+            await entity.async_select_option(label)
+            assert entity.current_option == "∑ 240min TOTAL"
         assert not committed
 
 
@@ -224,12 +223,14 @@ async def test_failed_save_never_claims_undo_succeeded():
 
 
 @pytest.mark.asyncio
-async def test_date_rollover_rechecks_after_refresh():
+async def test_date_rollover_before_fresh_check_cannot_revoke_yesterday_grant():
     entity, entry, committed = selector(used=190 * 60, screen=False)
-    times = iter([at(), at(), at(), at(), at(), at(15, 1)])
+    today, tomorrow = at(), at().replace(day=24)
+    times = iter([today, tomorrow])
     with patch("custom_components.hal_gaming_control.select.dt_util.now",
-               side_effect=lambda: next(times, at(15, 1))), patch.object(
+               side_effect=lambda: next(times, tomorrow)), patch.object(
                    entity, "async_write_ha_state"):
-        # After refresh, advancing within the same day still works.
-        await entity.async_select_option("+30min Parent bonus (14:00) ⛔")
-        assert len(committed) == 1
+        with pytest.raises(HomeAssistantError, match="used or budget changed"):
+            await entity.async_select_option("+30min Parent bonus (14:00) ⛔")
+        assert not committed
+        assert parent_bonus_total(entry.options, today) == 60
