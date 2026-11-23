@@ -68,7 +68,7 @@ def build_notes(version: str, body: str, sha: str) -> str:
             "**Compatibility:** HA 0.13.0+ and Windows 0.4.0+ consume Unified MQTT v3 "
             "monitoring exclusively, with no telemetry protocol switch or v2 fallback. "
             "Windows 0.4.0 uses the actual computer name as its MQTT device ID; "
-            "older identities require supervised per-device re-enrollment.\\n\\n"
+            "older identities require supervised per-device re-enrollment.\n\n"
             "**Deployment HOLD:** The live TrueNAS/Windows rollout remains blocked by "
             "[issue #56](https://github.com/mhalak/hal-gaming-control/issues/56), "
             "including backups, trusted Windows signing, Smart App Control and a one-PC pilot. "
