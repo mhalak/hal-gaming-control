@@ -67,7 +67,6 @@ async def test_native_select_lists_each_grant_without_manual_ids():
         assert parent_bonus_total(entry.options, at()) == 90
 
 
-
 @pytest.mark.asyncio
 async def test_same_minute_bonus_choices_show_id_only_for_ambiguity():
     entity, entry, committed = setup_select()
@@ -119,8 +118,6 @@ def test_same_minute_opaque_short_id_collision_uses_full_id():
                   if name.startswith("11:40 · +30 min · Parent Bonus")]
     assert len(duplicates) == 2
     assert all(name.endswith(f"({labels[name]})") for name in duplicates)
-
-
 
 
 @pytest.mark.asyncio
