@@ -2,7 +2,7 @@
 
 # HAL Gaming Control
 
-**🚨 BREAKING — HA 0.13.10 / Windows agent 0.4.0:** HAL Gaming Control now uses **Unified MQTT v3 only**. Screen idle bonuses are automatic for supported verified display telemetry, with no per-PC opt-out; unknown display state does not prevent normal verified gameplay accounting. The Windows computer name is the MQTT device ID. Home Assistant has **no v2 monitoring, old Uptime fallback or telemetry selection option**; a legacy per-PC `unified_telemetry_enabled` setting is discarded automatically. Existing old-ID devices need explicit re-enrollment under the Windows hostname; settings and history are not silently remapped. [Upgrade guide](docs/unified_mqtt_telemetry.md) · [Release notes](docs/ha_releases.md). No deployment is implied by this source change.
+**🚨 BREAKING — HA 0.13.11 / Windows agent 0.4.0:** HAL Gaming Control now uses **Unified MQTT v3 only**. Screen idle bonuses are automatic for supported verified display telemetry, with no per-PC opt-out; unknown display state does not prevent normal verified gameplay accounting. The Windows computer name is the MQTT device ID. Home Assistant has **no v2 monitoring, old Uptime fallback or telemetry selection option**; a legacy per-PC `unified_telemetry_enabled` setting is discarded automatically. Existing old-ID devices need explicit re-enrollment under the Windows hostname; settings and history are not silently remapped. [Upgrade guide](docs/unified_mqtt_telemetry.md) · [Release notes](docs/ha_releases.md). No deployment is implied by this source change.
 
 **Because parenting should have an API.**
 
@@ -11,8 +11,6 @@
 Heard “just five more minutes” again? Let Home Assistant keep track while you enjoy your coffee.
 
 Track gaming time on Windows PCs, set limits, give bonus minutes and use parent controls when needed.
-
-**🏠 Local-first. Your home, your data.** We built our own Windows service so PCs report activity and receive controls through **your MQTT broker and Home Assistant**, with no third-party cloud service in the control loop. Core tracking, budgets and manual controls run on your local network; internet access may still be used for installation, updates or optional online data sources. [See how local mode works](docs/features/local-mode.md).
 
 *Emotionally off duty, not legally. Please don't actually outsource parenting to a YAML file.*
 
