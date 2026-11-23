@@ -27,7 +27,9 @@ So if the kids somehow have *another hour*, we can finally ask: **Did the little
 
 It's a transparent breakdown, **not an automatic cheat detector**. Unusual numbers should be easy to question, while the independent weekly budget still applies.
 
-**Source preview (issue #93).** The HA Budget Overview attributes and dashboard example are available only on builds that contain the merged change. Check your installed integration before using the example. Screen idle support remains a separate future feature.
+**Native per-PC sensor (HA 0.13.6+ source).** Each Windows device has one **Budget overview** read-only sensor inside **Settings → Devices & services → HAL Gaming Control → your PC → Sensors**. The ordinary device row displays a concise summary such as `Today: 5m 55s left · Week: 1h 35m 55s left`. Tap the entity to inspect the multiline `overview_text` attribute for daily base, Weekend bonus, Parent bonus, automatic Screen Idle bonus, total allowance, used/remaining time and weekly totals. The text state is deliberately short because HA limits sensor states to 255 characters and its automatic device card cannot format a multiline receipt. **No manual YAML dashboard card is needed for this built-in overview row.** The richer dashboard example below remains optional.
+
+**Important:** If the PC is offline or accounting is not verified, the row displays `Budget data unavailable` rather than treating missing time as zero. The text breakdown remains readable with unknown usage. Gaming rules disabled and Unlimited gaming are identified explicitly. This sensor displays information only and never changes a quota or sends a Windows command. As always, a source version is not proof that it is installed on your Home Assistant.
 
 ## The gaming-time receipt
 
