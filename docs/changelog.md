@@ -8,11 +8,16 @@ This is the **human-readable development changelog**. For full technical release
 
 > **Preview software, not a deployment log.** Version numbers below describe changes recorded in source; they do **not** prove that a tagged GitHub Release, a signed Windows installer or an update on any real PC/HA instance exists. Always check the deployed build and the [current compatibility/deployment instructions](known_limitations.md).
 
-**Current source (Preview 30, 23 November 2026):** **Home Assistant 0.13.6** and **Windows agent 0.4.0**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
+**Current source (Preview 31, 23 November 2026):** **Home Assistant 0.13.7** and **Windows agent 0.4.0**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
 
 **🚨 BREAKING CHANGE** means an upgrade can require manual action or break compatibility with prior configs, entity IDs or MQTT payloads. Follow the linked migration instructions before updating; do not assume a normal in-place upgrade is safe.
 
 ## Home Assistant integration
+
+### 0.13.7 — One-tap Parent bonus Undo in Budget overview
+- The native select always displays ∑ TOTAL. Only unspent, removable Parent bonuses display a trailing ⛔; selecting one as an authenticated HA administrator immediately cancels it and returns to the updated total.
+- Revalidates full grant identity and exact-second usage at selection time; children, anonymous actions and automation calls cannot cancel.
+- Removes the clipped plain-text Budget overview sensor and retires old Prepare/Confirm services. The detailed budget receipt remains in the daily budget sensor attributes.
 
 ### 0.13.6 — Two native per-PC Budget overview views
 - Adds a read-only Budget overview row to every PC's Sensors section. Short daily/weekly remaining summary is visible directly; tap for a complete text breakdown of base allowance, individual bonus sources, played/remaining time and coverage warnings.
