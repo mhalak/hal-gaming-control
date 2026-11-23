@@ -200,7 +200,8 @@ async def test_stale_display_and_foreground_are_unknown_not_confirmed_idle(hass)
     assert s.last_raw is None
     assert s.system_uptime == 100102
     deliver(cb, root + "/state/telemetry",
-            v3(ts=104, seq=3, screen="off", event=2, event_age=42000), ts=104)
+            v3(ts=104, seq=3, screen="off", event=2,
+               event_age=100, display_age=9000), ts=104)
     assert s.display.current(10104) == "unknown"
     assert s.current(10104) == "Roblox"  # Stale OFF is not verified; gameplay still counts.
     s.close()
@@ -254,6 +255,71 @@ async def test_fresh_off_with_rejected_event_receipt_never_charges_game(hass):
     deliver(cb, root + "/state/telemetry",
             v3(ts=116, seq=9, screen="on", event=6), ts=116)
     assert total(s) > before_off
+    s.close()
+
+
+async def test_fresh_old_off_observations_from_real_pc_never_charge_after_cold_start(hass):
+    """#212: 3h39m-old OFF edge with 156 ms samples is CURRENT OFF.
+
+    Matches the owner's Windows v3 packet: Roblox foreground, monitor OFF,
+    event_age_ms=13142547, display and foreground sample_age_ms=156.
+    """
+    s, cb, _, bonus, _ = await start(hass)
+    root = "SmartHouse/Gaming/pc1"
+    deliver(cb, root + "/availability", "online", ts=19999)
+    for ts, seq, age in (
+            (20000, 1, 13142547),
+            (20002, 2, 13144547),
+            (20004, 3, 13146547)):
+        deliver(cb, root + "/state/telemetry",
+                v3(ts=ts, seq=seq, screen="off", event=12,
+                   event_age=age, fg_age=156, display_age=156), ts=ts)
+        assert s.current(10000 + ts) == "idle"
+        assert s.display_details["state"] == "off"
+    assert total(s, ts=20004) == 0
+    bonus.assert_not_called()  # Booting into OFF is NOT a new OFF bonus edge.
+
+    # Post-ON foreground freshness gate still prevents a premature charge.
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=20006, seq=4, screen="on", event=13,
+               event_age=100, fg_age=156, display_age=156), ts=20006)
+    assert s.current(30006) is None
+    assert total(s, ts=20006) == 0
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=20008, seq=5, screen="on", event=13,
+               event_age=2100, fg_age=156, display_age=156), ts=20008)
+    assert s.current(30008) == "Roblox"
+    assert total(s, ts=20008) == 0
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=20010, seq=6, screen="on", event=13,
+               event_age=4100, fg_age=156, display_age=156), ts=20010)
+    assert total(s, ts=20010) > 0
+    s.close()
+
+
+async def test_off_stays_off_across_36s_and_hours_without_new_billing(hass):
+    """#212: repeated fresh OFF samples, not recent state-change events."""
+    s, cb, _, bonus, _ = await start(hass)
+    root = "SmartHouse/Gaming/pc1"
+    deliver(cb, root + "/availability", "online", ts=19999)
+    for ts, seq, age in ((20000, 1, 100), (20002, 2, 2100),
+                         (20004, 3, 4100)):
+        deliver(cb, root + "/state/telemetry",
+                v3(ts=ts, seq=seq, screen="on", event=11,
+                   event_age=age), ts=ts)
+    before_off = total(s, ts=20004)
+    assert before_off > 0
+
+    for ts, seq, age in ((20006, 4, 0), (20008, 5, 2000),
+                         (20044, 6, 38000), (33148, 7, 13142000),
+                         (33150, 8, 13144000)):
+        deliver(cb, root + "/state/telemetry",
+                v3(ts=ts, seq=seq, screen="off", event=12,
+                   event_age=age, fg_age=156, display_age=156), ts=ts)
+        assert s.current(10000 + ts) == "idle"
+        assert s.display_details["state"] == "off"
+        assert total(s, ts=ts) == before_off
+    assert bonus.call_count <= 1
     s.close()
 
 

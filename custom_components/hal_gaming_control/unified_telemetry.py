@@ -11,7 +11,7 @@ from time import monotonic, time
 
 from .candidate_protocol import _valid_process, _valid_signature
 from .foreground_snapshot import MAX_SEQUENCE, _finite, _unique_object
-from .screen_idle import MAX_EVENT_AGE_MS, STATE_TTL
+from .screen_idle import MAX_EVENT_AGE_MS
 
 MAX_PACKET = 4096
 MAX_AGE = 10.0
@@ -169,12 +169,14 @@ def _foreground_stale(packet, wall_now):
 
 def _display_stale(packet, wall_now):
     display = packet["display"]
-    age, event = display["sample_age_ms"], display["event_age_ms"]
+    age = display["sample_age_ms"]
+    # The last Windows ON/OFF event may be hours old while the interactive
+    # helper still provides a fresh observation of the current screen state.
+    # Only sample age and message freshness determine staleness here.
+    # DisplayGate separately expires evidence when live packets stop arriving.
     return (age is None or age >= MAX_DISPLAY_AGE_MS
-            or (event is not None and event >= STATE_TTL * 1000)
-            or (age is not None and
-                wall_now - (packet["observed_at"] - age / 1000)
-                >= MAX_DISPLAY_AGE_MS / 1000))
+            or wall_now - (packet["observed_at"] - age / 1000)
+            >= MAX_DISPLAY_AGE_MS / 1000)
 
 
 def _normalized_packet(packet, wall_now):

@@ -127,9 +127,30 @@ def test_unknown_and_stale_samples_never_invent_game_or_monitor_proof():
     v["display"]["event_age_ms"] = 37000
     accepted = decode(v)
     assert accepted["foreground"]["state"] == "unknown"
-    assert accepted["display"]["state"] == "unknown"
+    # 37-second-old ON/OFF edge is not stale when display sample is fresh.
+    assert accepted["display"]["state"] == "on"
     assert json.loads(foreground_v2(accepted))["state"] == "unknown"
-    assert json.loads(display_v2(accepted))["display_event_age_ms"] is None
+    assert json.loads(display_v2(accepted))["display_event_age_ms"] == 37000
+    # An actually stale display SAMPLE remains unknown even if event is recent.
+    v["display"]["event_age_ms"] = 100
+    v["display"]["sample_age_ms"] = 9000
+    stale = decode(v)
+    assert stale["display"]["state"] == "unknown"
+    assert json.loads(display_v2(stale))["display_event_age_ms"] is None
+
+
+
+
+@pytest.mark.parametrize("event_age", [37000, 13142547, 86399999])
+def test_hours_old_screen_off_event_with_fresh_observation_is_still_off(event_age):
+    """Regression #212: freshness belongs to the SAMPLE, not the OFF edge."""
+    v = sample(screen="off", display_age=156, fg_age=156)
+    v["display"]["event_age_ms"] = event_age
+    result = decode(v)
+    assert result["display"]["state"] == "off"
+    assert result["display"]["sample_age_ms"] == 156
+    assert result["display"]["event_age_ms"] == event_age
+    assert json.loads(display_v2(result))["display_state"] == "off"
 
 
 def test_java_requires_stable_public_discriminator():

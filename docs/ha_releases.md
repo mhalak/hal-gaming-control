@@ -1,3 +1,10 @@
+## 0.13.4 — Fix OFF event-age normalization and continued gaming charging (#212)
+
+- **Confirmed live MQTT bug:** Windows publishes fresh Unified MQTT v3 snapshots while the screen is OFF for hours. HA incorrectly normalized `display.state=off` to `unknown` whenever `display.event_age_ms` exceeded 36 seconds, even with a fresh display sample (156 ms in the reported reproduction), allowing Roblox gaming time to accrue. This confused the *age of the last display-state transition* with *freshness of the current observation*.
+- Current OFF/ON remains valid for as long as fresh ordered display samples arrive. Reject only expired samples or invalid receipts. Continue expiring the display gate when live telemetry ceases; never infer unlimited historical display certainty or award unverified Screen Idle bonuses.
+- Regression tests cover 37-second, 3h39m and nearly-24h-old valid display events, stale sample rejection, HA initialization while already OFF, long OFF intervals and safe ON recovery. Existing per-PC gaming history and shared unified MQTT v3 contract are unchanged.
+- **HA-only 0.13.4 / Preview 28.** Windows stays **0.4.0**. No new entities, protocol options or v2 support; no live deployment implied. Physical validation should confirm Daily/Weekly gaming time remain frozen while screen stays OFF.
+
 ## 0.13.3 — Reliable Screen OFF accounting and truthful display diagnostics (#209, #210)
 
 - A fresh Unified MQTT v3 packet reporting Windows console `off` can have a conflicting or regressing display event receipt. HA no longer confuses this rejected OFF report with an unsupported `unknown` display and continues counting gaming time. It suspends new confirmed foreground charging until a valid ON event and a later fresh foreground observation.
