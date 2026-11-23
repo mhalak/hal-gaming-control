@@ -8,11 +8,14 @@ This is the **human-readable development changelog**. For full technical release
 
 > **Preview software, not a deployment log.** Version numbers below describe changes recorded in source; they do **not** prove that a tagged GitHub Release, a signed Windows installer or an update on any real PC/HA instance exists. Always check the deployed build and the [current compatibility/deployment instructions](known_limitations.md).
 
-**Current source (Preview 34, 23 November 2026):** **Home Assistant 0.13.10** and **Windows agent 0.4.0**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
+**Current source (Preview 35, 23 November 2026):** **Home Assistant 0.13.11** and **Windows agent 0.4.0**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
 
 **🚨 BREAKING CHANGE** means an upgrade can require manual action or break compatibility with prior configs, entity IDs or MQTT payloads. Follow the linked migration instructions before updating; do not assume a normal in-place upgrade is safe.
 
 ## Home Assistant integration
+
+### 0.13.11 — Marketplace Local Mode duplication cleanup
+- Removes the redundant Local-first introductory paragraph so the illustrated **100% local** feature appears first and explains the architecture once. Its dedicated guide stays linked; core behavior and Windows agent remain unchanged.
 
 ### 0.13.10 — Native Budget overview: used and remaining minutes
 - Adds two read-only separator lines, cumulative today's Gaming Session minutes and the always-current ∑ Remaining Budget below ∑ TOTAL. Maintains aligned numbers and ⛔ bonus Undo with no exposed internal grant IDs.
