@@ -14,8 +14,9 @@ This is the **human-readable development changelog**. For full technical release
 
 ## Home Assistant integration
 
-### 0.13.6 — Native per-PC Budget overview sensor
-- Adds a read-only Budget overview row to every PC's Sensors section. Short daily/weekly remaining summary is visible directly; tap for a complete text breakdown of base allowance, individual bonus sources, played/remaining time and coverage warnings. No dashboard YAML required for the short view.
+### 0.13.6 — Two native per-PC Budget overview views
+- Adds a read-only Budget overview row to every PC's Sensors section. Short daily/weekly remaining summary is visible directly; tap for a complete text breakdown of base allowance, individual bonus sources, played/remaining time and coverage warnings.
+- The existing Parent bonus Undo dropdown becomes an ordered budget receipt, showing individual Parent and Screen off bonuses plus a locked total. Only untouched Parent grants are selectable, and Undo is rejected if removing the grant would exceed the reduced daily allowance. No dashboard YAML required.
 - Uses existing verified receipt data and displays missing data, rules disabled and Unlimited explicitly. Windows 0.4.0 unchanged; no release or deployment implied.
 
 ### 0.13.5 — Parent Bonus Undo labels
