@@ -64,6 +64,8 @@ Both **Gaming rules enabled** and **Schedule enabled** must be ON for the passiv
 
 Turn on the per-PC **Gaming rules enabled** switch to opt into rule evaluation (default off). This is not an automatic command or installed automation. **Gaming restriction** is a passive per-PC binary sensor in HA 0.5.12. It is `on` when a confirmed budget/schedule/per-game rule is violated, `off` when allowed, and `unavailable` when live accounting is not reliable. Its `reasons` attribute explains why. It **never** sends a command.
 
+**Active game (HA 0.13.9+ source):** The name shows the latest fresh, verified, tracked Windows foreground application, even when the logical console display is OFF. Its icon changes to `mdi:monitor` for ON/DIM and `mdi:monitor-off` for OFF; unknown display falls back to the gamepad icon. This **display-only game name is separate from accounting**: while OFF, gaming seconds still stop increasing and restriction calculations still treat gameplay as idle. If Windows no longer confirms a game, the sensor shows idle/unknown rather than retaining a stale game forever. The existing `display_state` diagnostic attribute continues to expose the trusted screen status.
+
 **Automatic game closing or locking isn't validated or enabled by default.** A parent-authored automation should check both Gaming restriction and Active game, including when a game starts while restriction is already `on`; it should also recheck after HA restart before any action. An unavailable sensor is not evidence of a violation.
 
 [Controls & automations](features/parent-actions.md)

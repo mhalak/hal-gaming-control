@@ -112,13 +112,15 @@ async def test_off_and_repeated_raw_focus_never_fabricate_game_time_or_bonus(has
     deliver(cb, root + "/state/telemetry",
             v3(ts=106, seq=4, screen="off", event=2), ts=106)
     assert s.current(10106) == "idle"
-    assert s.last_raw is None
+    assert s.observed_game == "Roblox"  # UI still shows fresh foreground.
+    assert s.last_raw is None  # Accounting remains gated OFF.
     assert bonus.call_count == 1
     for ts, seq in ((108, 5), (110, 6)):
         deliver(cb, root + "/state/telemetry",
                 v3(ts=ts, seq=seq, screen="off", event=2, event_age=(ts-106)*1000),
                 ts=ts)
     assert total(s) == base
+    assert s.observed_game == "Roblox"
     assert bonus.call_count == 1
     # ON must be followed by another *later* verified raw observation.
     deliver(cb, root + "/state/telemetry",
@@ -132,6 +134,35 @@ async def test_off_and_repeated_raw_focus_never_fabricate_game_time_or_bonus(has
     assert total(s) == base + 2
     assert bonus.call_count == 1
     s.close()
+
+
+async def test_off_foreground_is_observed_only_if_validated_and_fresh(hass):
+    """Never keep the last game indefinitely when raw foreground changes."""
+    watcher, cb, _, _, _ = await start(hass)
+    root = "SmartHouse/Gaming/pc1"
+    deliver(cb, root + "/availability", "online", ts=99)
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=100, seq=1, screen="off", event=1), ts=100)
+    assert watcher.current(10100) == "idle"
+    assert watcher.observed_game == "Roblox"
+    assert total(watcher) == 0
+
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=102, seq=2, screen="off", event=1, fg="idle"), ts=102)
+    assert watcher.observed_game == "idle"
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=104, seq=3, screen="off", event=1, fg="unknown"), ts=104)
+    assert watcher.observed_game is None
+    assert watcher.current(10104) == "idle"
+    assert total(watcher) == 0
+
+    # Replayed out-of-order foreground cannot reintroduce a vanished game.
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=102, seq=2, screen="off", event=1), ts=105)
+    assert watcher.observed_game is None
+    deliver(cb, root + "/availability", "offline", ts=106)
+    assert watcher.observed_game is None
+    watcher.close()
 
 
 async def test_legacy_v2_never_double_counts_when_v3_selected(hass):
@@ -275,6 +306,7 @@ async def test_fresh_old_off_observations_from_real_pc_never_charge_after_cold_s
                 v3(ts=ts, seq=seq, screen="off", event=12,
                    event_age=age, fg_age=156, display_age=156), ts=ts)
         assert s.current(10000 + ts) == "idle"
+        assert s.observed_game == "Roblox"
         assert s.display_details["state"] == "off"
     assert total(s, ts=20004) == 0
     bonus.assert_not_called()  # Booting into OFF is NOT a new OFF bonus edge.
@@ -317,6 +349,7 @@ async def test_off_stays_off_across_36s_and_hours_without_new_billing(hass):
                 v3(ts=ts, seq=seq, screen="off", event=12,
                    event_age=age, fg_age=156, display_age=156), ts=ts)
         assert s.current(10000 + ts) == "idle"
+        assert s.observed_game == "Roblox"
         assert s.display_details["state"] == "off"
         assert total(s, ts=ts) == before_off
     assert bonus.call_count <= 1
@@ -522,6 +555,7 @@ async def test_stale_cached_off_never_presents_confirmed_idle_forever(hass):
             v3(ts=104, seq=3, screen="off", event=2), ts=104)
     assert s.current(10104) == "idle"
     assert s.current(10115) is None  # Lost MQTT stream, not ongoing proof.
+    assert s.observed_game is None  # Never keep a stale game on screen.
     assert s.system_uptime is None
     assert s.display_details is None
     assert bonus.call_count == 1
@@ -648,6 +682,24 @@ async def test_v3_only_hostname_recovers_every_parent_facing_sensor(hass):
     assert coordinator.data["ready"] is True
     assert all(entity.available for entity in entities.values())
     assert entities["active"].native_value == "Roblox"
+    assert entities["active"].icon == "mdi:monitor"
+    # A screen OFF report changes accounting to idle, but preserves the
+    # independently verified Windows foreground in the same HA sensor.
+    counted_before = total(watcher)
+    with patch.object(co, "monotonic", return_value=10106):
+        deliver(callbacks, root + "/state/telemetry",
+                v3(host, ts=106, seq=4, screen="off", event=2), ts=106)
+    assert coordinator.data["active_game"] == "idle"
+    assert coordinator.data["observed_game"] == "Roblox"
+    assert entities["active"].native_value == "Roblox"
+    assert entities["active"].icon == "mdi:monitor-off"
+    assert total(watcher) == counted_before
+    with patch.object(co, "monotonic", return_value=10108):
+        deliver(callbacks, root + "/state/telemetry",
+                v3(host, ts=108, seq=5, screen="off", event=2,
+                   event_age=2000), ts=108)
+    assert entities["active"].native_value == "Roblox"
+    assert total(watcher) == counted_before
     assert entities["daily_budget"].native_value is not None
     assert entities["weekly_budget"].native_value is not None
     assert entities["daily_time"].native_value is not None

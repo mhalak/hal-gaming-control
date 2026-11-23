@@ -72,7 +72,21 @@ class ActiveGameSensor(GamingEntity, SensorEntity):
 
     @property
     def native_value(self):
-        return (self.coordinator.data or {}).get("active_game")
+        data = self.coordinator.data or {}
+        # Windows may still observe a tracked game in the foreground while
+        # the monitor is OFF. Display that game without touching the separate
+        # OFF-gated accounting state used for quotas and restrictions.
+        return data.get("observed_game", data.get("active_game"))
+
+    @property
+    def icon(self):
+        display = (self.coordinator.data or {}).get("display_details") or {}
+        if display.get("state") == "off":
+            return "mdi:monitor-off"
+        if display.get("state") in ("on", "dim"):
+            return "mdi:monitor"
+        # Unknown/offline screen telemetry is not a verified ON or OFF.
+        return "mdi:gamepad-variant"
 
     @property
     def extra_state_attributes(self):

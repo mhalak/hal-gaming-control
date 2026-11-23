@@ -1,3 +1,10 @@
+## 0.13.9 — Active game stays visible while console monitor is OFF
+
+- The existing **Active game** HA sensor now has a **dynamic monitor icon**: `mdi:monitor` when validated Windows console display is ON/DIM, `mdi:monitor-off` when OFF, and `mdi:gamepad-variant` when display state is unknown. It remains the same entity; no additional screen sensor or MQTT fields are introduced.
+- The **displayed game** now uses the latest fresh, validated and HA-enrolled Windows foreground identity independently of the **accounting game**. If Roblox remains in the foreground when the monitor is OFF, the device page still shows **Roblox** with the monitor-off icon, while verified OFF **continues suspending gaming-time charges** and normal gaming restrictions see `idle`. This is UI-only and cannot create game time or Screen Idle bonuses.
+- If the Windows foreground becomes idle/unknown, the UI reflects that state; when MQTT becomes stale or offline, the observed game is cleared rather than stuck on a stale title. The real screen remains `unknown` if an OFF observation is rejected.
+- Regression tests cover ON/OFF icon transitions, live Roblox across OFF with unchanged accounting, unknown/idle/untracked foreground observations, replay and liveness expiry. **HA 0.13.9 / Preview 33**; Windows **0.4.0 unchanged**. GitHub Release and household installation are separate actions.
+
 ## 0.13.8 — Aligned Budget overview dropdown, readable bonus labels
 
 - The native Budget overview (Undo) dropdown uses a clean allowance receipt: `+ 240 min - Daily Budget`, `+  30 min - Parent Bonus (11:40)`, and `∑ 300 min - TOTAL`. Numeric amounts are padded with Unicode **figure spaces** so digit columns remain reasonably aligned even where HTML would collapse ordinary spaces.

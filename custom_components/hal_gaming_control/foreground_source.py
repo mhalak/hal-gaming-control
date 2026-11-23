@@ -11,6 +11,7 @@ from homeassistant.components import mqtt
 from homeassistant.core import callback
 
 from .const import ROOT
+from .app_registry import identity_key
 from .protocol import parse_discovery
 from .raw_foreground import HAOwnedForeground
 from .screen_idle import DisplayGate
@@ -34,6 +35,8 @@ class ForegroundSource:
         self._unsub = []
         self._closed = False
         self.last_raw = None  # latest verified foreground from unified v3
+        # Latest read-only Windows foreground name, independent of the ledger.
+        self.observed_game = None
         self.display = DisplayGate(device_id)
         # Only a verified OFF latches accounting off; unsupported UNKNOWN
         # observations must not deprive older PCs of normal v3 gaming time.
@@ -74,6 +77,7 @@ class ForegroundSource:
         if not self._connected:
             self._online = False
             self.last_raw = None
+            self.observed_game = None
             self.ledger.invalidate()
             self.telemetry_order.suspend()
             self.system_uptime = self.system_status = self.display_details = None
@@ -93,6 +97,7 @@ class ForegroundSource:
                         and value in ("online", b"online"))
         if not self._online:
             self.last_raw = None
+            self.observed_game = None
             self.ledger.invalidate()
             self.telemetry_order.suspend()
             self.system_uptime = self.system_status = self.display_details = None
@@ -180,6 +185,25 @@ class ForegroundSource:
             process=None, signature=None)
         return json.dumps(adjusted)
 
+    def _display_game(self, packet):
+        """Read-only validated foreground, independent of OFF accounting.
+
+        Windows may still report Roblox in the foreground while the monitor
+        is OFF and the gameplay ledger correctly observes idle. Only show
+        the currently tracked HA game name; unknown/ambiguous is not a game.
+        """
+        foreground = packet["foreground"]
+        if foreground["state"] == "idle":
+            return "idle"
+        if foreground["state"] != "foreground":
+            return None
+        try:
+            key = identity_key(foreground["process"], foreground["signature"])
+        except ValueError:
+            return None
+        app = self.ledger.apps.get(key)
+        return app["name"] if app is not None else "idle"
+
     def _v3_foreground(self, packet, wall, mono, display_state):
         ready = self._post_on_ready(packet, display_state)
         effective = self._v3_effective_foreground(packet, display_state, ready)
@@ -221,6 +245,7 @@ class ForegroundSource:
         self.display_details = dict(packet["display"])
         self.display_details["reported_state"] = self.display_details["state"]
         self.display_details["state"] = display_state
+        self.observed_game = self._display_game(packet)
         self._v3_foreground(packet, wall, mono, display_state)
         self.on_update()
 
@@ -249,6 +274,7 @@ class ForegroundSource:
                 or not 0 <= observed - last < MAX_AGE):
             # Missing or stale evidence is unknown, not confirmed idle.
             self.last_raw = None
+            self.observed_game = None
             self.ledger.invalidate()
             self.system_uptime = self.system_status = self.display_details = None
             if self.display is not None:
@@ -267,6 +293,7 @@ class ForegroundSource:
 
     def invalidate(self):
         self.last_raw = None
+        self.observed_game = None
         self._needs_post_on = False
         self._post_on_sequence = self._post_on_timestamp = None
         self.ledger.invalidate()
@@ -286,6 +313,7 @@ class ForegroundSource:
         self._needs_post_on = False
         self._post_on_sequence = self._post_on_timestamp = None
         self.last_raw = None
+        self.observed_game = None
         self.ledger.invalidate()
         if self.display is not None:
             self.display.invalidate()

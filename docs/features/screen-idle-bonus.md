@@ -35,6 +35,8 @@ The child leaves Roblox at **16:30**, but the screen stays on until **16:40**. T
 
 If reliable data confirms the child wasn't playing, HA automatically awards **+10 daily minutes**. Once the screen is off, no new playtime would count while it stays off.
 
+**HA Active game appearance (0.13.9+ source):** If a verified foreground game (for example Roblox) is still in focus when the logical monitor turns OFF, the same Active game sensor keeps showing its name with a `mdi:monitor-off` icon instead of replacing the visible label with `idle`. The **accounting pipeline is unchanged**: OFF still suspends gaming-time charges, and only qualified events earn Screen Idle bonuses. When the screen is ON, the icon is `mdi:monitor`. No extra MQTT messages or entities are needed.
+
 The PC must stay **awake** for the game to continue. Screen off is not the same as Windows sleep.
 
 ## What needs testing?

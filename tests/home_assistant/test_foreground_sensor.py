@@ -32,6 +32,35 @@ def test_active_game_uses_only_coordinator_ha_name():
     assert not obj.available
 
 
+
+def test_active_game_shows_validated_game_across_screen_off_with_dynamic_icons():
+    c = coordinator(ready=True, name="idle")
+    c.data.update(observed_game="Roblox", display_details={"state": "off"})
+    sensor = ActiveGameSensor(c)
+
+    # This is an observation, not the accounting state: quota/active_game is idle.
+    assert c.data["active_game"] == "idle"
+    assert sensor.native_value == "Roblox"
+    assert sensor.icon == "mdi:monitor-off"
+    assert sensor.extra_state_attributes["display_state"] == "off"
+
+    c.data["display_details"]["state"] = "on"
+    assert sensor.native_value == "Roblox"
+    assert sensor.icon == "mdi:monitor"
+    c.data["observed_game"] = "idle"
+    assert sensor.native_value == "idle"
+    assert sensor.icon == "mdi:monitor"
+
+    # A rejected OFF is UNKNOWN, never misleadingly shown as monitor OFF.
+    c.data["display_details"] = {"state": "unknown", "reported_state": "off"}
+    assert sensor.icon == "mdi:gamepad-variant"
+    assert sensor.extra_state_attributes["display_reported_state"] == "off"
+    c.data["observed_game"] = None
+    assert sensor.native_value is None
+    c.data["ready"] = False
+    assert not sensor.available
+
+
 def test_gaming_time_displays_verified_elapsed_with_incomplete_coverage():
     c = coordinator(ready=True)
     day = GamingTimeSensor(c, "daily", "Daily gaming time")
