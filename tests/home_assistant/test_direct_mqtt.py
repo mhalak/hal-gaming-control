@@ -46,10 +46,13 @@ def v3(device="pc1", seq=1, *, process="RobloxPlayerBeta.exe",
     return raw
 
 
-def discovery_v3(device="pc1", games=None):
-    return json.dumps(DATA | {"device_id": device, "name": "PC " + device,
+def discovery_v3(device="pc1", games=None, name=None):
+    # Keep discovery metadata stable during telemetry tests; a changed device
+    # title or games catalogue intentionally causes an HA config-entry reload.
+    return json.dumps(DATA | {"device_id": device,
+                               "name": DATA["name"] if name is None else name,
                                "unified_telemetry_protocol": 3,
-                               "games": [] if games is None else games})
+                               "games": DATA["games"] if games is None else games})
 
 
 async def test_direct_mode_setting(hass):
@@ -404,7 +407,7 @@ async def test_v3_foreground_is_device_scoped_and_resets_on_disconnect(
 
     for pc in ("pc1", "pc2"):
         await emit(pc, "availability", "online")
-        await emit(pc, "discovery", discovery_v3(pc))
+        await emit(pc, "discovery", discovery_v3(pc, name="PC " + pc))
         await emit(pc, "state/telemetry", v3(pc))
     assert entries[0].runtime_data.foreground._online is True
     assert entries[0].runtime_data.foreground.v3_capable is True
@@ -416,7 +419,7 @@ async def test_v3_foreground_is_device_scoped_and_resets_on_disconnect(
     assert hass.states.get(ids["pc2"]).state == "idle"
     await emit("pc1", "availability", "online")
     assert hass.states.get(ids["pc1"]).state == "unavailable"
-    await emit("pc1", "discovery", discovery_v3("pc1"))
+    await emit("pc1", "discovery", discovery_v3("pc1", name="PC pc1"))
     await emit("pc1", "state/telemetry",
                v3("pc1", seq=1, process="chrome.exe", epoch="c" * 32))
     assert hass.states.get(ids["pc1"]).state == "idle"
