@@ -52,7 +52,9 @@ The PC's Configuration section has **Schedule enabled** plus two independent all
 
 ## Good to know
 
-**Daily gaming time** and **Weekly gaming time** are readable text sensors (for example, `11h 51m 3s` instead of `711m 3s`). Their separate **Daily gaming time (minutes)** / **Weekly gaming time (minutes)** numeric duration sensors remain available under diagnostics for graphs and automations. The numeric value is still in **minutes**. The underlying accounting still counts confirmed seconds. Offline PCs can leave gaps in gaming history. **Missing data isn't zero playtime.**
+**Daily gaming time** and **Weekly gaming time** are readable text sensors (for example, `11h 51m 3s` instead of `711m 3s`). Their separate **Daily gaming time (minutes)** / **Weekly gaming time (minutes)** numeric duration sensors remain available under diagnostics for graphs and automations. The numeric value is still in **minutes**, but starting with HA 0.13.13 it shows only **completed whole minutes** (e.g. 59m 37s → `59 min`, not 60). The underlying accounting and actual restriction thresholds still use confirmed seconds, and missing/invalid readings remain unavailable. Offline PCs can leave gaps in gaming history. **Missing data isn't zero playtime.**
+
+**Uptime** appears as a readable `d h m s` text in Direct MQTT on HA 0.13.13 and in native MQTT once Windows agent 0.4.1 refreshes its existing discovery entry. The entity ID is preserved, but its former numeric Uptime state changes to text; use the `uptime_seconds` attribute (Direct MQTT) or `system_uptime_seconds` on **Active game** for numeric values. **Gaming restriction** uses supported gamepad icons for permitted/restricted/unknown states; an icon is not itself an authorization signal.
 
 Don't use budget readings alone to trigger automatic game closing. Test the exact PC and version first.
 
