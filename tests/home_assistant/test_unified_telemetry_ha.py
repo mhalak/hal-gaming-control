@@ -776,18 +776,18 @@ async def test_old_mqtt_identity_cannot_make_new_hostname_sensors_look_live(hass
     (86399, "0d 23h 59m 59s"), (86400, "1d 0h 0m 0s"),
     (101529, "1d 4h 12m 9s"), (2**63 - 1, "106751991167300d 15h 30m 7s"),
 ])
-def test_direct_uptime_human_readable_boundaries(seconds, expected):
+async def test_direct_uptime_human_readable_boundaries(seconds, expected):
     from custom_components.hal_gaming_control.direct_mqtt import format_uptime
     assert format_uptime(seconds) == expected
 
 
 @pytest.mark.parametrize("seconds", [None, -1, True, "42", 1.1, 2**63, float("nan")])
-def test_direct_uptime_invalid_seconds_are_unknown(seconds):
+async def test_direct_uptime_invalid_seconds_are_unknown(seconds):
     from custom_components.hal_gaming_control.direct_mqtt import format_uptime
     assert format_uptime(seconds) is None
 
 
-def test_native_discovery_uptime_uses_same_text_format_as_direct():
+async def test_native_discovery_uptime_uses_same_text_format_as_direct():
     from jinja2 import Environment
     from windows_agent.gaming_control.discovery import discovery
     config = discovery("pc1", "Gaming PC")[
