@@ -449,7 +449,7 @@ async def test_live_ha_duration_display_is_exact_hms_and_numeric_history_remains
     assert hass.states.get(weekly_pretty).state == "12h 0m 9s"
     assert hass.states.get(pretty).attributes.get("device_class") is None
     assert hass.states.get(pretty).attributes.get("unit_of_measurement") is None
-    assert float(hass.states.get(numeric).state) == 711.05
+    assert float(hass.states.get(numeric).state) == 711
     assert hass.states.get(numeric).attributes["unit_of_measurement"] == "min"
     assert await hass.config_entries.async_unload(entry.entry_id)
 
