@@ -119,25 +119,22 @@ def _usage_rows(receipt, width):
     """
     used = receipt["daily_used_seconds"]
     status = receipt["daily_budget_status"]
-    if type(used) not in (int, float) or not isfinite(used) or used < 0:
-        usage = "- Unknown - Gaming Session"
-        remaining = "∑ Unknown - Remaining Budget"
+    verified = type(used) in (int, float) and isfinite(used) and used >= 0
+    played_minutes = ceil(used / 60) if verified else None
+    usage = (_amount_label(played_minutes, "Gaming Session", width, sign="-")
+             if verified else "- Unknown - Gaming Session")
+    if status == "disabled":
+        remaining = "∑ Rules Disabled - Remaining Budget"
+    elif status == "unlimited":
+        remaining = "∑ Unlimited - Remaining Budget"
+    elif verified and type(receipt["daily_limit_minutes"]) is int:
+        total = receipt["daily_limit_minutes"]
+        # A fractional minute of play consumes the next displayed minute;
+        # the balance never overstates time available in whole minutes.
+        remaining = _amount_label(max(0, total - played_minutes),
+                                  "Remaining Budget", width, sign="∑")
     else:
-        usage = _amount_label(ceil(used / 60), "Gaming Session", width, sign="-")
-        if status == "disabled":
-            remaining = "∑ Rules Disabled - Remaining Budget"
-        elif status == "unlimited":
-            remaining = "∑ Unlimited - Remaining Budget"
-        else:
-            remaining_seconds = receipt["daily_remaining_seconds"]
-            if remaining_seconds is None:
-                remaining = "∑ Unknown - Remaining Budget"
-            else:
-                # Rule engine returns ceil(seconds left). Floor whole minutes
-                # from the displayed seconds, never fabricate free minutes.
-                remaining_minutes = remaining_seconds // 60
-                remaining = _amount_label(
-                    remaining_minutes, "Remaining Budget", width, sign="∑")
+        remaining = "∑ Unknown - Remaining Budget"
     return (usage, None), (remaining, None)
 
 
