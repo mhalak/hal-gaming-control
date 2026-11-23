@@ -49,10 +49,17 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class GamingRestriction(GamingEntity, BinarySensorEntity):
     """ON when a verified budget/schedule/per-game restriction applies."""
 
-    _attr_icon = "mdi:gamepad-off"
+    # mdi:gamepad-off does not exist in the MDI icon set.
+    # Use supported filled/outline gamepad glyphs for on/off and unknown.
+    _attr_icon = "mdi:gamepad-variant-outline"
 
     def __init__(self, coordinator):
         super().__init__(coordinator, "gaming_restriction", "Gaming restriction")
+
+    @property
+    def icon(self):
+        return ("mdi:gamepad-variant" if self.is_on is True
+                else "mdi:gamepad-variant-outline")
 
     @property
     def available(self):

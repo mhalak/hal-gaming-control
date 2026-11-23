@@ -3,7 +3,7 @@ def discovery(device_id, name, prefix='homeassistant', *, terminate_enabled=True
     device = {'identifiers': [f'smarthouse_gaming_{device_id}'], 'name': name,
               'manufacturer': 'SmartHouse', 'model': 'Windows Gaming Agent'}
     specs = {
-        'uptime': ('sensor', 'Uptime', {'unit_of_measurement': 's', 'device_class': 'duration', 'entity_category': 'diagnostic'}),
+        'uptime': ('sensor', 'Uptime', {'entity_category': 'diagnostic'}),
         'terminate_game': ('button', 'Terminate game', {}),
         'lock_pc': ('button', 'Lock PC', {}),
     }
@@ -25,13 +25,15 @@ def discovery(device_id, name, prefix='homeassistant', *, terminate_enabled=True
             data['state_topic'] = root + '/state/telemetry'
             data['expire_after'] = 10
             data['value_template'] = (
-                "{{ value_json.system.uptime_seconds "
-                "if value_json is mapping and value_json.version == 3 "
+                "{% if value_json is mapping and value_json.version == 3 "
                 "and value_json.device_id == '" + device_id + "' "
                 "and value_json.system is mapping "
                 "and value_json.system.uptime_seconds is integer "
-                "and 0 <= value_json.system.uptime_seconds <= 9223372036854775807 "
-                "else 'unavailable' }}"
+                "and 0 <= value_json.system.uptime_seconds <= 9223372036854775807 %}"
+                "{% set u = value_json.system.uptime_seconds %}"
+                "{{ u // 86400 }}d {{ (u % 86400) // 3600 }}h "
+                "{{ (u % 3600) // 60 }}m {{ u % 60 }}s"
+                "{% else %}unavailable{% endif %}"
             )
         result[f'{prefix}/{component}/{uid}/config'] = data
     return result

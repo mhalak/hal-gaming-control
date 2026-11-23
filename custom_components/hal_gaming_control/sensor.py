@@ -1,4 +1,5 @@
 """Expose raw telemetry and the two owner-requested budget indicators."""
+from math import floor, isfinite
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.const import PERCENTAGE, UnitOfTime
 from homeassistant.const import EntityCategory
@@ -144,7 +145,11 @@ class GamingTimeSensor(GamingEntity, SensorEntity):
         if raw is None:
             return None
         elapsed = raw.get(self.period)
-        return round(elapsed / 60, 6) if elapsed is not None else None
+        # Diagnostic-only whole completed minutes; policy keeps exact seconds.
+        # Bad/unknown history must not be rendered as fabricated zero.
+        if type(elapsed) not in (int, float) or not isfinite(elapsed):
+            return None
+        return floor(max(0, elapsed) / 60)
 
     @property
     def extra_state_attributes(self):

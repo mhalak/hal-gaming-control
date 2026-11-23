@@ -1,3 +1,10 @@
+## Agent 0.4.1 / HA 0.13.13 — Uptime diagnostic presentation (source only)
+
+Windows 0.4.1 changes only the **existing native MQTT Uptime discovery value template**: the unchanged Unified MQTT v3 numeric seconds appear as readable `Xd Yh Zm Ss` text in Home Assistant. The same native discovery unique ID, MQTT telemetry topic, availability and expiry are kept. HA 0.13.13 provides the same presentation in direct MQTT mode. Neither version installs itself or unlocks OTA; follow the approved deployment/security gate in [#56](https://github.com/mhalak/hal-gaming-control/issues/56).
+
+**Compatibility note:** a Windows 0.4.0 agent continues sending valid v3 telemetry to HA 0.13.13, but its **native MQTT Uptime** remains numeric until its retained discovery config is refreshed by Windows 0.4.1. The Uptime state itself is now text; numeric automations should read the existing `system_uptime_seconds` attribute on **Active game** (or `uptime_seconds` on the HA-owned Direct MQTT Uptime).
+
+
 ## Agent 0.4.0 Preview 21 — 🚨 BREAKING: hostname-only device identity
 
 **Current compatible Home Assistant:** 0.13.0+ consumes **Unified MQTT v3 only**. The Windows agent 0.4.0+ also publishes v3-only monitoring. There is no v2/scalar stream, HA protocol toggle or dual-publisher migration.

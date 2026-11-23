@@ -100,7 +100,10 @@ async def test_scoped_entities_and_safe_controls(hass, enable_custom_integration
         await hass.async_block_till_done()
         assert entry.runtime_data.foreground.v3_capable is True
         assert entry.runtime_data.foreground.telemetry_order.received is not None
-        assert hass.states.get(ids["uptime"]).state == "100"
+        assert hass.states.get(ids["uptime"]).state == "0d 0h 1m 40s"
+        assert hass.states.get(ids["uptime"]).attributes["uptime_seconds"] == 100
+        assert hass.states.get(ids["uptime"]).attributes.get("device_class") is None
+        assert hass.states.get(ids["uptime"]).attributes.get("unit_of_measurement") is None
         assert not publish.called
         await hass.services.async_call("button","press",{"entity_id":ids["lock_pc"]},blocking=True)
         publish.assert_awaited_once_with(hass,ROOT+"/command/lock_pc","PRESS",qos=0,retain=False)
@@ -449,7 +452,7 @@ async def test_live_ha_duration_display_is_exact_hms_and_numeric_history_remains
     assert hass.states.get(weekly_pretty).state == "12h 0m 9s"
     assert hass.states.get(pretty).attributes.get("device_class") is None
     assert hass.states.get(pretty).attributes.get("unit_of_measurement") is None
-    assert float(hass.states.get(numeric).state) == 711.05
+    assert float(hass.states.get(numeric).state) == 711
     assert hass.states.get(numeric).attributes["unit_of_measurement"] == "min"
     assert await hass.config_entries.async_unload(entry.entry_id)
 
