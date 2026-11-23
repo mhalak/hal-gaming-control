@@ -8,7 +8,7 @@ Want to track an app, set a limit or give bonus time? You're in the right place.
 
 ## Start here
 
-**Upgrading from any earlier HA preview (0.5.x, 0.6.0 or 0.6.1)?** Follow the [HA 0.7.0 clean-cut guide](domain-clean-cut.md). A normal in-place update is unsupported.
+**Current version:** HA **0.13.0+** with Windows agent **0.4.0+**. Monitoring is **Unified MQTT v3 only** — no compatibility source or protocol toggle. Follow the [v3 clean-cut migration](unified_mqtt_telemetry.md) and confirm the PC's current Windows computer name. For historical domain renames, see the [archived HA domain migration](domain-clean-cut.md).
 
 1. [Getting started](getting-started.md) — what you need and how to test safely.
 2. [Home Assistant setup](ha_integration.md) — find your PC, apps and controls.
