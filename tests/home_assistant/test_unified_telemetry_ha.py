@@ -202,7 +202,7 @@ async def test_stale_display_and_foreground_are_unknown_not_confirmed_idle(hass)
     deliver(cb, root + "/state/telemetry",
             v3(ts=104, seq=3, screen="off", event=2, event_age=42000), ts=104)
     assert s.display.current(10104) == "unknown"
-    assert s.current(10104) is None
+    assert s.current(10104) == "Roblox"  # Stale OFF is not verified; gameplay still counts.
     s.close()
 
 
