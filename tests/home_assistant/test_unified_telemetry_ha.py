@@ -206,7 +206,6 @@ async def test_stale_display_and_foreground_are_unknown_not_confirmed_idle(hass)
     s.close()
 
 
-
 async def test_fresh_off_with_rejected_event_receipt_never_charges_game(hass):
     """An invalid OFF receipt is NOT an unsupported display-only PC.
 
