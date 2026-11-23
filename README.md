@@ -2,7 +2,7 @@
 
 # HAL Gaming Control
 
-**🚨 Windows agent 0.4.0 Preview 21 — breaking hostname identity:** MQTT device IDs now equal the Windows computer name (no legacy override/persisted ID). Existing PCs require a [supervised identity migration](docs/windows_deployment.md#agent-040-preview-21--breaking-hostname-only-device-identity), broker ACL update and HA re-enrollment before upgrading. The Windows agent has **not** been automatically deployed.\n\n**⚠️ HA 0.12.2 source preview (Preview 23):** the canonical Home Assistant domain is now `hal_gaming_control`. This replaces the old `smarthouse_gaming`, `parental` (0.6.0), and conflicting `parental_control` (0.6.1) domains. **Remove the previous integration before installing; no automatic migration or dual installation is supported.** [One-time clean-install instructions](docs/domain-clean-cut.md). Windows agent 0.4.0 uses the actual Windows computer name as its only MQTT device ID, with a supervised identity migration required for previously enrolled PCs. The optional signed Windows MQTT OTA Install path is **disabled by default** and requires a separately bootstrapped, Authenticode-trusted Windows updater, operator-pinned Ed25519 key and an approved fixed HTTPS release channel; see [development protocol](docs/mqtt_ota.md). The shipped HAL icon lives under the new domain; Marketplace's pre-install thumbnail may require catalog indexing. [Versioned GitHub HA releases](docs/hacs_release.md) use semantic tags in Marketplace; development-preview status is documented separately from GitHub prerelease classification. Deployment remains on hold until separately approved.
+**🚨 BREAKING — HA 0.13.0 / Windows agent 0.4.0:** HAL Gaming Control now uses **Unified MQTT v3 only**. The Windows computer name is the MQTT device ID. Home Assistant has **no v2 monitoring, old Uptime fallback or telemetry selection option**; a legacy per-PC `unified_telemetry_enabled` setting is discarded automatically. Existing old-ID devices need explicit re-enrollment under the Windows hostname; settings and history are not silently remapped. [Upgrade guide](docs/unified_mqtt_telemetry.md) · [Release notes](docs/ha_releases.md). No deployment is implied by this source change.
 
 **Because parenting should have an API.**
 
@@ -108,11 +108,11 @@ Track gaming time on Windows PCs, set limits, give bonus minutes and use parent 
   </tr>
 </table>
 
-**Development preview.** Features depend on the installed version. Screen idle bonuses are **not implemented**. The itemized Budget Overview requires a build containing #93; it is not part of older installed versions. Don't enable automatic game closing or locking before testing on your PC. [What's ready and what's missing](docs/known_limitations.md).
+**Development preview.** Features depend on the installed version. Screen idle bonuses are experimental and require explicit opt-in and real-PC acceptance. The itemized Budget Overview requires a build containing #93; it is not part of older installed versions. Don't enable automatic game closing or locking before testing on your PC. [What's ready and what's missing](docs/known_limitations.md).
 
 ## Windows setup (simpler, safer)
 
-Windows agent **0.2.10** automatically reports the PC's real Windows computer name and keeps a stable per-install ID, even after renames. Choose the friendly label in Home Assistant. Existing IDs are migrated without re-enrollment. No local game list is needed for monitoring, budgets or Lock PC. HA 0.7.2 introduces a separate manual **Terminate active game** button for the verified, tracked foreground app on rule-free PCs. Existing PCs retaining local `games` rules keep legacy Terminate game; the new path still needs real-Windows acceptance before deployment. [Issue #155](https://github.com/mhalak/hal-gaming-control/issues/155). [Windows installation and upgrade](docs/windows_deployment.md).
+Windows agent **0.4.0+** uses the actual Windows computer name for both MQTT routing and discovery; no saved or configured independent `device_id` exists. HA **0.13.0+** consumes only v3 `state/telemetry` and requires v3-capable discovery. Back up existing settings before enrolling an upgraded PC under its hostname. Tracked applications, budgets and manual actions remain HA-owned. [Current Windows installation and clean-cut migration](docs/windows_deployment.md).
 
 ## Want to get started?
 
