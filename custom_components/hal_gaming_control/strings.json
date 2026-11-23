@@ -17,7 +17,7 @@
     "abort": {
       "already_configured": "This PC is already configured.",
       "invalid_discovery": "Invalid or unsupported discovery metadata.",
-      "no_devices_found": "No new v3 gaming PC found. Start the current Windows agent and check SmartHouse/Gaming/<computer-name>/discovery; older agents and retained legacy identities are not accepted.",
+      "no_devices_found": "No new v3 gaming PC found. Start the current Windows agent and check SmartHouse/Gaming/your-Windows-computer-name/discovery; older agents and retained legacy identities are not accepted.",
       "unsupported_unified_telemetry": "This Windows agent does not advertise Unified MQTT telemetry v3. Update to Windows agent 0.4.0+ and enroll the actual Windows computer name."
     }
   },
