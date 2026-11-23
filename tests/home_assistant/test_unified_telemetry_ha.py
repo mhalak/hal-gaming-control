@@ -471,3 +471,132 @@ async def test_offline_resets_post_on_freshness_watermark(hass):
     assert watcher._post_on_sequence is None
     assert watcher._post_on_timestamp is None
     watcher.close()
+
+
+@pytest.mark.usefixtures("recorder_mock")
+async def test_v3_only_hostname_recovers_every_parent_facing_sensor(hass):
+    """#201: exercise MQTT -> foreground -> coordinator -> actual HA entities.
+
+    A live Windows 0.4.0 v3-only publisher must restore the entire Sensors
+    section once the per-PC v3 option and the new hostname identity match.
+    """
+    from unittest.mock import AsyncMock
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.hal_gaming_control import coordinator as co
+    from custom_components.hal_gaming_control.binary_sensor import GamingRestriction
+    from custom_components.hal_gaming_control.const import DOMAIN
+    from custom_components.hal_gaming_control.sensor import (
+        ActiveGameSensor, BudgetSensor, GamingTimeDisplaySensor,
+    )
+
+    host = "DESKTOP-LUCIJA"
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=host, title="Lucija Desktop",
+        data={"device_id": host, "name": "Lucija Desktop",
+              "games": [], "actions": []},
+        options={"unified_telemetry_enabled": True,
+                 "tracked_apps": [APP], "enabled": True,
+                 "daily": 320, "weekly": 4200},
+    )
+    entry.add_to_hass(hass)
+    coordinator = co.GamingCoordinator(hass, entry)
+    watcher, callbacks, _, _, _ = await start(hass, host, screen=True)
+    coordinator.foreground = watcher
+    coordinator.storage_healthy = True
+    coordinator.cutover_since = datetime.fromtimestamp(95, timezone.utc)
+    coordinator.foreground_store = Mock()
+    coordinator.foreground_store.async_save = AsyncMock()
+    watcher.on_update = coordinator._live_foreground_changed
+    entities = {
+        "active": ActiveGameSensor(coordinator),
+        "daily_budget": BudgetSensor(coordinator, "daily", "Daily budget remaining"),
+        "weekly_budget": BudgetSensor(coordinator, "weekly", "Weekly budget remaining"),
+        "daily_time": GamingTimeDisplaySensor(
+            coordinator, "daily", "Daily gaming time"),
+        "weekly_time": GamingTimeDisplaySensor(
+            coordinator, "weekly", "Weekly gaming time"),
+        "restriction": GamingRestriction(coordinator),
+    }
+    root = f"SmartHouse/Gaming/{host}"
+    assert root + "/state/telemetry" in callbacks
+    assert root + "/state/foreground_identity" not in callbacks
+    assert all(entity.unique_id.startswith(host + "_") for entity in entities.values())
+
+    # Availability/discovery by themselves cannot manufacture a live sensor.
+    with patch.object(co, "monotonic", return_value=10099):
+        deliver(callbacks, root + "/availability", "online", ts=99)
+    assert all(not entity.available for entity in entities.values())
+
+    # A complete, fresh v3 telemetry stream is sufficient; no v2 messages.
+    for ts, seq in ((100, 1), (102, 2), (104, 3)):
+        with patch.object(co, "monotonic", return_value=10000 + ts):
+            deliver(callbacks, root + "/state/telemetry",
+                    v3(host, ts=ts, seq=seq), ts=ts)
+
+    assert coordinator.data["ready"] is True
+    assert all(entity.available for entity in entities.values())
+    assert entities["active"].native_value == "Roblox"
+    assert entities["daily_budget"].native_value is not None
+    assert entities["weekly_budget"].native_value is not None
+    assert entities["daily_time"].native_value is not None
+    assert entities["weekly_time"].native_value is not None
+    assert entities["restriction"].is_on is False
+    await hass.async_block_till_done()
+    await coordinator.async_stop_foreground()
+    coordinator.close()
+
+
+@pytest.mark.usefixtures("recorder_mock")
+async def test_old_mqtt_identity_cannot_make_new_hostname_sensors_look_live(hass):
+    """#201: the old desktop_lucija entry must not consume a new hostname."""
+    from unittest.mock import AsyncMock
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.hal_gaming_control import coordinator as co
+    from custom_components.hal_gaming_control.const import DOMAIN
+    from custom_components.hal_gaming_control.sensor import (
+        ActiveGameSensor, BudgetSensor, GamingTimeDisplaySensor,
+    )
+    from custom_components.hal_gaming_control.binary_sensor import GamingRestriction
+
+    old, host = "desktop_lucija", "DESKTOP-LUCIJA"
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=old, title="Lucija Desktop",
+        data={"device_id": old, "name": "Lucija Desktop",
+              "games": [], "actions": []},
+        options={"unified_telemetry_enabled": True,
+                 "tracked_apps": [APP], "enabled": True,
+                 "daily": 320, "weekly": 4200},
+    )
+    entry.add_to_hass(hass)
+    coordinator = co.GamingCoordinator(hass, entry)
+    watcher, callbacks, _, _, _ = await start(hass, old, screen=False)
+    coordinator.foreground = watcher
+    coordinator.storage_healthy = True
+    coordinator.cutover_since = datetime.fromtimestamp(95, timezone.utc)
+    coordinator.foreground_store = Mock()
+    coordinator.foreground_store.async_save = AsyncMock()
+    watcher.on_update = coordinator._live_foreground_changed
+    old_root = f"SmartHouse/Gaming/{old}"
+    new_root = f"SmartHouse/Gaming/{host}"
+    assert old_root + "/state/telemetry" in callbacks
+    assert new_root + "/state/telemetry" not in callbacks
+
+    with patch.object(co, "monotonic", return_value=10100):
+        deliver(callbacks, old_root + "/availability", "online", ts=99)
+        # A cross-device payload cannot make the legacy subscription live.
+        deliver(callbacks, old_root + "/state/telemetry",
+                v3(host, ts=100, seq=1), ts=100)
+    sensors = [
+        ActiveGameSensor(coordinator),
+        BudgetSensor(coordinator, "daily", "Daily budget remaining"),
+        BudgetSensor(coordinator, "weekly", "Weekly budget remaining"),
+        GamingTimeDisplaySensor(coordinator, "daily", "Daily gaming time"),
+        GamingTimeDisplaySensor(coordinator, "weekly", "Weekly gaming time"),
+        GamingRestriction(coordinator),
+    ]
+    assert coordinator.data["ready"] is False
+    assert all(not sensor.available for sensor in sensors)
+    assert sensors[0].native_value is None
+    await hass.async_block_till_done()
+    await coordinator.async_stop_foreground()
+    coordinator.close()
