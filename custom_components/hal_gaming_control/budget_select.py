@@ -1,7 +1,9 @@
 """Per-PC native select receipt: inspect allowances or remove an untouched bonus.
 
-SelectEntity has no individually disabled choices; non-removable entries are
-visible for context, but the backend never accepts them as Undo targets.
+The standard HA SelectEntity can only render plain strings. Unicode FIGURE
+SPACE keeps the numeric column approximately aligned in proportional fonts,
+but it cannot guarantee pixel-perfect right-edge alignment on every client.
+Grant IDs always stay internal; identical labels use stable display ordinals.
 """
 from collections import Counter
 from datetime import datetime, timezone
@@ -13,18 +15,26 @@ from .parent_bonus import parent_bonus_legacy_today, parent_grants_today
 from .rule_engine import budget_overview
 from .screen_idle_bonus import screen_idle_events_today
 
+FIGURE_SPACE = "\u2007"
+ACTION_GAP = FIGURE_SPACE * 6
 
-def _fixed_rows(receipt, options, now):
+
+def _amount_label(minutes, title, width):
+    """Align numeric amounts without collapsible ASCII whitespace."""
+    return f"+{FIGURE_SPACE}{str(minutes).rjust(width, FIGURE_SPACE)} min - {title}"
+
+
+def _fixed_rows(receipt, options, now, width):
     """Non-revocable base, Weekend and legacy rows and their accumulated pool."""
     base = receipt["base_daily_minutes"]
-    rows = [(f"+{base}min Daily budget" if base is not None
-             else "Unlimited Daily budget", None)]
+    rows = [(_amount_label(base, "Daily Budget", width) if base is not None
+             else "∞ Daily Budget", None)]
     weekend = receipt["weekend_bonus_minutes"]
     if weekend:
-        rows.append((f"+{weekend}min Weekend bonus", None))
+        rows.append((_amount_label(weekend, "Weekend Bonus", width), None))
     legacy = parent_bonus_legacy_today(options, now)
     if legacy:
-        rows.append((f"+{legacy}min Legacy Parent bonus", None))
+        rows.append((_amount_label(legacy, "Legacy Parent Bonus", width), None))
     return rows, (base or 0) + weekend + legacy
 
 
@@ -51,28 +61,22 @@ def _event_key(event):
             dt_util.as_local(event["at"]).strftime("%H:%M"))
 
 
-def _event_labels(events):
-    """Disambiguate only otherwise identical human-readable bonus labels."""
+def _event_labels(events, width):
+    """Use human-friendly #1/#2 only for same-minute duplicate labels.
+
+    The exact immutable grant ID remains solely in the paired option value,
+    never in the name shown to parents.
+    """
     frequencies = Counter(_event_key(event) for event in events)
-    short_ids = Counter(
-        (_event_key(event), event["id"][-10:]) for event in events
-        if event["kind"] == "parent")
-    seen_screen = Counter()
+    seen = Counter()
     labels = []
     for event in events:
         key = _event_key(event)
-        name = "Parent bonus" if event["kind"] == "parent" else "Screen off bonus"
-        label = f'+{event["minutes"]}min {name} ({key[2]})'
-        if frequencies[key] > 1:
-            if event["kind"] == "parent":
-                suffix = event["id"][-10:]
-                if short_ids[(key, suffix)] > 1:
-                    suffix = event["id"]
-                label += f" ({suffix})"
-            else:
-                seen_screen[key] += 1
-                label += f" (#{seen_screen[key]})"
-        labels.append(label)
+        kind = "Parent Bonus" if event["kind"] == "parent" else "Screen Off Bonus"
+        seen[key] += 1
+        disambiguator = f" #{seen[key]}" if frequencies[key] > 1 else ""
+        title = f"{kind} ({key[2]}{disambiguator})"
+        labels.append(_amount_label(event["minutes"], title, width))
     return labels
 
 
@@ -87,18 +91,31 @@ def _can_undo(event, receipt, data, spent_before):
             or used < 0 or type(total) is not int or total < 0):
         return False
     # The first second attributed to this grant locks it permanently for
-    # the current cumulative accounting state. Recheck at Confirm Undo.
+    # the current cumulative accounting state. Recheck at instant Undo.
     return (used <= spent_before * 60
             and used <= (total - event["minutes"]) * 60)
 
 
-def _total_row(receipt):
+def _total_row(receipt, width):
     status, total = receipt["daily_budget_status"], receipt["daily_limit_minutes"]
     if status == "disabled":
-        return "∑ Rules disabled", None
+        return f"∑{FIGURE_SPACE}Rules Disabled", None
     if total is None:
-        return "∑ Unlimited TOTAL", None
-    return f"∑ {total}min TOTAL", None
+        return f"∑{FIGURE_SPACE}Unlimited TOTAL", None
+    return f"∑{FIGURE_SPACE}{str(total).rjust(width, FIGURE_SPACE)} min - TOTAL", None
+
+
+def _display_action_column(rows):
+    """Right-align the action glyph within the *text*, not the HA control.
+
+    Only actionable Parent bonuses get the red icon; pad them relative to the
+    longest actionable text. Unicode figure spaces aren't collapsed by HTML,
+    unlike ordinary multiple spaces. Native HA controls still own actual width.
+    """
+    longest = max((len(label) for label, grant in rows if grant), default=0)
+    return [(label + FIGURE_SPACE * (longest - len(label)) + ACTION_GAP + "⛔",
+             grant) if grant else (label, None)
+            for label, grant in rows]
 
 
 def budget_select_rows(options, device_id, data, now):
@@ -112,12 +129,15 @@ def budget_select_rows(options, device_id, data, now):
     receipt = budget_overview(
         options, data.get("totals", {}), now, ready=bool(data.get("ready")),
         coverage_incomplete=data.get("coverage_incomplete", True))
-    rows, spent_before = _fixed_rows(receipt, options, now)
     events = _bonus_events(options, device_id, now)
-    for event, label in zip(events, _event_labels(events)):
+    amounts = [receipt["daily_limit_minutes"],
+               receipt["base_daily_minutes"], *(event["minutes"] for event in events)]
+    width = max(3, *(len(str(amount)) for amount in amounts
+                     if isinstance(amount, int)))
+    rows, spent_before = _fixed_rows(receipt, options, now, width)
+    for event, label in zip(events, _event_labels(events, width)):
         eligible = _can_undo(event, receipt, data, spent_before)
-        rows.append((f"{label} ⛔" if eligible else label,
-                     event["id"] if eligible else None))
+        rows.append((label, event["id"] if eligible else None))
         spent_before += event["minutes"]
-    rows.append(_total_row(receipt))
-    return rows
+    rows.append(_total_row(receipt, width))
+    return _display_action_column(rows)
