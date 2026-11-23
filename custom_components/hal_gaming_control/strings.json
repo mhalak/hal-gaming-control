@@ -34,7 +34,7 @@
       },
       "mqtt_settings": {
         "title": "MQTT configuration",
-        "description": "### Connection\n\n**{connection}**  \n{connection_help}\n\n### Broker\n\n- **Host:** `{broker}`\n- **Port:** `{port}`\n- **TLS:** {tls}\n\n### Gaming PC\n\n**{device_id}** — {mode}\n\n**Topic root**  \n`{root}`\n\n**Discovery topic**  \n`{root}/discovery`\n\n### Help\n\nRead-only information. To change Home Assistant's shared MQTT broker, open **Settings → Devices & services → MQTT → Reconfigure**.\n\nThe Windows agent uses a separate MQTT connection in its protected `config.yaml`."
+        "description": "### Connection\n\n**{connection}**  \n{connection_help}\n\n### Broker\n\n- **Host:** `{broker}`\n- **Port:** `{port}`\n- **TLS:** {tls}\n\n### Gaming PC\n\n**`{device_id}`** — {mode}\n\n**Topic root**  \n`{root}`\n\n**Discovery topic**  \n`{root}/discovery`\n\n### Help\n\nRead-only information. To change Home Assistant's shared MQTT broker, open **Settings → Devices & services → MQTT → Reconfigure**.\n\nThe Windows agent uses a separate MQTT connection in its protected `config.yaml`."
       },
       "tracked_apps": {
         "title": "Tracked applications",
