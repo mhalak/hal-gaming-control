@@ -682,6 +682,24 @@ async def test_v3_only_hostname_recovers_every_parent_facing_sensor(hass):
     assert coordinator.data["ready"] is True
     assert all(entity.available for entity in entities.values())
     assert entities["active"].native_value == "Roblox"
+    assert entities["active"].icon == "mdi:monitor"
+    # A screen OFF report changes accounting to idle, but preserves the
+    # independently verified Windows foreground in the same HA sensor.
+    counted_before = total(watcher)
+    with patch.object(co, "monotonic", return_value=10106):
+        deliver(callbacks, root + "/state/telemetry",
+                v3(host, ts=106, seq=4, screen="off", event=2), ts=106)
+    assert coordinator.data["active_game"] == "idle"
+    assert coordinator.data["observed_game"] == "Roblox"
+    assert entities["active"].native_value == "Roblox"
+    assert entities["active"].icon == "mdi:monitor-off"
+    assert total(watcher) == counted_before
+    with patch.object(co, "monotonic", return_value=10108):
+        deliver(callbacks, root + "/state/telemetry",
+                v3(host, ts=108, seq=5, screen="off", event=2,
+                   event_age=2000), ts=108)
+    assert entities["active"].native_value == "Roblox"
+    assert total(watcher) == counted_before
     assert entities["daily_budget"].native_value is not None
     assert entities["weekly_budget"].native_value is not None
     assert entities["daily_time"].native_value is not None
