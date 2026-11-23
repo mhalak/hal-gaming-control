@@ -53,7 +53,7 @@ async def test_native_select_lists_each_grant_without_manual_ids():
         options = entity.options
         assert options[0] == UNSELECTED
         assert len(options) == 6
-        assert len(set(options)) == 4
+        assert len(set(options)) == 6
         assert "30min Parent bonus" in options[2]
         assert all("Parent bonus" in option for option in options[2:-1])
         assert all(
@@ -86,7 +86,7 @@ async def test_same_minute_bonus_choices_show_id_only_for_ambiguity():
         assert len(set(short_labels)) == 2
         assert all(label.endswith(f"({choices[label][-10:]})")
                    for label in short_labels)
-        assert all(" (" not in label for label in choices
+        assert all(label.count("(") == 1 for label in choices
                    if label not in short_labels)
 
         # Still cancel the precise stored ID, never the other same-minute grant.
