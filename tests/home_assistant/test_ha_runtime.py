@@ -13,7 +13,8 @@ from custom_components.hal_gaming_control.coordinator import GamingCoordinator
 pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures('recorder_mock')]
 
 DATA = {"device_id":"pc1","name":"Gaming PC 1","protocol_version":1,
-        "games":["Minecraft","Roblox"],"actions":["terminate_game","lock_pc"]}
+        "games":["Minecraft","Roblox"],"actions":["terminate_game","lock_pc"],
+        "unified_telemetry_protocol":3}
 
 async def test_discovery_flow(hass, enable_custom_integrations):
     result = await hass.config_entries.flow.async_init(
@@ -43,7 +44,7 @@ async def test_options_menu_adds_advanced_windows_updates_without_losing_legacy_
                                        "tracked_apps": "Tracked applications",
                                        "windows_updates": "Windows updates (advanced)",
                                        "screen_idle": "Screen idle (experimental)",
-                                       "unified_telemetry": "Unified MQTT telemetry (experimental)"}
+                                       }
     # Removed UI paths must not erase persisted limits, update settings or actions.
     assert entry.options == saved
 
@@ -168,7 +169,8 @@ def expected_lingering_timers() -> bool:
 
 DISCOVERY_FILTER = "SmartHouse/Gaming/+/discovery"
 DATA2 = {"device_id": "pc2", "name": "Gaming PC 2", "protocol_version": 1,
-         "games": ["Fortnite"], "actions": ["lock_pc"]}
+         "games": ["Fortnite"], "actions": ["lock_pc"],
+         "unified_telemetry_protocol": 3}
 
 
 def msg(device_id, payload):
@@ -216,7 +218,8 @@ async def test_user_flow_creates_entry_with_same_data_as_confirm(hass, enable_cu
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"device": "pc1"})
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
     assert result["title"] == "Gaming PC 1"
-    assert result["data"] == DATA
+    assert result["data"] == {k: v for k, v in DATA.items()
+                              if k != "unified_telemetry_protocol"}
     assert result["result"].unique_id == "pc1"
     fake_mqtt.unsub.assert_called_once()
 
@@ -229,7 +232,9 @@ async def test_user_flow_data_identical_to_mqtt_path(hass, enable_custom_integra
     result = await start_user(hass)
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"device": "pc2"})
     assert set(result["data"]) == set(mqtt_result["data"])
-    assert result["data"] == {**DATA, "device_id": "pc2"}
+    assert result["data"] == {k: v for k, v in
+                              {**DATA, "device_id": "pc2"}.items()
+                              if k != "unified_telemetry_protocol"}
 
 
 async def test_user_flow_two_devices_selectable(hass, enable_custom_integrations, fake_mqtt):
@@ -239,7 +244,8 @@ async def test_user_flow_two_devices_selectable(hass, enable_custom_integrations
     labels = {o["value"]: o["label"] for o in result["data_schema"].schema["device"].config["options"]}
     assert labels == {"pc1": "Gaming PC 1 (pc1)", "pc2": "Gaming PC 2 (pc2)"}
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"device": "pc2"})
-    assert result["data"] == DATA2
+    assert result["data"] == {k: v for k, v in DATA2.items()
+                              if k != "unified_telemetry_protocol"}
     assert result["result"].unique_id == "pc2"
 
 
@@ -434,7 +440,8 @@ async def test_mqtt_path_regression_confirm_creates_entry(hass, enable_custom_in
     assert result["step_id"] == "confirm"
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
-    assert result["data"] == DATA
+    assert result["data"] == {k: v for k, v in DATA.items()
+                              if k != "unified_telemetry_protocol"}
     assert result["result"].unique_id == "pc1"
 
 
@@ -491,7 +498,7 @@ async def test_legacy_limit_values_survive_opening_configure(
                                        "tracked_apps": "Tracked applications",
                                        "windows_updates": "Windows updates (advanced)",
                                        "screen_idle": "Screen idle (experimental)",
-                                       "unified_telemetry": "Unified MQTT telemetry (experimental)"}
+                                       }
     assert entry.options == old
 
 
@@ -532,7 +539,7 @@ async def test_per_game_editor_hidden_preserving_existing_settings(hass, enable_
                                        "tracked_apps": "Tracked applications",
                                        "windows_updates": "Windows updates (advanced)",
                                        "screen_idle": "Screen idle (experimental)",
-                                       "unified_telemetry": "Unified MQTT telemetry (experimental)"}
+                                       }
     # Preserve concurrent changes to a hidden legacy setting when the active
     # Tracked applications editor (not the removed Save page) commits.
     hass.config_entries.async_update_entry(entry, options=dict(entry.options) | {
