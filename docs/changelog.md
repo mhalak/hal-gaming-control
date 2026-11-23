@@ -8,11 +8,21 @@ This is the **human-readable development changelog**. For full technical release
 
 > **Preview software, not a deployment log.** Version numbers below describe changes recorded in source; they do **not** prove that a tagged GitHub Release, a signed Windows installer or an update on any real PC/HA instance exists. Always check the deployed build and the [current compatibility/deployment instructions](known_limitations.md).
 
-**Current source (Preview 24, 23 November 2026):** **Home Assistant 0.13.0** and **Windows agent 0.4.0**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
+**Current source (Preview 27, 23 November 2026):** **Home Assistant 0.13.3** and **Windows agent 0.4.0**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
 
 **🚨 BREAKING CHANGE** means an upgrade can require manual action or break compatibility with prior configs, entity IDs or MQTT payloads. Follow the linked migration instructions before updating; do not assume a normal in-place upgrade is safe.
 
 ## Home Assistant integration
+
+### 0.13.3 — Screen OFF accounting reliability (#209, #210)
+- Stops accruing gaming time when a fresh OFF report has an invalid display-event receipt; only a verified ON and new foreground sample can resume charging. No unsupported-display false bonus.
+- Active game shows the validated display state, with the rejected incoming state shown separately when different. HA-only fix; Windows remains 0.4.0.
+
+### 0.13.2 — Readable MQTT configuration (#207)
+- Reorganizes the read-only MQTT configuration information into readable Connection, Broker, Gaming PC and Help sections.
+
+### 0.13.1 — Automatic Screen idle (#204)
+- Removes the experimental screen-idle toggle. Verified OFF automatically stops new gaming time; unsupported/unknown display data does not block verified foreground tracking.
 
 ### 0.13.0 — BREAKING: Unified MQTT v3 only (#201)
 - One mandatory v3 telemetry stream for all PC monitoring; no protocol toggle, v2 subscription or scalar Uptime fallback.
