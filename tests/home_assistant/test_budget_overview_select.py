@@ -107,7 +107,8 @@ def test_ordered_receipt_shows_only_actionable_red_icons_and_sigma_total():
     ]
     assert all("🔒" not in label for label in labels)
     assert all("⛔" not in label for label in labels if "Parent Bonus" not in label)
-    assert all(FIGURE in label for label in labels)
+    assert all(FIGURE in label for label in labels
+               if label not in (DIVIDER_TOP, DIVIDER_BOTTOM))
     assert all("1234567890" not in label for label in labels)
     assert sum(label.endswith("⛔") for label in labels) == 2
     assert len(labels) == len(set(labels))  # HA Select option uniqueness
