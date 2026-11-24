@@ -68,6 +68,25 @@ owned EXEs, exact PE product/version fields, SHA-256 hashes, installed
 `NotSigned` Authenticode status. Preserve a sanitized result in issue #9.
 No release to users or SAC workaround is authorized by this build alone.
 
+## Planned Windows-only public preview channel (same repository)
+
+The proposed distribution is a **static GitHub Pages download inside
+`mhalak/hal-gaming-control`**, not a second GitHub repository and not
+a Windows-only GitHub Release tag. This isolation prevents the Windows
+version from appearing as a Home Assistant Marketplace release candidate.
+See [Windows distribution](windows_distribution.md#Windows-release-channel-in-this-same-repository)
+and the source-only [manual Pages workflow](../.github/workflows/windows-public-preview-pages.yml).
+
+No public Windows ZIP has been released and the Pages workflow has **not**
+been triggered. Publication requires a separate deliberate manual
+authorization from the repository owner, exact source/version, 8/8 green
+main CI, verified untrusted/unsigned metadata and the Pages setup.
+Once an actual public download is verified and safely described, update
+this application sheet with its stable URL, digest and package scope.
+SignPath Foundation **independently** decides whether a specific unsigned
+preview satisfies its prior-public-release requirement. Never assert
+eligibility or Authenticode trust based on GitHub Pages alone.
+
 ## Owner actions before submitting
 
 - [ ] Confirm GitHub repository visibility, code ownership, MIT licensing of
