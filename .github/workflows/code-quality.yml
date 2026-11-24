@@ -21,7 +21,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements-quality.txt pytest
-      - run: python -m pytest -q tests/test_quality_gate.py tests/test_ci_event_policy.py tests/test_repository_identity.py tests/test_signpath_readiness.py tests/test_windows_pages_distribution.py tests/test_windows_preview_licenses.py
+      - run: python -m pytest -q tests/test_quality_gate.py tests/test_ci_event_policy.py tests/test_repository_identity.py tests/test_signpath_readiness.py tests/test_windows_pages_distribution.py tests/test_windows_preview_licenses.py tests/test_windows_wheel_lock.py
       - name: Enforce function and method complexity (maximum C)
         run: |
           set -o pipefail
