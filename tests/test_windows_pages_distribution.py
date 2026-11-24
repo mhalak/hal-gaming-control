@@ -95,6 +95,11 @@ class PagesDistributionTests(unittest.TestCase):
 
     def test_workflow_is_owner_only_manual_and_never_creates_ha_releases(self):
         cfg = (ROOT / ".github/workflows/windows-public-preview-pages.yml").read_text()
+        # GitHub rejects a workflow with malformed ${{ ... }} expressions
+        # before it can run any jobs; require exactly matched delimiters.
+        expressions = re.findall(r"\$\{\{[^\n{}]+\}\}", cfg)
+        self.assertEqual(cfg.count("${{"), len(expressions))
+        self.assertEqual(len(expressions), 19)
         assert "workflow_dispatch:" in cfg
         for forbidden in ("issue_comment:", "pull_request:", "  push:", "gh release create",
                           "gh release edit", "gh release upload", "git push", "SignPath"):
