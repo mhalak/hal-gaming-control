@@ -1,7 +1,6 @@
 # Internal release identity
 
-`release.json` declares independent versions. Current source: **HAL Gaming Control Preview 38**, Windows agent **0.4.1** (unchanged), Home Assistant **0.14.0**. Issue #6 adds device-scoped, administrator-only native HA actions for Lock PC, Terminate active game, Parent bonus, Unlimited gaming and the future Windows popup UI. The popup action is capability-gated and cannot display on the current Windows 0.4.1 agent. This release changes only HA source and retains strict Unified MQTT v3 monitoring, budgets/Recorder and the #56 deployment HOLD. Source versions are **not** proof of a GitHub Release or installed binaries.
-
+Current source in `release.json`: **HAL Gaming Control Preview 39**, Windows agent **0.4.2**, HA integration **0.14.1**. Issue #8 adds a presentation-only HAL branded Windows popup, short-lived versioned MQTT UI commands, protected SYSTEM-to-user IPC, local visual countdown, configurable response buttons and HA response events. Windows never calculates budget policy or grants time. Strict Unified MQTT v3 is unchanged. These are **source version declarations**, not proof of real Windows deployment, a signed binary or completion of physical acceptance. #56 deployment HOLD remains active.
 
 Version declaration, CI, package build and successful deployment on the actual host are **separate facts**. A changed Git file or manifest does not prove that any HA instance or Windows PC installed it. Record the exact reviewed source SHA, package hash, previously working release, and real device smoke-test results before deploying. Never reuse a release tag or silently overwrite a published artifact.
 
