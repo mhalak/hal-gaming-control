@@ -13,6 +13,7 @@ Want to track an app, set a limit or give bonus time? You're in the right place.
 1. [Getting started](getting-started.md) — what you need and how to test safely.
 2. [Home Assistant setup](ha_integration.md) — find your PC, apps and controls.
 3. [Windows installation](windows_deployment.md) — for people comfortable building software from source.
+4. [Windows downloads and signing](windows_distribution.md) — public release readiness, [code signing policy](../CODE_SIGNING_POLICY.md), [privacy](../PRIVACY.md).
 
 ## Explore the features
 
