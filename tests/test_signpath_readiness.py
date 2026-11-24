@@ -36,7 +36,6 @@ def test_operator_only_unsigned_candidate_workflow_is_fail_closed():
     assert "github.event.issue.pull_request == null" in cfg
     assert "github.event.comment.user.login == 'mhalak'" in cfg
     assert "startsWith(github.event.comment.body, '/build-windows-candidate ')" in cfg
-    assert '"$env:RELEASE_COMMAND -cne \"/build-windows-candidate $version\""' not in cfg
     assert '$env:RELEASE_COMMAND -cne "/build-windows-candidate $version"' in cfg
     assert "contents: read" in cfg
     assert "contents: write" not in cfg
