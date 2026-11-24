@@ -15,6 +15,42 @@ from .const import ROOT
 from .protocol import parse_discovery
 
 
+def _no_duplicate_fields(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError("Duplicate popup response field")
+        value[key] = item
+    return value
+
+
+def _decode_response(payload):
+    if not isinstance(payload, (str, bytes)) or not 0 < len(payload) <= 1024:
+        return None
+    try:
+        return json.loads(payload, object_pairs_hook=_no_duplicate_fields)
+    except (ValueError, TypeError, UnicodeError, RecursionError):
+        return None
+
+
+def _valid_response(packet, *, device_id, popup_id, buttons):
+    if (type(packet) is not dict
+            or type(packet.get("version")) is not int or packet["version"] != 1
+            or packet.get("device_id") != device_id
+            or packet.get("popup_id") != popup_id
+            or type(packet.get("event_id")) is not str
+            or re.fullmatch(r"[0-9a-f]{32}", packet["event_id"]) is None):
+        return False
+    base = {"version", "device_id", "popup_id", "event_id", "kind"}
+    if packet.get("kind") == "closed":
+        return packet.keys() == base
+    if packet.get("kind") == "button":
+        return (packet.keys() == base | {"button_id"}
+                and type(packet["button_id"]) is str
+                and packet["button_id"] in buttons)
+    return False
+
+
 class PopupControl:
     def __init__(self, coordinator):
         self.coordinator = coordinator
@@ -51,45 +87,15 @@ class PopupControl:
             pass
 
     def _on_popup_event(self, message):
-        """Expose child clicks/closing as HA events, never grant time here."""
+        """Child clicks/closing are observations, never permission grants."""
         if (getattr(message, "retain", None) is not False
                 or message.topic != self.root + "/ui/popup_event"
                 or self._popup_id is None or not self._supported):
             return
-        if (not isinstance(message.payload, (str, bytes))
-                or not 0 < len(message.payload) <= 1024):
-            return
-        try:
-            def unique(pairs):
-                obj = {}
-                for key, value in pairs:
-                    if key in obj:
-                        raise ValueError("Duplicate popup response field")
-                    obj[key] = value
-                return obj
-            packet = json.loads(message.payload, object_pairs_hook=unique)
-        except (ValueError, TypeError, UnicodeError, RecursionError):
-            return
-        if (type(packet) is not dict
-                or type(packet.get("version")) is not int
-                or packet["version"] != 1
-                or packet.get("device_id") != self.coordinator.device_id
-                or packet.get("popup_id") != self._popup_id
-                or type(packet.get("event_id")) is not str
-                or re.fullmatch(r"[0-9a-f]{32}", packet["event_id"]) is None):
-            return
-        kind = packet.get("kind")
-        if kind == "closed":
-            if packet.keys() != {"version", "device_id", "popup_id",
-                                 "event_id", "kind"}:
-                return
-        elif kind == "button":
-            if (packet.keys() != {"version", "device_id", "popup_id",
-                                  "event_id", "kind", "button_id"}
-                    or type(packet["button_id"]) is not str
-                    or packet["button_id"] not in self._buttons):
-                return
-        else:
+        packet = _decode_response(message.payload)
+        if not _valid_response(
+                packet, device_id=self.coordinator.device_id,
+                popup_id=self._popup_id, buttons=self._buttons):
             return
         if packet["event_id"] in self._seen_events:
             return
@@ -100,9 +106,9 @@ class PopupControl:
                 "device_id": self.coordinator.device_id,
                 "entry_id": self.coordinator.entry.entry_id,
                 "popup_id": self._popup_id,
-                "event_id": packet["event_id"], "kind": kind,
+                "event_id": packet["event_id"], "kind": packet["kind"],
                 **({"button_id": packet["button_id"]}
-                   if kind == "button" else {}),
+                   if packet["kind"] == "button" else {}),
             })
 
     def _ensure_ready(self):
