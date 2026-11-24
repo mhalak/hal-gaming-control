@@ -17,7 +17,7 @@ $python = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
 if ($LASTEXITCODE) { throw 'Dependency installation failed' }
 & $python -m pytest -q
 if ($LASTEXITCODE) { throw 'Tests failed' }
-& $python -m PyInstaller --noconfirm --clean --onedir --name SmartHouseGamingControl --hidden-import win32timezone --hidden-import win32ts --hidden-import win32profile service_entry.py
+& $python -m PyInstaller --noconfirm --clean --onedir --name SmartHouseGamingControl --hidden-import win32timezone --hidden-import win32ts --hidden-import win32profile --hidden-import tkinter service_entry.py
 if ($LASTEXITCODE) { throw 'Build failed' }
 & $python -m PyInstaller --noconfirm --clean --onedir --name SmartHouseGamingUpdater updater.py
 if ($LASTEXITCODE) { throw 'Updater build failed' }
