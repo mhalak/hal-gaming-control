@@ -8,11 +8,15 @@ This is the **human-readable development changelog**. For full technical release
 
 > **Preview software, not a deployment log.** Version numbers below describe changes recorded in source; they do **not** prove that a tagged GitHub Release, a signed Windows installer or an update on any real PC/HA instance exists. Always check the deployed build and the [current compatibility/deployment instructions](known_limitations.md).
 
-**Current source (Preview 38, 24 November 2026):** **Home Assistant 0.14.0** and **Windows agent 0.4.1**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
+**Current source (Preview 39, 24 November 2026):** **Home Assistant 0.14.1** and **Windows agent 0.4.2**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
 
 **🚨 BREAKING CHANGE** means an upgrade can require manual action or break compatibility with prior configs, entity IDs or MQTT payloads. Follow the linked migration instructions before updating; do not assume a normal in-place upgrade is safe.
 
 ## Home Assistant integration
+
+### 0.14.1 — Popup response events (#8)
+- Validate non-retained device-scoped popup response IDs, require the latest popup/button IDs and expose the `hal_gaming_control_popup_response` HA event for automations.
+- A response cannot grant time or terminate a game on its own. Unified MQTT v3 monitoring and existing HA actions stay unchanged.
 
 ### 0.14.0 — Native HA device actions and popup orchestration (#6, #8)
 - Register five administrator-only device-scoped actions: `hal_gaming_control.lock_pc`, `.terminate_game`, `.add_bonus`, `.set_unlimited`, and `.popup` (upsert/hide, time, bar and response buttons).
@@ -195,6 +199,11 @@ This is the **human-readable development changelog**. For full technical release
 - Initial HA integration and Windows agent protocol used during early development.
 
 ## Windows agent
+
+### 0.4.2 — HAL themed Windows popup (#8)
+- Strict popup UI v1 MQTT receiver with separate protected SYSTEM-to-user named pipe and one non-elevated user-session window.
+- Blue-dot HAL branding, live local visual countdown, smoothly shrinking bar and 0–3 equal-width HA-configured response buttons; close or button clicks return validated IDs to HA.
+- Hide stale, disconnected or locked-session views. Windows never calculates gaming budgets or authorizes grants. Source only: no signed Windows binary or supervised physical PC rollout.
 
 ### 0.4.1 — Native MQTT Uptime display formatting (#136)
 - The **existing** Uptime discovery config formats the unchanged Unified MQTT v3 integer seconds as `d h m s`, with no unit or duration device class for this text state. Keep the same unique ID and topic; no new telemetry or commands.
