@@ -47,3 +47,33 @@ def test_version_metadata_cli_generates_only_requested_file(tmp_path):
     assert ast.parse(output.read_text(encoding="utf-8"))
     assert list(tmp_path.rglob("*.txt")) == [output]
     assert not list(tmp_path.rglob("*.exe"))
+
+
+def test_in_process_cli_writes_owned_resource(tmp_path, monkeypatch):
+    """Run CLI in coverage process, not only a subprocess with no tracing."""
+    import version_metadata
+    output = tmp_path / "nested" / "updater-version.txt"
+    monkeypatch.setattr(sys, "argv", [
+        "version_metadata.py", "--version", "0.4.3",
+        "--filename", "SmartHouseGamingUpdater.exe",
+        "--output", str(output),
+    ])
+    version_metadata.main()
+    value = output.read_text(encoding="utf-8")
+    assert ast.parse(value)
+    assert "HAL Gaming Control" in value
+    assert "SmartHouseGamingUpdater.exe" in value
+    assert "(0, 4, 3, 0)" in value
+
+
+def test_in_process_cli_rejects_unversioned_build_without_creating_file(tmp_path, monkeypatch):
+    import version_metadata
+    output = tmp_path / "bad-version.txt"
+    monkeypatch.setattr(sys, "argv", [
+        "version_metadata.py", "--version", "latest",
+        "--filename", "SmartHouseGamingControl.exe",
+        "--output", str(output),
+    ])
+    with pytest.raises(ValueError):
+        version_metadata.main()
+    assert not output.exists()
