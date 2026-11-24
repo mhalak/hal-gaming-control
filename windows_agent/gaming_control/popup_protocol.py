@@ -68,26 +68,37 @@ def valid_view(view):
         and len({row["id"] for row in buttons}) == len(buttons))
 
 
+def _valid_identity(packet, device_id):
+    return (type(packet) is dict
+            and type(device_id) is str
+            and _DEVICE_ID.fullmatch(device_id) is not None
+            and type(packet.get("version")) is int
+            and packet["version"] == 1
+            and packet.get("device_id") == device_id
+            and _token(packet.get("producer_epoch"))
+            and _token(packet.get("popup_id"))
+            and type(packet.get("sequence")) is int
+            and 1 <= packet["sequence"] <= MAX_SEQUENCE)
+
+
+def _valid_freshness(packet, wall, retained):
+    issued, ttl, display_ttl = (
+        packet.get("issued_at"), packet.get("message_ttl_seconds"),
+        packet.get("display_stale_after_seconds"))
+    return (retained is False
+            and type(issued) is int
+            and type(ttl) is int and 1 <= ttl <= 30
+            and type(display_ttl) is int and 15 <= display_ttl <= 3600
+            and type(wall) in (float, int) and math.isfinite(wall)
+            and -2 <= wall - issued <= ttl)
+
+
 def validate_popup(packet, device_id, *, retained=False, now=None):
     """Fail closed on messages that must never open UI."""
     wall = time.time() if now is None else now
-    if (type(packet) is not dict
+    if (not _valid_identity(packet, device_id)
             or packet.keys() not in (_ROOT, _ROOT | {"view"})
-            or packet.get("version") != 1 or type(packet.get("version")) is not int
-            or not _DEVICE_ID.fullmatch(device_id)
-            or packet.get("device_id") != device_id
-            or not _token(packet.get("producer_epoch"))
-            or not _token(packet.get("popup_id"))
-            or type(packet.get("sequence")) is not int
-            or not 1 <= packet["sequence"] <= MAX_SEQUENCE
-            or type(packet.get("issued_at")) is not int
-            or type(packet.get("message_ttl_seconds")) is not int
-            or not 1 <= packet["message_ttl_seconds"] <= 30
-            or type(packet.get("display_stale_after_seconds")) is not int
-            or not 15 <= packet["display_stale_after_seconds"] <= 3600
-            or type(wall) not in (float, int) or not math.isfinite(wall)
-            or not -2 <= wall - packet["issued_at"] <= packet["message_ttl_seconds"]
-            or retained is not False):
+            or not _valid_freshness(packet, wall, retained)):
         raise ValueError("Invalid or stale popup instruction")
     if packet["operation"] == "upsert":
         if packet.keys() != _ROOT | {"view"} or not valid_view(packet["view"]):
