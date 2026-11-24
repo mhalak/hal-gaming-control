@@ -190,6 +190,7 @@ async def test_popup_action_requires_advertised_agent_and_sends_fixed_ui_contrac
         first = json.loads(args.args[2])
         assert first["version"] == 1 and first["operation"] == "upsert"
         assert first["view"]["remaining_seconds"] == 598
+        assert first["display_stale_after_seconds"] > 598  # local tick reaches zero
         assert first["view"]["buttons"] == buttons
         await call(hass, "popup", device_id, heading="Another update",
                    remaining_seconds=45, progress_percent=8, buttons=[])
