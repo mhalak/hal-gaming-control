@@ -1,3 +1,9 @@
+## Agent 0.4.2 / HA 0.14.1 — HAL branded gaming popup (source only)
+
+The Windows service now has a strict, **non-retained** `SmartHouse/Gaming/<hostname>/ui/popup` UI v1 listener, separate from mandatory Unified MQTT v3 monitoring, and advertises `popup_ui_protocol: 1` only in this source version. A dedicated non-elevated `--popup-helper` in the active unlocked Windows user session displays a locally animated countdown, progress bar and up to three equal-width configured buttons. The process is accessed only via a protected SYSTEM-to-user named pipe. Child button IDs and close events go to HA via `ui/popup_event` and become `hal_gaming_control_popup_response` events for parent-authored automations.
+
+**No real PC has been updated or verified.** PyInstaller packaging and LocalSystem→interactive desktop testing on Windows 10/11, including games in fullscreen and borderless, lock/logoff/session switches and MQTT outages, remain a separate acceptance gate. **#56 HOLD stays active**. This source change is not a signed release, installer, verified UI screenshot, or deployed update.
+
 ## Agent 0.4.1 / HA 0.13.13 — Uptime diagnostic presentation (source only)
 
 Windows 0.4.1 changes only the **existing native MQTT Uptime discovery value template**: the unchanged Unified MQTT v3 numeric seconds appear as readable `Xd Yh Zm Ss` text in Home Assistant. The same native discovery unique ID, MQTT telemetry topic, availability and expiry are kept. HA 0.13.13 provides the same presentation in direct MQTT mode. Neither version installs itself or unlocks OTA; follow the approved deployment/security gate in [#56](https://github.com/mhalak/hal-gaming-control/issues/56).
