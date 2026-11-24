@@ -69,8 +69,8 @@ restrictions; never sign arbitrary executables from a submitted ZIP.
    independent Windows version in `release.json`, and all required CI.
 2. Build from a **clean, pinned** checkout on a GitHub-hosted Windows runner
    using our tracked `windows_agent/build.ps1`. Preserve the unsigned build
-   as a short-lived private GitHub Actions artifact with provenance, without
-   installing or publishing it.
+   as a short-lived GitHub Actions artifact with provenance, without
+   installing or publishing it. **On public repositories, workflow artifacts\n   may be accessible to readers with suitable GitHub access; they must be\n   clearly marked UNSIGNED and never described as trusted downloads.**
 3. Once SignPath has accepted this project, configure GitHub.com as a trusted
    build system, enable origin verification and a release-only signing policy,
    restrict to `main`, and require a human approval **for each request**.
