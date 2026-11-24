@@ -1,3 +1,10 @@
+## 0.14.0 — Native HA actions (source-only, #6 and #8)
+
+- Register custom device-targeted admin actions in HA: `hal_gaming_control.lock_pc`, `terminate_game`, `add_bonus`, `set_unlimited`, `popup` (upsert/hide). Each requires a real Home Assistant gaming device registry ID; never broadcast or infer the target.
+- Shared HA-owned, one-shot verified Terminate active game offer is consumed by either the existing button or the new action. `add_bonus` persists the same date-scoped journal as the button, and `set_unlimited` updates the existing HA override; offline controls do not publish Windows commands.
+- `popup` accepts a fixed form's initial countdown seconds, percent and up to three response-button configurations, and uses a separate non-retained device-scoped MQTT UI topic. **The service explicitly refuses a Windows agent without `popup_ui_protocol: 1`; Windows 0.4.1 does not support this capability yet.** Windows renderer, response channel and physical pilot remain in #8.
+- **Preview 38 / HA 0.14.0 / Windows agent 0.4.1 unchanged**. A passing CI or source version is not a real release or deployment; #56 HOLD remains in force.
+
 ## 0.13.13 — Completed-minute gaming diagnostics, Uptime text and valid icons (#136)
 
 - Diagnostic **Daily/Weekly gaming time (minutes)** now use floor of completed verified minutes; unknown or invalid readings stay Unknown. Parent-facing `h m s` states, internal per-second policy, exact history and budget enforcement are unchanged.
