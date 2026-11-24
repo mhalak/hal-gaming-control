@@ -30,7 +30,14 @@ def test_operator_only_unsigned_candidate_workflow_is_fail_closed():
     cfg = read(".github/workflows/windows-signing-candidate.yml")
     assert "workflow_dispatch:" in cfg
     assert "pull_request:" not in cfg
-    assert "issue_comment:" not in cfg
+    assert "issue_comment:" in cfg
+    assert "types: [created]" in cfg
+    assert "github.event.issue.number == 9" in cfg
+    assert "github.event.issue.pull_request == null" in cfg
+    assert "github.event.comment.user.login == 'mhalak'" in cfg
+    assert "startsWith(github.event.comment.body, '/build-windows-candidate ')" in cfg
+    assert '"$env:RELEASE_COMMAND -cne \"/build-windows-candidate $version\""' not in cfg
+    assert '$env:RELEASE_COMMAND -cne "/build-windows-candidate $version"' in cfg
     assert "contents: read" in cfg
     assert "contents: write" not in cfg
     assert "github.ref == 'refs/heads/main'" in cfg
