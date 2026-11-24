@@ -35,7 +35,8 @@ def _no_duplicates(pairs):
 def _plain(value, maximum, *, empty=False):
     return (type(value) is str and (empty or bool(value.strip()))
             and len(value) <= maximum
-            and all(ord(char) >= 32 and ord(char) != 127\n                    and char not in "<>" for char in value))
+            and all(ord(char) >= 32 and ord(char) != 127
+                    and char not in "<>" for char in value))
 
 
 def _token(value):
