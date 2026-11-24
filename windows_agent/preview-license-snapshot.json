@@ -1,0 +1,13 @@
+{
+  "python": "3.12.10",
+  "distributions": {
+    "cryptography": "50.0.2",
+    "cffi": "2.1.1",
+    "paho-mqtt": "2.2.0",
+    "psutil": "7.2.2",
+    "PyYAML": "6.0.4",
+    "pywin32": "312",
+    "pyinstaller": "6.22.3",
+    "pyinstaller-hooks-contrib": "2026.10"
+  }
+}

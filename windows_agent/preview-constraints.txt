@@ -1,0 +1,10 @@
+# Windows Preview 0.4.3 runtime/build dependency snapshot from candidate run 45459711030.
+# Exact version constraints only. NOT a hash-locked wheelhouse or legal approval.
+paho-mqtt==2.2.0
+psutil==7.2.2
+PyYAML==6.0.4
+cryptography==50.0.2
+pywin32==312; sys_platform == 'win32'
+cffi==2.1.1
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.10
