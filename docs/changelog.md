@@ -8,11 +8,17 @@ This is the **human-readable development changelog**. For full technical release
 
 > **Preview software, not a deployment log.** Version numbers below describe changes recorded in source; they do **not** prove that a tagged GitHub Release, a signed Windows installer or an update on any real PC/HA instance exists. Always check the deployed build and the [current compatibility/deployment instructions](known_limitations.md).
 
-**Current source (Preview 37, 23 November 2026):** **Home Assistant 0.13.13** and **Windows agent 0.4.1**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
+**Current source (Preview 38, 24 November 2026):** **Home Assistant 0.14.0** and **Windows agent 0.4.1**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
 
 **🚨 BREAKING CHANGE** means an upgrade can require manual action or break compatibility with prior configs, entity IDs or MQTT payloads. Follow the linked migration instructions before updating; do not assume a normal in-place upgrade is safe.
 
 ## Home Assistant integration
+
+### 0.14.0 — Native HA device actions and popup orchestration (#6, #8)
+- Register five administrator-only device-scoped actions: `hal_gaming_control.lock_pc`, `.terminate_game`, `.add_bonus`, `.set_unlimited`, and `.popup` (upsert/hide, time, bar and response buttons).
+- Share the one-shot HA/Windows terminate offer between the existing manual button and the native action. No direct `button.press` call from the action and no alternative arbitrary-PID termination path.
+- Popup action is **capability-gated**: it refuses agents not advertising `popup_ui_protocol: 1`. Windows 0.4.1 has **no popup renderer**; this HA source version is an API/transport preview, not a working end-to-end popup. No agent version or Unified MQTT v3 changes.
+- Add native service descriptions, translations, icons and HA runtime regressions. No automatic enforcement or deployment.
 
 ### 0.13.13 — Whole-minute diagnostics, readable Uptime and visible Gaming restriction (#136)
 - Daily/weekly **Gaming time (minutes)** diagnostics now show completed integer minutes (floor), while parent-facing H/M/S, Recorder segments, exact-second policy and budgets are unchanged.

@@ -87,6 +87,88 @@
           "description": "The same Parent bonus grant selector used for Prepare."
         }
       }
+    },
+    "lock_pc": {
+      "name": "Lock gaming PC",
+      "description": "Lock one online Windows PC. This does not automatically terminate an application.",
+      "fields": {
+        "device_id": {
+          "name": "Gaming PC",
+          "description": "Choose exactly one HAL Gaming Control device."
+        }
+      }
+    },
+    "terminate_game": {
+      "name": "Terminate active game",
+      "description": "Terminate only the verified currently foreground HA-tracked game on one PC, using its one-shot Windows capability. Unsaved progress may be lost.",
+      "fields": {
+        "device_id": {
+          "name": "Gaming PC",
+          "description": "Choose exactly one HAL Gaming Control device."
+        }
+      }
+    },
+    "add_bonus": {
+      "name": "Add Parent bonus",
+      "description": "Add a recorded daily Parent bonus without modifying measured gaming time or the weekly allowance.",
+      "fields": {
+        "device_id": {
+          "name": "Gaming PC",
+          "description": "Choose exactly one HAL Gaming Control device."
+        },
+        "minutes": {
+          "name": "Bonus minutes",
+          "description": "One date-scoped Parent bonus grant (1–600 min); weekly allowance unchanged."
+        }
+      }
+    },
+    "set_unlimited": {
+      "name": "Set Unlimited gaming",
+      "description": "Switch the selected PC's HA-owned Unlimited gaming override on or off.",
+      "fields": {
+        "device_id": {
+          "name": "Gaming PC",
+          "description": "Choose exactly one HAL Gaming Control device."
+        },
+        "enabled": {
+          "name": "Unlimited enabled",
+          "description": "Enable or disable the manual Unlimited gaming override."
+        }
+      }
+    },
+    "popup": {
+      "name": "Display gaming popup",
+      "description": "Send a fixed-form, device-scoped UI upsert/hide to a compatible Windows agent. Until popup protocol v1 is advertised this action fails explicitly. Buttons return IDs to HA; they grant no permission.",
+      "fields": {
+        "device_id": {
+          "name": "Gaming PC",
+          "description": "Choose exactly one HAL Gaming Control device."
+        },
+        "operation": {
+          "name": "Popup operation",
+          "description": "Show/update the popup, or hide it."
+        },
+        "heading": {
+          "name": "Heading",
+          "description": "Plain text displayed above the countdown."
+        },
+        "description": {
+          "name": "Detail",
+          "description": "Plain-text line below the progress bar, e.g. Weekly budget."
+        },
+        "remaining_seconds": {
+          "name": "Starting countdown (seconds)",
+          "description": "The initial timer value; Windows animates it locally until a new HA update."
+        },
+        "progress_percent": {
+          "name": "Initial progress (%)",
+          "description": "The initial bar width; Windows animates it locally."
+        },
+        "buttons": {
+          "name": "Response buttons",
+          "description": "0–3 button objects with id, text and palette color (neutral, primary, success, warning, danger). Button clicks only report the ID to HA."
+        }
+      }
     }
   }
 }

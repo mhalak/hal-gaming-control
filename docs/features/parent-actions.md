@@ -24,6 +24,46 @@ The beauty of **Home Assistant automations**? Parents make the rules, choose the
 
 **Development preview (HA 0.7.2):** **Gaming restriction** is a passive per-PC rule signal. **Lock PC** and legacy **Terminate game** worked in limited real-PC tests. The new **Terminate active game** path still requires a real-PC pilot. **Automatic enforcement is not yet validated or enabled by default.**
 
+## Native Home Assistant actions (HA 0.14.0 source)
+
+These are **registered custom integration actions** in **Developer Tools → Actions**, scripts and automations. They do **not** call `button.press` internally and they use the existing device-specific safety/policy logic. Select **one HAL Gaming Control device** in the action's `device_id` field. In YAML, use its **Home Assistant device-registry ID** (the long ID from the device page), not the Windows hostname or an entity ID. There is no default device and no broadcast.
+
+```yaml
+actions:
+  - action: hal_gaming_control.lock_pc
+    data:
+      device_id: REPLACE_WITH_HA_DEVICE_REGISTRY_ID
+  - action: hal_gaming_control.terminate_game
+    data:
+      device_id: REPLACE_WITH_HA_DEVICE_REGISTRY_ID
+```
+
+`terminate_game` means **terminate the freshly verified foreground HA-tracked application**, not arbitrary software. Windows must supply a short-lived one-use terminate offer; repeated calls cannot reuse that offer. `lock_pc` requires fresh PC telemetry and an advertised lock capability. MQTT publish is not a confirmed Windows execution acknowledgement.
+
+More HA-only actions (work when PC is offline): `hal_gaming_control.add_bonus` with `minutes: 15` (1–600, daily Parent bonus journal; weekly allowance remains unchanged) and `hal_gaming_control.set_unlimited` with `enabled: true` or `false`.
+
+The generic `hal_gaming_control.popup` action will **upsert** or **hide** a predefined PC popup with an initial `remaining_seconds`, `progress_percent`, HA text and 0–3 response buttons. It requires a Windows agent advertising popup UI protocol v1. **Windows agent 0.4.1 does not implement the renderer**, so the current HA action deliberately fails rather than pretending a popup appeared. The full Windows implementation/response channel remains tracked in [#8](https://github.com/mhalak/hal-gaming-control/issues/8). Example configuration for a future compatible agent:
+
+```yaml
+action: hal_gaming_control.popup
+data:
+  device_id: REPLACE_WITH_HA_DEVICE_REGISTRY_ID
+  operation: upsert
+  heading: Gaming time remaining
+  description: Weekly budget
+  remaining_seconds: 598
+  progress_percent: 24
+  buttons:
+    - id: ok
+      text: OK
+      color: neutral
+    - id: request_more
+      text: Request more time
+      color: primary
+```
+
+The response button ID is a future HA-side event, **never** direct permission to grant time or execute a Windows command. Closing the game can lose unsaved progress. These actions are restricted to HA admins; no automatic enforcement is enabled by installation.
+
 ## Use a manual control
 
 1. Open the **correct child's PC** in Home Assistant.

@@ -1,0 +1,100 @@
+# Native Home Assistant actions (Developer Tools → Actions, automations, scripts).
+# device_id is a Home Assistant device-registry ID, not an MQTT hostname.
+lock_pc:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: hal_gaming_control
+
+terminate_game:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: hal_gaming_control
+
+add_bonus:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: hal_gaming_control
+    minutes:
+      required: true
+      example: 30
+      selector:
+        number:
+          min: 1
+          max: 600
+          step: 1
+          mode: box
+          unit_of_measurement: min
+
+set_unlimited:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: hal_gaming_control
+    enabled:
+      required: true
+      selector:
+        boolean:
+
+popup:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: hal_gaming_control
+    operation:
+      required: true
+      default: upsert
+      selector:
+        select:
+          options:
+            - value: upsert
+              label: Show or update
+            - value: hide
+              label: Hide
+    heading:
+      example: Gaming time remaining
+      selector:
+        text:
+    description:
+      example: Weekly budget
+      selector:
+        text:
+    remaining_seconds:
+      example: 598
+      selector:
+        number:
+          min: 0
+          max: 604800
+          step: 1
+          mode: box
+          unit_of_measurement: s
+    progress_percent:
+      example: 24
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+    buttons:
+      example:
+        - id: ok
+          text: OK
+          color: neutral
+        - id: request_more
+          text: Request more time
+          color: primary
+      selector:
+        object:

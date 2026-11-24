@@ -58,6 +58,18 @@ When upgrading from a single-window schedule, the weekend starts out **inheritin
 
 Both **Gaming rules enabled** and **Schedule enabled** must be ON for the passive `schedule` restriction to apply. **Unlimited gaming** overrides it. Scheduling alone never calls Terminate game or Lock PC.
 
+## Native automation actions (HA 0.14.0)
+
+Choose **Developer Tools → Actions → HAL Gaming Control** to call the new integration-owned actions directly, without `button.press`. They take a required HA device-registry ID via the built-in gaming-device selector (one PC only):
+
+- `hal_gaming_control.lock_pc` — lock the selected online PC.
+- `hal_gaming_control.terminate_game` — terminate the single freshly verified active HA-tracked game, using the same single-use safety token as the existing manual button.
+- `hal_gaming_control.add_bonus` — add a date-scoped Parent bonus with `minutes` (1–600).
+- `hal_gaming_control.set_unlimited` — set the current Unlimited override with `enabled: true/false`.
+- `hal_gaming_control.popup` — upsert/hide the predefined countdown popup using HA-supplied text, initial seconds, initial bar percentage and up to three response buttons. **Not yet usable on Windows 0.4.1**, which does not advertise popup UI protocol v1; the action fails clearly until compatible Windows code is implemented.
+
+The HA source is **0.14.0 Preview 38**; Windows remains **0.4.1**. No new automated termination behavior or physical deployment. See [action examples](features/parent-actions.md#native-home-assistant-actions-ha-0140-source).
+
 ## Lock the PC or close a game
 
 **Lock PC** and **Terminate game** are manual controls. They've worked in limited real-PC tests, but you should test them on your own setup. Closing a game may lose unsaved progress.

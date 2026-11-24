@@ -1,0 +1,19 @@
+{
+  "services": {
+    "lock_pc": {
+      "service": "mdi:lock"
+    },
+    "terminate_game": {
+      "service": "mdi:close-circle-outline"
+    },
+    "add_bonus": {
+      "service": "mdi:timer-plus-outline"
+    },
+    "set_unlimited": {
+      "service": "mdi:gamepad-variant"
+    },
+    "popup": {
+      "service": "mdi:message-text-outline"
+    }
+  }
+}

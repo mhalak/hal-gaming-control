@@ -14,6 +14,8 @@ from .foreground_store import ForegroundStore, ForegroundStoreError
 from .foreground_cutover import async_activate_cutover
 from .screen_idle_bonus import maybe_add_screen_idle_grant
 from .rule_engine import violations
+from .targeted_action import TargetedTermination
+from .popup_control import PopupControl
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,6 +37,8 @@ class GamingCoordinator(DataUpdateCoordinator):
         self.storage_healthy = False
         self._saved_segments = ()
         self._save_task = None
+        self.termination = TargetedTermination(self)
+        self.popup = PopupControl(self)
 
     @staticmethod
     def policy_snapshot(options):
@@ -165,5 +169,7 @@ class GamingCoordinator(DataUpdateCoordinator):
 
     @callback
     def close(self):
+        self.termination.close()
+        self.popup.close()
         if self.foreground is not None:
             self.foreground.close()
