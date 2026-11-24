@@ -165,7 +165,7 @@ def test_real_bridge_advertises_and_routes_popup_without_touching_v3():
                      for c in b.client.subscribe.call_args_list
                      if "options" in c.kwargs}
     topic = b.root + "/ui/popup"
-    assert subscriptions[topic].qos == 1
+    assert subscriptions[topic].QoS == 1
     assert subscriptions[topic].retainHandling == 2
 
     def send(packet, retained=False):
