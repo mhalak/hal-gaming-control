@@ -135,7 +135,11 @@ class PopupControl:
             "sequence": self._sequence,
             "issued_at": int(time()),
             "message_ttl_seconds": 15,
-            "display_stale_after_seconds": 120,
+            # Let a one-shot warning finish its local countdown. Longer
+            # presentations require an HA refresh; stale UI never enforces rules.
+            "display_stale_after_seconds": (
+                min(3600, max(120, remaining_seconds + 180))
+                if operation == "upsert" else 120),
             "popup_id": popup_id,
             "operation": operation,
         }
