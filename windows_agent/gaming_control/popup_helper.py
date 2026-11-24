@@ -4,10 +4,8 @@ Only authenticated pipe messages from the launching SYSTEM service can update
 this window. Tk runs on the helper UI thread; no SYSTEM desktop window exists.
 """
 import json
-import os
 import re
 import secrets
-import time
 
 from .popup_model import PopupModel, BUTTON_COLORS
 from .popup_protocol import parse_popup, make_event
@@ -90,8 +88,12 @@ class _PopupWindow:
 
         header = tk.Frame(root, bg="#25334C", padx=17, pady=12)
         header.pack(fill="x")
-        tk.Label(header, text="▣", font=("Segoe UI", 20, "bold"),
-                 bg="#25334C", fg="#76B5FF").pack(side="left")
+        # Brand glyph is drawn locally: no remote images or executable themes.
+        badge = tk.Canvas(header, width=29, height=29, bg="#25334C",
+                          highlightthickness=0)
+        badge.create_oval(1, 1, 28, 28, fill="#244C80", outline="#4974B0")
+        badge.create_oval(10, 10, 19, 19, fill="#74B9FF", outline="#BADFFF")
+        badge.pack(side="left")
         tk.Label(header, text="  HAL Gaming Control",
                  font=("Segoe UI", 12, "bold"), bg="#25334C",
                  fg="#EDF2FC").pack(side="left")
@@ -169,8 +171,10 @@ class _PopupWindow:
         self.heading.configure(text=view["heading"])
         self.reason.configure(text=view["description"])
         self._set_buttons(view["buttons"])
+        # Different response layouts change only the button row, not the form.
         self._paint()
-        self.root.deiconify()  # same window: does not focus-steal on updates
+        if self.root.state() == "withdrawn":
+            self.root.deiconify()  # new show; an update never raises the window
 
     def _paint(self):
         snap = self.model.snapshot()
