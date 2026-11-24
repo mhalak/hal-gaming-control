@@ -17,9 +17,17 @@ $python = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
 if ($LASTEXITCODE) { throw 'Dependency installation failed' }
 & $python -m pytest -q
 if ($LASTEXITCODE) { throw 'Tests failed' }
-& $python -m PyInstaller --noconfirm --clean --onedir --name SmartHouseGamingControl --hidden-import win32timezone --hidden-import win32ts --hidden-import win32profile --hidden-import tkinter service_entry.py
+# SignPath requires identical first-party ProductName/ProductVersion resource
+# metadata across owned executables. Resources do not sign the executables.
+$agentVersionInfo = Join-Path $PSScriptRoot 'build\agent-version.txt'
+$updaterVersionInfo = Join-Path $PSScriptRoot 'build\updater-version.txt'
+& $python .\version_metadata.py --version $identity.version --filename SmartHouseGamingControl.exe --output $agentVersionInfo
+if ($LASTEXITCODE) { throw 'Agent version metadata failed' }
+& $python .\version_metadata.py --version $identity.version --filename SmartHouseGamingUpdater.exe --output $updaterVersionInfo
+if ($LASTEXITCODE) { throw 'Updater version metadata failed' }
+& $python -m PyInstaller --noconfirm --clean --onedir --name SmartHouseGamingControl --version-file $agentVersionInfo --hidden-import win32timezone --hidden-import win32ts --hidden-import win32profile --hidden-import tkinter service_entry.py
 if ($LASTEXITCODE) { throw 'Build failed' }
-& $python -m PyInstaller --noconfirm --clean --onedir --name SmartHouseGamingUpdater updater.py
+& $python -m PyInstaller --noconfirm --clean --onedir --name SmartHouseGamingUpdater --version-file $updaterVersionInfo updater.py
 if ($LASTEXITCODE) { throw 'Updater build failed' }
 # Ensure the source identity did not change during a successful build.
 $finalIdentity = & py -3.12 $identityTool @identityArgs
