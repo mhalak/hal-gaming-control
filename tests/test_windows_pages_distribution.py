@@ -160,6 +160,7 @@ class PagesDistributionTests(unittest.TestCase):
                 "inputs.authorization == 'PUBLISH_UNSIGNED_WINDOWS_PREVIEW'",
                 "DO_NOT_PUBLISH", "needs.build.result == 'success'",
                 "ha_release_guard.py gate", "releases/latest",
+                "windows_preview_licenses.py", "preview-constraints.txt",
                 "deploy-pages@", "upload-pages-artifact@", "Get-AuthenticodeSignature",
                 "NotSigned", "contents: read", "pages: write", "id-token: write"):
             self.assertIn(required, cfg)
