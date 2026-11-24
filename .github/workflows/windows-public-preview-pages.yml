@@ -90,6 +90,8 @@ jobs:
           "sha=$sha" >> $env:GITHUB_OUTPUT
           "ha_version=$($release.home_assistant)" >> $env:GITHUB_OUTPUT
       - name: Build complete Windows service/updater and run tests
+        env:
+          PIP_CONSTRAINT: ${{ github.workspace }}/windows_agent/preview-constraints.txt
         run: |
           ./build.ps1 -Version '${{ steps.verify.outputs.version }}'
           if ($LASTEXITCODE) { throw 'Windows build failed' }
@@ -108,6 +110,14 @@ jobs:
               throw "This UNSIGNED preview cannot contain a signed/unknown project binary: $exe"
             }
           }
+      - name: Stage audited dependency licenses from the exact Windows build
+        run: |
+          $python = Join-Path $PWD '.venv/Scripts/python.exe'
+          if (!(Test-Path -LiteralPath $python -PathType Leaf)) {
+            throw 'Missing pinned build Python interpreter'
+          }
+          & $python ../tools/windows_preview_licenses.py --root ..
+          if ($LASTEXITCODE) { throw 'Dependency license inventory/staging failed' }
       - name: Assemble public Pages artifact, ZIP digest and provenance
         env:
           EXPECTED_SHA: ${{ steps.verify.outputs.sha }}
