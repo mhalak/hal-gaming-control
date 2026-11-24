@@ -11,6 +11,7 @@ import yaml
 from .core import game_state, match_game, validate_rules
 from .identity import resolve_identity
 from .focus_session import FocusProbe, selected_session
+from .popup_session import PopupSession
 from .display_context import read_display_policy
 from .targeted_terminate import terminate_verified
 from .mqtt_bridge import Bridge
@@ -256,6 +257,7 @@ def run(config_path, stop_event):
                       "power_source": "unknown"}
     previous_games = None
     focus = FocusProbe()
+    popup = PopupSession()
     LOG.info('Agent starting: version=%s system_uptime=%s', installed_version(), system_uptime())
     try:
         bridge.start()
@@ -264,11 +266,17 @@ def run(config_path, stop_event):
                 if stop_event.is_set():
                     break
                 try:
-                    dispatch_command(command, config_path, bridge, focus, rules)
+                    if isinstance(command, tuple) and command[0] == 'popup':
+                        popup.handle(command[1], bridge.id)
+                    else:
+                        dispatch_command(command, config_path, bridge, focus, rules)
                 except Exception:
                     LOG.exception('Command failed: %s', command)
             if stop_event.is_set():
                 break
+            # The popup helper is strictly presentation-only and independent
+            # from the Windows foreground probe and game-rule processing.
+            popup.pump(bridge)
             games = scan(rules)
             previous_games = log_game_changes(games, previous_games)
             foreground_context = bridge.capture_foreground_context()
@@ -296,6 +304,7 @@ def run(config_path, stop_event):
                         bridge.last['_update_status'] = status
             stop_event.wait(min(interval, 1.0))
     finally:
+        popup.close()
         focus.close()
         bridge.stop()
         LOG.info('Agent stopped')
