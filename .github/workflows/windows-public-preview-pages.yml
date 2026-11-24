@@ -89,11 +89,24 @@ jobs:
           "version=$($release.windows_agent)" >> $env:GITHUB_OUTPUT
           "sha=$sha" >> $env:GITHUB_OUTPUT
           "ha_version=$($release.home_assistant)" >> $env:GITHUB_OUTPUT
+      - name: Verify complete Windows wheelhouse using reviewed SHA-256 hashes
+        env:
+          PIP_CONSTRAINT: ${{ github.workspace }}/windows_agent/preview-constraints.txt
+        run: |
+          $wheelhouse = Join-Path $env:RUNNER_TEMP 'windows-locked-wheelhouse'
+          $requirements = Join-Path $env:RUNNER_TEMP 'windows-hashed-requirements.txt'
+          New-Item -ItemType Directory -Path $wheelhouse -Force | Out-Null
+          & py -3.12 -m pip download --only-binary=:all: --dest $wheelhouse -r preview-audit-requirements.txt
+          if ($LASTEXITCODE) { throw 'Cannot obtain audited Windows wheels' }
+          & py -3.12 ../tools/windows_wheel_lock.py --root .. --wheelhouse $wheelhouse --output $requirements
+          if ($LASTEXITCODE) { throw 'Downloaded wheels differ from approved SHA-256 lock' }
+          "HAL_WINDOWS_LOCKED_WHEELS=$wheelhouse" >> $env:GITHUB_ENV
+          "HAL_WINDOWS_HASHED_REQUIREMENTS=$requirements" >> $env:GITHUB_ENV
       - name: Build complete Windows service/updater and run tests
         env:
           PIP_CONSTRAINT: ${{ github.workspace }}/windows_agent/preview-constraints.txt
         run: |
-          ./build.ps1 -Version '${{ steps.verify.outputs.version }}'
+          ./build.ps1 -Version '${{ steps.verify.outputs.version }}' -RequireLockedWheels
           if ($LASTEXITCODE) { throw 'Windows build failed' }
       - name: Fail closed unless BOTH first-party EXEs are truly UNSIGNED
         run: |
