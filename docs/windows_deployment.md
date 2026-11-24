@@ -1,3 +1,19 @@
+## Agent 0.4.3 / HA 0.14.1 — SignPath release preparation (source only)
+
+The Windows source build now embeds matching first-party **HAL Gaming Control**
+ProductName and **0.4.3** ProductVersion/FileVersion PE resources in the
+service and updater EXEs. The [Code signing policy](../CODE_SIGNING_POLICY.md)
+and [Privacy policy](../PRIVACY.md) are public; the owner may run the
+[unsigned candidate workflow](../.github/workflows/windows-signing-candidate.yml)
+manually on `main` for internal review. It creates **no signed package,
+GitHub Release or deployment**, and no signing credentials are used.
+
+**SignPath has not accepted this project.** Existing HA GitHub Releases
+are HA-only and Windows binary distribution remains separate, as described
+on the [download/status page](windows_distribution.md). The former blanket
+deployment HOLD #56 is closed; actual Windows safety/trust restrictions,
+per-PC backups and supervised pilot still apply.
+
 ## Agent 0.4.2 / HA 0.14.1 — HAL branded gaming popup (source only)
 
 The Windows service now has a strict, **non-retained** `SmartHouse/Gaming/<hostname>/ui/popup` UI v1 listener, separate from mandatory Unified MQTT v3 monitoring, and advertises `popup_ui_protocol: 1` only in this source version. A dedicated non-elevated `--popup-helper` in the active unlocked Windows user session displays a locally animated countdown, progress bar and up to three equal-width configured buttons. The process is accessed only via a protected SYSTEM-to-user named pipe. Child button IDs and close events go to HA via `ui/popup_event` and become `hal_gaming_control_popup_response` events for parent-authored automations.
