@@ -31,9 +31,47 @@ only on PCs you administer, after informing people using them.
 - **Code signing policy:** [CODE_SIGNING_POLICY.md](../CODE_SIGNING_POLICY.md)
 
 The Windows source build runs tests and uses PyInstaller to assemble a
-complete service/updater folder. Explicitly triggered candidate CI artifacts are **unsigned** and **not**\npublic software releases or verified Windows installers. They are short-lived\nGitHub Actions artifacts, potentially retrievable on the public repository;\nnever mistake them for trusted downloads. There is no promise that Smart App Control will allow a locally
+complete service/updater folder. Explicitly triggered candidate CI artifacts are **unsigned** and **not**
+public software releases or verified Windows installers. They are short-lived\nGitHub Actions artifacts, potentially retrievable on the public repository;\nnever mistake them for trusted downloads. There is no promise that Smart App Control will allow a locally
 built binary. Do not disable SAC, Defender or SmartScreen to work around a
 blocked package.
+
+## Windows release channel in this same repository
+
+**Prepared, NOT activated (issue #9):** An owner-only manual GitHub Actions
+workflow at [Publish Windows unsigned preview to Pages](../.github/workflows/windows-public-preview-pages.yml)
+can build a versioned Windows ZIP and stage its public download page. It is
+deliberately separate from **GitHub Releases**, which belong to the HA
+Marketplace. We will **not** create a second repository.
+
+The intended Windows download location, **only after the owner explicitly
+publishes a package**, is:
+`https://mhalak.github.io/hal-gaming-control/windows/0.4.3/`
+
+Do **not** assume this URL currently hosts a package. The owner must first
+configure **Settings → Pages → Build and deployment → Source: GitHub Actions**
+in the existing repository, review relevant GitHub Pages access/limits, and
+approve public distribution of an explicitly **UNSIGNED** candidate.
+The workflow is never started by a PR, merge, push, or an issue comment.
+Only `mhalak` may manually launch it from `main`, providing exact
+`release.json` Windows version and source SHA plus the
+`PUBLISH_UNSIGNED_WINDOWS_PREVIEW` choice (default is `DO_NOT_PUBLISH`).
+The two project-owned EXEs must report `NotSigned`, pass version checks,
+and have green 8/8 main CI before packaging. A ZIP, SHA256SUMS and source
+manifest are published as static Pages files; no tag or GitHub Release is
+created. The workflow verifies that the latest HA GitHub Release still
+matches the HA manifest and version. No signing request or OTA is issued.
+
+GitHub Pages is intended for a **small public archival source preview**, not
+a long-term CDN for multiple large binaries. Monitor site size, download
+availability and any Pages use limitations. A subsequent signed release
+may require an independently reviewed scalable distribution method that
+still uses this same source repository.
+
+**Important:** even when published, this preview would be **UNSIGNED** and
+not trusted by Windows. Never disable Smart App Control, Defender or
+SmartScreen to run it. Do not install it onto family PCs merely to satisfy
+SignPath's requirement for an already released application.
 
 ## Planned verified public download
 
