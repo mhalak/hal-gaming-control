@@ -31,7 +31,7 @@ Authenticode certificate would be SignPath Foundation, not HAL Systems.
   No external contribution may be signed without a maintainer review.
 - **Signing approver:** project owner [@mhalak](https://github.com/mhalak),
   acting as the human release approver. **Every release signing request requires
-  explicit approval.** If more approvers are appointed, their memberships and
+  explicit manual approval by the authorized person.** If more approvers are appointed, their memberships and
   roles must first be recorded and reviewed.
 - **Submitter:** a dedicated, least-privilege CI identity within the approved
   SignPath signing policy, not a generic contributor or arbitrary local build.
