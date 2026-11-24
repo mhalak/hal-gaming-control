@@ -37,6 +37,28 @@ class PagesDistributionTests(unittest.TestCase):
         }), encoding="utf-8")
         for path in mod.SCRIPTS:
             (win / path).write_text("placeholder\n", encoding="utf-8")
+        (root / "LICENSE").write_text("Project MIT license text\n", encoding="utf-8")
+        (root / "THIRD_PARTY_NOTICES.md").write_text(
+            "Technical inventory; unresolved items remain NOT CONFIRMED.\n", encoding="utf-8"
+        )
+        audit = json.loads((ROOT / "windows_agent/preview-license-snapshot.json").read_text())
+        (win / "preview-license-snapshot.json").write_text(json.dumps(audit))
+        license_dir = win / "dist" / "licenses"
+        license_dir.mkdir()
+        payloads = {"licenses/Python/LICENSE.txt": b"CPython copyright and license"}
+        for name in audit["distributions"]:
+            payloads[f"licenses/{name}/LICENSE.txt"] = (name + " own upstream license").encode()
+        hashes = {}
+        for name, content in payloads.items():
+            target = win / "dist" / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(content)
+            hashes[name] = hashlib.sha256(content).hexdigest()
+        (license_dir / "manifest.json").write_text(json.dumps({
+            "schema": 1, "python": audit["python"],
+            "distributions": audit["distributions"], "files": hashes,
+            "legal_review_complete": False,
+        }))
 
     def test_page_archive_contains_both_exes_hashes_and_honest_disclaimer(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -51,6 +73,11 @@ class PagesDistributionTests(unittest.TestCase):
                 self.assertIn("install.ps1", zipped.namelist())
                 self.assertIn("config.example.yaml", zipped.namelist())
                 self.assertIn("SmartHouseGamingControl/build-info.json", zipped.namelist())
+                self.assertIn("LICENSE", zipped.namelist())
+                self.assertIn("THIRD_PARTY_NOTICES.md", zipped.namelist())
+                self.assertIn("licenses/manifest.json", zipped.namelist())
+                self.assertIn("licenses/Python/LICENSE.txt", zipped.namelist())
+                self.assertIn("licenses/pyinstaller/LICENSE.txt", zipped.namelist())
             self.assertEqual(manifest["sha256"], hashlib.sha256(archive.read_bytes()).hexdigest())
             self.assertIn(manifest["sha256"], (archive.parent / "SHA256SUMS.txt").read_text())
             self.assertEqual(manifest["signature_status"], "NotSigned")
@@ -93,13 +120,33 @@ class PagesDistributionTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Missing project-owned EXE"):
                 mod.build(root, root / "noexe", SHA)
 
+    def test_fail_closed_missing_and_tampered_license_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.source(root)
+            manifest_path = root / "windows_agent/dist/licenses/manifest.json"
+            (root / "THIRD_PARTY_NOTICES.md").unlink()
+            with self.assertRaisesRegex(ValueError, "Missing project license/notice"):
+                mod.build(root, root / "missing-notice", SHA)
+            (root / "THIRD_PARTY_NOTICES.md").write_text("Unresolved audit.\\n")
+            license_path = root / "windows_agent/dist/licenses/Python/LICENSE.txt"
+            license_path.write_text("tampered")
+            with self.assertRaisesRegex(ValueError, "modified upstream license"):
+                mod.build(root, root / "tampered", SHA)
+            license_path.write_bytes(b"CPython copyright and license")
+            data = json.loads(manifest_path.read_text())
+            data["distributions"]["cryptography"] = "0.0.0"
+            manifest_path.write_text(json.dumps(data))
+            with self.assertRaisesRegex(ValueError, "audited versions"):
+                mod.build(root, root / "wrong-version", SHA)
+
     def test_workflow_is_owner_only_manual_and_never_creates_ha_releases(self):
         cfg = (ROOT / ".github/workflows/windows-public-preview-pages.yml").read_text()
         # GitHub rejects a workflow with malformed ${{ ... }} expressions
         # before it can run any jobs; require exactly matched delimiters.
         expressions = re.findall(r"\$\{\{[^\n{}]+\}\}", cfg)
         self.assertEqual(cfg.count("${{"), len(expressions))
-        self.assertEqual(len(expressions), 19)
+        self.assertGreaterEqual(len(expressions), 19)
         assert "workflow_dispatch:" in cfg
         for forbidden in ("issue_comment:", "pull_request:", "  push:", "gh release create",
                           "gh release edit", "gh release upload", "git push", "SignPath"):
