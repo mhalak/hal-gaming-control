@@ -13,6 +13,7 @@ import paho.mqtt.client as mqtt
 from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.properties import Properties
 from .core import COMMANDS
+from .popup_protocol import PopupOrder, parse_popup
 from .targeted_terminate import TARGET_TTL, parse_target_request
 from .ota_mqtt import OtaMqttReceiver
 from .update_control import parse_request, installed_version, installed_build_sha
@@ -148,6 +149,7 @@ class Bridge:
         self.prefix = cfg.get('discovery_prefix', 'homeassistant')
         self.config = cfg
         self.commands = queue.Queue(maxsize=32)
+        self.popup_order = PopupOrder()
         self.lock = threading.Lock()
         self.generation = 0
         self.connected = False
@@ -217,6 +219,7 @@ class Bridge:
         self.metadata['focus_protocol'] = 1
         # Native MQTT and HA must see the same v3-only capability.
         self.metadata['unified_telemetry_protocol'] = 3
+        self.metadata['popup_ui_protocol'] = 1
         if self.updates_enabled:
             self.command_topics[self.root + '/command/update'] = 'update'
 
@@ -257,6 +260,10 @@ class Bridge:
         options = mqtt.SubscribeOptions(qos=0, retainAsPublished=True, retainHandling=2)
         for topic in self.command_topics:
             client.subscribe(topic, options=options)
+        # UI commands are separate from mandatory v3 monitoring: no retained replay.
+        popup_options = mqtt.SubscribeOptions(qos=1, retainAsPublished=True,
+                                               retainHandling=2)
+        client.subscribe(self.root + '/ui/popup', options=popup_options)
         if self.ota is not None:
             ota_options = mqtt.SubscribeOptions(
                 qos=1, retainAsPublished=True, retainHandling=2)
@@ -281,6 +288,7 @@ class Bridge:
             self._telemetry_last = None
             self._telemetry_sent = float('-inf')
             self._telemetry_last_clock = None
+            self.popup_order.reset()
             if self.ota is not None:
                 self.ota.reset()
         
@@ -302,6 +310,23 @@ class Bridge:
                     self.refresh_requested = True
                 return
             if self._route_ota(client, msg):
+                return
+            if msg.topic == self.root + '/ui/popup':
+                if not self.connected or msg.retain:
+                    return
+                try:
+                    packet = parse_popup(msg.payload, self.id,
+                                         retained=msg.retain)
+                except (ValueError, TypeError):
+                    LOG.warning('Invalid popup instruction rejected')
+                    return
+                if not self.popup_order.accept(packet):
+                    return
+                try:
+                    self.commands.put_nowait(
+                        (self.generation, time.monotonic(), ('popup', packet)))
+                except queue.Full:
+                    LOG.warning('Popup command queue full; instruction dropped')
                 return
             command = self.command_topics.get(msg.topic)
             if not self.connected or not command or msg.retain:
@@ -339,6 +364,24 @@ class Bridge:
                 self.commands.put_nowait((self.generation, time.monotonic(), command))
             except queue.Full:
                 LOG.warning('Command queue full; action dropped')
+
+    def publish_popup_event(self, event):
+        """Deliver a helper UI response as an observation, never an OS action."""
+        with self.lock:
+            if not self.connected:
+                return False
+        try:
+            data = json.dumps(event, separators=(',', ':'))
+            if len(data) > 1024 or event.get('device_id') != self.id:
+                return False
+            props = Properties(PacketTypes.PUBLISH)
+            props.MessageExpiryInterval = 15
+            result = self.client.publish(
+                self.root + '/ui/popup_event', data, qos=1,
+                retain=False, properties=props)
+            return result.rc == mqtt.MQTT_ERR_SUCCESS
+        except (ValueError, TypeError, OSError):
+            return False
 
     def drain_commands(self):
         # Drain a bounded number of actions, checking connection generation and age.
