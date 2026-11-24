@@ -64,6 +64,36 @@ def input_files(root: Path, version: str, sha: str):
         if not p.is_file() or p.is_symlink():
             raise ValueError(f"Missing or linked installer input: {name}")
         files.append((p, name))
+    # Public downloads must carry the project's MIT license, technical audit,
+    # and actual upstream license texts collected from the pinned build.
+    for name in ("LICENSE", "THIRD_PARTY_NOTICES.md"):
+        document = root / name
+        if not document.is_file() or document.is_symlink() or not document.stat().st_size:
+            raise ValueError(f"Missing project license/notice: {name}")
+        files.append((document, name))
+    audit = json.loads((src / "preview-license-snapshot.json").read_text(encoding="utf-8"))
+    staged = src / "dist" / "licenses"
+    manifest_path = staged / "manifest.json"
+    if not manifest_path.is_file() or manifest_path.is_symlink():
+        raise ValueError("Missing staged upstream license manifest")
+    license_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if (license_manifest.get("schema") != 1
+            or license_manifest.get("python") != audit.get("python")
+            or license_manifest.get("distributions") != audit.get("distributions")
+            or not isinstance(license_manifest.get("files"), dict)
+            or not license_manifest["files"]):
+        raise ValueError("Staged license manifest does not match audited versions")
+    for name, digest in sorted(license_manifest["files"].items()):
+        rel = PurePosixPath(name)
+        if (not name.startswith("licenses/") or rel.is_absolute()
+                or ".." in rel.parts or not re.fullmatch(r"[0-9a-f]{64}", digest)):
+            raise ValueError("Invalid staged license manifest path or digest")
+        source = src / "dist" / Path(*rel.parts)
+        if (not source.is_file() or source.is_symlink()
+                or hashlib.sha256(source.read_bytes()).hexdigest() != digest):
+            raise ValueError(f"Missing or modified upstream license: {name}")
+        files.append((source, name))
+    files.append((manifest_path, "licenses/manifest.json"))
     seen = set()
     for _, name in files:
         pp = PurePosixPath(name)
