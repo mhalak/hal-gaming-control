@@ -1,6 +1,6 @@
 # Windows companion — downloads and distribution
 
-**Status: DEVELOPMENT PREVIEW / SOURCE ONLY.** The Windows **0.4.2**
+**Status: DEVELOPMENT PREVIEW / SOURCE ONLY.** The Windows **0.4.3**
 companion exists in source code, but there is currently **no approved
 publicly trusted or SignPath-signed installer**. Do not treat the HA
 [GitHub Releases](https://github.com/mhalak/hal-gaming-control/releases)
@@ -31,9 +31,7 @@ only on PCs you administer, after informing people using them.
 - **Code signing policy:** [CODE_SIGNING_POLICY.md](../CODE_SIGNING_POLICY.md)
 
 The Windows source build runs tests and uses PyInstaller to assemble a
-complete service/updater folder. Operator-only candidate CI artifacts are
-**unsigned** and **not** public software releases or verified Windows
-installers. There is no promise that Smart App Control will allow a locally
+complete service/updater folder. Explicitly triggered candidate CI artifacts are **unsigned** and **not**\npublic software releases or verified Windows installers. They are short-lived\nGitHub Actions artifacts, potentially retrievable on the public repository;\nnever mistake them for trusted downloads. There is no promise that Smart App Control will allow a locally
 built binary. Do not disable SAC, Defender or SmartScreen to work around a
 blocked package.
 
