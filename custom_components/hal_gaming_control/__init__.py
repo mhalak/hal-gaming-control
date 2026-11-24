@@ -11,7 +11,9 @@ CONFIG_SCHEMA = _config_entry_only
 
 
 async def async_setup(hass, config):
-    """Native Budget overview select handles authenticated Undo directly."""
+    """Register native actions even when no Windows device is loaded."""
+    from .services import async_setup_services
+    async_setup_services(hass)
     return True
 
 
