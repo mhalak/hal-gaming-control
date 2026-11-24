@@ -303,6 +303,26 @@ class Bridge:
             client.publish(self.root + '/ota/ack', reply, qos=1, retain=False)
         return True
 
+    def _route_popup(self, msg):
+        """Device-scoped presentation commands, never OS/game commands."""
+        if msg.topic != self.root + '/ui/popup':
+            return False
+        if not self.connected or msg.retain:
+            return True
+        try:
+            packet = parse_popup(msg.payload, self.id, retained=msg.retain)
+        except (ValueError, TypeError):
+            LOG.warning('Invalid popup instruction rejected')
+            return True
+        if not self.popup_order.accept(packet):
+            return True
+        try:
+            self.commands.put_nowait(
+                (self.generation, time.monotonic(), ('popup', packet)))
+        except queue.Full:
+            LOG.warning('Popup command queue full; instruction dropped')
+        return True
+
     def on_message(self, client, userdata, msg):
         with self.lock:
             if msg.topic == self.prefix + '/status':
@@ -311,22 +331,7 @@ class Bridge:
                 return
             if self._route_ota(client, msg):
                 return
-            if msg.topic == self.root + '/ui/popup':
-                if not self.connected or msg.retain:
-                    return
-                try:
-                    packet = parse_popup(msg.payload, self.id,
-                                         retained=msg.retain)
-                except (ValueError, TypeError):
-                    LOG.warning('Invalid popup instruction rejected')
-                    return
-                if not self.popup_order.accept(packet):
-                    return
-                try:
-                    self.commands.put_nowait(
-                        (self.generation, time.monotonic(), ('popup', packet)))
-                except queue.Full:
-                    LOG.warning('Popup command queue full; instruction dropped')
+            if self._route_popup(msg):
                 return
             command = self.command_topics.get(msg.topic)
             if not self.connected or not command or msg.retain:
