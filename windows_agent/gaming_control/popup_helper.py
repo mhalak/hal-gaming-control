@@ -30,6 +30,7 @@ def popup_helper_main(pipe_name, parent_pid, device_id):
     import win32file
     import win32pipe
     import tkinter as tk
+    import pywintypes
 
     if (type(pipe_name) is not str
             or re.fullmatch(re.escape(PIPE_PREFIX) + r"[0-9a-f]{32}", pipe_name) is None
@@ -54,7 +55,7 @@ def popup_helper_main(pipe_name, parent_pid, device_id):
         ui = _PopupWindow(root, tk, handle, device_id, win32file, win32pipe)
         root.mainloop()
         return 0
-    except (OSError, ValueError, RuntimeError):
+    except (OSError, ValueError, RuntimeError, pywintypes.error):
         return 4
     finally:
         if root is not None:
@@ -187,6 +188,7 @@ class _PopupWindow:
         self.bar.itemconfigure(self.fill, fill=snap["bar_color"])
 
     def _poll(self):
+        import pywintypes
         if self.dead:
             return
         try:
@@ -212,6 +214,6 @@ class _PopupWindow:
                 self.pending.pop(0)
             self._paint()
             self.root.after(POLL_MS, self._poll)
-        except (OSError, ValueError):
+        except (OSError, ValueError, pywintypes.error):
             self.dead = True
             self.root.quit()
