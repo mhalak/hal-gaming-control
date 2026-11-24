@@ -112,6 +112,20 @@ protected program data, config and logs for rollback. The administrator can
 separately review any retained project-owned files and clear the specific
 HA/device data after making backups. Do not remove unrelated broker entries.
 
+## Third-party licenses and notices
+
+**Status: inventory complete / items NOT CONFIRMED.** The technical inventory
+of third-party components in the Windows package (Python runtime, PyInstaller
+bootloader and its exception, `cryptography`, `paho-mqtt`, `psutil`, PyYAML,
+`pywin32`, bundled DLLs, Tcl/Tk) and the artwork/resource provenance record is
+in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md). It is an engineering
+inventory, not a legal opinion. Open items include Microsoft runtime
+redistribution terms, the `pywin32` metadata/license mismatch and per-crate
+notices inside `cryptography`. The package does **not** yet ship these notices
+and the build has no dependency lock file; both are separate owner decisions
+tracked in issue #9. Do not publish the unsigned preview until they are
+decided.
+
 ## Public distribution readiness
 
 The owner must still verify: SignPath OSS eligibility (**including the
