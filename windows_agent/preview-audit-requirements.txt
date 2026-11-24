@@ -1,0 +1,4 @@
+# Private-only download input: match the candidate's full build/test dependency
+# roots; the PIP_CONSTRAINT snapshot fixes their exact resolved versions.
+-r requirements-dev.txt
+pyinstaller>=6,<7
