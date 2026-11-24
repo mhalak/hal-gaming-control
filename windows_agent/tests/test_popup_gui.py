@@ -237,3 +237,43 @@ def test_popup_helper_rejects_wrong_server_pid_without_opening_window():
     with patch.dict(sys.modules, modules):
         assert popup_helper_main(PIPE_PREFIX+"a"*32,"123","pc1") == 3
     handle.Close.assert_called_once()
+
+
+
+def test_popup_helper_launches_fixed_theme_with_verified_system_pipe():
+    import types
+    root = Root()
+    handle = Mock()
+    files = SimpleNamespace(CreateFile=Mock(return_value=handle))
+    pipe = SimpleNamespace(
+        GetNamedPipeServerProcessId=Mock(return_value=123),
+        SetNamedPipeHandleState=Mock(), PIPE_READMODE_MESSAGE=2,
+        PeekNamedPipe=Mock(return_value=(None, 0, None)))
+    tk = SimpleNamespace(Tk=lambda: root, Frame=Widget, Canvas=Widget,
+                         Label=Widget, Button=Widget)
+    modules = {
+        "win32file": files, "win32pipe": pipe, "tkinter": tk,
+        "pywintypes": types.SimpleNamespace(error=RuntimeError),
+    }
+    with patch.dict(sys.modules, modules):
+        result = popup_helper_main(PIPE_PREFIX + "a" * 32, "123", "pc1")
+    assert result == 0
+    assert root.title_text == "HAL Gaming Control"
+    assert root.destroyed
+    assert root.after_calls
+    files.CreateFile.assert_called_once()
+    pipe.SetNamedPipeHandleState.assert_called_once()
+    handle.Close.assert_called_once()
+
+
+def test_popup_helper_open_failure_cannot_create_a_desktop_window():
+    import types
+    files = SimpleNamespace(CreateFile=Mock(side_effect=OSError("denied")))
+    tk = SimpleNamespace(Tk=Mock())
+    modules = {
+        "win32file": files, "win32pipe": Mock(), "tkinter": tk,
+        "pywintypes": types.SimpleNamespace(error=RuntimeError),
+    }
+    with patch.dict(sys.modules, modules):
+        assert popup_helper_main(PIPE_PREFIX + "a" * 32, "123", "pc1") == 4
+    tk.Tk.assert_not_called()
