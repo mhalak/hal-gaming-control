@@ -63,6 +63,18 @@ name and have the matching Windows component version. The accepted SignPath
 artifact configuration must enforce product/version and file-selection
 restrictions; never sign arbitrary executables from a submitted ZIP.
 
+## One repository, separate distribution channels
+
+Both HA and Windows use the **existing public repository**
+`mhalak/hal-gaming-control`. GitHub Releases currently belong to HA/HACS;
+Windows-only release tags would risk confusing Marketplace version
+selection. An **owner-invoked, unsigned GitHub Pages preview** is prepared
+in the same repository as a possible way to document a publicly released
+Windows binary before applying to SignPath Foundation. This route is
+not active and is not a signed release; see
+[Windows distribution](docs/windows_distribution.md).
+No Windows binary is signed or trusted because this workflow exists.
+
 ## Source-to-release trust process
 
 1. Review a pull request and merge to `main`; confirm current commit SHA,

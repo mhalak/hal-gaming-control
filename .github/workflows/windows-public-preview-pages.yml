@@ -1,0 +1,181 @@
+# Manual and explicitly authorized UNSIGNED Windows preview; GitHub Pages only.
+# Never touches GitHub Releases/tags, HACS, SignPath, Windows devices or OTA.
+name: Publish Windows unsigned preview to Pages
+on:
+  workflow_dispatch:
+    inputs:
+      windows_version:
+        description: Exact Windows agent version from release.json
+        required: true
+        type: string
+      source_sha:
+        description: Reviewed 40-character main SHA
+        required: true
+        type: string
+      authorization:
+        description: Explicitly acknowledge PUBLIC UNSIGNED distribution
+        required: true
+        type: choice
+        options:
+          - DO_NOT_PUBLISH
+          - PUBLISH_UNSIGNED_WINDOWS_PREVIEW
+        default: DO_NOT_PUBLISH
+permissions:
+  contents: read
+concurrency:
+  group: windows-public-preview-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    if: >-
+      github.repository == 'mhalak/hal-gaming-control' &&
+      github.ref == 'refs/heads/main' &&
+      github.actor == 'mhalak' &&
+      inputs.authorization == 'PUBLISH_UNSIGNED_WINDOWS_PREVIEW'
+    runs-on: windows-latest
+    timeout-minutes: 70
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      version: ${{ steps.verify.outputs.version }
+      sha: ${{ steps.verify.outputs.sha }
+      ha_version: ${{ steps.verify.outputs.ha_version }
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: windows_agent
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Gate by exact main SHA, Windows/HA identity and 8/8 green push CI
+        id: verify
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }
+          REQUESTED_VERSION: ${{ inputs.windows_version }
+          REQUESTED_SHA: ${{ inputs.source_sha }
+        run: |
+          $sha = (git rev-parse HEAD).Trim()
+          $main = (gh api "repos/$env:GITHUB_REPOSITORY/branches/main" --jq '.commit.sha').Trim()
+          if ($LASTEXITCODE -or $sha -cne $main -or $sha -cne $env:REQUESTED_SHA) {
+            throw 'Requested source is not exact current main'
+          }
+          $release = Get-Content ../release.json -Raw | ConvertFrom-Json
+          if ($release.windows_agent -cne $env:REQUESTED_VERSION) {
+            throw 'Requested Windows version differs from release.json'
+          }
+          py -3.12 ../tools/release_identity.py check
+          if ($LASTEXITCODE) { throw 'Inconsistent release metadata' }
+          py -3.12 ../tools/ha_release_guard.py check --sha $sha
+          if ($LASTEXITCODE) { throw 'Incorrect source/HA identity' }
+          $ciFile = Join-Path $env:RUNNER_TEMP 'windows-public-ci.json'
+          $ciOk = $false
+          for ($attempt = 1; $attempt -le 36; $attempt++) {
+            gh api "repos/$env:GITHUB_REPOSITORY/actions/runs?head_sha=$sha&event=push&per_page=100" > $ciFile
+            if ($LASTEXITCODE) { throw 'Cannot retrieve main CI' }
+            py -3.12 ../tools/ha_release_guard.py gate --sha $sha --runs-file $ciFile
+            if ($LASTEXITCODE -eq 0) { $ciOk = $true; break }
+            Start-Sleep -Seconds 10
+          }
+          if (!$ciOk) { throw '8/8 exact-main CI not green' }
+          $main = (gh api "repos/$env:GITHUB_REPOSITORY/branches/main" --jq '.commit.sha').Trim()
+          if ($sha -cne $main) { throw 'Main advanced after CI' }
+          "version=$($release.windows_agent)" >> $env:GITHUB_OUTPUT
+          "sha=$sha" >> $env:GITHUB_OUTPUT
+          "ha_version=$($release.home_assistant)" >> $env:GITHUB_OUTPUT
+      - name: Build complete Windows service/updater and run tests
+        run: |
+          ./build.ps1 -Version '${{ steps.verify.outputs.version }'
+          if ($LASTEXITCODE) { throw 'Windows build failed' }
+      - name: Fail closed unless BOTH first-party EXEs are truly UNSIGNED
+        run: |
+          $version = '${{ steps.verify.outputs.version }'
+          foreach ($name in @('SmartHouseGamingControl', 'SmartHouseGamingUpdater')) {
+            $exe = Join-Path 'dist' "$name/$name.exe"
+            if (!(Test-Path -LiteralPath $exe -PathType Leaf)) { throw "Missing binary: $exe" }
+            $info = (Get-Item -LiteralPath $exe).VersionInfo
+            if ($info.ProductName -cne 'HAL Gaming Control' -or
+                $info.ProductVersion -cne $version -or $info.FileVersion -cne $version) {
+              throw "Invalid version metadata: $exe"
+            }
+            if ((Get-AuthenticodeSignature -LiteralPath $exe).Status -ne 'NotSigned') {
+              throw "This UNSIGNED preview cannot contain a signed/unknown project binary: $exe"
+            }
+          }
+      - name: Assemble public Pages artifact, ZIP digest and provenance
+        env:
+          EXPECTED_SHA: ${{ steps.verify.outputs.sha }
+        run: |
+          py -3.12 ../tools/windows_download_page.py --sha $env:EXPECTED_SHA --output (Join-Path $env:RUNNER_TEMP 'hal-windows-pages')
+          if ($LASTEXITCODE) { throw 'Windows Pages packaging failed' }
+      - name: Stage isolated Windows Pages content
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-pages-source-${{ github.run_id }
+          path: ${{ runner.temp }/hal-windows-pages/
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy:
+    if: needs.build.result == 'success'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: windows-pages-source-${{ github.run_id }
+          path: public-preview
+      - name: Preflight Pages checksum, main SHA and HA latest release unchanged
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }
+          SOURCE_SHA: ${{ needs.build.outputs.sha }
+          VERSION: ${{ needs.build.outputs.version }
+          HA_VERSION: ${{ needs.build.outputs.ha_version }
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')" == "$SOURCE_SHA" ]] || exit 1
+          [[ "$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq '.tag_name')" == "$HA_VERSION" ]] || exit 1
+          test -s public-preview/index.html
+          cd "public-preview/windows/$VERSION"
+          sha256sum --check SHA256SUMS.txt
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          data = json.loads(Path("manifest.json").read_text())
+          assert data["version"] == os.environ["VERSION"]
+          assert data["source_sha"] == os.environ["SOURCE_SHA"]
+          assert data["signature_status"] == "NotSigned"
+          assert data["trusted_for_installation"] is False
+          assert data["ha_release_unchanged"] is True
+          PY
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: public-preview
+      - name: Deploy Windows Pages only (no GitHub Release)
+        id: publish
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+      - name: Final HA latest release invariant
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }
+          HA_VERSION: ${{ needs.build.outputs.ha_version }
+        run: |
+          set -euo pipefail
+          [[ "$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq '.tag_name')" == "$HA_VERSION" ]] || exit 1
