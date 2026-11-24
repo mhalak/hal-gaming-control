@@ -140,6 +140,22 @@ class PagesDistributionTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "audited versions"):
                 mod.build(root, root / "wrong-version", SHA)
 
+    def test_private_candidate_validates_real_licensed_zip_without_publishing_it(self):
+        cfg = (ROOT / ".github/workflows/windows-signing-candidate.yml").read_text()
+        self.assertIn("PIP_CONSTRAINT:", cfg)
+        self.assertIn("preview-constraints.txt", cfg)
+        self.assertIn("windows_preview_licenses.py", cfg)
+        self.assertIn("windows_download_page.py", cfg)
+        self.assertIn("PRIVATE UNSIGNED preview staging SUCCESS", cfg)
+        self.assertIn("This temporary ZIP is not uploaded or published", cfg)
+        self.assertIn("python-version: '3.12.10'", cfg)
+        self.assertNotIn("deploy-pages@", cfg)
+        self.assertNotIn("pages: write", cfg)
+        self.assertNotIn("contents: write", cfg)
+        self.assertNotIn("gh release create", cfg)
+        self.assertNotIn("upload-pages-artifact@", cfg)
+        self.assertIn("retention-days: 1", cfg)
+
     def test_workflow_is_owner_only_manual_and_never_creates_ha_releases(self):
         cfg = (ROOT / ".github/workflows/windows-public-preview-pages.yml").read_text()
         # GitHub rejects a workflow with malformed ${{ ... }} expressions

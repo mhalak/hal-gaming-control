@@ -36,7 +36,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: '3.12'
+          python-version: '3.12.10'
       - name: Verify source identity and scripts
         run: |
           py -3.12 ../tools/release_identity.py check
@@ -56,6 +56,8 @@ jobs:
             throw 'Owner command does not match reviewed Windows source version'
           }
       - name: Build unsigned candidate from exact main revision
+        env:
+          PIP_CONSTRAINT: ${{ github.workspace }}/windows_agent/preview-constraints.txt
         run: |
           ./build.ps1
           if ($LASTEXITCODE) { throw 'Candidate build failed' }
@@ -87,6 +89,35 @@ jobs:
           if ((Get-Content dist/SmartHouseGamingControl/version.txt -Raw).Trim() -cne $version) {
             throw 'Inconsistent agent version.txt'
           }
+      - name: Dry-run license-complete Windows ZIP locally (NO Pages/Release upload)
+        run: |
+          $python = Join-Path $PWD '.venv/Scripts/python.exe'
+          if (!(Test-Path -LiteralPath $python -PathType Leaf)) {
+            throw 'Missing Windows build environment'
+          }
+          & $python ../tools/windows_preview_licenses.py --root ..
+          if ($LASTEXITCODE) { throw 'Unsigned ZIP licensing stage failed' }
+          $sha = (git rev-parse HEAD).Trim()
+          $out = Join-Path $env:RUNNER_TEMP 'unsigned-private-preview'
+          & $python ../tools/windows_download_page.py --root .. --sha $sha --output $out
+          if ($LASTEXITCODE) { throw 'Unsigned ZIP packaging dry-run failed' }
+          $version = (Get-Content ../release.json -Raw | ConvertFrom-Json).windows_agent
+          $packageDir = Join-Path $out "windows/$version"
+          $package = Get-Content (Join-Path $packageDir 'manifest.json') -Raw | ConvertFrom-Json
+          $zip = Join-Path $packageDir $package.archive
+          if ($package.version -cne $version -or $package.source_sha -cne $sha -or
+              $package.signature_status -cne 'NotSigned' -or
+              $package.trusted_for_installation -ne $false -or
+              !(Test-Path -LiteralPath $zip -PathType Leaf)) {
+            throw 'Incorrect private ZIP provenance or release status'
+          }
+          if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -cne $package.sha256) {
+            throw 'Private ZIP SHA-256 does not match manifest'
+          }
+          & $python -c "import sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); names=set(z.namelist()); required={'LICENSE','THIRD_PARTY_NOTICES.md','licenses/manifest.json','SmartHouseGamingControl/SmartHouseGamingControl.exe','SmartHouseGamingUpdater/SmartHouseGamingUpdater.exe'}; assert required<=names; assert z.testzip() is None" $zip
+          if ($LASTEXITCODE) { throw 'Private ZIP incomplete or invalid' }
+          Write-Host "PRIVATE UNSIGNED preview staging SUCCESS: v$version commit $sha"
+          Write-Host 'This temporary ZIP is not uploaded or published and will be discarded with the runner.'
       - name: Upload short-lived unsigned CI candidate (NOT a public release)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

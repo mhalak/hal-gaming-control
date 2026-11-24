@@ -85,6 +85,22 @@ not trusted by Windows. Never disable Smart App Control, Defender or
 SmartScreen to run it. Do not install it onto family PCs merely to satisfy
 SignPath's requirement for an already released application.
 
+## Private acceptance test before any public Windows ZIP
+
+The existing [unsigned candidate workflow](../.github/workflows/windows-signing-candidate.yml)
+can be run by the repository owner only. It builds from the exact reviewed
+`main` source with the audited preview dependency constraints, validates
+both `NotSigned` project binaries, and now runs the **real license stage
+and ZIP builder in an isolated Windows runner directory**. It checks package
+provenance, SHA-256 and mandatory files, then discards that temporary ZIP.
+It **does not** upload the ZIP to Pages, create a release/tag, run SignPath
+or install on a PC. The existing short-lived unsigned Actions candidate
+artifact is still produced for inspection under its existing safeguards.
+
+This only validates packaging mechanics. Even a green dry-run does **not**
+resolve outstanding native-redistribution notices/rights or authorize a
+public unsigned preview; see [the technical audit](../THIRD_PARTY_NOTICES.md).
+
 ## Planned verified public download
 
 Once the project is accepted by the SignPath Foundation, the maintainer will
