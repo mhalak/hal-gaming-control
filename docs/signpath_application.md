@@ -77,6 +77,14 @@ version from appearing as a Home Assistant Marketplace release candidate.
 See [Windows distribution](windows_distribution.md#Windows-release-channel-in-this-same-repository)
 and the source-only [manual Pages workflow](../.github/workflows/windows-public-preview-pages.yml).
 
+The source package builder now requires first-party LICENSE/technical
+notices, collects available wheel/CPython license files from the pinned
+Windows preview environment, verifies their hashes, and rejects missing
+license material. This is **not** a completed third-party rights review;
+the open items in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)
+remain hard blockers for public redistribution. Pinned versions are not
+yet a hash-locked reproducible wheel set.
+
 No public Windows ZIP has been released and the Pages workflow has **not**
 been triggered. Publication requires a separate deliberate manual
 authorization from the repository owner, exact source/version, 8/8 green
