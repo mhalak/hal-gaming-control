@@ -8,7 +8,7 @@ This is the **human-readable development changelog**. For full technical release
 
 > **Preview software, not a deployment log.** Version numbers below describe changes recorded in source; they do **not** prove that a tagged GitHub Release, a signed Windows installer or an update on any real PC/HA instance exists. Always check the deployed build and the [current compatibility/deployment instructions](known_limitations.md).
 
-**Current source (Preview 39, 24 November 2026):** **Home Assistant 0.14.1** and **Windows agent 0.4.2**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
+**Current source (Preview 40, 24 November 2026):** **Home Assistant 0.14.1** and **Windows agent 0.4.3**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
 
 **🚨 BREAKING CHANGE** means an upgrade can require manual action or break compatibility with prior configs, entity IDs or MQTT payloads. Follow the linked migration instructions before updating; do not assume a normal in-place upgrade is safe.
 
@@ -199,6 +199,11 @@ This is the **human-readable development changelog**. For full technical release
 - Initial HA integration and Windows agent protocol used during early development.
 
 ## Windows agent
+
+### 0.4.3 — SignPath OSS preparation (#9)
+- New public Code signing policy, Windows download/status page and Privacy policy: explicitly distinguish unsigned source/CI candidates from trusted public distribution. SignPath approval and a prior Windows release remain outstanding.
+- Generate matching Windows product/version PE resources for the HAL-owned service and updater before packaging; keep bundled third-party libraries outside the SignPath signing scope.
+- Add an explicitly owner-triggered unsigned candidate workflow limited to reviewed main: builds/tests and checks version metadata and absent Authenticode signatures, uploads a one-day CI artifact. It **cannot** sign, publish releases, execute an installer or deploy. HA integration source and version remain **0.14.1**; Windows source is **0.4.3 / Preview 40**.
 
 ### 0.4.2 — HAL themed Windows popup (#8)
 - Strict popup UI v1 MQTT receiver with separate protected SYSTEM-to-user named pipe and one non-elevated user-session window.
