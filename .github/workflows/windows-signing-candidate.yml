@@ -1,9 +1,11 @@
-# Manual Windows build candidate — NOT an executable release/signing workflow.
+# Owner-invoked Windows build candidate — NOT an executable release/signing workflow.
 # Intentionally no contents:write, signing token, SignPath submission, GitHub
 # Release creation, installer execution or OTA deployment.
 name: Windows unsigned candidate (SignPath preparation)
 on:
   workflow_dispatch:
+  issue_comment:
+    types: [created]
 permissions:
   contents: read
 concurrency:
@@ -11,8 +13,17 @@ concurrency:
   cancel-in-progress: false
 jobs:
   candidate:
-    # The owner must explicitly run this on reviewed main.
-    if: github.ref == 'refs/heads/main' && github.repository == 'mhalak/hal-gaming-control' && github.actor == 'mhalak'
+    # Only a reviewed main build; issue #9 acts as a strict owner-triggered
+    # fallback where no workflow-dispatch connector is available.
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.repository == 'mhalak/hal-gaming-control' &&
+      ((github.event_name == 'workflow_dispatch' && github.actor == 'mhalak') ||
+       (github.event_name == 'issue_comment' &&
+        github.event.issue.number == 9 &&
+        github.event.issue.pull_request == null &&
+        github.event.comment.user.login == 'mhalak' &&
+        startsWith(github.event.comment.body, '/build-windows-candidate ')))
     runs-on: windows-latest
     timeout-minutes: 60
     defaults:
@@ -34,6 +45,15 @@ jobs:
           if ($LASTEXITCODE) { throw 'Unreviewed installer scripts' }
           if (git status --porcelain --untracked-files=all) {
             throw 'Dirty source checkout'
+          }
+      - name: Verify exact owner command matches declared Windows version
+        env:
+          RELEASE_COMMAND: ${{ github.event.comment.body }}
+        run: |
+          $version = (Get-Content ../release.json -Raw | ConvertFrom-Json).windows_agent
+          if ($env:GITHUB_EVENT_NAME -eq 'issue_comment' -and
+              $env:RELEASE_COMMAND -cne "/build-windows-candidate $version") {
+            throw 'Owner command does not match reviewed Windows source version'
           }
       - name: Build unsigned candidate from exact main revision
         run: |
