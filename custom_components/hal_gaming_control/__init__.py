@@ -34,6 +34,10 @@ async def async_setup_entry(hass, entry):
     coordinator = GamingCoordinator(hass, entry)
     try:
         await coordinator.async_start_foreground()
+        # Control subscriptions are independent of the foreground accounting
+        # lifecycle; unit tests can start raw accounting without an MQTT client.
+        await coordinator.termination.async_start()
+        await coordinator.popup.async_start()
         await coordinator.async_config_entry_first_refresh()
     except BaseException:
         await coordinator.async_stop_foreground()
