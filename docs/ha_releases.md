@@ -1,3 +1,9 @@
+## 0.14.2 — Hide popup without clearing view fields (#237)
+
+- The native HA popup action now ignores all known display fields when `operation: hide`, even if stale form values are invalid or button IDs are duplicated. Developer Tools users can switch from Show or update to Hide without clearing the form.
+- Target-device and operation validation remain strict; upsert validation and the device-scoped MQTT wire contract are unchanged.
+- Regression coverage verifies clean hide and hide with valid, malformed and duplicate-button view fields. **Preview 41 / HA 0.14.2 / Windows 0.4.3 unchanged.** Release publication and local deployment are separate steps.
+
 ## 0.14.1 — Popup response event and compatible Windows UI (#8)
 
 - The existing native HA popup action becomes actionable on Windows agents advertising `popup_ui_protocol: 1`. The Windows agent displays a fixed HAL-branded form and reports button/close IDs through a dedicated non-retained `ui/popup_event` topic.
