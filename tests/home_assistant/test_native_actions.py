@@ -164,8 +164,17 @@ async def test_parent_only_actions_work_offline_without_mqtt_commands(
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
+@pytest.mark.parametrize("hide_fields", [
+    {},
+    {"heading": "Old heading", "description": "Old detail",
+     "remaining_seconds": 45, "progress_percent": 8,
+     "buttons": [{"id": "ok", "text": "OK", "color": "neutral"}]},
+    {"heading": "", "description": "", "remaining_seconds": -1,
+     "progress_percent": 101, "buttons": "invalid stale form value"},
+    {"buttons": [{"id": "ok", "text": "OK", "color": "neutral"}] * 2},
+])
 async def test_popup_action_requires_advertised_agent_and_sends_fixed_ui_contract(
-        hass, enable_custom_integrations, mqtt_mock):
+        hass, enable_custom_integrations, mqtt_mock, hide_fields):
     entry, device_id = await setup_device(hass)
     await make_fresh(hass, ui=False)
     buttons = [
@@ -197,7 +206,8 @@ async def test_popup_action_requires_advertised_agent_and_sends_fixed_ui_contrac
         second = json.loads(publish.call_args.args[2])
         assert second["popup_id"] == first["popup_id"]
         assert second["sequence"] > first["sequence"]
-        await call(hass, "popup", device_id, operation="hide")
+        await call(hass, "popup", device_id, operation="hide", **hide_fields)
+        assert publish.await_count == 3
         hidden = json.loads(publish.call_args.args[2])
         assert hidden["operation"] == "hide" and "view" not in hidden
         assert hidden["popup_id"] == first["popup_id"]

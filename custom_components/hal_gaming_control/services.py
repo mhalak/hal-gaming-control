@@ -62,7 +62,7 @@ SCHEMA_BONUS = vol.Schema(DEVICE | {
 SCHEMA_UNLIMITED = vol.Schema(DEVICE | {
     vol.Required("enabled"): _strict_bool,
 }, extra=vol.PREVENT_EXTRA)
-SCHEMA_POPUP = vol.Schema(DEVICE | {
+_SCHEMA_POPUP_FIELDS = vol.Schema(DEVICE | {
     vol.Optional("operation", default="upsert"): vol.In(("upsert", "hide")),
     vol.Optional("heading"): _bounded_text(100),
     vol.Optional("description"): _bounded_text(120),
@@ -70,6 +70,22 @@ SCHEMA_POPUP = vol.Schema(DEVICE | {
     vol.Optional("progress_percent"): _percent,
     vol.Optional("buttons"): vol.All([BUTTON], vol.Length(max=3)),
 }, extra=vol.PREVENT_EXTRA)
+
+
+_POPUP_VIEW_FIELDS = frozenset((
+    "heading", "description", "remaining_seconds", "progress_percent", "buttons",
+))
+
+
+def _ignore_hidden_view_fields(value):
+    """Hide is independent of stale values in the shared action form."""
+    if isinstance(value, dict) and value.get("operation") == "hide":
+        return {key: val for key, val in value.items()
+                if key not in _POPUP_VIEW_FIELDS}
+    return value
+
+
+SCHEMA_POPUP = vol.Schema(vol.All(_ignore_hidden_view_fields, _SCHEMA_POPUP_FIELDS))
 
 
 def _coordinator(hass, device_id):
@@ -127,9 +143,9 @@ def async_setup_services(hass):
         if operation == "upsert" and any(key not in options for key in fields):
             raise ServiceValidationError(
                 "Popup upsert requires heading, remaining_seconds and progress_percent")
-        if operation == "hide" and any(
-                key in options for key in (*fields, "description", "buttons")):
-            raise ServiceValidationError("Popup hide must not carry view fields")
+        if operation == "hide":
+            await c.popup.async_send("hide")
+            return
         buttons = options.get("buttons", [])
         if len({b["id"] for b in buttons}) != len(buttons):
             raise ServiceValidationError("Popup button IDs must be unique")
