@@ -64,7 +64,7 @@ def test_build_embeds_owned_version_metadata_before_pyinstaller():
     assert "release_identity.py" in ps
     assert "version_metadata.py" in ps
     # Product versioning is only the Windows distributable; HA manifest remains unchanged.
-    assert '"home_assistant": "0.14.1"' in read("release.json")
+    assert '"home_assistant": "0.14.2"' in read("release.json")
     assert '"windows_agent": "0.4.3"' in read("release.json")
 
 
