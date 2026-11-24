@@ -63,8 +63,6 @@ class GamingCoordinator(DataUpdateCoordinator):
             on_screen_off=self._screen_off)
         try:
             await self.foreground.async_start()
-            await self.termination.async_start()
-            await self.popup.async_start()
         except BaseException:
             self.foreground.close()
             self.foreground = None
