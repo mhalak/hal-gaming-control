@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HAL Gaming Control — Countdown popup concept</title>
+<style>
+:root{font:14px/1.5 "Segoe UI",Arial,sans-serif;color:#e8edf8;background:#0c1220;color-scheme:dark;}
+*{box-sizing:border-box} body{margin:0;min-height:100vh;display:flex;justify-content:center;padding:42px 16px;}
+main{width:100%;max-width:570px}h1{font-size:22px;font-weight:650;letter-spacing:-.5px;margin:0 0 6px}p{color:#9faabc;margin:0 0 22px}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 20px}
+.controls button{border:1px solid #39465c;background:#1c2639;color:#e8edf8;padding:8px 12px;border-radius:9px;cursor:pointer;font:inherit}
+.controls button:hover{background:#2b3950}.controls button[aria-pressed=true]{border-color:#6f9de5;background:#253c5d}
+.popup{background:linear-gradient(150deg,#202c43 0%,#121b2e 65%,#10182a 100%);box-shadow:0 26px 64px #0008, inset 0 1px 0 #ffffff1a;border:1px solid #40506b;border-radius:17px;max-width:420px;margin:0 auto;overflow:hidden;transition:opacity .15s; }
+.popup[hidden]{display:none}.header{display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid #ffffff14}
+.logo{width:27px;height:27px;border-radius:8px;background:#30598d;display:grid;place-items:center;color:#b6dfff}
+.brand{font-weight:700;font-size:14px;letter-spacing:.2px}.header .close{margin-left:auto;background:none;border:0;color:#99a9c5;border-radius:6px;font-size:20px;padding:0 6px;line-height:1.5;cursor:pointer}
+.close:hover{background:#ffffff18;color:white}.body{padding:28px 25px 19px;text-align:center}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:#a4b2cd}
+.timer{font-size:67px;line-height:1.25;letter-spacing:1px;font-weight:650;font-variant-numeric:tabular-nums;color:#f5f8ff;margin:4px 0 16px}
+.bar{height:13px;border-radius:12px;background:#3c4657;overflow:hidden;box-shadow:inset 0 1px 4px #0006}
+.fill{width:24%;height:100%;border-radius:12px;transition:width .15s linear,background .15s}
+.fill.green{background:#42c496}.fill.amber{background:#f4b955}.fill.red{background:#ef666d}
+.detail{display:flex;justify-content:space-between;gap:8px;text-align:left;color:#abb8cc;font-size:12px;margin-top:11px;font-weight:500}
+.buttons{padding:5px 20px 21px;display:grid;gap:8px}
+.buttons:empty{display:none}
+.action{border:1px solid #ffffff12;border-radius:10px;color:white;font:600 13px "Segoe UI",Arial,sans-serif;min-height:42px;padding:9px 8px;cursor:pointer;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.action:hover{filter:brightness(1.16)}
+.action.neutral{background:#39475c}.action.primary{background:#386cc0}.action.success{background:#25866a}.action.warning{background:#a46c20}.action.danger{background:#b54b52}
+.footer{text-align:center;color:#72859f;letter-spacing:1px;font-size:10px;text-transform:uppercase;padding:12px;border-top:1px solid #ffffff13}
+.closed{border:1px dashed #5d718c;color:#9faabc;padding:30px;text-align:center;border-radius:14px}
+.closed[hidden]{display:none}
+.status{max-width:420px;margin:18px auto 0;color:#9faabc;font-size:12px;text-align:center;min-height:36px}
+.caption{font-size:12px;margin-top:22px;color:#7988a0;text-align:center}
+@media(max-width:410px){.body{padding-left:17px;padding-right:17px}.timer{font-size:56px}.action{font-size:11px}.controls button{font-size:12px}}
+</style>
+</head>
+<body>
+<main>
+<h1>Countdown popup — design preview</h1>
+<p>Standalone, fake-HA prototype. No Windows service, MQTT or parental actions are connected.</p>
+<div class="controls" role="group" aria-label="Try HA button layouts">
+ <button data-layout="0" aria-pressed="false">0 buttons</button>
+ <button data-layout="1" aria-pressed="false">1 button</button>
+ <button data-layout="2" aria-pressed="true">2 buttons</button>
+ <button data-layout="3" aria-pressed="false">3 buttons</button>
+ <button id="refresh">HA update (+30 min)</button>
+ <button id="reopen">New HA message / reopen</button>
+</div>
+<section class="popup" id="popup" aria-label="HAL Gaming Control popup">
+ <div class="header">
+  <div class="logo" aria-hidden="true">
+   <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12h4m-2-2v4m7-3h.01M18 13h.01M6 7h12a3 3 0 0 1 2.9 2.2l1 7.3a2.7 2.7 0 0 1-4.2 2.6l-2.6-1.9H9l-2.6 1.9a2.7 2.7 0 0 1-4.2-2.6l1-7.3A3 3 0 0 1 6 7Z"/></svg>
+  </div>
+  <span class="brand">HAL Gaming Control</span>
+  <button class="close" id="close" aria-label="Close popup">×</button>
+ </div>
+ <div class="body">
+  <div id="heading" class="eyebrow">Gaming time remaining</div>
+  <div class="timer" id="timer" role="timer" aria-live="off">09:58</div>
+  <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="24" id="progress">
+   <div class="fill red" id="fill"></div>
+  </div>
+  <div class="detail"><span id="detail">Weekly budget</span><span id="percent">24% remaining</span></div>
+ </div>
+ <div class="buttons" id="buttons"></div>
+ <div class="footer">Powered by HAL Systems</div>
+</section>
+<div id="closed" class="closed" hidden>Popup closed. Select <strong>New HA message / reopen</strong> above to show it again.</div>
+<div class="status" id="status">Preview: 2 response buttons, countdown running locally.</div>
+<div class="caption">Visual prototype for HAL Gaming Control issue #8. Button responses only appear in this demo.</div>
+</main>
+<script>
+(function(){
+ "use strict";
+ const $=id=>document.getElementById(id);
+ let sequence=0, currentCount=2, startSeconds=598, startPercent=24, anchor=performance.now(), visible=true;
+ let description="Weekly budget", heading="Gaming time remaining";
+ const options={
+  0:[],
+  1:[{id:"ok",text:"OK",color:"primary"}],
+  2:[{id:"dismiss",text:"OK",color:"neutral"},{id:"request_more",text:"Request more time",color:"primary"}],
+  3:[{id:"five",text:"+5 min",color:"neutral"},{id:"fifteen",text:"+15 min",color:"primary"},{id:"thirty",text:"+30 min",color:"success"}]
+ };
+ function time(){return Math.max(0,startSeconds-(performance.now()-anchor)/1000)}
+ function format(n){n=Math.ceil(n);const h=Math.floor(n/3600),m=Math.floor(n%3600/60),s=n%60;return h? `${h}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`:`${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`}
+ function draw(){if(!visible)return;const rem=time();const ratio=startSeconds>0?rem/startSeconds:0;const pct=Math.max(0,Math.min(100,startPercent*ratio));const cls=rem<=600?"red":rem<=1800?"amber":"green";$("timer").textContent=format(rem);$("fill").style.width=pct+"%";$("fill").className="fill "+cls;$("percent").textContent=Math.round(pct)+"% remaining";$("progress").setAttribute("aria-valuenow",Math.round(pct))}
+ function buildButtons(){
+  const root=$("buttons");root.replaceChildren();
+  const buttons=options[currentCount];root.style.gridTemplateColumns=`repeat(${Math.max(1,buttons.length)}, minmax(0, 1fr))`;
+  for(const opt of buttons){const btn=document.createElement("button");btn.className="action "+opt.color;btn.textContent=opt.text;btn.addEventListener("click",()=>{$("status").textContent=`Mock MQTT response → popup_event: button_id="${opt.id}" (no bonus granted)`});root.append(btn)}
+ }
+ function upsert(data){
+  sequence++;startSeconds=data.seconds;startPercent=data.percent;anchor=performance.now();heading=data.heading||heading;description=data.description||description;visible=true;
+  $("heading").textContent=heading;$("detail").textContent=description;$("popup").hidden=false;$("closed").hidden=true;buildButtons();draw();
+  $("status").textContent=`Mock HA upsert #${sequence}: ${format(startSeconds)}, ${startPercent}%, ${currentCount} buttons. Popup ${sequence===1?"shown":"updated/reopened"}.`;
+ }
+ document.querySelectorAll("[data-layout]").forEach(btn=>btn.addEventListener("click",()=>{
+  currentCount=Number(btn.dataset.layout);
+  document.querySelectorAll("[data-layout]").forEach(x=>x.setAttribute("aria-pressed",String(x===btn)));
+  upsert({seconds:Math.ceil(time()),percent:Number($("progress").getAttribute("aria-valuenow")),heading,description});
+ }));
+ $("refresh").addEventListener("click",()=>upsert({seconds:Math.ceil(time())+1800,percent:72,description:"Daily budget"}));
+ $("reopen").addEventListener("click",()=>upsert({seconds:Math.ceil(time()),percent:Number($("progress").getAttribute("aria-valuenow")),description}));
+ $("close").addEventListener("click",()=>{visible=false;$("popup").hidden=true;$("closed").hidden=false;$("status").textContent="Mock popup_event: closed. Next new HA upsert will reopen it."});
+ upsert({seconds:598,percent:24,heading,description});setInterval(draw,150);
+})();
+</script>
+</body>
+</html>

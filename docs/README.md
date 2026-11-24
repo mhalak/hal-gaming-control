@@ -37,6 +37,6 @@ This is a source-only preview. Feedback and reproducible bugs are welcome throug
 
 ## For developers
 
-Looking for code and implementation details? See [Windows deployment](windows_deployment.md), [MQTT and privacy](mqtt_protocol.md), [Windows MQTT OTA transport (default-off)](mqtt_ota.md), [Recorder coverage](recorder_coverage.md), [Home Assistant engineering reference](reference/ha_integration_technical.md) and [older issue history](reference/known_limitations_history.md). The feature guides also link to their earlier technical notes. For the AI-assisted development numbers (and a truly heroic token bill), see the [AI development cost report](ai-development-cost.md).
+Looking for code and implementation details? See [Windows deployment](windows_deployment.md), [MQTT and privacy](mqtt_protocol.md), [Windows MQTT OTA transport (default-off)](mqtt_ota.md), [HA-driven Windows popup architecture (#8)](reference/windows-countdown-architecture.md), [Recorder coverage](recorder_coverage.md), [Home Assistant engineering reference](reference/ha_integration_technical.md) and [older issue history](reference/known_limitations_history.md). The feature guides also link to their earlier technical notes. For the AI-assisted development numbers (and a truly heroic token bill), see the [AI development cost report](ai-development-cost.md).
 
 *Powered by HAL Systems. Serious about safety, less serious about the last 30 minutes.*
