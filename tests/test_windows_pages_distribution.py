@@ -140,6 +140,29 @@ class PagesDistributionTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "audited versions"):
                 mod.build(root, root / "wrong-version", SHA)
 
+    def test_private_wheel_inventory_is_version_constrained_and_unpublished(self):
+        constraints = (ROOT / "windows_agent/preview-constraints.txt").read_text()
+        pins = [line.strip() for line in constraints.splitlines()
+                if line.strip() and not line.lstrip().startswith("#")]
+        self.assertEqual(len(pins), 19)
+        self.assertTrue(all(re.fullmatch(
+            r"[a-zA-Z0-9._-]+==[0-9][^; ]*(?:; sys_platform == 'win32')?",
+            pin) for pin in pins))
+        names = [pin.split("==")[0].lower().replace("_", "-") for pin in pins]
+        self.assertEqual(len(set(names)), 19)
+        candidate = (ROOT / ".github/workflows/windows-signing-candidate.yml").read_text()
+        self.assertIn("AUDITED_WHEEL_SHA256", candidate)
+        self.assertIn("preview-audit-requirements.txt", candidate)
+        self.assertIn("preview-constraints.txt", candidate)
+        self.assertIn("wheels.Count -ne 19", candidate)
+        self.assertIn("pip download --only-binary=:all:", candidate)
+        self.assertIn("no uploaded wheelhouse or public distribution", candidate)
+        self.assertNotIn("contents: write", candidate)
+        self.assertNotIn("pages: write", candidate)
+        roots = (ROOT / "windows_agent/preview-audit-requirements.txt").read_text()
+        self.assertIn("-r requirements-dev.txt", roots)
+        self.assertIn("pyinstaller>=6,<7", roots)
+
     def test_private_candidate_validates_real_licensed_zip_without_publishing_it(self):
         cfg = (ROOT / ".github/workflows/windows-signing-candidate.yml").read_text()
         self.assertIn("PIP_CONSTRAINT:", cfg)
