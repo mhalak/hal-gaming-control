@@ -39,6 +39,35 @@ confirm all owner/account fields and send the application personally.
 **Do not claim** that unsigned builds already have a trusted publisher or that
 Windows Smart App Control is guaranteed to accept signed executables.
 
+## Build the reviewed unsigned Windows candidate
+
+The source-only preparation does not prove that PyInstaller produced a usable
+Windows package. A deliberate owner-triggered CI run can produce the first
+Windows **build candidate**, without using SignPath or publishing a Release.
+
+After all eight CI gates pass for current `main`, the repository owner can
+either manually launch the
+[Windows unsigned candidate workflow](../.github/workflows/windows-signing-candidate.yml)
+with GitHub Actions `workflow_dispatch`, or post exactly this comment **on
+issue #9**, with the declared Windows version substituted:
+
+```text
+/build-windows-candidate 0.4.3
+```
+
+The workflow accepts the command only when posted by GitHub user `mhalak`,
+on issue #9, using current `main` and an **exact match** to the version
+currently in `release.json`. Any stale or misspelled command fails before
+building. Outputs are short-lived **UNSIGNED** GitHub Actions artifacts,
+not publicly trusted packages, GitHub Releases or proof of SignPath
+eligibility. The workflow never installs onto a PC or enables updater OTA.
+
+Inspect the run logs and archive for clean source SHA, Python tests, both
+owned EXEs, exact PE product/version fields, SHA-256 hashes, installed
+`version.txt`, matching `build-info.json`, and an expected
+`NotSigned` Authenticode status. Preserve a sanitized result in issue #9.
+No release to users or SAC workaround is authorized by this build alone.
+
 ## Owner actions before submitting
 
 - [ ] Confirm GitHub repository visibility, code ownership, MIT licensing of
