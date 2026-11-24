@@ -11,7 +11,6 @@ import html
 import json
 from pathlib import Path, PurePosixPath
 import re
-import stat
 import sys
 import zipfile
 
