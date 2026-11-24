@@ -14,6 +14,22 @@ Track gaming time on Windows PCs, set limits, give bonus minutes and use parent 
 
 *Emotionally off duty, not legally. Please don't actually outsource parenting to a YAML file.*
 
+## Windows downloads and code signing
+
+Windows executable distribution is **not yet signed or approved**. The
+[Windows distribution page](docs/windows_distribution.md) explains the
+current source-build option and what we still need before public binaries.
+Read the [Code signing policy](CODE_SIGNING_POLICY.md),
+[Privacy policy](PRIVACY.md) and [Security policy](SECURITY.md) before installing.
+
+SignPath Foundation OSS signing is **planned, not currently active**:
+
+> Free code signing provided by SignPath.io, certificate by SignPath Foundation.
+
+This future attribution is not a claim that the present Windows preview
+has a trusted signature. The optional Windows candidate build does not
+publish a GitHub Release or deploy to a family PC.
+
 ## What can it do?
 
 <a name="feature-local-mode"></a>
