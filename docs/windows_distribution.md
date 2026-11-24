@@ -56,6 +56,18 @@ The workflow is never started by a PR, merge, push, or an issue comment.
 Only `mhalak` may manually launch it from `main`, providing exact
 `release.json` Windows version and source SHA plus the
 `PUBLISH_UNSIGNED_WINDOWS_PREVIEW` choice (default is `DO_NOT_PUBLISH`).
+The Windows Preview build uses `preview-constraints.txt` to constrain
+audited package versions and `preview-license-snapshot.json` to verify the
+actual installed CPython/wheel identities. `tools/windows_preview_licenses.py`
+stages the source environment's available license texts and hashes.
+`tools/windows_download_page.py` refuses to package the ZIP unless
+`LICENSE`, `THIRD_PARTY_NOTICES.md` and matching staged upstream license
+files are present. These are **technical checks only**: the
+[third-party inventory](../THIRD_PARTY_NOTICES.md) still lists unresolved
+redistribution terms and missing upstream notices. A complete third-party
+license/notice review, including Microsoft runtimes, and reproducible
+hash-locked dependencies are required **before any public publication**.
+
 The two project-owned EXEs must report `NotSigned`, pass version checks,
 and have green 8/8 main CI before packaging. A ZIP, SHA256SUMS and source
 manifest are published as static Pages files; no tag or GitHub Release is
