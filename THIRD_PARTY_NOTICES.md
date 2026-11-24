@@ -7,11 +7,13 @@ license. It is an engineering inventory, **not legal advice and not a finished
 compliance review**. First-party code is MIT-licensed ([LICENSE](LICENSE)).
 Tracking issue: [#9](https://github.com/mhalak/hal-gaming-control/issues/9).
 
-**Important:** the Windows ZIP built by `windows_agent/build.ps1` and
-`tools/windows_download_page.py` currently contains **no license or notice
-files of its own** (no project `LICENSE`, no copy of this file). The only
-upstream license texts inside it are the `cryptography` dist-info files and
-Tcl/Tk's `license.terms`. See sections 5 and 7.
+**Important:** the previously audited Windows ZIP from Actions run
+`45459711030` lacked the project's `LICENSE`, this inventory, and most
+upstream license texts. The new *source-only* preview packaging workflow
+requires the project documents and stages the license texts found in the
+exact-version installed Python/wheel distributions. This improvement **has
+not yet been acceptance-tested against a newly built Windows ZIP**, and it
+does **not** resolve the redistribution questions in section 6. See section 9.
 
 ## 1. Evidence and method
 
@@ -41,8 +43,10 @@ The three Python/PowerShell sources are covered by the repository
 
 ## 3. Components that are inside the ZIP
 
-"Text in ZIP" = whether the upstream license text is physically present in the
-built package today. "Confirmed" = license identified from a primary source
+The table below describes the **historical audited candidate** from run
+`45459711030`, not a future Pages ZIP that has not yet been published.
+"Text in ZIP" = whether the upstream license text was physically present in
+that audited candidate. "Confirmed" = license identified from a primary source
 (package metadata/license file, version resource, or upstream tag).
 
 | Component | Version | License (as stated) | Evidence | Text in ZIP | Confirmed |
@@ -148,16 +152,17 @@ redistributions. Only `cryptography`'s and Tk's texts do today.
 
 ## 7. Findings
 
-- **No lock file.** `windows_agent/requirements.txt` uses ranges
-  (`paho-mqtt>=2.2.0,<3`, `psutil>=7.2.2,<8`, `PyYAML>=6,<7`,
-  `cryptography>=50.0.2,<51`, `pywin32>=312` with no upper bound);
-  `build.ps1` installs `pyinstaller>=6,<7` unpinned. The versions above are
-  what run `45459711030` resolved; a later publication build can resolve
-  different versions, so this inventory must be re-checked against the exact
-  build that is published.
-- **No notices in the ZIP.** Neither `build.ps1` nor
-  `tools/windows_download_page.py` adds `LICENSE`, this file, or upstream
-  texts. The ZIP also carries no source offer or pointer to the repository.
+- **Earlier candidate used version ranges.** The new Pages workflow uses
+  `windows_agent/preview-constraints.txt` and an audited version snapshot
+  for the Windows runtime and PyInstaller distributions. This is **not yet a
+  SHA-256 wheel hash lock**, and PyInstaller transitive build/test packages
+  have not all been frozen. Runtime/version mismatches fail the new
+  collection stage; full build reproducibility remains outstanding.
+- **Earlier candidate omitted notices.** The new package builder requires
+  root `LICENSE` and `THIRD_PARTY_NOTICES.md`, plus the staged wheel and
+  CPython license files and their SHA-256 manifest. A future Pages ZIP
+  cannot be built without these files. Licensing of all embedded native
+  dependencies has **not** been established by those mechanical checks.
 - Most runtime components (CPython, OpenSSL 3.0.16, zlib, libffi, paho-mqtt,
   psutil, PyYAML, pywin32, PyInstaller, Microsoft runtimes) ship binaries
   without their license text.
@@ -185,13 +190,22 @@ redistributions. Only `cryptography`'s and Tk's texts do today.
   icon, installer artwork or font. Nothing in this section asserts legal
   permissibility of any asset.
 
-## 9. How to include notices in the package (proposal only, not implemented)
+## 9. Packaging implementation and outstanding compliance work
 
-Tracked as a separate decision on issue #9. A build/package change would need
-to: copy `LICENSE` and `THIRD_PARTY_NOTICES.md` into the ZIP root; collect
-the license files named in section 3 (for example from each wheel's
-`dist-info`) into a `licenses/` folder; add the PyInstaller `COPYING.txt`
-(Bootloader Exception); ship the Python, OpenSSL, zlib, libffi and Tcl license
-texts; pin the build (lock file with hashes) so the notices match the bytes;
-and make `tools/windows_download_page.py` fail closed when a notice is
-missing. None of that is part of this document.
+The Windows Pages publishing source now stages source texts found in the
+exact installed `Python 3.12.10` interpreter and audited wheel
+distributions using `tools/windows_preview_licenses.py`.
+`tools/windows_download_page.py` requires those staged files with their
+SHA-256 manifest, and includes `LICENSE` and `THIRD_PARTY_NOTICES.md`
+at the ZIP root. Missing, modified or version-mismatched notices **block
+packaging**. The manual publishing workflow remains owner-authorized only.
+
+**This is not clearance to distribute.** The staged texts do not establish
+permission to redistribute Microsoft VC++/UCRT DLLs, and do not necessarily
+cover separately embedded OpenSSL, zlib, libffi, libyaml, Tcl or other static
+libraries, Rust crates and PyInstaller icon resources. Resolve section 6
+using upstream terms and primary evidence, collect any additionally required
+license/attribution texts, create a reproducible hashed dependency lock,
+and validate the resulting **real Windows ZIP** before asking the owner for
+a separate public UNSIGNED-release approval. No SignPath application or
+trusted Windows release has been submitted/published by this implementation.
