@@ -209,7 +209,7 @@ class PagesDistributionTests(unittest.TestCase):
         self.assertNotIn("github.event.comment", cfg)
         # No new HA version or Windows-only GitHub release tag.
         declaration = json.loads((ROOT / "release.json").read_text())
-        self.assertEqual(declaration["home_assistant"], "0.14.1")
+        self.assertEqual(declaration["home_assistant"], "0.14.2")
         self.assertEqual(declaration["windows_agent"], "0.4.3")
         self.assertTrue(re.fullmatch(r"[0-9a-f]{40}", SHA))
 
