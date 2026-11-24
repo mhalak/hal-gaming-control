@@ -190,6 +190,7 @@ async def test_popup_action_requires_advertised_agent_and_sends_fixed_ui_contrac
         first = json.loads(args.args[2])
         assert first["version"] == 1 and first["operation"] == "upsert"
         assert first["view"]["remaining_seconds"] == 598
+        assert first["display_stale_after_seconds"] > 598  # local tick reaches zero
         assert first["view"]["buttons"] == buttons
         await call(hass, "popup", device_id, heading="Another update",
                    remaining_seconds=45, progress_percent=8, buttons=[])
@@ -216,3 +217,54 @@ async def test_actions_are_device_scoped_and_no_cross_pc_broadcast(
         assert publish.await_count == 1
     assert await hass.config_entries.async_unload(a.entry_id)
     assert await hass.config_entries.async_unload(b.entry_id)
+
+
+
+async def test_popup_response_ids_are_scoped_deduplicated_and_non_authoritative(
+        hass, enable_custom_integrations, mqtt_mock):
+    """Child UI clicks are events, not automatic bonus or OS commands."""
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    entry, device_id = await setup_device(hass)
+    await make_fresh(hass, ui=True)
+    events = []
+    unsub = hass.bus.async_listen(
+        "hal_gaming_control_popup_response", lambda event: events.append(event.data))
+    before_options = dict(entry.options)
+    with patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish:
+        await call(hass, "popup", device_id,
+                   heading="Gaming time remaining", description="Weekly budget",
+                   remaining_seconds=598, progress_percent=24,
+                   buttons=[{"id": "request_more", "text": "More time", "color": "primary"}])
+        outgoing = json.loads(publish.call_args.args[2])
+        response = {
+            "version": 1, "device_id": "pc1", "popup_id": outgoing["popup_id"],
+            "event_id": "c" * 32, "kind": "button", "button_id": "request_more",
+        }
+        def receive(value, retain=False):
+            entry.runtime_data.popup._on_popup_event(SimpleNamespace(
+                topic="SmartHouse/Gaming/pc1/ui/popup_event",
+                payload=json.dumps(value), retain=retain))
+        receive(response, retain=True)
+        receive(response | {"device_id": "pc2"})
+        receive(response | {"button_id": "not_approved"})
+        receive(response | {"popup_id": "e" * 32})
+        receive(response)
+        receive(response)  # MQTT QoS 1 duplicate
+        await hass.async_block_till_done()
+        assert len(events) == 1
+        assert events[0]["button_id"] == "request_more"
+        assert events[0]["device_id"] == "pc1"
+        assert entry.options == before_options  # no Parent bonus granted
+        assert publish.await_count == 1
+
+        # Closing is distinct from a button event and has no button_id.
+        receive({k: v for k, v in (response | {
+            "kind": "closed", "event_id": "d" * 32}).items() if k != "button_id"})
+        await hass.async_block_till_done()
+        assert len(events) == 2
+        assert events[-1]["kind"] == "closed"
+        assert "button_id" not in events[-1]
+    unsub()
+    assert await hass.config_entries.async_unload(entry.entry_id)

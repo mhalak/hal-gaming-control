@@ -1,3 +1,9 @@
+## 0.14.1 — Popup response event and compatible Windows UI (#8)
+
+- The existing native HA popup action becomes actionable on Windows agents advertising `popup_ui_protocol: 1`. The Windows agent displays a fixed HAL-branded form and reports button/close IDs through a dedicated non-retained `ui/popup_event` topic.
+- HA rejects untrusted/wrong-device/wrong-popup/button-ID events and publishes the `hal_gaming_control_popup_response` event for automation triggers. Responses never automatically grant gaming time or execute OS commands.
+- **Preview 39 / HA 0.14.1 / Windows 0.4.2**, source only. A physical PC pilot, signed binary and deployment gate #56 are still outstanding.
+
 ## 0.14.0 — Native HA actions (source-only, #6 and #8)
 
 - Register custom device-targeted admin actions in HA: `hal_gaming_control.lock_pc`, `terminate_game`, `add_bonus`, `set_unlimited`, `popup` (upsert/hide). Each requires a real Home Assistant gaming device registry ID; never broadcast or infer the target.
