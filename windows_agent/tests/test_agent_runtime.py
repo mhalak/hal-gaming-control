@@ -121,6 +121,7 @@ def runtime(tmp_path):
     focus = Mock()
     focus.read.return_value = {"gaming_active": "OFF", "active_game": "idle"}
     with patch.multiple(A, Bridge=Mock(return_value=bridge), FocusProbe=Mock(return_value=focus),
+                        PopupSession=Mock(),
                         scan=Mock(return_value=[]), system_uptime=Mock(return_value=123),
                         installed_version=Mock(return_value="1.2.3"),
                         execute=Mock(), submit_request=Mock(), confirm_health=Mock(return_value=True),
