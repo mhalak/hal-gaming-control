@@ -152,12 +152,16 @@ redistributions. Only `cryptography`'s and Tk's texts do today.
 
 ## 7. Findings
 
-- **Earlier candidate used version ranges.** The new Pages workflow uses
-  `windows_agent/preview-constraints.txt` and an audited version snapshot
-  for the Windows runtime and PyInstaller distributions. This is **not yet a
-  SHA-256 wheel hash lock**, and PyInstaller transitive build/test packages
-  have not all been frozen. Runtime/version mismatches fail the new
-  collection stage; full build reproducibility remains outstanding.
+- **Earlier candidate used version ranges.** Release-candidate builds now
+  additionally use `windows_agent/preview-wheels.sha256.json` with the
+  exact filename and SHA-256 of all 19 Windows wheels from the owner-controlled
+  [private inventory run](https://github.com/mhalak/hal-gaming-control/actions/runs/45475227399).
+  Both the private candidate and the opt-in Pages workflow download those
+  wheels, reject missing/replaced/extra bytes and install with pip
+  `--no-index --require-hashes` from that reviewed local wheelhouse.
+  This is a **wheel-input integrity lock**, not proof that generated EXE or
+  ZIP bytes are fully reproducible across different runner images, signing
+  environments or build timestamps.
 - **Earlier candidate omitted notices.** The new package builder requires
   root `LICENSE` and `THIRD_PARTY_NOTICES.md`, plus the staged wheel and
   CPython license files and their SHA-256 manifest. A future Pages ZIP
@@ -207,5 +211,7 @@ libraries, Rust crates and PyInstaller icon resources. Resolve section 6
 using upstream terms and primary evidence, collect any additionally required
 license/attribution texts, create a reproducible hashed dependency lock,
 and validate the resulting **real Windows ZIP** before asking the owner for
-a separate public UNSIGNED-release approval. No SignPath application or
+a separate public UNSIGNED-release approval. The full 19-wheel SHA-256 input
+lock is now in place for release candidate workflows; it does **not** settle
+the outstanding redistribution questions or prove bit-for-bit reproducibility. No SignPath application or
 trusted Windows release has been submitted/published by this implementation.

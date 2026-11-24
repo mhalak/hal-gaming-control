@@ -1,4 +1,4 @@
-param([string]$Version)
+param([string]$Version, [switch]$RequireLockedWheels)
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 $identityTool = Join-Path $PSScriptRoot '..\tools\release_identity.py'
@@ -13,7 +13,22 @@ $identity = $identityJson | ConvertFrom-Json
 py -3.12 -m venv .venv
 if ($LASTEXITCODE) { throw 'venv failed' }
 $python = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
-& $python -m pip install -r requirements-dev.txt 'pyinstaller>=6,<7'
+if ($RequireLockedWheels) {
+    # Public/private release candidates must install only reviewed wheel bytes.
+    # No index/network fallback: pip itself verifies every SHA-256 again.
+    if ([string]::IsNullOrWhiteSpace($env:HAL_WINDOWS_LOCKED_WHEELS) -or
+        [string]::IsNullOrWhiteSpace($env:HAL_WINDOWS_HASHED_REQUIREMENTS)) {
+        throw 'Locked Windows wheelhouse and hashed requirements are mandatory'
+    }
+    if (!(Test-Path -LiteralPath $env:HAL_WINDOWS_LOCKED_WHEELS -PathType Container) -or
+        !(Test-Path -LiteralPath $env:HAL_WINDOWS_HASHED_REQUIREMENTS -PathType Leaf)) {
+        throw 'Locked Windows wheelhouse or requirements are missing'
+    }
+    & $python -m pip install --no-index --only-binary=:all: --find-links $env:HAL_WINDOWS_LOCKED_WHEELS --require-hashes -r $env:HAL_WINDOWS_HASHED_REQUIREMENTS
+} else {
+    # Source/developer build; NEVER used by public Windows distribution.
+    & $python -m pip install -r requirements-dev.txt 'pyinstaller>=6,<7'
+}
 if ($LASTEXITCODE) { throw 'Dependency installation failed' }
 & $python -m pytest -q
 if ($LASTEXITCODE) { throw 'Tests failed' }

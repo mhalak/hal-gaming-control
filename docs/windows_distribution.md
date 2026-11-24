@@ -58,15 +58,23 @@ Only `mhalak` may manually launch it from `main`, providing exact
 `PUBLISH_UNSIGNED_WINDOWS_PREVIEW` choice (default is `DO_NOT_PUBLISH`).
 The Windows Preview build uses `preview-constraints.txt` to constrain
 audited package versions and `preview-license-snapshot.json` to verify the
-actual installed CPython/wheel identities. `tools/windows_preview_licenses.py`
+actual installed CPython/wheel identities. Release candidates additionally
+use `preview-wheels.sha256.json` recording all 19 reviewed win_amd64
+CPython 3.12.10 wheel filenames and SHA-256 digests from an owner-controlled
+private build. `tools/windows_wheel_lock.py` rejects missing, extra,
+tampered or version-incompatible wheel files, then generates complete
+pip hash-required requirements. Both the private candidate and the manually
+approved Pages workflow install exclusively from that wheelhouse using pip
+`--no-index --require-hashes`, without a package-index fallback. `tools/windows_preview_licenses.py`
 stages the source environment's available license texts and hashes.
 `tools/windows_download_page.py` refuses to package the ZIP unless
 `LICENSE`, `THIRD_PARTY_NOTICES.md` and matching staged upstream license
 files are present. These are **technical checks only**: the
 [third-party inventory](../THIRD_PARTY_NOTICES.md) still lists unresolved
 redistribution terms and missing upstream notices. A complete third-party
-license/notice review, including Microsoft runtimes, and reproducible
-hash-locked dependencies are required **before any public publication**.
+license/notice review, including Microsoft runtimes, is still required
+**before any public publication**. Wheel bytes are now SHA-256 locked, but
+bit-for-bit EXE reproducibility and the redistribution rights remain unproven.
 
 The two project-owned EXEs must report `NotSigned`, pass version checks,
 and have green 8/8 main CI before packaging. A ZIP, SHA256SUMS and source

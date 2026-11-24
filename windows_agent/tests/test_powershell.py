@@ -58,7 +58,10 @@ def test_build_script_has_no_duplicated_body():
     assert text.count("param(") == 1
     assert text.count('PyInstaller --noconfirm --clean --onedir --name SmartHouseGamingControl ') == 1
     assert text.count('PyInstaller --noconfirm --clean --onedir --name SmartHouseGamingUpdater ') == 1
-    assert text.splitlines()[0] == 'param([string]$Version)'
+    assert text.splitlines()[0] == 'param([string]$Version, [switch]$RequireLockedWheels)'
+    assert 'if ($RequireLockedWheels)' in text
+    assert '--no-index --only-binary=:all: --find-links' in text
+    assert '--require-hashes' in text
     assert text.count('Invalid source release identity') == 1
     assert text.count('release_identity.py') == 1
     assert text.count('--component') == 1

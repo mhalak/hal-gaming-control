@@ -55,28 +55,25 @@ jobs:
               $env:RELEASE_COMMAND -cne "/build-windows-candidate $version") {
             throw 'Owner command does not match reviewed Windows source version'
           }
+      - name: Verify full Windows wheelhouse against reviewed SHA-256 lock
+        env:
+          PIP_CONSTRAINT: ${{ github.workspace }}/windows_agent/preview-constraints.txt
+        run: |
+          $wheelhouse = Join-Path $env:RUNNER_TEMP 'windows-locked-wheelhouse'
+          $requirements = Join-Path $env:RUNNER_TEMP 'windows-hashed-requirements.txt'
+          New-Item -ItemType Directory -Path $wheelhouse -Force | Out-Null
+          & py -3.12 -m pip download --only-binary=:all: --dest $wheelhouse -r preview-audit-requirements.txt
+          if ($LASTEXITCODE) { throw 'Could not download Windows locked wheel candidates' }
+          & py -3.12 ../tools/windows_wheel_lock.py --root .. --wheelhouse $wheelhouse --output $requirements
+          if ($LASTEXITCODE) { throw 'Windows wheel SHA-256 lock verification FAILED' }
+          "HAL_WINDOWS_LOCKED_WHEELS=$wheelhouse" >> $env:GITHUB_ENV
+          "HAL_WINDOWS_HASHED_REQUIREMENTS=$requirements" >> $env:GITHUB_ENV
       - name: Build unsigned candidate from exact main revision
         env:
           PIP_CONSTRAINT: ${{ github.workspace }}/windows_agent/preview-constraints.txt
         run: |
-          ./build.ps1
+          ./build.ps1 -RequireLockedWheels
           if ($LASTEXITCODE) { throw 'Candidate build failed' }
-      - name: Inventory exact Windows wheel SHA-256 values (private, no publishing)
-        env:
-          PIP_CONSTRAINT: ${{ github.workspace }}/windows_agent/preview-constraints.txt
-        run: |
-          $python = Join-Path $PWD '.venv/Scripts/python.exe'
-          $wheelhouse = Join-Path $env:RUNNER_TEMP 'preview-wheels-audit'
-          New-Item -ItemType Directory -Path $wheelhouse -Force | Out-Null
-          & $python -m pip download --only-binary=:all: --dest $wheelhouse -r preview-audit-requirements.txt
-          if ($LASTEXITCODE) { throw 'Failed to download audited Windows wheel set' }
-          $wheels = @(Get-ChildItem -LiteralPath $wheelhouse -Filter '*.whl' -File | Sort-Object Name)
-          if ($wheels.Count -ne 19) { throw "Expected exactly 19 wheels; got $($wheels.Count)" }
-          foreach ($wheel in $wheels) {
-            $digest = (Get-FileHash -LiteralPath $wheel.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-            Write-Host "AUDITED_WHEEL_SHA256 $digest $($wheel.Name)"
-          }
-          Write-Host 'Private wheel inventory only; no uploaded wheelhouse or public distribution.'
       - name: Verify first-party version metadata and explicit unsigned status
         run: |
           $version = (Get-Content ../release.json -Raw | ConvertFrom-Json).windows_agent

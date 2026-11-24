@@ -151,12 +151,13 @@ class PagesDistributionTests(unittest.TestCase):
         names = [pin.split("==")[0].lower().replace("_", "-") for pin in pins]
         self.assertEqual(len(set(names)), 19)
         candidate = (ROOT / ".github/workflows/windows-signing-candidate.yml").read_text()
-        self.assertIn("AUDITED_WHEEL_SHA256", candidate)
+        self.assertIn("windows_wheel_lock.py", candidate)
         self.assertIn("preview-audit-requirements.txt", candidate)
         self.assertIn("preview-constraints.txt", candidate)
-        self.assertIn("wheels.Count -ne 19", candidate)
         self.assertIn("pip download --only-binary=:all:", candidate)
-        self.assertIn("no uploaded wheelhouse or public distribution", candidate)
+        self.assertIn("HAL_WINDOWS_HASHED_REQUIREMENTS=", candidate)
+        self.assertIn("HAL_WINDOWS_LOCKED_WHEELS=", candidate)
+        self.assertIn("build.ps1 -RequireLockedWheels", candidate)
         self.assertNotIn("contents: write", candidate)
         self.assertNotIn("pages: write", candidate)
         roots = (ROOT / "windows_agent/preview-audit-requirements.txt").read_text()
@@ -200,6 +201,7 @@ class PagesDistributionTests(unittest.TestCase):
                 "DO_NOT_PUBLISH", "needs.build.result == 'success'",
                 "ha_release_guard.py gate", "releases/latest",
                 "windows_preview_licenses.py", "preview-constraints.txt",
+                "windows_wheel_lock.py", "-RequireLockedWheels",
                 "deploy-pages@", "upload-pages-artifact@", "Get-AuthenticodeSignature",
                 "NotSigned", "contents: read", "pages: write", "id-token: write"):
             self.assertIn(required, cfg)

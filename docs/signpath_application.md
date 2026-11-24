@@ -82,8 +82,11 @@ notices, collects available wheel/CPython license files from the pinned
 Windows preview environment, verifies their hashes, and rejects missing
 license material. This is **not** a completed third-party rights review;
 the open items in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)
-remain hard blockers for public redistribution. Pinned versions are not
-yet a hash-locked reproducible wheel set.
+remain hard blockers for public redistribution. All 19 Windows 0.4.3
+release-candidate wheel files now have reviewed SHA-256 hashes (from the
+private candidate run), and builds install them offline with hash checking.
+This is input integrity only; bit-for-bit binaries and legal distribution
+eligibility have not been proven.
 
 No public Windows ZIP has been released and the Pages workflow has **not**
 been triggered. Publication requires a separate deliberate manual
