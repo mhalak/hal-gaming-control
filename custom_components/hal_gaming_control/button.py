@@ -1,12 +1,9 @@
-"""Manual actions and a local daily budget bonus."""
+"""Manual actions and a local Smart Parent Bonus."""
 from homeassistant.components.button import ButtonEntity
-from homeassistant.exceptions import HomeAssistantError
-from homeassistant.util import dt as dt_util
 from .direct_mqtt import DirectAction
 from .action_registry import ACTION_REGISTRY
 from .entity import GamingEntity
-from .rule_engine import effective_daily
-from .parent_bonus import add_parent_grant
+from .smart_parent_control import async_add_smart_bonus
 
 BONUS_INCREMENT = 30
 
@@ -30,19 +27,7 @@ class AddDailyBudget(GamingEntity, ButtonEntity):
         return True
 
     async def async_press(self):
-        now = dt_util.now()
-        options = self.coordinator.options
-        if effective_daily(options, now.weekday() >= 5) < 0:
-            raise HomeAssistantError("Set a finite daily limit before adding time")
-        entry = self.coordinator.entry
-        updated = add_parent_grant(
-            entry.options, self.coordinator.device_id, now, BONUS_INCREMENT)
-        result = self.hass.config_entries.async_update_entry(
-            entry, options=updated)
-        if result is False:
-            # Do not imply that an explicit Add press succeeded when HA did
-            # not accept the new journal/bonus state.
-            raise HomeAssistantError("Parent bonus grant was not saved")
+        await async_add_smart_bonus(self.hass, self.coordinator, BONUS_INCREMENT)
 
 
 class TerminateTrackedGame(GamingEntity, ButtonEntity):
