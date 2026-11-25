@@ -584,3 +584,75 @@ def test_effective_snapshot_legacy_and_fractional_adjustments():
     assert state.selection.remaining_seconds == 1800
     assert state.limits_seconds["daily"] == 6000.25
     assert effective_snapshot(opts, {"daily": 0}, dt(20, 12), "pc1", ready=True).selection.remaining_seconds == 3600
+
+
+def test_smart_receipt_schedule_continuous_and_idle():
+    from custom_components.hal_gaming_control.smart_receipt import smart_receipt
+    from custom_components.hal_gaming_control.smart_bonus_transaction import prepare_grant
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    options = DEFAULTS | {"enabled": True, "daily": 180, "weekly": 300,
+                         "schedule_enabled": True, "schedule_start": "16:00", "schedule_end": "22:00"}
+    now = dt(19, 21, 45)
+    totals = {"daily": 3600, "weekly": 3600}
+    snapshot = effective_snapshot(options, totals, now, "pc1", ready=True)
+    receipt = smart_receipt(options, totals, now, "pc1", snapshot, ())
+    assert [(r.title, r.seconds) for r in receipt.lines] == [
+        ("Daily Budget (Schedule Adjusted)", 3600), ("Until Schedule Limit", 900)]
+    options = prepare_grant(options, "pc1", now, 30, snapshot.base_balances, options)
+    snapshot = effective_snapshot(options, totals, now, "pc1", ready=True)
+    receipt = smart_receipt(options, totals, now, "pc1", snapshot, ())
+    assert [r.seconds for r in receipt.lines] == [3600, 900, 1800]
+    assert receipt.remaining == 2700 and receipt.total == 6300
+    later = dt(19, 22, 10)
+    snapshot = effective_snapshot(options, totals, later, "pc1", ready=True)
+    idle = smart_receipt(options, totals, later, "pc1", snapshot, ())
+    assert [(r.title, r.seconds) for r in idle.lines if "Parent Bonus" not in r.title] == [
+        ("Daily Budget", 3600), ("Expired Schedule Bonus", -600)]
+    assert idle.remaining == 1200 and idle.total == 4800
+    played = {"daily": 5100, "weekly": 5100}
+    snapshot = effective_snapshot(options, played, later, "pc1", ready=True)
+    segments = ((now.timestamp(), later.timestamp(), "game"),)
+    continuous = smart_receipt(options, played, later, "pc1", snapshot, segments)
+    assert [r.seconds for r in continuous.lines] == [4500, 1800]
+    assert continuous.total == 6300 and continuous.remaining == 1200
+    assert all(r.grant_id is None for r in continuous.lines)
+
+
+def test_smart_receipt_weekly_partial_and_cancel_eligibility():
+    from custom_components.hal_gaming_control.smart_receipt import smart_receipt
+    from custom_components.hal_gaming_control.smart_bonus_transaction import prepare_grant
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    options = DEFAULTS | {"enabled": True, "daily": 180, "weekly": 300}
+    now = dt(19, 16)
+    totals = {"daily": 0, "weekly": 14400}
+    state = effective_snapshot(options, totals, now, "pc1", ready=True)
+    options = prepare_grant(options, "pc1", now, 30, state.base_balances)
+    state = effective_snapshot(options, totals, now, "pc1", ready=True)
+    receipt = smart_receipt(options, totals, now, "pc1", state, ())
+    assert receipt.source == "weekly" and receipt.remaining == 5400
+    assert [r.seconds for r in receipt.lines] == [18000, 1800]
+    assert receipt.lines[-1].grant_id is not None
+    spent = {"daily": 0, "weekly": 18001}
+    state = effective_snapshot(options, spent, now, "pc1", ready=True)
+    assert smart_receipt(options, spent, now, "pc1", state, ()).lines[-1].grant_id is None
+    next_day = dt(20, 16)
+    state = effective_snapshot(options, totals, next_day, "pc1", ready=True)
+    receipt = smart_receipt(options, totals, next_day, "pc1", state, ())
+    assert receipt.remaining == 5400 and receipt.lines[-1].grant_id is None
+
+
+def test_smart_receipt_daily_legacy_and_partial_adjustment():
+    from custom_components.hal_gaming_control.smart_receipt import smart_receipt
+    from custom_components.hal_gaming_control.smart_bonus_transaction import prepare_grant
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    options = DEFAULTS | {"enabled": True, "daily": 60, "weekly": 80}
+    now = dt(19, 16)
+    totals = {"daily": 3600, "weekly": 3600}
+    state = effective_snapshot(options, totals, now, "pc1", ready=True)
+    options = prepare_grant(options, "pc1", now, 30, state.base_balances)
+    state = effective_snapshot(options, totals, now, "pc1", ready=True)
+    receipt = smart_receipt(options, totals, now, "pc1", state, ())
+    assert receipt.source == "daily"
+    assert receipt.remaining == 1800 and receipt.total == 5400
+    assert sum(r.seconds for r in receipt.lines) == receipt.total
+    assert receipt.lines[-1].grant_id is not None
