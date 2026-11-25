@@ -519,3 +519,68 @@ def test_replay_rejects_bad_order_ids_and_unknown():
                                ([GrantIntent('x', replay_at(19), 1800, {'weekly': None})], set())]:
         with pytest.raises(ValueError):
             replay_grants(grants, cancelled_ids=cancelled)
+
+
+# Shared policy snapshot: exact-second balances and live restriction parity.
+@pytest.mark.parametrize("daily,weekly,schedule,expected", [
+    (120, 300, False, 120), (180, 60, False, 60),
+    (60, 120, True, 15), (0, 20, True, 0),
+])
+def test_effective_snapshot_selects_real_limit(daily, weekly, schedule, expected):
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    opts = {"enabled": True, "daily": daily, "weekly": weekly,
+            "schedule_enabled": schedule, "schedule_start": "16:00", "schedule_end": "22:00"}
+    state = effective_snapshot(opts, {"daily": 0, "weekly": 0}, dt(19, 21, 45), "pc1", ready=True)
+    assert state.selection.remaining_seconds == expected * 60
+    assert state.base_balances["daily"] == daily * 60
+    assert state.base_balances["weekly"] == weekly * 60
+
+
+def test_effective_snapshot_journal_and_restriction_parity():
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    from custom_components.hal_gaming_control.smart_bonus_transaction import prepare_grant
+    opts = DEFAULTS | {"enabled": True, "daily": 60, "weekly": 80,
+                       "schedule_enabled": True, "schedule_start": "16:00", "schedule_end": "22:00"}
+    now = dt(19, 21, 45)
+    totals = {"daily": 3600, "weekly": 3600, "per_game": {}}
+    state = effective_snapshot(opts, totals, now, "pc1", ready=True)
+    assert state.selection.remaining_seconds == 0
+    opts = prepare_grant(opts, "pc1", now, 30, state.base_balances, opts)
+    state = effective_snapshot(opts, totals, now, "pc1", ready=True)
+    assert state.selection.remaining_seconds == 1800
+    assert state.schedule.deadline == dt(19, 22, 15)
+    assert state.limits_seconds == {"daily": 5400, "weekly": 5400}
+    assert not violations(opts, totals, now, [], device_id="pc1")
+    assert violations(opts, totals, now, [], device_id="pc2") == ["daily"]
+    assert violations(opts, totals, dt(19, 22, 15), [], device_id="pc1") == ["schedule"]
+    assert effective_budget_limit(opts, now, "weekly", device_id="pc1") == 90
+    assert remaining_budget_percent(opts, totals, now, "weekly", device_id="pc1") == 33.3
+
+
+def test_effective_snapshot_invalid_offline_and_disabled():
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    opts = DEFAULTS | {"enabled": True, "daily": 60, "weekly": -1}
+    now = dt(19, 21, 45)
+    for totals, ready in [({}, True), ({"daily": True}, True), ({"daily": 0}, False)]:
+        state = effective_snapshot(opts, totals, now, "pc1", ready=ready)
+        assert state.selection.status == "unknown"
+        assert state.selection.remaining_seconds is None
+    assert effective_snapshot(opts | {"unlimited": True}, {}, now, "pc1", ready=False).selection.status == "unlimited"
+    assert effective_snapshot(opts | {"enabled": False}, {}, now, "pc1", ready=False).selection.status == "disabled"
+    assert effective_snapshot(opts | {"daily": -1}, {}, now, "pc1", ready=False).selection.status == "unlimited"
+
+
+def test_effective_snapshot_legacy_and_fractional_adjustments():
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    from custom_components.hal_gaming_control.smart_bonus_transaction import prepare_grant
+    opts = DEFAULTS | {"enabled": True, "daily": 60, "weekly": -1,
+                       "bonus_date": "2026-11-19", "bonus_minutes": 10}
+    now = dt(19, 21, 45)
+    totals = {"daily": 4200.25}
+    state = effective_snapshot(opts, totals, now, "pc1", ready=True)
+    assert state.base_balances == {"daily": -0.25}
+    opts = prepare_grant(opts, "pc1", now, 30, state.base_balances)
+    state = effective_snapshot(opts, totals, now, "pc1", ready=True)
+    assert state.selection.remaining_seconds == 1800
+    assert state.limits_seconds["daily"] == 6000.25
+    assert effective_snapshot(opts, {"daily": 0}, dt(20, 12), "pc1", ready=True).selection.remaining_seconds == 3600

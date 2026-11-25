@@ -70,8 +70,18 @@ def daily_bonus_minutes(options, now):
     return value if type(value) is int and value >= 0 else 0
 
 
-def effective_budget_limit(options, now, period):
+def effective_budget_limit(options, now, period, *, device_id=None):
     options = DEFAULTS | options
+    if device_id is not None:
+        from .parent_bonus import parent_smart_grants
+        from .smart_policy import quota_limits
+        if period not in ("daily", "weekly"):
+            raise ValueError("Unsupported budget period")
+        _, limits = quota_limits(options, now, parent_smart_grants(options, device_id, now))
+        if period not in limits:
+            return -1
+        minutes = limits[period] / 60
+        return int(minutes) if minutes.is_integer() else minutes
     if period == "weekly":
         return options["weekly"]
     if period != "daily":
@@ -122,14 +132,20 @@ def inside_weekly_schedule(now, options):
     return previous_start > previous_end and clock < previous_end
 
 
-def violations(options, totals, now, active_games):
+def violations(options, totals, now, active_games, *, device_id=None):
     options = DEFAULTS | options
     if not options["enabled"] or options["unlimited"]:
         return []
-    limits = [(period, effective_budget_limit(options, now, period)) for period in ("daily", "weekly")]
-    reasons = [key for key, limit in limits if limit >= 0 and totals[key] >= limit * 60]
-    if options["schedule_enabled"] and not inside_weekly_schedule(now, options):
-        reasons.append("schedule")
+    if device_id is not None:
+        from .smart_policy import effective_snapshot
+        snapshot = effective_snapshot(options, totals, now, device_id, ready=True)
+        reasons = [key for key, balance in snapshot.selection.balances.items()
+                   if balance is not None and balance <= 0]
+    else:
+        limits = [(period, effective_budget_limit(options, now, period)) for period in ("daily", "weekly")]
+        reasons = [key for key, limit in limits if limit >= 0 and totals[key] >= limit * 60]
+        if options["schedule_enabled"] and not inside_weekly_schedule(now, options):
+            reasons.append("schedule")
     for game in sorted(active_games):
         limit = options["per_game"].get(game, -1)
         if limit >= 0 and totals["per_game"].get(game, 0) >= limit * 60:
@@ -137,7 +153,7 @@ def violations(options, totals, now, active_games):
     return reasons
 
 
-def remaining_budget_percent(options, totals, now, period):
+def remaining_budget_percent(options, totals, now, period, *, device_id=None):
     """Percent of the independently configured daily/weekly quota remaining.
 
     Unknown when no finite quota applies or accounting is not ready. The
@@ -148,7 +164,7 @@ def remaining_budget_percent(options, totals, now, period):
     options = DEFAULTS | options
     if not options["enabled"] or options["unlimited"]:
         return None
-    limit = effective_budget_limit(options, now, period)
+    limit = effective_budget_limit(options, now, period, device_id=device_id)
     if limit < 0 or period not in totals:
         return None
     if limit == 0:
