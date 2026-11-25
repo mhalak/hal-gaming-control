@@ -87,6 +87,9 @@ class _PopupWindow:
         root.geometry("420x300")
         root.protocol("WM_DELETE_WINDOW", self._closed)
         root.withdraw()
+        # Keep warnings above normal windows without forcing keyboard focus.
+        # Exclusive fullscreen may still cover desktop windows.
+        root.attributes("-topmost", True)
 
         header = tk.Frame(root, bg="#25334C", padx=17, pady=12)
         header.pack(fill="x")
