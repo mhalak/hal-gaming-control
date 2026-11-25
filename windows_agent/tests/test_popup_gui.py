@@ -27,6 +27,9 @@ class Widget:
         self.pack_args = kwargs
         return self
 
+    def pack_forget(self):
+        self.pack_args = None
+
     def grid(self, **kwargs):
         self.grid_args = kwargs
         return self
@@ -288,6 +291,7 @@ def test_v2_hidden_fields_and_refresh_never_reopens_dismissed_popup():
         pipe.inbound.append(json.dumps(initial).encode())
         ui._poll()
         assert root.visible and ui.clock.props["text"] == ""
+        assert ui.clock.pack_args is None and ui.bar.pack_args is not None
         assert ui.percent.props["text"] == "50% remaining"
         pipe.inbound.append(json.dumps(refresh).encode())
         ui._poll()
@@ -303,3 +307,4 @@ def test_v2_hidden_fields_and_refresh_never_reopens_dismissed_popup():
         ui._poll()
         assert root.visible and ui.clock.props["text"] == "01:00"
         assert ui.percent.props["text"] == ""
+        assert ui.bar.pack_args is None and ui.percent.pack_args is None
