@@ -178,7 +178,7 @@ def test_budget_overview_recorder_attrs_bounded_and_cancel_receipt_is_latest():
 async def test_add_30_refuses_to_report_success_if_ha_rejects_save():
     """A failed write must never imply a new confirmed bonus."""
     from types import SimpleNamespace
-    from unittest.mock import Mock, patch
+    from unittest.mock import AsyncMock, Mock, patch
     from homeassistant.exceptions import HomeAssistantError
     from custom_components.hal_gaming_control.button import AddDailyBudget
     from custom_components.hal_gaming_control.const import DEFAULTS
@@ -207,7 +207,7 @@ async def test_concurrent_parent_buttons_on_one_pc_preserve_both_grants():
     """Both explicit +30 presses must be recorded, not silently coalesced."""
     import asyncio
     from types import SimpleNamespace
-    from unittest.mock import Mock, patch
+    from unittest.mock import AsyncMock, Mock, patch
     from custom_components.hal_gaming_control.button import AddDailyBudget
     from custom_components.hal_gaming_control.const import DEFAULTS
 
