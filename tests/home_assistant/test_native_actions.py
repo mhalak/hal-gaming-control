@@ -278,3 +278,81 @@ async def test_popup_response_ids_are_scoped_deduplicated_and_non_authoritative(
         assert "button_id" not in events[-1]
     unsub()
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_smart_threshold_trigger_crosses_once_and_rearms(hass):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from homeassistant.helpers.trigger import TriggerConfig
+    from custom_components.hal_gaming_control.trigger import RemainingBudgetTrigger
+
+    config = await RemainingBudgetTrigger.async_validate_config(hass, {
+        "options": {"minutes": 10, "device_id": ["device-a", "device-b"]}})
+    trigger = RemainingBudgetTrigger(hass, TriggerConfig(
+        key=DOMAIN + ".remaining_budget_reached", options=config["options"]))
+    registry = Mock()
+    registry.async_get.side_effect = lambda entity_id: {
+        "sensor.a": SimpleNamespace(platform=DOMAIN, unique_id="a_gaming_budget_remaining", device_id="device-a"),
+        "sensor.b": SimpleNamespace(platform=DOMAIN, unique_id="b_gaming_budget_remaining", device_id="device-b"),
+        "sensor.c": SimpleNamespace(platform=DOMAIN, unique_id="c_gaming_budget_remaining", device_id="device-c"),
+        "sensor.foreign": SimpleNamespace(platform="other", unique_id="a_gaming_budget_remaining", device_id="device-a"),
+    }.get(entity_id)
+    action = Mock()
+    def put(entity, seconds, status="limited"):
+        hass.states.async_set(entity, seconds / 60 if seconds is not None else "unknown",
+                              {"remaining_seconds": seconds, "budget_status": status})
+    with patch("custom_components.hal_gaming_control.trigger.er.async_get", return_value=registry):
+        detach = await trigger.async_attach_runner(action)
+        put("sensor.a", 599)  # startup inside range: no warning
+        put("sensor.a", 580)
+        put("sensor.a", 700)
+        put("sensor.a", 600)
+        put("sensor.a", 590)
+        put("sensor.b", 700)
+        put("sensor.b", 550)
+        put("sensor.c", 700)
+        put("sensor.c", 590)
+        put("sensor.foreign", 700)
+        put("sensor.foreign", 590)
+        put("sensor.a", None, "unknown")
+        put("sensor.a", 500)  # reconnect: no warning
+        put("sensor.a", 800)
+        put("sensor.a", 0)  # obsolete positive warning suppressed
+        put("sensor.a", 1000)
+        put("sensor.a", 400)
+        await hass.async_block_till_done()
+        assert [call.args[0]["device_id"] for call in action.call_args_list] == [
+            "device-a", "device-b", "device-a"]
+        assert [call.args[0]["remaining_seconds"] for call in action.call_args_list] == [600, 550, 400]
+        detach()
+        put("sensor.a", 700)
+        put("sensor.a", 600)
+        await hass.async_block_till_done()
+        assert action.call_count == 3
+
+
+async def test_smart_threshold_zero_any_device_and_validation(hass):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    import probatio
+    from homeassistant.helpers.trigger import TriggerConfig
+    from custom_components.hal_gaming_control.trigger import RemainingBudgetTrigger
+    for value in (-1, True, 1.5, 10081):
+        with pytest.raises(probatio.Invalid):
+            await RemainingBudgetTrigger.async_validate_config(hass, {"options": {"minutes": value}})
+    config = await RemainingBudgetTrigger.async_validate_config(hass, {"options": {"minutes": 0}})
+    trigger = RemainingBudgetTrigger(hass, TriggerConfig(key=DOMAIN + ".remaining_budget_reached",
+                                                         options=config["options"]))
+    registry = Mock()
+    registry.async_get.return_value = SimpleNamespace(
+        platform=DOMAIN, unique_id="pc_gaming_budget_remaining", device_id="pc")
+    action = Mock()
+    with patch("custom_components.hal_gaming_control.trigger.er.async_get", return_value=registry):
+        detach = await trigger.async_attach_runner(action)
+        hass.states.async_set("sensor.pc", 1, {"remaining_seconds": 60, "budget_status": "limited"})
+        hass.states.async_set("sensor.pc", 0, {"remaining_seconds": 0, "budget_status": "limited"})
+        hass.states.async_set("sensor.pc", 0, {"remaining_seconds": 0, "budget_status": "limited", "extra": True})
+        await hass.async_block_till_done()
+        assert action.call_count == 1
+        assert action.call_args.args[0]["device_id"] == "pc"
+        detach()
