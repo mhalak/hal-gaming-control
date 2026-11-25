@@ -334,3 +334,110 @@ def test_smart_schedule_extension_crosses_midnight_and_joins_next_window():
     assert grant.end == dt(21, 0, 30)
     assert schedule_snapshot(opts, dt(21, 0, 10), grant).deadline == dt(21, 2)
     assert schedule_snapshot(opts, dt(21, 2), grant).remaining_seconds == 0
+
+
+# Smart bonus adjustment records: JSON roundtrip and independent expiry.
+from datetime import timedelta
+
+
+def smart_record_at(day, hour=21, minute=45):
+    return datetime(2026, 11, day, hour, minute, tzinfo=TZ)
+
+
+def test_smart_record_roundtrip_and_expiry():
+    from custom_components.hal_gaming_control.smart_bonus_record import make_adjustments, active_adjustments
+    now = smart_record_at(19)
+    record = make_adjustments(now, {'daily': 1800, 'weekly': 600, 'schedule': 900},
+                              schedule_anchor=smart_record_at(19, 22, 0))
+    restored = json.loads(json.dumps(record))
+    assert restored == record
+    assert active_adjustments(restored, now).daily_seconds == 1800
+    assert active_adjustments(restored, now).weekly_seconds == 600
+    assert active_adjustments(restored, now).schedule_end == smart_record_at(19, 22, 15)
+    assert active_adjustments(restored, smart_record_at(19, 22, 15)).schedule_end is None
+    assert active_adjustments(restored, smart_record_at(20)).daily_seconds == 0
+    assert active_adjustments(restored, smart_record_at(22)).weekly_seconds == 600
+    assert active_adjustments(restored, smart_record_at(23)).weekly_seconds == 0
+    assert active_adjustments(restored, smart_record_at(19, 21, 44)).weekly_seconds == 0
+
+
+def test_smart_record_schedule_crosses_midnight():
+    from custom_components.hal_gaming_control.smart_bonus_record import make_adjustments, active_adjustments
+    now = smart_record_at(22, 23, 45)
+    record = make_adjustments(now, {'daily': 60, 'weekly': 60, 'schedule': 1800},
+                              schedule_anchor=now)
+    later = active_adjustments(record, smart_record_at(23, 0, 5))
+    assert later.daily_seconds == later.weekly_seconds == 0
+    assert later.schedule_start == now
+    assert later.schedule_end == smart_record_at(23, 0, 15)
+    assert active_adjustments(record, smart_record_at(23, 0, 15)).schedule_end is None
+
+
+def test_smart_record_preserves_fractional_seconds_and_utc():
+    from custom_components.hal_gaming_control.smart_bonus_record import make_adjustments, active_adjustments
+    now = smart_record_at(19)
+    record = make_adjustments(now, {'daily': 10.25, 'weekly': 0.5})
+    assert datetime.fromisoformat(record['granted_at_utc']).utcoffset() == timedelta(0)
+    active = active_adjustments(record, now)
+    assert (active.daily_seconds, active.weekly_seconds, active.schedule_end) == (10.25, 0.5, None)
+
+
+@pytest.mark.parametrize('bad', [-1, True, float('nan'), float('inf'), '30'])
+def test_smart_record_rejects_invalid_seconds(bad):
+    from custom_components.hal_gaming_control.smart_bonus_record import make_adjustments
+    with pytest.raises(ValueError):
+        make_adjustments(smart_record_at(19), {'daily': bad})
+
+
+def test_smart_record_rejects_corruption_and_bad_anchor():
+    from custom_components.hal_gaming_control.smart_bonus_record import make_adjustments, active_adjustments
+    now = smart_record_at(19)
+    for adjustments, anchor in [({'schedule': 10}, None), ({'schedule': 10}, smart_record_at(19, 20)),
+                                ({'weekly': 10}, now), ({'other': 10}, None)]:
+        with pytest.raises(ValueError):
+            make_adjustments(now, adjustments, schedule_anchor=anchor)
+    with pytest.raises(ValueError):
+        make_adjustments(now.replace(tzinfo=None), {'daily': 10})
+    record = make_adjustments(now, {'schedule': 10}, schedule_anchor=now)
+    for corrupt in [dict(record, version=2), dict(record, week='2026-11-19'),
+                    dict(record, daily_seconds=True), dict(record, schedule_end_utc=record['schedule_start_utc']),
+                    dict(record, schedule_start_utc=None), dict(record, granted_at_utc='invalid')]:
+        with pytest.raises(ValueError):
+            active_adjustments(corrupt, now)
+
+
+def test_smart_journal_single_record_and_legacy_isolation():
+    from custom_components.hal_gaming_control.parent_bonus import add_parent_grant, add_smart_parent_grant, parent_bonus_total, parent_smart_grants
+    options = {'daily': 120, 'weekly': 300}
+    legacy = add_parent_grant(options, 'pc1', smart_record_at(19), 15)
+    candidate = add_smart_parent_grant(legacy, 'pc1', smart_record_at(19), 30,
+                                      {'daily': 1800, 'weekly': 600, 'schedule': 900},
+                                      schedule_anchor=smart_record_at(19, 22, 0))
+    assert options == {'daily': 120, 'weekly': 300}
+    assert len(legacy['parent_bonus_journal']['events']) == 1
+    restored = json.loads(json.dumps(candidate))
+    events = restored['parent_bonus_journal']['events']
+    assert len(events) == 2 and events[-1]['minutes'] == 30
+    assert parent_bonus_total(restored, smart_record_at(19)) == restored['bonus_minutes'] == 15
+    active = parent_smart_grants(restored, 'pc1', smart_record_at(19))
+    assert list(active) == [events[-1]['id']]
+    assert active[events[-1]['id']].daily_seconds == 1800
+    assert active[events[-1]['id']].schedule_end == smart_record_at(19, 22, 15)
+    assert parent_smart_grants(restored, 'pc2', smart_record_at(19)) == {}
+    assert parent_smart_grants(restored, 'pc1', smart_record_at(20))[events[-1]['id']].weekly_seconds == 600
+    assert parent_smart_grants(restored, 'pc1', smart_record_at(23)) == {}
+
+
+def test_smart_journal_cancelled_and_invalid_records():
+    from custom_components.hal_gaming_control.parent_bonus import add_smart_parent_grant, revoke_parent_grant, parent_smart_grants, parent_grants_today
+    candidate = add_smart_parent_grant({}, 'pc1', smart_record_at(19), 30, {'weekly': 1800})
+    row = parent_grants_today(candidate, smart_record_at(19))[0]
+    row['smart_adjustments']['weekly_seconds'] = -1
+    grant_id = row['id']
+    assert parent_smart_grants(candidate, 'pc1', smart_record_at(19))[grant_id].weekly_seconds == 1800
+    revoked = revoke_parent_grant(candidate, 'pc1', grant_id, smart_record_at(19, 21, 46))
+    assert parent_smart_grants(revoked, 'pc1', smart_record_at(20)) == {}
+    bad = json.loads(json.dumps(candidate))
+    bad['parent_bonus_journal']['events'][0]['smart_adjustments']['day'] = '2026-11-20'
+    with pytest.raises(ValueError, match='Smart bonus'):
+        parent_smart_grants(bad, 'pc1', smart_record_at(19))

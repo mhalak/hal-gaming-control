@@ -4,8 +4,11 @@ Version 1 of the journal lives inside the HA config-entry options, retaining
 the existing bonus_date/bonus_minutes as a compatibility mirror. It never
 touches measured gaming time or Windows/MQTT.
 """
-from datetime import timedelta, timezone
+from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 import secrets
+
+from .smart_bonus_record import active_adjustments, make_adjustments
 
 JOURNAL_KEY = "parent_bonus_journal"
 JOURNAL_VERSION = 1
@@ -39,6 +42,19 @@ def _validate_event(event):
         raise ValueError("Invalid active Parent bonus cancellation state")
 
 
+    if "smart_adjustments" in event:
+        _validate_smart_event(event)
+
+
+def _validate_smart_event(event):
+    record = event["smart_adjustments"]
+    if (not isinstance(record, dict)
+            or record.get("day") != event["local_date"]
+            or record.get("granted_at_utc") != event["created_at_utc"]):
+        raise ValueError("Smart bonus adjustment does not match grant")
+    active_adjustments(record, datetime.fromisoformat(event["created_at_utc"]))
+
+
 def _journal(options):
     stored = options.get(JOURNAL_KEY)
     if stored is None:
@@ -64,7 +80,7 @@ def _journal(options):
             raise ValueError("Duplicate Parent bonus journal ID")
         seen.add(event["id"])
     return {"version": JOURNAL_VERSION, "legacy": legacy,
-            "events": [dict(event) for event in events]}
+            "events": deepcopy(events)}
 
 
 def _date(now):
@@ -81,13 +97,14 @@ def _timestamp(now):
 
 
 def parent_bonus_total(options, now):
-    """Bonus for one HA-local date; historical records remain untouched."""
+    """Legacy daily-only total; smart adjustments are projected separately."""
     date = _date(now)
     journal = _journal(options)
     legacy = journal["legacy"]
     total = legacy["minutes"] if legacy["date"] == date else 0
     total += sum(event["minutes"] for event in journal["events"]
-                 if event["local_date"] == date and event["status"] == "active")
+                 if event["local_date"] == date and event["status"] == "active"
+                 and "smart_adjustments" not in event)
     return total
 
 
@@ -163,3 +180,26 @@ def revoke_parent_grant(options, device_id, grant_id, now):
     event["status"] = "cancelled"
     event["cancelled_at_utc"] = _timestamp(now)
     return _write(options, journal, now)
+
+
+def add_smart_parent_grant(options, device_id, now, amount_minutes, extensions,
+                           *, schedule_anchor=None):
+    """Prepare one smart grant; no production caller until policy cutover."""
+    record = make_adjustments(now, extensions, schedule_anchor=schedule_anchor)
+    updated = add_parent_grant(options, device_id, now, amount_minutes)
+    journal = updated[JOURNAL_KEY]
+    journal["events"][-1]["smart_adjustments"] = record
+    return _write(updated, journal, now)
+
+
+def parent_smart_grants(options, device_id, now):
+    """Return still-effective adjustments by ID, including earlier days this week."""
+    active = {}
+    for event in _journal(options)["events"]:
+        if (event["device_id"] != device_id or event["status"] != "active"
+                or "smart_adjustments" not in event):
+            continue
+        adjustment = active_adjustments(event["smart_adjustments"], now)
+        if adjustment.daily_seconds or adjustment.weekly_seconds or adjustment.schedule_end:
+            active[event["id"]] = adjustment
+    return active
