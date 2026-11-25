@@ -11,7 +11,7 @@
     </td>
     <td valign="middle">
       <h3>By royal decree: bonus minutes for everyone!</h3>
-      <p>Our king loves handing out bonus minutes. The weekly budget, however, refuses to bow.</p>
+      <p>Our king loves handing out bonus minutes. Smart Parent Bonus adjusts only the limits that need to move.</p>
     </td>
   </tr>
 </table>
@@ -27,17 +27,26 @@ Even royal decrees have rules: bonus time goes to the child's PC you choose, not
 3. Set **Daily budget** (0–600 min, 10-minute steps) and **Weekly budget** (0–4200 min, 60-minute steps).
 4. Check the gaming-time readings with a short game session.
 
-**Daily and weekly budgets are separate.** A child may have minutes left today but still reach the weekly budget. The separate **Daily budget remaining** and **Weekly budget remaining** sensors report their unused percentages.
+**Daily and weekly budgets are separate.** The new **Gaming budget remaining** sensor combines the active daily quota, weekly quota and allowed-hour deadline: the smallest finite remaining allowance is the effective budget. Quotas decrease with verified gaming time; an allowed-hour deadline approaches even while idle. The separate **Daily budget remaining** and **Weekly budget remaining** percentage sensors still exist.
 
 ## Give extra time
 
-Press **Add 30 minutes** for the chosen PC to grant **30 more minutes today**.
+Press **Add 30 minutes** for the chosen PC, or call the existing Add bonus action with 1–600 minutes. With verified accounting and enabled finite rules, Smart Parent Bonus grants that much additional *effective* time, adjusting each active limit by only its necessary shortfall. Configured recurring quotas and hours are unchanged.
 
-For example: 180 daily minutes + 30 bonus minutes = **210 minutes today**. The weekly budget stays the same, and time already played is still recorded. The bonus resets at the next Home Assistant local midnight.
+| Remaining daily / weekly / allowed window (min) | Effective before → after +30 | Temporary adjustments (min) |
+| --- | --- | --- |
+| 120 / 300 / 360 | 120 → 150 | Daily +30 |
+| 0 / 20 / 15 | 0 → 30 | Daily +30, weekly +10, schedule +15 |
+| 180 / 60 / 360 | 60 → 90 | Weekly +30 |
+| 60 / 120 / 15 | 15 → 45 | Schedule +30 |
 
-HA 0.9.0 source candidate [Parent bonus history and Undo](budget-overview.md#parent-bonus-history-and-undo-ha-090-165) records each new +30-minute grant. A parent administrator can select one grant and use **Prepare Undo → Confirm Undo** on the dashboard. Old anonymous bonuses remain as one legacy aggregate, not fabricated historical clicks. This is a reviewed-source candidate, not evidence of an installed UI.
+A schedule bonus extends the absolute end of the current window. At 21:45, a +30-minute schedule-limited grant changes a 22:00 deadline to 22:30. The extended clock runs even when the child is not playing. At 22:30 the extension expires; it is not a bank of unused gaming minutes. A fresh grant after an expired window can reopen it from the grant time. As a conservative source-preview policy, a grant before the first allowed window of the local day is rejected rather than silently opening it early.
 
-Royal generosity does not override the calendar.
+Daily adjustments reset at local midnight, weekly adjustments at the next local Monday, and schedule extensions at their absolute deadline (including across midnight). A quota reset can therefore change the effective limiter during a temporary overnight window. Screen idle and Weekend bonuses remain daily-only. Unknown/offline accounting, disabled rules or no finite effective limit reject new smart grants; they do not invent remaining time. Unlimited gaming remains a separate override.
+
+Each grant is one transaction, not three separate bonuses. See [Budget Overview and Undo](budget-overview.md) for the receipt, original grant history and cancellation rules. Existing legacy daily grants are preserved.
+
+**Source preview (#241):** requires an installed build containing the smart-control changes. No release or deployment is implied.
 
 ## Allowed gaming hours
 

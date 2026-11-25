@@ -40,7 +40,7 @@ actions:
 
 `terminate_game` means **terminate the freshly verified foreground HA-tracked application**, not arbitrary software. Windows must supply a short-lived one-use terminate offer; repeated calls cannot reuse that offer. `lock_pc` requires fresh PC telemetry and an advertised lock capability. MQTT publish is not a confirmed Windows execution acknowledgement.
 
-More HA-only actions (work when PC is offline): `hal_gaming_control.add_bonus` with `minutes: 15` (1–600, daily Parent bonus journal; weekly allowance remains unchanged) and `hal_gaming_control.set_unlimited` with `enabled: true` or `false`.
+HA-only actions: `hal_gaming_control.add_bonus` with `minutes: 15` (1–600, Smart Parent Bonus; requires verified effective accounting) and `hal_gaming_control.set_unlimited` with `enabled: true` or `false` (also works offline).
 
 The generic `hal_gaming_control.popup` action will **upsert** or **hide** a predefined PC popup with an initial `remaining_seconds`, `progress_percent`, HA text and 0–3 response buttons. It requires a Windows agent advertising popup UI protocol v1. **Windows agent 0.4.1 does not implement the renderer**, so the current HA action deliberately fails rather than pretending a popup appeared. The full Windows implementation/response channel remains tracked in [#8](https://github.com/mhalak/hal-gaming-control/issues/8). Example configuration for a future compatible agent:
 
@@ -63,6 +63,30 @@ data:
 ```
 
 The response button ID is a future HA-side event, **never** direct permission to grant time or execute a Windows command. Closing the game can lose unsaved progress. These actions are restricted to HA admins; no automatic enforcement is enabled by installation.
+
+## Smart warning automation (#243 source preview)
+
+In the automation editor choose the **Gaming budget reached threshold** trigger, enter 10 minutes and select the gaming PCs (or leave the list empty for any PC). Choose the **Display gaming popup** action, set Countdown source and Progress source to Automatic, and optionally choose Automatic for Detail source. Use the triggering HA registry device ID via the action's YAML editor; a template-free dynamic target selector is not established.
+
+```yaml
+alias: Gaming time warning
+triggers:
+  - trigger: hal_gaming_control.remaining_budget_reached
+    options:
+      minutes: 10
+actions:
+  - action: hal_gaming_control.popup
+    data:
+      device_id: "{{ trigger.device_id }}"
+      operation: upsert
+      heading: Gaming time remaining
+      countdown_mode: automatic
+      progress_mode: automatic
+      description_mode: automatic
+mode: parallel
+```
+
+The trigger fires on a verified downward crossing, not on startup or recovery from unknown. A bonus that raises the remaining allowance above the threshold rearms it. Use a separate zero-minute trigger if wanted. The initial progress is remaining / (verified used + remaining) from the selected budget period. With popup protocol v1 Windows animates the initial values locally; this is not an authoritative live countdown if gaming pauses or a parent grants more time. Independently hidden fields and safe live resynchronization require the separate cross-component extension. No automatic warning, lock or terminate automation is installed. Test on the actual PC with a compatible agent before use.
 
 ## Use a manual control
 
