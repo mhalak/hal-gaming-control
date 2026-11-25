@@ -11,7 +11,8 @@ from homeassistant.util import dt as dt_util
 
 from .entity import GamingEntity
 from .budget_select import TOTAL_ROW_INDEX, budget_select_rows
-from .parent_bonus import parent_bonus_legacy_today, revoke_parent_grant
+from .parent_bonus import parent_bonus_legacy_today, parent_grants_today, revoke_parent_grant
+from .smart_bonus_transaction import cancel_grant
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -34,9 +35,13 @@ class ParentBonusGrantSelect(GamingEntity, SelectEntity):
         return True
 
     def _rows(self, now):
+        foreground = getattr(self.coordinator, "foreground", None)
+        segments = foreground.export_segments() if foreground is not None else None
+        if not isinstance(segments, (tuple, list)):
+            segments = None
         return budget_select_rows(
             self.coordinator.entry.options, self.coordinator.device_id,
-            self.coordinator.data, now)
+            self.coordinator.data, now, segments=segments)
 
     def _choices(self, now):
         return {label: grant_id for label, grant_id in self._rows(now)
@@ -102,8 +107,11 @@ class ParentBonusGrantSelect(GamingEntity, SelectEntity):
                 "Parent bonus was used or budget changed; open the list again")
         entry = self.coordinator.entry
         try:
-            updated = revoke_parent_grant(
-                entry.options, self.coordinator.device_id, grant_id, dt_util.now())
+            stamp = dt_util.now()
+            grant = next((row for row in parent_grants_today(entry.options, stamp)
+                          if row["id"] == grant_id), {})
+            revoke = cancel_grant if "smart_intent" in grant else revoke_parent_grant
+            updated = revoke(entry.options, self.coordinator.device_id, grant_id, stamp)
         except ValueError as err:
             raise HomeAssistantError(str(err)) from err
         result = self.hass.config_entries.async_update_entry(entry, options=updated)
