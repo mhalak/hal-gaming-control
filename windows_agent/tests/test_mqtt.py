@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 import paho.mqtt.client as mqtt
@@ -271,23 +272,54 @@ def test_no_rules_do_not_accept_terminate_and_retract_native_button():
     assert all("pc2" not in c.args[0] for c in b.client.publish.call_args_list)
 
 
+POLICY = {"ac_timeout_seconds": 600, "dc_timeout_seconds": 300,
+          "power_source": "ac"}
+
+
+@contextmanager
+def pinned_clock(mono):
+    with patch("gaming_control.mqtt_bridge.time.monotonic", return_value=mono), \
+         patch("gaming_control.mqtt_bridge.time.time", return_value=2000 + mono):
+        yield
+
+
+def observe_v3(b, candidate, sample_time, *, mono):
+    """Publish one real v3 observation under a pinned, deterministic clock.
+
+    A target receipt may only be primed from an observation that was actually
+    published, so the tests must not depend on the runner's absolute
+    time.monotonic() (a fresh CI runner can be seconds old)."""
+    focus = SimpleNamespace(foreground_state="foreground", candidate=candidate,
+                            last_observation_time=sample_time)
+    with pinned_clock(mono):
+        context = b.capture_foreground_context()
+        assert b.publish_unified_telemetry(focus, POLICY, 123)
+    return context
+
+
 def test_target_offer_is_based_on_private_v3_receipt_not_old_raw_topic():
-    import time
     b = Bridge({**CONFIG, "games": []})
     b.client = Mock()
     b.client.publish.return_value.rc = mqtt.MQTT_ERR_SUCCESS
     b.client.publish.return_value.is_published.return_value = True
     b.on_connect(b.client, None, None, SimpleNamespace(is_failure=False), None)
     assert b.publish({}, 100)
-    b.client.publish.reset_mock()
-    context = b.capture_foreground_context()
     candidate = ("RobloxPlayerBeta.exe", 321, 456.0, 2, None)
-    assert b.prime_target_receipt(candidate, context, sample_time=time.monotonic())
-    assert b.publish_target_offer(candidate, context, sample_time=time.monotonic())
-    topics = [c.args[0] for c in b.client.publish.call_args_list]
-    assert topics == [b.root + "/state/terminate_offer"]
-    assert b._raw_receipt["candidate"] == candidate
-    assert not b.publish_target_offer(candidate, context, sample_time=time.monotonic())
+    with pinned_clock(101):
+        # No published v3 observation: nothing may be primed or offered.
+        early = b.capture_foreground_context()
+        assert not b.prime_target_receipt(candidate, early, sample_time=100.25)
+        assert not b.publish_target_offer(candidate, early, sample_time=100.25)
+    context = observe_v3(b, candidate, 100.25, mono=101)
+    b.client.publish.reset_mock()
+    with pinned_clock(101):
+        assert b.prime_target_receipt(candidate, context, sample_time=100.25)
+        assert b.publish_target_offer(candidate, context, sample_time=100.25)
+        topics = [c.args[0] for c in b.client.publish.call_args_list]
+        assert topics == [b.root + "/state/terminate_offer"]
+        assert b._raw_receipt["candidate"] == candidate
+        assert not b.publish_target_offer(candidate, context, sample_time=100.25)
+        assert not b.prime_target_receipt(candidate, context, sample_time=100.25)
 
 
 def test_invalid_or_missing_target_receipt_does_not_create_offer():
@@ -339,22 +371,31 @@ def test_tombstone_publish_exception_fails_closed_and_retries():
 
 
 def test_target_receipt_requires_same_authenticated_current_context():
-    import time
     b = Bridge({**CONFIG, "games": []})
     b.client = Mock()
     b.client.publish.return_value.rc = mqtt.MQTT_ERR_SUCCESS
     b.client.publish.return_value.is_published.return_value = True
     b.on_connect(b.client, None, None, SimpleNamespace(is_failure=False), None)
     assert b.publish({}, 12)
-    first = b.capture_foreground_context()
-    second = b.capture_foreground_context()
     candidate = ("RobloxPlayerBeta.exe", 321, 456.0, 2, None)
-    assert not b.prime_target_receipt(candidate, first, sample_time=time.monotonic())
-    assert not b.prime_target_receipt(
-        candidate, second, sample_time=float("nan"))
-    assert b.prime_target_receipt(candidate, second, sample_time=time.monotonic())
-    b.on_disconnect(b.client, None, None, None, None)
-    assert not b.publish_target_offer(candidate, second, sample_time=time.monotonic())
+
+    # 1. A superseded context cannot prime, and the observation is single-use.
+    first = observe_v3(b, candidate, 100.25, mono=101)
+    with pinned_clock(101):
+        second = b.capture_foreground_context()
+        assert not b.prime_target_receipt(candidate, first, sample_time=100.25)
+        assert not b.prime_target_receipt(candidate, second, sample_time=100.25)
+    # 2. A non-finite sample time cannot prime.
+    context = observe_v3(b, candidate, 200.25, mono=201)
+    with pinned_clock(201):
+        assert not b.prime_target_receipt(
+            candidate, context, sample_time=float("nan"))
+    # 3. The same current, authenticated context and exact sample primes.
+    context = observe_v3(b, candidate, 300.25, mono=301)
+    with pinned_clock(301):
+        assert b.prime_target_receipt(candidate, context, sample_time=300.25)
+        b.on_disconnect(b.client, None, None, None, None)
+        assert not b.publish_target_offer(candidate, context, sample_time=300.25)
 
 
 def test_clean_cut_tombstones_never_publish_after_disconnect():
