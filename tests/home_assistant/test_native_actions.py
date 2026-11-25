@@ -502,3 +502,34 @@ async def test_v2_live_popup_mixed_fields_bonus_pause_and_unknown(hass, enable_c
         await c.popup.async_sync()
         assert publish.await_count == count
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_mqtt_callbacks_run_on_ha_event_loop_and_only_notify_terminate(
+        hass, enable_custom_integrations, mqtt_mock):
+    """#263: use MQTT dispatch, not a direct invocation of the handler."""
+    from homeassistant.core import is_callback
+
+    entry, _ = await setup_device(hass)
+    await make_fresh(hass)
+    coordinator = entry.runtime_data
+    target = coordinator.termination
+    for handler in (target._on_offer, coordinator.popup._on_discovery,
+                    coordinator.popup._on_popup_event):
+        assert is_callback(handler)
+    raw = coordinator.foreground.last_raw
+    offer = {key: raw[key] for key in (
+        "device_id", "epoch", "sequence", "observed_at", "process", "signature")}
+    offer.update(version=1, token="b" * 32)
+    eid = er.async_get(hass).async_get_entity_id(
+        "button", DOMAIN, "pc1_terminate_tracked_game")
+    with patch.object(coordinator, "async_update_listeners",
+                      wraps=coordinator.async_update_listeners) as refresh:
+        for _ in range(3):
+            send(hass, "pc1", "state/terminate_offer", offer)
+            await hass.async_block_till_done()
+            assert hass.states.get(eid).state != "unavailable"
+        send(hass, "pc1", "state/terminate_offer", {"invalid": True})
+        await hass.async_block_till_done()
+        assert hass.states.get(eid).state == "unavailable"
+        refresh.assert_not_called()
+    assert await hass.config_entries.async_unload(entry.entry_id)

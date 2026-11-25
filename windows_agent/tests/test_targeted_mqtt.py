@@ -114,3 +114,53 @@ def test_legacy_allowlist_never_enables_targeted_command():
     b = Bridge(CONFIG | {"games": [{"name": "Roblox", "process": "RobloxPlayerBeta.exe"}]})
     assert "terminate_game" in b.command_topics.values()
     assert "terminate_target" not in b.command_topics.values()
+
+
+def test_unified_offer_matches_actual_published_observation_and_is_one_use():
+    """#263: exact v3 epoch, sequence and quantized foreground timestamp."""
+    b = bridge()
+    focus = SimpleNamespace(foreground_state="foreground", candidate=FOCUS,
+                            last_observation_time=100.25)
+    policy = {"ac_timeout_seconds": 600, "dc_timeout_seconds": 300,
+              "power_source": "ac"}
+    with patch("gaming_control.mqtt_bridge.time.monotonic", return_value=101), \
+         patch("gaming_control.mqtt_bridge.time.time", return_value=2000):
+        context = b.capture_foreground_context()
+        assert b.publish_unified_telemetry(focus, policy, 123)
+        assert b.prime_target_receipt(FOCUS, context, sample_time=100.25)
+        assert b.publish_target_offer(FOCUS, context, sample_time=100.25)
+        assert not b.publish_target_offer(FOCUS, context, sample_time=100.25)
+        assert not b.prime_target_receipt(FOCUS, context, sample_time=100.25)
+    packets = {call.args[0]: json.loads(call.args[1])
+               for call in b.client.publish.call_args_list
+               if call.args[0] in (b.root + "/state/telemetry",
+                                   b.root + "/state/terminate_offer")}
+    snapshot = packets[b.root + "/state/telemetry"]
+    capability = packets[b.root + "/state/terminate_offer"]
+    assert capability["epoch"] == snapshot["epoch"]
+    assert capability["sequence"] == snapshot["sequence"]
+    assert capability["observed_at"] == (
+        snapshot["observed_at"] - snapshot["foreground"]["sample_age_ms"] / 1000)
+    with patch("gaming_control.mqtt_bridge.time.monotonic", return_value=102):
+        send(b, request(capability))
+        assert len(list(b.drain_commands())) == 1
+        send(b, request(capability))
+        assert not list(b.drain_commands())
+
+
+def test_no_target_offer_after_unknown_or_failed_unified_observation():
+    b = bridge()
+    policy = {"ac_timeout_seconds": 600, "dc_timeout_seconds": 300,
+              "power_source": "ac"}
+    with patch("gaming_control.mqtt_bridge.time.monotonic", return_value=101), \
+         patch("gaming_control.mqtt_bridge.time.time", return_value=2000):
+        context = b.capture_foreground_context()
+        stale = SimpleNamespace(foreground_state="foreground", candidate=FOCUS,
+                                last_observation_time=95)
+        assert b.publish_unified_telemetry(stale, policy, 123)
+        assert not b.prime_target_receipt(FOCUS, context, sample_time=100.25)
+        b.client.publish.return_value.rc = mqtt.MQTT_ERR_NO_CONN
+        fresh = SimpleNamespace(foreground_state="foreground", candidate=FOCUS,
+                                last_observation_time=100.25)
+        assert not b.publish_unified_telemetry(fresh, policy, 123)
+        assert not b.prime_target_receipt(FOCUS, context, sample_time=100.25)
