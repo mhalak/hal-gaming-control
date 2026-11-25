@@ -136,7 +136,7 @@ class GamingCoordinator(DataUpdateCoordinator):
         active = [alias] if ready and alias != "idle" else []
         # Confirmed intervals are a lower bound; gaps are never known idle.
         # The restriction signal is policy-only; never publish a command here.
-        reasons = violations(self.options, totals, now, active) if ready else None
+        reasons = violations(self.options, totals, now, active, device_id=self.device_id) if ready else None
         return {"ready": ready, "online": ready, "active_game": alias if ready else None,
                 # UI-only fresh Windows observation: may remain Roblox while
                 # screen OFF forces the independent accounting game to idle.

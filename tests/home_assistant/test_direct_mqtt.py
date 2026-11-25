@@ -81,12 +81,14 @@ async def test_scoped_entities_and_safe_controls(hass, enable_custom_integration
     assert all(ids.values())
     assert all(registry.async_get(eid) is None for eid in legacy)
     owned = er.async_entries_for_config_entry(registry, entry.entry_id)
-    assert {e.unique_id for e in owned if e.entity_id.split(".")[0] in ("sensor","binary_sensor")} == {"pc1_uptime","pc1_daily_budget_remaining","pc1_weekly_budget_remaining","pc1_agent_version","pc1_integration_version","pc1_active_game","pc1_gaming_time_daily","pc1_gaming_time_weekly", "pc1_gaming_time_display_daily", "pc1_gaming_time_display_weekly", "pc1_gaming_restriction"}
+    assert {e.unique_id for e in owned if e.entity_id.split(".")[0] in ("sensor","binary_sensor")} == {"pc1_uptime","pc1_daily_budget_remaining","pc1_weekly_budget_remaining","pc1_gaming_budget_remaining","pc1_agent_version","pc1_integration_version","pc1_active_game","pc1_gaming_time_daily","pc1_gaming_time_weekly", "pc1_gaming_time_display_daily", "pc1_gaming_time_display_weekly", "pc1_gaming_restriction"}
     for old_key, old_domain in (("current_game", "sensor"), ("in_game", "binary_sensor"),
                                 ("gaming_active", "binary_sensor")):
         assert registry.async_get_entity_id(old_domain, DOMAIN, "pc1_" + old_key) is None
     assert all(registry.async_get_entity_id(platform, "mqtt", "smarthouse_gaming_pc1_"+key) is None for key,platform in keys.items())
     assert len({registry.async_get(eid).device_id for eid in ids.values()}) == 1
+    effective_id = registry.async_get_entity_id("sensor", DOMAIN, "pc1_gaming_budget_remaining")
+    assert registry.async_get(effective_id).device_id == registry.async_get(ids["uptime"]).device_id
     assert entry.runtime_data.entity_id("sensor","uptime") == ids["uptime"]
     assert entry.runtime_data.options["enabled"] is False
     assert registry.async_get_entity_id("switch",DOMAIN,"pc1_unlimited") is not None
@@ -134,6 +136,7 @@ async def test_native_mode_no_duplicate_raw_entities(hass, enable_custom_integra
     assert registry.async_get_entity_id("button",DOMAIN,"pc1_lock_pc") is None
     assert registry.async_get_entity_id("sensor",DOMAIN,"pc1_daily_budget_remaining") is not None
     assert registry.async_get_entity_id("sensor",DOMAIN,"pc1_weekly_budget_remaining") is not None
+    assert registry.async_get_entity_id("sensor",DOMAIN,"pc1_gaming_budget_remaining") is not None
     assert registry.async_get_entity_id("switch",DOMAIN,"pc1_unlimited") is not None
     assert registry.async_get_entity_id("switch",DOMAIN,"pc1_gaming_rules_enabled") is not None
     assert await hass.config_entries.async_unload(entry.entry_id)

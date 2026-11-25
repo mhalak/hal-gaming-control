@@ -8,13 +8,14 @@ from .direct_mqtt import DirectUptime
 from .agent_version import AgentVersionSensor, IntegrationVersionSensor
 from .entity import GamingEntity
 from .rule_engine import remaining_budget_percent, effective_budget_limit, budget_overview
+from .smart_policy import effective_snapshot, effective_summary
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
     c = entry.runtime_data
     entities = [BudgetSensor(c, "daily", "Daily budget remaining"),
                 BudgetSensor(c, "weekly", "Weekly budget remaining"),
-                ActiveGameSensor(c),
+                EffectiveBudgetSensor(c), ActiveGameSensor(c),
                 GamingTimeDisplaySensor(c, "daily", "Daily gaming time"),
                 GamingTimeDisplaySensor(c, "weekly", "Weekly gaming time"),
                 GamingTimeSensor(c, "daily", "Daily gaming time (minutes)"),
@@ -39,7 +40,7 @@ class BudgetSensor(GamingEntity, SensorEntity):
         if not data.get("ready"):
             return None
         return remaining_budget_percent(self.coordinator.options, data.get("totals", {}),
-                                        dt_util.now(), self.period)
+                                        dt_util.now(), self.period, device_id=self.coordinator.device_id)
 
 
     @property
@@ -48,7 +49,7 @@ class BudgetSensor(GamingEntity, SensorEntity):
         totals = data.get("totals", {})
         now = dt_util.now()
         options = self.coordinator.options
-        limit = effective_budget_limit(options, now, self.period)
+        limit = effective_budget_limit(options, now, self.period, device_id=self.coordinator.device_id)
         used = totals.get(self.period) if data.get("ready") else None
         attributes = {
             "budget_minutes": limit if limit >= 0 else None,
@@ -61,6 +62,32 @@ class BudgetSensor(GamingEntity, SensorEntity):
                 options, totals, now, ready=bool(data.get("ready")),
                 coverage_incomplete=data.get("coverage_incomplete", True)))
         return attributes
+
+
+class EffectiveBudgetSensor(GamingEntity, SensorEntity):
+    """Effective time across daily, weekly and schedule, in minutes."""
+
+    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_icon = "mdi:timer-sand"
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator, "gaming_budget_remaining", "Gaming budget remaining")
+
+    def _summary(self):
+        data = self.coordinator.data or {}
+        totals = data.get("totals", {})
+        snapshot = effective_snapshot(self.coordinator.options, totals, dt_util.now(),
+                                      self.coordinator.device_id, ready=data.get("ready") is True)
+        return effective_summary(snapshot, totals)
+
+    @property
+    def native_value(self):
+        return self._summary()["remaining_minutes"]
+
+    @property
+    def extra_state_attributes(self):
+        return self._summary()
 
 
 class ActiveGameSensor(GamingEntity, SensorEntity):

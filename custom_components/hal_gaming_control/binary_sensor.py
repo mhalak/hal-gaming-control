@@ -71,7 +71,7 @@ class GamingRestriction(GamingEntity, BinarySensorEntity):
             return None
         data = self.coordinator.data
         return violations(self.coordinator.options, data["totals"],
-                          dt_util.now(), data["active"])
+                          dt_util.now(), data["active"], device_id=self.coordinator.device_id)
 
     @property
     def is_on(self):

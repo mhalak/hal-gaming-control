@@ -55,3 +55,25 @@ def effective_snapshot(options, totals, now, device_id, *, ready):
     selection = select_budget(balances, enabled=settings["enabled"],
                               unlimited=settings["unlimited"])
     return EffectiveSnapshot(selection, base_balances, effective, schedule)
+
+
+def effective_summary(snapshot, totals):
+    """Display and popup fields derived from the same unrounded snapshot."""
+    selection = snapshot.selection
+    remaining = selection.remaining_seconds
+    source = selection.limiting_sources[0] if selection.limiting_sources else None
+    used = totals.get("weekly" if source == "weekly" else "daily") if source else None
+    used = used if _verified(used) else None
+    total = used + remaining if used is not None and remaining is not None else None
+    percent = (100 * remaining / total if total else 0) if total is not None else None
+    return {
+        "budget_status": selection.status,
+        "limiting_budget": source,
+        "limiting_sources": list(selection.limiting_sources),
+        "remaining_seconds": remaining,
+        "remaining_minutes": remaining / 60 if remaining is not None else None,
+        "effective_budget_minutes": total / 60 if total is not None else None,
+        "used_minutes": used / 60 if used is not None else None,
+        "remaining_percent": percent,
+        "schedule_end": snapshot.schedule.deadline.isoformat() if snapshot.schedule.deadline else None,
+    }
