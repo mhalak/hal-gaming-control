@@ -67,10 +67,28 @@ popup:
       example: Gaming time remaining
       selector:
         text:
+    description_mode:
+      default: manual
+      selector:
+        select:
+          options:
+            - value: manual
+              label: Manual
+            - value: automatic
+              label: Automatic (effective budget)
     description:
       example: Weekly budget
       selector:
         text:
+    countdown_mode:
+      default: manual
+      selector:
+        select:
+          options:
+            - value: manual
+              label: Manual
+            - value: automatic
+              label: Automatic (effective budget)
     remaining_seconds:
       example: 598
       selector:
@@ -80,6 +98,15 @@ popup:
           step: 1
           mode: box
           unit_of_measurement: s
+    progress_mode:
+      default: manual
+      selector:
+        select:
+          options:
+            - value: manual
+              label: Manual
+            - value: automatic
+              label: Automatic (effective budget)
     progress_percent:
       example: 24
       selector:
