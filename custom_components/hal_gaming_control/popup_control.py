@@ -111,7 +111,9 @@ class PopupControl:
                 and raw["unified_telemetry_protocol"] == 3
                 and type(raw.get("popup_ui_protocol")) is int
                 and raw["popup_ui_protocol"] == 1)
-            self._v2 = self._supported and raw.get("popup_ui_protocols") == [1, 2]
+            versions = raw.get("popup_ui_protocols")
+            self._v2 = (self._supported and type(versions) is list and versions == [1, 2]
+                        and all(type(version) is int for version in versions))
         except (ValueError, TypeError, KeyError, RecursionError):
             pass
         if not self.supports_v2:
