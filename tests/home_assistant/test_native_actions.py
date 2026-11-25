@@ -459,3 +459,46 @@ async def test_hidden_popup_mode_requires_v2_and_ignores_stale_values(hass, enab
         assert packet["view"]["remaining_seconds"] is None
         assert packet["view"]["progress_percent"] is None
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_v2_live_popup_mixed_fields_bonus_pause_and_unknown(hass, enable_custom_integrations, mqtt_mock):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    entry, device_id = await setup_device(hass, options={
+        "enabled": True, "daily": 60, "weekly": 300, "schedule_enabled": False})
+    await make_fresh(hass, ui=True)
+    send(hass, "pc1", "discovery", discovery("pc1", ui=True) | {"popup_ui_protocols": [1, 2]})
+    await hass.async_block_till_done()
+    c = entry.runtime_data
+    stamp = datetime(2026, 11, 25, 21, 50, tzinfo=ZoneInfo("Europe/Zagreb"))
+    with patch.object(c, "async_refresh", new_callable=AsyncMock), \
+         patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish, \
+         patch("custom_components.hal_gaming_control.popup_view.dt_util.now", return_value=stamp):
+        c.data = {"ready": True, "active_game": "idle",
+                  "totals": {"daily": 1800, "weekly": 1800}}
+        await call(hass, "popup", device_id, heading="Warning",
+                   countdown_mode="automatic", progress_percent=42)
+        initial = json.loads(publish.call_args.args[2])
+        assert initial["view"]["countdown_running"] is False
+        assert initial["view"]["progress_seconds"] is None
+        c.data["active_game"] = "Roblox"
+        await c.popup.async_sync()
+        patch_view = json.loads(publish.call_args.args[2])["view"]
+        assert patch_view == {"remaining_seconds": 1800, "countdown_running": True}
+        # A live setting update changes the limiting source. A schedule ticks
+        # while idle, unlike a quota; manual progress is never reanchored.
+        c.data["active_game"] = "idle"
+        hass.config_entries.async_update_entry(entry, options=entry.options | {
+            "schedule_enabled": True, "schedule_start": "16:00", "schedule_end": "22:00"})
+        await c.popup.async_sync()
+        assert json.loads(publish.call_args.args[2])["view"] == {
+            "remaining_seconds": 600, "countdown_running": True}
+        c.data = {"ready": False, "totals": {}}
+        await c.popup.async_sync()
+        assert json.loads(publish.call_args.args[2])["operation"] == "hide"
+        count = publish.await_count
+        c.data = {"ready": True, "active_game": "Roblox",
+                  "totals": {"daily": 1800, "weekly": 1800}}
+        await c.popup.async_sync()
+        assert publish.await_count == count
+    assert await hass.config_entries.async_unload(entry.entry_id)
