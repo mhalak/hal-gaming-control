@@ -88,6 +88,8 @@ mode: parallel
 
 The trigger fires on a verified downward crossing, not on startup or recovery from unknown. A bonus that raises the remaining allowance above the threshold rearms it. Use a separate zero-minute trigger if wanted. The initial progress is remaining / (verified used + remaining) from the selected budget period. With popup protocol v2, each countdown/progress mode can be Hidden, Manual or Automatic. HA refreshes the automatic values every five seconds while a shown warning remains active. Quota timers pause when verified gaming is idle; schedule timers continue in wall-clock time. Bonus and limiting-source changes are reflected in the next refresh. Manual progress animates with a manual timer; otherwise it stays fixed. A refresh cannot open a new or dismissed window. Unknown/disabled/unlimited policy ends the live session; disconnected or locked Windows hides it. Protocol v1 remains compatible for existing one-shot forms, whose local animation is not authoritative when play pauses. Hidden fields require v2. No automatic warning, lock or terminate automation is installed. Test on the actual PC with a compatible agent before use.
 
+Windows agent 0.5.1 requests **Always on Top** by default, without a HA setting. Live refresh does not raise, reopen or explicitly focus the popup. Ordinary desktop and borderless windows should respect topmost stacking; exclusive fullscreen and first-show activation depend on Windows and the game. Verify on the actual PC.
+
 ## Use a manual control
 
 1. Open the **correct child's PC** in Home Assistant.
