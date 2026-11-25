@@ -38,6 +38,11 @@ class TerminateTrackedGame(GamingEntity, ButtonEntity):
     def __init__(self, coordinator):
         super().__init__(coordinator, "terminate_tracked_game", "Terminate active game")
 
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            self.coordinator.termination.async_add_listener(self.async_write_ha_state))
+
     @property
     def available(self):
         return super().available and self.coordinator.termination.available
