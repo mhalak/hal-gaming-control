@@ -70,9 +70,17 @@ class Root(Widget):
         self.visible = False
         self.closed = False
         self.after_calls = []
+        self.window_attributes = {}
+        self.attribute_calls = []
+        self.focus_force = Mock()
+        self.lift = Mock()
 
     def title(self, title):
         self.title_text = title
+
+    def attributes(self, name, value):
+        self.window_attributes[name] = value
+        self.attribute_calls.append((name, value))
 
     def resizable(self, *args):
         pass
@@ -308,3 +316,29 @@ def test_v2_hidden_fields_and_refresh_never_reopens_dismissed_popup():
         assert root.visible and ui.clock.props["text"] == "01:00"
         assert ui.percent.props["text"] == ""
         assert ui.bar.pack_args is None and ui.percent.pack_args is None
+
+
+def test_popup_is_topmost_by_default_without_forcing_focus_on_refresh():
+    from test_popup_protocol import v2_fixture
+
+    ui, root, _ = fake_gui()
+    assert root.window_attributes["-topmost"] is True
+    assert not root.visible
+    initial, refresh = v2_fixture("upsert"), v2_fixture("refresh")
+    ui._upsert(initial)
+    assert root.visible
+    calls = list(root.attribute_calls)
+    root.deiconify = Mock()
+    ui._refresh(refresh)
+    root.deiconify.assert_not_called()
+    assert root.attribute_calls == calls
+    assert root.window_attributes["-topmost"] is True
+    root.focus_force.assert_not_called()
+    root.lift.assert_not_called()
+
+    ui._closed()
+    ui._refresh(refresh)
+    assert not root.visible
+    root.deiconify.assert_not_called()
+    root.focus_force.assert_not_called()
+    root.lift.assert_not_called()
