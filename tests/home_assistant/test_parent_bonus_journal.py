@@ -243,3 +243,54 @@ def test_revoking_consumed_grant_rechecks_daily_policy_without_erasing_time():
     assert violations(updated, totals, now(), []) == ["daily"]
     assert totals == {"daily": 75 * 60, "weekly": 75 * 60, "per_game": {}}
     assert effective_budget_limit(updated, now(), "weekly") == 300
+
+
+from datetime import timezone
+
+
+def test_smart_intent_roundtrip_and_snapshot_isolation():
+    from custom_components.hal_gaming_control.smart_bonus_intent import capture_intent, read_intent
+    at = datetime(2026, 10, 25, 2, 30, tzinfo=TZ, fold=1)
+    balances = {'daily': -0.25, 'weekly': 1200}
+    options = {'enabled': True, 'unlimited': False, 'schedule_enabled': True,
+               'schedule_start': '20:00', 'schedule_end': '03:00', 'unrelated': 'secret'}
+    record = capture_intent(at, balances, options)
+    balances['daily'] = 99
+    options['schedule_end'] = '23:00'
+    restored = read_intent(json.loads(json.dumps(record)))
+    assert restored.at.timestamp() == at.timestamp() and restored.at.fold == 1
+    assert restored.at.date() == at.date()
+    assert restored.base_balances == {'daily': -0.25, 'weekly': 1200}
+    assert restored.schedule_options['schedule_end'] == '03:00'
+    assert restored.schedule_options['weekend_schedule_end'] == '03:00'
+    assert 'unrelated' not in record['schedule_options']
+    restored.base_balances['daily'] = 0
+    assert read_intent(record).base_balances['daily'] == -0.25
+
+
+def test_smart_intent_no_schedule_and_utc():
+    from custom_components.hal_gaming_control.smart_bonus_intent import capture_intent, read_intent
+    at = datetime(2026, 11, 20, 21, tzinfo=timezone.utc)
+    restored = read_intent(capture_intent(at, {'weekly': 0}))
+    assert restored.at == at and restored.schedule_options is None
+    assert restored.base_balances == {'weekly': 0}
+
+
+@pytest.mark.parametrize('balance', [True, None, '1', float('inf'), float('nan')])
+def test_smart_intent_invalid_balance(balance):
+    from custom_components.hal_gaming_control.smart_bonus_intent import capture_intent
+    with pytest.raises(ValueError):
+        capture_intent(datetime(2026, 11, 20, tzinfo=TZ), {'daily': balance})
+
+
+def test_smart_intent_rejects_corruption():
+    from custom_components.hal_gaming_control.smart_bonus_intent import capture_intent, read_intent
+    at = datetime(2026, 11, 20, tzinfo=TZ)
+    record = capture_intent(at, {'daily': 0})
+    for bad in [dict(record, version=True), dict(record, zone='Not/AZone'),
+                dict(record, at_utc='2026-11-20T00:00:00'),
+                dict(record, base_balances={'schedule': 0}), dict(record, schedule_options={})]:
+        with pytest.raises(ValueError):
+            read_intent(bad)
+    with pytest.raises(ValueError):
+        capture_intent(at.replace(tzinfo=None), {})
