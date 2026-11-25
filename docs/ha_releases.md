@@ -1,3 +1,9 @@
+## 0.15.1 — MQTT thread safety and verified termination (#263)
+
+- Ensure MQTT offer, popup and discovery callbacks run on the HA event loop. Termination offer changes refresh only the relevant button, not every coordinator listener.
+- Windows 0.5.2 binds each one-use offer to the exact successful Unified v3 observation (epoch, sequence and foreground timestamp); no protocol schema or monitoring cadence changes.
+- **Preview 44 / HA 0.15.1 / Windows 0.5.2**: source candidate; CI, package publication and live smoke tests remain independent gates.
+
 ## 0.15.0 — Smart budgets, native warnings and live popup v2 (#241–#243, #258)
 
 - One shared exact-second effective budget chooses the limiting daily quota, weekly quota or absolute schedule window. Existing Add 30 minutes and native add_bonus use one persisted Smart Parent Bonus with minimum required adjustments; daily resets at midnight, weekly on Monday, schedule at its temporary absolute deadline. No changes to configured recurring limits.
