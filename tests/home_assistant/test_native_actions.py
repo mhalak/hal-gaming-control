@@ -356,3 +356,41 @@ async def test_smart_threshold_zero_any_device_and_validation(hass):
         assert action.call_count == 1
         assert action.call_args.args[0]["device_id"] == "pc"
         detach()
+
+
+async def test_popup_automatic_fields_use_effective_budget_independently(
+        hass, enable_custom_integrations, mqtt_mock):
+    entry, device_id = await setup_device(hass, options={
+        "enabled": True, "daily": 60, "weekly": 300, "schedule_enabled": False})
+    await make_fresh(hass, ui=True)
+    c = entry.runtime_data
+    with patch.object(c, "async_refresh", new_callable=AsyncMock), \
+         patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish:
+        c.data = {"ready": True, "totals": {"daily": 3000, "weekly": 3000}}
+        await call(hass, "popup", device_id, heading="Warning",
+                   countdown_mode="automatic", progress_mode="automatic",
+                   description_mode="automatic")
+        view = json.loads(publish.call_args.args[2])["view"]
+        assert view["remaining_seconds"] == 600
+        assert view["progress_percent"] == pytest.approx(100 / 6)
+        assert view["description"] == "Daily budget"
+        await call(hass, "popup", device_id, heading="Warning",
+                   countdown_mode="automatic", progress_percent=42)
+        view = json.loads(publish.call_args.args[2])["view"]
+        assert view["remaining_seconds"] == 600
+        assert view["progress_percent"] == 42
+        await call(hass, "popup", device_id, heading="Warning",
+                   remaining_seconds=50, progress_mode="automatic")
+        view = json.loads(publish.call_args.args[2])["view"]
+        assert view["remaining_seconds"] == 50
+        assert view["progress_percent"] == pytest.approx(100 / 6)
+        c.data = {"ready": False, "totals": {}}
+        count = publish.await_count
+        with pytest.raises(HomeAssistantError, match="finite effective budget"):
+            await call(hass, "popup", device_id, heading="Warning",
+                       countdown_mode="automatic", progress_mode="automatic")
+        assert publish.await_count == count
+        await call(hass, "popup", device_id, operation="hide",
+                   countdown_mode="stale", progress_mode="stale")
+        assert json.loads(publish.call_args.args[2])["operation"] == "hide"
+    assert await hass.config_entries.async_unload(entry.entry_id)
