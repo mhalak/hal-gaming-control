@@ -399,3 +399,63 @@ async def test_popup_automatic_fields_use_effective_budget_independently(
                    countdown_mode="stale", progress_mode="stale")
         assert json.loads(publish.call_args.args[2])["operation"] == "hide"
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_v2_popup_shared_wire_refresh_and_dismissal(hass, enable_custom_integrations, mqtt_mock):
+    from types import SimpleNamespace
+    from time import time
+    entry, device_id = await setup_device(hass, options={
+        "enabled": True, "daily": 60, "weekly": 300, "schedule_enabled": False})
+    await make_fresh(hass, ui=True)
+    send(hass, "pc1", "discovery", discovery("pc1", ui=True) | {"popup_ui_protocols": [1, 2]})
+    await hass.async_block_till_done()
+    c = entry.runtime_data
+    fixtures = Path(__file__).resolve().parents[1] / "contracts" / "v2"
+    def assert_wire(packet, name):
+        expected = json.loads((fixtures / ("popup-" + name + ".json")).read_text())
+        assert abs(packet["issued_at"] - time()) < 10
+        assert len(packet["producer_epoch"]) == len(packet["popup_id"]) == 32
+        assert packet | {"issued_at": expected["issued_at"],
+                         "producer_epoch": expected["producer_epoch"],
+                         "popup_id": expected["popup_id"]} == expected
+    with patch.object(c, "async_refresh", new_callable=AsyncMock), \
+         patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish:
+        c.data = {"ready": True, "active_game": "Roblox",
+                  "totals": {"daily": 1800, "weekly": 1800}}
+        await call(hass, "popup", device_id, heading="Gaming time remaining",
+                   countdown_mode="hidden", progress_mode="automatic",
+                   description_mode="automatic")
+        initial = json.loads(publish.call_args.args[2])
+        assert_wire(initial, "upsert")
+        c.data = {"ready": True, "active_game": "idle",
+                  "totals": {"daily": 2160, "weekly": 2160}}
+        await c.popup.async_sync()
+        refresh = json.loads(publish.call_args.args[2])
+        assert_wire(refresh, "refresh")
+        assert refresh["popup_id"] == initial["popup_id"]
+        c.popup._on_popup_event(SimpleNamespace(topic="SmartHouse/Gaming/pc1/ui/popup_event",
+            retain=False, payload=json.dumps({"version": 1, "device_id": "pc1",
+            "popup_id": initial["popup_id"], "event_id": "c"*32, "kind": "closed"})))
+        before = publish.await_count
+        await c.popup.async_sync()
+        assert publish.await_count == before
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_hidden_popup_mode_requires_v2_and_ignores_stale_values(hass, enable_custom_integrations, mqtt_mock):
+    entry, device_id = await setup_device(hass)
+    await make_fresh(hass, ui=True)
+    with patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish:
+        with pytest.raises(HomeAssistantError, match="v2"):
+            await call(hass, "popup", device_id, heading="Notice",
+                       countdown_mode="hidden", progress_mode="hidden")
+        publish.assert_not_called()
+        send(hass, "pc1", "discovery", discovery("pc1", ui=True) | {"popup_ui_protocols": [1, 2]})
+        await hass.async_block_till_done()
+        await call(hass, "popup", device_id, heading="Notice", countdown_mode="hidden",
+                   progress_mode="hidden", remaining_seconds=-5, progress_percent=101)
+        packet = json.loads(publish.call_args.args[2])
+        assert packet["version"] == 2
+        assert packet["view"]["remaining_seconds"] is None
+        assert packet["view"]["progress_percent"] is None
+    assert await hass.config_entries.async_unload(entry.entry_id)
