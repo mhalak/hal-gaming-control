@@ -100,7 +100,7 @@ def test_bonus_event_time_is_utc_even_during_dst_overlap():
 @pytest.mark.asyncio
 async def test_add_30_button_produces_visible_distinct_entries_without_windows_commands():
     from types import SimpleNamespace
-    from unittest.mock import Mock, patch
+    from unittest.mock import AsyncMock, Mock, patch
     from custom_components.hal_gaming_control.button import AddDailyBudget
     from custom_components.hal_gaming_control.const import DEFAULTS
     from custom_components.hal_gaming_control.rule_engine import budget_overview
@@ -112,6 +112,8 @@ async def test_add_30_button_produces_visible_distinct_entries_without_windows_c
     c.entry = entry
     c.last_update_success = True
     c.options = DEFAULTS | entry.options
+    c.data = {"ready": True, "totals": {"daily": 0, "weekly": 0}}
+    c.async_refresh = AsyncMock()
 
     def save(_entry, *, options):
         entry.options = options
@@ -120,13 +122,13 @@ async def test_add_30_button_produces_visible_distinct_entries_without_windows_c
     add = AddDailyBudget(c)
     add.hass = SimpleNamespace(
         config_entries=SimpleNamespace(async_update_entry=save))
-    with patch("custom_components.hal_gaming_control.button.dt_util.now",
+    with patch("custom_components.hal_gaming_control.smart_parent_control.dt_util.now",
                return_value=now()):
         await add.async_press()
         await add.async_press()
     assert len(parent_grants_today(entry.options, now())) == 2
     receipt = budget_overview(c.options, {"daily": 0, "weekly": 0},
-                              now(), ready=True)
+                              now(), ready=True, device_id="pc1")
     assert receipt["parent_bonus_minutes"] == 60
     assert len(receipt["parent_bonus_grants_today"]) == 2
     assert receipt["parent_bonus_recent_action"]["action"] == "added"
@@ -185,12 +187,14 @@ async def test_add_30_refuses_to_report_success_if_ha_rejects_save():
     entry = SimpleNamespace(data={"device_id": "pc1", "name": "One PC"},
                             options=old.copy())
     coordinator = Mock(device_id="pc1", entry=entry, options=DEFAULTS | old)
+    coordinator.data = {"ready": True, "totals": {"daily": 0, "weekly": 0}}
+    coordinator.async_refresh = AsyncMock()
     button = AddDailyBudget(coordinator)
     def decline(*args, **kwargs):
         return False
     button.hass = SimpleNamespace(
         config_entries=SimpleNamespace(async_update_entry=decline))
-    with patch("custom_components.hal_gaming_control.button.dt_util.now",
+    with patch("custom_components.hal_gaming_control.smart_parent_control.dt_util.now",
                return_value=now()), pytest.raises(
                    HomeAssistantError, match="not saved"):
         await button.async_press()
@@ -212,6 +216,8 @@ async def test_concurrent_parent_buttons_on_one_pc_preserve_both_grants():
                             options=opts)
     coordinator = Mock(device_id="pc1", entry=entry)
     coordinator.options = DEFAULTS | opts
+    coordinator.data = {"ready": True, "totals": {"daily": 0, "weekly": 0}}
+    coordinator.async_refresh = AsyncMock()
     def save(_entry, *, options):
         entry.options = options
         coordinator.options = DEFAULTS | options
@@ -220,14 +226,15 @@ async def test_concurrent_parent_buttons_on_one_pc_preserve_both_grants():
     parent_a = AddDailyBudget(coordinator)
     parent_b = AddDailyBudget(coordinator)
     parent_a.hass = parent_b.hass = hass
-    with patch("custom_components.hal_gaming_control.button.dt_util.now",
+    with patch("custom_components.hal_gaming_control.smart_parent_control.dt_util.now",
                return_value=now()):
         await asyncio.gather(parent_a.async_press(), parent_b.async_press())
     grants = parent_grants_today(entry.options, now())
     assert len(grants) == 2
     assert len({grant["id"] for grant in grants}) == 2
-    assert parent_bonus_total(entry.options, now()) == 60
-    assert effective_budget_limit(entry.options, now(), "weekly") == 300
+    from custom_components.hal_gaming_control.parent_bonus import parent_smart_grants
+    assert sum(x.daily_seconds for x in parent_smart_grants(entry.options, "pc1", now()).values()) == 3600
+    assert effective_budget_limit(entry.options, now(), "weekly", device_id="pc1") == 300
 
 
 def test_revoking_consumed_grant_rechecks_daily_policy_without_erasing_time():
@@ -420,3 +427,38 @@ def test_smart_transaction_preserves_old_schedule_interval_needed_by_current_rep
     old = add_smart_parent_grant({}, "pc1", at, 30, {"schedule": 220 * 86400}, schedule_anchor=at)
     with pytest.raises(ValueError, match="intent"):
         prepare_grant(old, "pc1", transaction_at(19), 30, {"weekly": 0})
+
+
+def test_live_smart_bonus_policy_before_after_schedule_and_unknown():
+    from custom_components.hal_gaming_control.smart_parent_control import prepare_live_grant
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    opts = {"enabled": True, "daily": 180, "weekly": 300, "schedule_enabled": True,
+            "schedule_start": "16:00", "schedule_end": "22:00"}
+    totals = {"daily": 3600, "weekly": 3600}
+    for stamp in (transaction_at(19, 15, 0),):
+        with pytest.raises(ValueError, match="before"):
+            prepare_live_grant(opts, "pc1", stamp, 30, totals, ready=True)
+    stamp = transaction_at(19, 22, 20)
+    updated = prepare_live_grant(opts, "pc1", stamp, 30, totals, ready=True)
+    state = effective_snapshot(updated, totals, stamp, "pc1", ready=True)
+    assert state.selection.remaining_seconds == 1800
+    assert state.schedule.deadline == transaction_at(19, 22, 50)
+    for policy, ready in [(opts, False), (opts | {"enabled": False}, True),
+                          (opts | {"unlimited": True}, True)]:
+        with pytest.raises(ValueError):
+            prepare_live_grant(policy, "pc1", stamp, 30, totals, ready=ready)
+
+
+def test_live_smart_bonus_weekly_only_and_minimal_adjustments():
+    from custom_components.hal_gaming_control.smart_parent_control import prepare_live_grant
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    from custom_components.hal_gaming_control.parent_bonus import parent_smart_grants
+    stamp = transaction_at(19, 16, 0)
+    opts = {"enabled": True, "daily": -1, "weekly": 60}
+    totals = {"daily": 0, "weekly": 3600}
+    updated = prepare_live_grant(opts, "pc1", stamp, 30, totals, ready=True)
+    state = effective_snapshot(updated, totals, stamp, "pc1", ready=True)
+    assert state.selection.remaining_seconds == 1800
+    adjustment = next(iter(parent_smart_grants(updated, "pc1", stamp).values()))
+    assert adjustment.daily_seconds == 0 and adjustment.weekly_seconds == 1800
+    assert updated["weekly"] == 60
