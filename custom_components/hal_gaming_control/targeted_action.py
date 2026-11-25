@@ -9,6 +9,7 @@ from time import monotonic, time
 
 from homeassistant.components import mqtt
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.core import callback
 
 from .const import ROOT
 from .targeted_protocol import parse_offer, offer_matches_raw
@@ -21,12 +22,24 @@ class TargetedTermination:
         self.offer = None
         self.offered_at = None
         self._unsubscribe = None
+        self._listeners = set()
+
+    @callback
+    def async_add_listener(self, listener):
+        self._listeners.add(listener)
+        return lambda: self._listeners.discard(listener)
+
+    @callback
+    def _notify(self):
+        for listener in tuple(self._listeners):
+            listener()
 
     async def async_start(self):
         self._unsubscribe = await mqtt.async_subscribe(
             self.coordinator.hass, self.root + "/state/terminate_offer",
             self._on_offer, qos=0)
 
+    @callback
     def _on_offer(self, message):
         try:
             self.offer = parse_offer(
@@ -36,7 +49,7 @@ class TargetedTermination:
         except (ValueError, TypeError):
             self.offer = None
             self.offered_at = None
-        self.coordinator.async_update_listeners()
+        self._notify()
 
     @property
     def available(self):
@@ -59,7 +72,7 @@ class TargetedTermination:
         # Consume before first await; button and native action are one-use.
         self.offer = None
         self.offered_at = None
-        self.coordinator.async_update_listeners()
+        self._notify()
         await mqtt.async_publish(
             self.coordinator.hass, self.root + "/command/terminate_target",
             json.dumps({
