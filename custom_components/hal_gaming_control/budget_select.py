@@ -7,11 +7,13 @@ Grant IDs always stay internal; identical labels use stable display ordinals.
 """
 from collections import Counter
 from datetime import datetime, timezone
-from math import ceil, isfinite
+from math import ceil, floor, isfinite
 
 from homeassistant.util import dt as dt_util
 
-from .parent_bonus import parent_bonus_legacy_today, parent_grants_today
+from .parent_bonus import parent_bonus_legacy_today, parent_grants_today, parent_smart_grants
+from .smart_policy import effective_snapshot
+from .smart_receipt import smart_receipt
 from .rule_engine import budget_overview
 from .screen_idle_bonus import screen_idle_events_today
 
@@ -45,6 +47,8 @@ def _bonus_events(options, device_id, now):
     """All active current-day bonus receipts, sorted by actual event time."""
     events = []
     for grant in parent_grants_today(options, now):
+        if "smart_adjustments" in grant:
+            continue
         events.append({
             "kind": "parent",
             "at": datetime.fromisoformat(grant["created_at_utc"]),
@@ -151,7 +155,7 @@ def _display_action_column(rows):
             for label, grant in rows]
 
 
-def budget_select_rows(options, device_id, data, now):
+def budget_select_rows(options, device_id, data, now, *, segments=None):
     """Ordered (label, eligible_grant_id) receipt with exact-second safety.
 
     Charge base/weekend/legacy first, then oldest active bonus first.
@@ -159,6 +163,13 @@ def budget_select_rows(options, device_id, data, now):
     real-world gaming minutes consumed which particular bonus.
     """
     data = data or {}
+    snapshot = effective_snapshot(options, data.get("totals", {}), now, device_id,
+                                  ready=data.get("ready") is True)
+    has_smart = bool(parent_smart_grants(options, device_id, now)) or any(
+        "smart_adjustments" in row for row in parent_grants_today(options, now))
+    if has_smart or (snapshot.selection.limiting_sources
+                     and snapshot.selection.limiting_sources[0] != "daily"):
+        return _smart_display(options, device_id, data, now, snapshot, segments)
     receipt = budget_overview(
         options, data.get("totals", {}), now, ready=bool(data.get("ready")),
         coverage_incomplete=data.get("coverage_incomplete", True))
@@ -180,4 +191,38 @@ def budget_select_rows(options, device_id, data, now):
         spent_before += event["minutes"]
     usage, remaining = _usage_rows(receipt, width)
     rows.extend((_total_row(receipt, width), usage, remaining))
+    return _display_action_column(rows)
+
+
+def _smart_display(options, device_id, data, now, snapshot, segments):
+    receipt = smart_receipt(options, data.get("totals", {}), now, device_id, snapshot, segments)
+    if receipt is None:
+        status = {"disabled": "Rules Disabled", "unlimited": "Unlimited"}.get(
+            snapshot.selection.status, "Unknown")
+        return [(f"∑{FIGURE_SPACE}{status} - TOTAL", None),
+                ("− Unknown - Gaming Session", None),
+                (f"∑{FIGURE_SPACE}{status} - Remaining Budget", None)]
+    used, remaining = ceil(receipt.used / 60), floor(receipt.remaining / 60)
+    total = used + remaining
+    amounts = [floor(row.seconds / 60) for row in receipt.lines]
+    # Keep the displayed receipt balanced even for fractional-minute grants.
+    # Exact seconds stay in the policy; the compensated base absorbs rounding.
+    amounts[0] += total - sum(amounts)
+    width = max(3, len(str(total)), len(str(used)), *(len(str(abs(n))) for n in amounts))
+    rows = []
+    has_smart = any("smart_adjustments" in row for row in parent_grants_today(options, now))
+    smart_ids = {row["id"] for row in parent_grants_today(options, now)
+                 if "smart_intent" in row}
+    for line, amount in zip(receipt.lines, amounts):
+        grant = line.grant_id
+        # Legacy receipts predate captured smart intent. Removing them could
+        # invalidate historical base snapshots, so keep them read-only once
+        # today's smart grants exist.
+        if has_smart and grant not in smart_ids:
+            grant = None
+        rows.append((_amount_label(abs(amount), line.title, width, sign="−" if amount < 0 else "+"), grant))
+    title = "Weekly Gaming Session" if receipt.source == "weekly" else "Gaming Session"
+    rows.extend([(_amount_label(total, "TOTAL", width, sign="∑"), None),
+                 (_amount_label(used, title, width, sign="−"), None),
+                 (_amount_label(remaining, "Remaining Budget", width, sign="∑"), None)])
     return _display_action_column(rows)
