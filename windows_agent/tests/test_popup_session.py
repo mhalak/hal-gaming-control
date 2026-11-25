@@ -116,3 +116,21 @@ def test_service_events_must_match_the_current_ha_popup_button_and_device():
     assert not valid_event(click | {"button_id": "lock_pc"}, p, "pc1")
     assert not valid_event(click | {"device_id": "pc2"}, p, "pc1")
     assert not valid_event(click, None, "pc1")
+
+
+def test_v2_refresh_never_creates_helper_or_replaces_pending_show():
+    from test_popup_protocol import v2_fixture
+    s = PopupSession()
+    initial, refresh = v2_fixture("upsert"), v2_fixture("refresh")
+    assert not s.handle(refresh, "pc1")
+    assert s.handle(initial, "pc1")
+    assert not s.handle(refresh, "pc1")
+    assert s.pending == initial
+    s.process, s.pipe, s.pending = Mock(), Mock(), None
+    assert s.handle(refresh, "pc1")
+    assert s.pending == refresh
+    assert s.packet == initial
+    s.deadline = 0
+    assert not s.handle(refresh, "pc1")
+    s.packet = None
+    assert not s.handle(refresh, "pc1")
