@@ -1,4 +1,6 @@
 """Static guard: SignPath application prep cannot accidentally publish binaries."""
+import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -63,9 +65,13 @@ def test_build_embeds_owned_version_metadata_before_pyinstaller():
     assert ps.count("--version-file") == 2
     assert "release_identity.py" in ps
     assert "version_metadata.py" in ps
-    # Product versioning is only the Windows distributable; HA manifest remains unchanged.
-    assert '"home_assistant": "0.14.2"' in read("release.json")
-    assert '"windows_agent": "0.4.3"' in read("release.json")
+    # Independently declared component versions; the Windows build does not bump HA.
+    release = json.loads(read("release.json"))
+    manifest = json.loads(read("custom_components/hal_gaming_control/manifest.json"))
+    assert release["home_assistant"] == manifest["version"]
+    for component in ("home_assistant", "windows_agent"):
+        assert re.fullmatch(r"(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})", release[component])
+    assert "sync-ha" not in ps
 
 
 def test_windows_distribution_is_not_mistaken_for_hacs_release():

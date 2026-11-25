@@ -207,10 +207,13 @@ class PagesDistributionTests(unittest.TestCase):
             self.assertIn(required, cfg)
         self.assertNotIn("contents: write", cfg)
         self.assertNotIn("github.event.comment", cfg)
-        # No new HA version or Windows-only GitHub release tag.
-        declaration = json.loads((ROOT / "release.json").read_text())
-        self.assertEqual(declaration["home_assistant"], "0.14.2")
-        self.assertEqual(declaration["windows_agent"], "0.4.3")
+        # Version declarations are independent of the read-only Pages workflow.
+        declaration = json.loads((ROOT / "release.json").read_text(encoding="utf-8"))
+        manifest = json.loads((ROOT / "custom_components/hal_gaming_control/manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(declaration["home_assistant"], manifest["version"])
+        for component in ("home_assistant", "windows_agent"):
+            self.assertRegex(declaration[component], r"^(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})$")
+        self.assertNotIn("sync-ha", cfg)
         self.assertTrue(re.fullmatch(r"[0-9a-f]{40}", SHA))
 
 

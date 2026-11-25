@@ -1,3 +1,11 @@
+## 0.15.0 — Smart budgets, native warnings and live popup v2 (#241–#243, #258)
+
+- One shared exact-second effective budget chooses the limiting daily quota, weekly quota or absolute schedule window. Existing Add 30 minutes and native add_bonus use one persisted Smart Parent Bonus with minimum required adjustments; daily resets at midnight, weekly on Monday, schedule at its temporary absolute deadline. No changes to configured recurring limits.
+- Schedule bonus expires in real time even while idle; a new grant may reopen an expired window. Unknown/offline accounting, disabled/unlimited rules and pre-first-window grants are refused. Quota resets remain independent of overnight schedule extensions.
+- Smart Budget Overview retains the existing select and TOTAL default, follows the limiting budget, shows expired unused schedule bonus, and replays eligible Undo without rewriting measured playtime. Existing daily and weekly percentage sensors remain; the new Gaming budget remaining duration sensor exposes exact remaining seconds and limiting sources.
+- Native remaining-budget threshold trigger and independent Hidden/Manual/Automatic popup fields. Protocol v2 refreshes automatic fields every five seconds without reopening a dismissed popup; quota countdown pauses while idle, schedule continues. V1 one-shot behavior remains available for older compatible agents. Hidden fields and live refresh require the new Windows agent.
+- **Preview 42 / HA 0.15.0 / Windows 0.5.0**: source candidate only. Unified telemetry v3 remains unchanged. No automatic warning or enforcement automations installed. Physical acceptance, packaging, publication and deployment are separate.
+
 ## 0.14.2 — Hide popup without clearing view fields (#237)
 
 - The native HA popup action now ignores all known display fields when `operation: hide`, even if stale form values are invalid or button IDs are duplicated. Developer Tools users can switch from Show or update to Hide without clearing the form.

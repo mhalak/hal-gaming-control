@@ -8,11 +8,16 @@ This is the **human-readable development changelog**. For full technical release
 
 > **Preview software, not a deployment log.** Version numbers below describe changes recorded in source; they do **not** prove that a tagged GitHub Release, a signed Windows installer or an update on any real PC/HA instance exists. Always check the deployed build and the [current compatibility/deployment instructions](known_limitations.md).
 
-**Current source (Preview 40, 24 November 2026):** **Home Assistant 0.14.1** and **Windows agent 0.4.3**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
+**Current source (Preview 42, 25 November 2026):** **Home Assistant 0.15.0** and **Windows agent 0.5.0**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
 
 **🚨 BREAKING CHANGE** means an upgrade can require manual action or break compatibility with prior configs, entity IDs or MQTT payloads. Follow the linked migration instructions before updating; do not assume a normal in-place upgrade is safe.
 
 ## Home Assistant integration
+
+### 0.15.0 — Smart Budget and smart warnings (#241–#243, #258)
+- Central effective remaining time, minimal per-limit parent bonus adjustments, independent reset/expiry and replay-based Undo.
+- Dynamic budget receipt and native threshold trigger; automatic popup values and independent visibility with v2. Existing entity IDs and Unified MQTT v3 preserved.
+- Source candidate only; verify on the actual PC before deployment.
 
 ### 0.14.1 — Popup response events (#8)
 - Validate non-retained device-scoped popup response IDs, require the latest popup/button IDs and expose the `hal_gaming_control_popup_response` HA event for automations.
@@ -199,6 +204,10 @@ This is the **human-readable development changelog**. For full technical release
 - Initial HA integration and Windows agent protocol used during early development.
 
 ## Windows agent
+
+### 0.5.0 — Popup v2 (#258)
+- Independent countdown/progress visibility and animation, update-only refresh, no reopening dismissed windows. Separate capability advertisement preserves v1.
+- Local fixed-form renderer; no Windows budget authority or automatic commands. Physical acceptance pending.
 
 ### 0.4.3 — SignPath OSS preparation (#9)
 - New public Code signing policy, Windows download/status page and Privacy policy: explicitly distinguish unsigned source/CI candidates from trusted public distribution. SignPath approval and a prior Windows release remain outstanding.
