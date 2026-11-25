@@ -145,15 +145,20 @@ async def test_native_terminate_shares_single_use_capability_with_button(
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_parent_only_actions_work_offline_without_mqtt_commands(
+async def test_smart_parent_actions_require_verified_budget_but_never_publish_commands(
         hass, enable_custom_integrations, mqtt_mock):
     entry, device_id = await setup_device(hass, options={
-        "daily": 180, "weekly": 4200, "unlimited": False})
+        "enabled": True, "daily": 180, "weekly": 4200, "unlimited": False})
     with patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish:
+        with pytest.raises(HomeAssistantError):
+            await call(hass, "add_bonus", device_id, minutes=15)
+        assert "parent_bonus_journal" not in entry.options
+        await make_fresh(hass)
         await call(hass, "add_bonus", device_id, minutes=15)
         await hass.async_block_till_done()
-        assert parent_bonus_total(entry.options, __import__(
-            "homeassistant.util.dt", fromlist=["now"]).now()) == 15
+        from custom_components.hal_gaming_control.parent_bonus import parent_smart_grants
+        stamp = __import__("homeassistant.util.dt", fromlist=["now"]).now()
+        assert sum(row.daily_seconds for row in parent_smart_grants(entry.options, "pc1", stamp).values()) == 900
         assert entry.options["weekly"] == 4200
         await call(hass, "set_unlimited", device_id, enabled=True)
         await hass.async_block_till_done()
