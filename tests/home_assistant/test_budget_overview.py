@@ -174,3 +174,59 @@ def test_unlimited_gaming_override_is_not_merely_an_unlimited_daily_quota():
     ordinary = budget_overview(common, totals, at(23), ready=True)
     assert ordinary["unlimited_gaming_active"] is False
     assert ordinary["daily_budget_status"] == "limited"
+
+
+def test_effective_time_sensor_uses_schedule_and_exact_seconds():
+    from custom_components.hal_gaming_control.sensor import EffectiveBudgetSensor
+    from custom_components.hal_gaming_control.smart_bonus_transaction import prepare_grant
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    from custom_components.hal_gaming_control.const import DEFAULTS
+    now = at(23, 21).replace(minute=45)
+    c = Mock(device_id="pc1", last_update_success=True)
+    c.entry.data = {"name": "PC"}
+    c.options = DEFAULTS | settings(daily=120, weekly=300, schedule_enabled=True,
+                                    schedule_start="16:00", schedule_end="22:00")
+    totals = {"daily": 3600, "weekly": 3600}
+    c.data = {"ready": True, "totals": totals}
+    sensor = EffectiveBudgetSensor(c)
+    assert sensor.unique_id == "pc1_gaming_budget_remaining"
+    with patch("custom_components.hal_gaming_control.sensor.dt_util.now", return_value=now):
+        assert sensor.native_value == 15
+        attrs = sensor.extra_state_attributes
+        assert attrs["remaining_seconds"] == 900
+        assert attrs["limiting_budget"] == "schedule"
+        assert attrs["effective_budget_minutes"] == 75
+        assert attrs["remaining_percent"] == 20
+        state = effective_snapshot(c.options, totals, now, "pc1", ready=True)
+        c.options = prepare_grant(c.options, "pc1", now, 30, state.base_balances, c.options)
+        assert sensor.native_value == 45
+        assert sensor.extra_state_attributes["remaining_seconds"] == 2700
+        assert sensor.extra_state_attributes["effective_budget_minutes"] == 105
+    with patch("custom_components.hal_gaming_control.sensor.dt_util.now",
+               return_value=now.replace(hour=22, minute=30)):
+        assert sensor.native_value == 0
+        assert sensor.extra_state_attributes["remaining_percent"] == 0
+
+
+def test_effective_time_sensor_unknown_unlimited_zero_and_weekly():
+    from custom_components.hal_gaming_control.sensor import EffectiveBudgetSensor
+    c = Mock(device_id="pc1", last_update_success=True)
+    c.entry.data = {"name": "PC"}
+    c.options = settings(daily=180, weekly=60)
+    c.data = {"ready": True, "totals": {"daily": 0, "weekly": 3599.75}}
+    sensor = EffectiveBudgetSensor(c)
+    with patch("custom_components.hal_gaming_control.sensor.dt_util.now", return_value=at(23)):
+        assert sensor.native_value > 0
+        assert sensor.extra_state_attributes["remaining_seconds"] == 0.25
+        assert sensor.extra_state_attributes["limiting_budget"] == "weekly"
+        assert sensor.extra_state_attributes["effective_budget_minutes"] == 60
+        c.data["totals"]["weekly"] = 3600
+        assert sensor.native_value == 0
+        c.data["ready"] = False
+        assert sensor.native_value is None
+        assert sensor.extra_state_attributes["budget_status"] == "unknown"
+        c.options["unlimited"] = True
+        assert sensor.native_value is None
+        assert sensor.extra_state_attributes["budget_status"] == "unlimited"
+        c.options["enabled"] = False
+        assert sensor.extra_state_attributes["budget_status"] == "disabled"
