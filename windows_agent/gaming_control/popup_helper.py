@@ -75,6 +75,7 @@ class _PopupWindow:
         self.model = PopupModel()
         self.pending = []
         self.dead = False
+        self._visible_fields = (True, True)
         self._layout()
         root.after(POLL_MS, self._poll)
 
@@ -182,12 +183,16 @@ class _PopupWindow:
         snap = self.model.snapshot()
         if snap is None:
             return
+        visible = (snap["time"] is not None, snap["percent"] is not None)
+        if visible == self._visible_fields:
+            return
+        self._visible_fields = visible
         self.clock.pack_forget()
         self.bar.pack_forget()
         self.percent.pack_forget()
-        if snap["time"] is not None:
+        if visible[0]:
             self.clock.pack(before=self.detail, pady=(0, 9))
-        if snap["percent"] is not None:
+        if visible[1]:
             self.bar.pack(before=self.detail, fill="x")
             self.percent.pack(side="right")
 
