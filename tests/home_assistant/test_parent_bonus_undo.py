@@ -202,5 +202,5 @@ async def test_smart_receipt_dropdown_undo_routes_through_replay():
         assert choice.endswith("⛔")
         await entity.async_select_option(choice)
         assert len(committed) == 1
-        assert entity.current_option == total(75)
+        assert entity.current_option == f"∑{FIGURE * 2}75 min - TOTAL"
         assert entry.options["parent_bonus_journal"]["events"][0]["status"] == "cancelled"
