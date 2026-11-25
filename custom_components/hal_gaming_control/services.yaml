@@ -85,6 +85,8 @@ popup:
       selector:
         select:
           options:
+            - value: hidden
+              label: Hidden (popup v2)
             - value: manual
               label: Manual
             - value: automatic
@@ -103,6 +105,8 @@ popup:
       selector:
         select:
           options:
+            - value: hidden
+              label: Hidden (popup v2)
             - value: manual
               label: Manual
             - value: automatic
