@@ -56,7 +56,7 @@ publish a GitHub Release or deploy to a family PC.
     </td>
     <td valign="middle">
       <h3>⏱️ Gaming budgets — the clock doesn't negotiate.</h3>
-      <p>The king can grant <strong>30 bonus minutes today</strong> or an additive <strong>Weekend bonus</strong> every Saturday and Sunday. The weekly budget, however, refuses to bow.</p>
+      <p>The king can grant <strong>30 bonus minutes today</strong> or an additive <strong>Weekend bonus</strong> every Saturday and Sunday. Smart Parent Bonus adjusts only the limits that need to move.</p>
       <p><a href="https://github.com/mhalak/hal-gaming-control/blob/main/docs/features/gaming-budgets.md">Budgets &amp; bonuses explained</a></p>
     </td>
   </tr>
@@ -116,7 +116,7 @@ publish a GitHub Release or deploy to a family PC.
     </td>
     <td valign="middle">
       <h3>🧾 Budget overview — the gaming-time audit.</h3>
-      <p><strong>Source preview (#93).</strong> Daily allowance + bonuses − time played = time left. A native HA dashboard receipt is available in source once the corresponding PR is merged and installed. Dad has the receipts. Mum would like the audit to end.</p>
+      <p><strong>Source preview (#93).</strong> The currently limiting allowance + applicable bonuses − time played = effective time left. A native HA dashboard receipt is available in source once the corresponding PR is merged and installed. Dad has the receipts. Mum would like the audit to end.</p>
       <p><a href="https://github.com/mhalak/hal-gaming-control/blob/main/docs/features/budget-overview.md">See the proposed Budget overview</a></p>
     </td>
   </tr>
