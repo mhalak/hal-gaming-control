@@ -61,7 +61,19 @@ def _validate_order(grants, cancelled_ids):
         raise ValueError("Grants must be in original chronological order")
 
 
-def replay_grants(grants, *, cancelled_ids=()):
+def _seed_carry(seed):
+    """Previously fixed active grants contribute carry, not replayed intent."""
+    daily, weekly, intervals = {}, {}, []
+    for at, adjustment in seed:
+        day, week = at.date(), _monday(at.date())
+        daily[day] = daily.get(day, 0) + adjustment.daily_seconds
+        weekly[week] = weekly.get(week, 0) + adjustment.weekly_seconds
+        if adjustment.schedule_end is not None:
+            intervals.append(ScheduleExtension(adjustment.schedule_start, adjustment.schedule_end))
+    return daily, weekly, intervals
+
+
+def replay_grants(grants, *, cancelled_ids=(), seed=()):
     """Replay in original journal order; never rewrite measured usage or grant intent.
 
     Only historical input snapshots supplied by the caller are used. Cancellation
@@ -71,7 +83,8 @@ def replay_grants(grants, *, cancelled_ids=()):
     grants = tuple(grants)
     cancelled_ids = frozenset(cancelled_ids)
     _validate_order(grants, cancelled_ids)
-    daily, weekly, intervals, result = {}, {}, [], {}
+    daily, weekly, intervals = _seed_carry(seed)
+    result = {}
     for grant in grants:
         if grant.grant_id in cancelled_ids:
             continue
