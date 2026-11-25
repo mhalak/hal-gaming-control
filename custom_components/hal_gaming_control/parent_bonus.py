@@ -148,7 +148,8 @@ def add_parent_grant(options, device_id, now, amount_minutes=30):
     journal = _journal(options)
     cutoff = (now.date() - timedelta(days=RETENTION_DAYS)).isoformat()
     journal["events"] = [row for row in journal["events"]
-                         if row["local_date"] >= cutoff]
+                         if row["local_date"] >= cutoff
+                         or "smart_adjustments" in row]
     if len(journal["events"]) >= MAX_EVENTS:
         raise ValueError("Parent bonus journal is full")
     journal["events"].append({
