@@ -187,3 +187,55 @@ def test_real_bridge_advertises_and_routes_popup_without_touching_v3():
     assert call.kwargs["properties"].MessageExpiryInterval == 15
     b.on_disconnect(b.client, None, None, None, None)
     assert not b.publish_popup_event(event)
+
+
+def v2_fixture(name):
+    from pathlib import Path
+    packet = json.loads((Path(__file__).resolve().parents[2] / "tests" / "contracts" /
+                         "v2" / ("popup-" + name + ".json")).read_text())
+    packet["issued_at"] = int(time.time())
+    return packet
+
+
+def test_v2_shared_wire_and_independent_animation():
+    initial = v2_fixture("upsert")
+    refresh = v2_fixture("refresh")
+    assert decode(initial) == initial
+    assert decode(refresh) == refresh
+    current = [1000.]
+    model = PopupModel(clock=lambda: current[0])
+    model.upsert(initial)
+    assert model.snapshot()["time"] is None
+    assert model.snapshot()["percent"] == 50
+    current[0] += 900
+    assert model.snapshot()["percent"] == 25
+    assert model.refresh(refresh)
+    current[0] += 20
+    assert model.snapshot()["percent"] == 40
+    model.hide()
+    assert not model.refresh(refresh)
+    assert model.snapshot() is None
+
+
+def test_v2_real_bridge_rejects_invalid_refresh_and_accepts_shared_contract():
+    cfg = {"device": {"id": DEVICE, "name": "PC 1"},
+           "mqtt": {"host": "localhost"}, "games": []}
+    b = Bridge(cfg)
+    b.client = Mock()
+    b.on_connect(b.client, None, None, SimpleNamespace(is_failure=False), None)
+    assert b.metadata["popup_ui_protocols"] == [1, 2]
+    for name in ("upsert", "refresh"):
+        packet = v2_fixture(name)
+        b.on_message(b.client, None, SimpleNamespace(
+            topic=b.root + "/ui/popup", payload=json.dumps(packet).encode(), retain=False))
+        assert list(b.drain_commands()) == [("popup", packet)]
+    bad = v2_fixture("refresh")
+    bad["sequence"] = 3
+    bad["view"]["buttons"] = []
+    with pytest.raises(ValueError):
+        decode(bad)
+    for fields in ({"countdown_running": True}, {"progress_seconds": 1},
+                   {"progress_percent": 101, "progress_seconds": None}):
+        bad["view"] = fields
+        with pytest.raises(ValueError):
+            decode(bad)
