@@ -178,48 +178,14 @@ def _public_grant(row):
             if key not in ("smart_intent", "smart_original_adjustments")}
 
 
-def budget_overview(options, totals, now, *, ready, coverage_incomplete=True, device_id=None):
-    """Read-only, device-scoped receipt from the same exact-second rule inputs.
-
-    Keep daily bonuses separate; do not rewrite measured time, grant a Screen
-    Idle bonus before #92 exists, or report unknown/offline time as zero.
-    """
-    from math import ceil, floor, isfinite
-    from .parent_bonus import (
-        parent_bonus_activity_today, parent_bonus_legacy_today,
-        parent_grants_today,
-    )
-
-    from .screen_idle_bonus import screen_idle_bonus_total
-    settings = DEFAULTS | options
-    base = settings["daily"]
-    daily_limit = effective_budget_limit(settings, now, "daily", device_id=device_id)
-    weekly_limit = effective_budget_limit(settings, now, "weekly", device_id=device_id)
+def _receipt_status(settings, limit):
     if not settings["enabled"]:
-        daily_status = weekly_status = "disabled"
-    else:
-        daily_status = ("unlimited" if settings["unlimited"] or daily_limit < 0
-                        else "limited")
-        weekly_status = ("unlimited" if settings["unlimited"] or weekly_limit < 0
-                         else "limited")
+        return "disabled"
+    return "unlimited" if settings["unlimited"] or limit < 0 else "limited"
 
-    def verified_seconds(period):
-        seconds = totals.get(period) if ready else None
-        if (type(seconds) not in (int, float) or not isfinite(seconds)
-                or seconds < 0):
-            return None
-        return seconds
 
-    def whole_hundredths(seconds):
-        # For display only; never round played time UP to an enforcement boundary.
-        return floor(seconds / 60 * 100) / 100 if seconds is not None else None
-
-    def remaining_seconds(limit, used):
-        if limit is None or used is None:
-            return None
-        # 0.1 second left still means gaming time remains. The underlying
-        # enforcement uses unrounded seconds, not this display countdown.
-        return ceil(max(0, limit * 60 - used))
+def _receipt_grants(settings, now, device_id):
+    from .parent_bonus import parent_bonus_activity_today, parent_grants_today
 
     # The full journal belongs to config-entry options, not Recorder attrs.
     # Mirror only the newest entries: 50 active + 50 audit entries can exceed
@@ -240,6 +206,48 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True, de
         "at_utc": latest["cancelled_at_utc"] or latest["created_at_utc"],
         "grant_id": latest["id"],
     } if latest else None)
+
+    return activity, active_grants, smart_requested, recent_action
+
+
+def budget_overview(options, totals, now, *, ready, coverage_incomplete=True, device_id=None):
+    """Read-only, device-scoped receipt from the same exact-second rule inputs.
+
+    Keep daily bonuses separate; do not rewrite measured time, grant a Screen
+    Idle bonus before #92 exists, or report unknown/offline time as zero.
+    """
+    from math import ceil, floor, isfinite
+    from .parent_bonus import (
+        parent_bonus_legacy_today,
+    )
+
+    from .screen_idle_bonus import screen_idle_bonus_total
+    settings = DEFAULTS | options
+    base = settings["daily"]
+    daily_limit = effective_budget_limit(settings, now, "daily", device_id=device_id)
+    weekly_limit = effective_budget_limit(settings, now, "weekly", device_id=device_id)
+    daily_status = _receipt_status(settings, daily_limit)
+    weekly_status = _receipt_status(settings, weekly_limit)
+
+    def verified_seconds(period):
+        seconds = totals.get(period) if ready else None
+        if (type(seconds) not in (int, float) or not isfinite(seconds)
+                or seconds < 0):
+            return None
+        return seconds
+
+    def whole_hundredths(seconds):
+        # For display only; never round played time UP to an enforcement boundary.
+        return floor(seconds / 60 * 100) / 100 if seconds is not None else None
+
+    def remaining_seconds(limit, used):
+        if limit is None or used is None:
+            return None
+        # 0.1 second left still means gaming time remains. The underlying
+        # enforcement uses unrounded seconds, not this display countdown.
+        return ceil(max(0, limit * 60 - used))
+
+    activity, active_grants, smart_requested, recent_action = _receipt_grants(settings, now, device_id)
 
     daily_used = verified_seconds("daily")
     weekly_used = verified_seconds("weekly")
