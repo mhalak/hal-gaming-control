@@ -166,3 +166,71 @@ def test_retired_legacy_weekend_override_is_ignored():
     assert effective_budget_limit(options, dt(20), "daily") == 60
     assert effective_budget_limit(options, dt(21), "daily") == 60
     assert options["weekend_bonus"] == 0
+
+
+# Smart budget contract: signed seconds preserve overrun debt when granting.
+@pytest.mark.parametrize("remaining,expected,adjustments", [
+    ((120, 300, 360), 120, (30, 0, 0)),
+    ((120, 300, 120), 120, (30, 0, 30)),
+    ((0, 20, 15), 0, (30, 10, 15)),
+    ((180, 60, 360), 60, (0, 30, 0)),
+    ((60, 120, 15), 15, (0, 0, 30)),
+    ((0, 120, 360), 0, (30, 0, 0)),
+    ((40, 60, 360), 40, (30, 10, 0)),
+    ((-5, 120, 360), 0, (35, 0, 0)),
+])
+def test_smart_budget_plan(remaining, expected, adjustments):
+    from custom_components.hal_gaming_control.smart_budget import select_budget, plan_bonus
+    balances = dict(zip(("daily", "weekly", "schedule"), (m * 60 for m in remaining)))
+    selected = select_budget(balances)
+    assert selected.remaining_seconds == expected * 60
+    plan = plan_bonus(selected, 1800)
+    assert plan.target_seconds == (expected + 30) * 60
+    assert tuple(plan.extensions.get(key, 0) for key in balances) == tuple(m * 60 for m in adjustments)
+    after = select_budget({key: value + plan.extensions.get(key, 0)
+                           for key, value in balances.items()})
+    assert after.remaining_seconds == plan.target_seconds
+
+
+def test_smart_budget_disabled_unknown_ties_and_zero():
+    from custom_components.hal_gaming_control.smart_budget import select_budget, plan_bonus
+    assert select_budget({}).status == "unlimited"
+    assert select_budget({}, enabled=False).status == "disabled"
+    assert select_budget({"daily": 5}, unlimited=True).status == "unlimited"
+    unknown = select_budget({"daily": 0, "weekly": None})
+    assert unknown.status == "unknown"
+    assert unknown.remaining_seconds is None
+    with pytest.raises(ValueError):
+        plan_bonus(unknown, 60)
+    tied = select_budget({"weekly": 0, "daily": -10, "schedule": 10})
+    assert tied.remaining_seconds == 0
+    assert tied.limiting_sources == ("daily", "weekly")
+    assert select_budget({"schedule": 0}).limiting_sources == ("schedule",)
+    assert plan_bonus(select_budget({"schedule": 0}), 1800).extensions == {"schedule": 1800}
+
+
+@pytest.mark.parametrize("value", [True, "10", float("nan"), float("inf")])
+def test_smart_budget_invalid_balance(value):
+    from custom_components.hal_gaming_control.smart_budget import select_budget
+    assert select_budget({"daily": value}).status == "unknown"
+
+
+@pytest.mark.parametrize("amount", [0, -1, True, float("inf"), 1.5])
+def test_smart_budget_invalid_grant(amount):
+    from custom_components.hal_gaming_control.smart_budget import select_budget, plan_bonus
+    with pytest.raises(ValueError):
+        plan_bonus(select_budget({"daily": 10}), amount)
+
+
+def test_smart_budget_fractional_usage_and_input_isolation():
+    from custom_components.hal_gaming_control.smart_budget import select_budget, plan_bonus
+    raw = {"daily": 0.25, "weekly": 100}
+    selected = select_budget(raw)
+    raw["daily"] = 100
+    assert selected.remaining_seconds == 0.25
+    plan = plan_bonus(selected, 60)
+    assert plan.extensions == {"daily": 60}
+    assert plan.target_seconds == 60.25
+    for snapshot in (select_budget({}), select_budget({}, enabled=False)):
+        with pytest.raises(ValueError):
+            plan_bonus(snapshot, 60)
