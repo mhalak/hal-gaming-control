@@ -167,6 +167,18 @@
         "buttons": {
           "name": "Response buttons",
           "description": "0–3 button objects with id, text and palette color (neutral, primary, success, warning, danger). Button clicks only report the ID to HA."
+        },
+        "countdown_mode": {
+          "name": "Countdown source",
+          "description": "Automatic starts the local timer at the current effective remaining time; manual uses the entered seconds."
+        },
+        "progress_mode": {
+          "name": "Progress source",
+          "description": "Automatic uses the percentage of the current effective budget; manual uses the entered percentage."
+        },
+        "description_mode": {
+          "name": "Detail source",
+          "description": "Automatic shows the limiting budget or schedule; manual uses the entered text."
         }
       }
     }

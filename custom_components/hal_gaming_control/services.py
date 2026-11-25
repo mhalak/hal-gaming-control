@@ -7,9 +7,11 @@ from homeassistant.components import mqtt
 from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv, service
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, ROOT
 from .smart_parent_control import async_add_smart_bonus
+from .smart_policy import effective_snapshot, effective_summary
 
 
 def _strict_int(value):
@@ -62,6 +64,9 @@ SCHEMA_UNLIMITED = vol.Schema(DEVICE | {
 }, extra=vol.PREVENT_EXTRA)
 _SCHEMA_POPUP_FIELDS = vol.Schema(DEVICE | {
     vol.Optional("operation", default="upsert"): vol.In(("upsert", "hide")),
+    vol.Optional("countdown_mode", default="manual"): vol.In(("manual", "automatic")),
+    vol.Optional("progress_mode", default="manual"): vol.In(("manual", "automatic")),
+    vol.Optional("description_mode", default="manual"): vol.In(("manual", "automatic")),
     vol.Optional("heading"): _bounded_text(100),
     vol.Optional("description"): _bounded_text(120),
     vol.Optional("remaining_seconds"): vol.All(_strict_int, vol.Range(min=0, max=604800)),
@@ -72,6 +77,7 @@ _SCHEMA_POPUP_FIELDS = vol.Schema(DEVICE | {
 
 _POPUP_VIEW_FIELDS = frozenset((
     "heading", "description", "remaining_seconds", "progress_percent", "buttons",
+    "countdown_mode", "progress_mode", "description_mode",
 ))
 
 
@@ -93,6 +99,39 @@ def _coordinator(hass, device_id):
     if coordinator is None or coordinator.device_id != entry.data.get("device_id"):
         raise ServiceValidationError("Gaming PC config entry is not loaded")
     return coordinator
+
+
+async def _popup_view(coordinator, options):
+    """Resolve independent modes from one verified policy snapshot."""
+    view = dict(options)
+    automatic = [mode for mode in ("countdown_mode", "progress_mode", "description_mode")
+                 if options[mode] == "automatic"]
+    if automatic:
+        await coordinator.async_refresh()
+        data = coordinator.data or {}
+        totals = data.get("totals", {})
+        snapshot = effective_snapshot(
+            coordinator.options, totals, dt_util.now(), coordinator.device_id,
+            ready=data.get("ready") is True and coordinator.last_update_success)
+        summary = effective_summary(snapshot, totals)
+        if summary["budget_status"] != "limited":
+            raise ServiceValidationError("Automatic popup requires a verified finite effective budget")
+        if "countdown_mode" in automatic:
+            view["remaining_seconds"] = math.ceil(summary["remaining_seconds"])
+        if "progress_mode" in automatic:
+            view["progress_percent"] = summary["remaining_percent"]
+        if "description_mode" in automatic:
+            labels = {"daily": "Daily budget", "weekly": "Weekly budget", "schedule": "Schedule limit"}
+            view["description"] = " / ".join(labels[source] for source in summary["limiting_sources"])
+    for field in ("heading", "remaining_seconds", "progress_percent"):
+        if view.get(field) is None:
+            raise ServiceValidationError("Popup upsert requires heading, remaining_seconds and progress_percent")
+    try:
+        vol.All(_strict_int, vol.Range(min=0, max=604800))(view["remaining_seconds"])
+        _percent(view["progress_percent"])
+    except vol.Invalid as exc:
+        raise ServiceValidationError("Resolved popup values exceed protocol bounds") from exc
+    return view
 
 
 @callback
@@ -128,13 +167,10 @@ def async_setup_services(hass):
         c = _coordinator(hass, call.data["device_id"])
         options = call.data
         operation = options["operation"]
-        fields = ("heading", "remaining_seconds", "progress_percent")
-        if operation == "upsert" and any(key not in options for key in fields):
-            raise ServiceValidationError(
-                "Popup upsert requires heading, remaining_seconds and progress_percent")
         if operation == "hide":
             await c.popup.async_send("hide")
             return
+        options = await _popup_view(c, options)
         buttons = options.get("buttons", [])
         if len({b["id"] for b in buttons}) != len(buttons):
             raise ServiceValidationError("Popup button IDs must be unique")
