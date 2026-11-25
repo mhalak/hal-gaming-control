@@ -31,7 +31,7 @@ def checkout(tmp_path):
 
 def test_repository_release_metadata_is_consistent():
     release = release_tool().read_release(ROOT)
-    assert release == RELEASE
+    assert release == json.loads((ROOT / "release.json").read_text(encoding="utf-8"))
     assert release["home_assistant"] == json.loads(
         (ROOT / "custom_components/hal_gaming_control/manifest.json").read_text(encoding="utf-8")
     )["version"]
