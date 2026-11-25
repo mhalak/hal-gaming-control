@@ -172,7 +172,13 @@ def remaining_budget_percent(options, totals, now, period, *, device_id=None):
     return round(100 * max(0.0, min(1.0, 1.0 - totals[period] / (limit * 60))), 1)
 
 
-def budget_overview(options, totals, now, *, ready, coverage_incomplete=True):
+def _public_grant(row):
+    """Keep full historical intent and original adjustment audit out of Recorder."""
+    return {key: value for key, value in row.items()
+            if key not in ("smart_intent", "smart_original_adjustments")}
+
+
+def budget_overview(options, totals, now, *, ready, coverage_incomplete=True, device_id=None):
     """Read-only, device-scoped receipt from the same exact-second rule inputs.
 
     Keep daily bonuses separate; do not rewrite measured time, grant a Screen
@@ -187,8 +193,8 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True):
     from .screen_idle_bonus import screen_idle_bonus_total
     settings = DEFAULTS | options
     base = settings["daily"]
-    daily_limit = effective_budget_limit(settings, now, "daily")
-    weekly_limit = effective_budget_limit(settings, now, "weekly")
+    daily_limit = effective_budget_limit(settings, now, "daily", device_id=device_id)
+    weekly_limit = effective_budget_limit(settings, now, "weekly", device_id=device_id)
     if not settings["enabled"]:
         daily_status = weekly_status = "disabled"
     else:
@@ -220,6 +226,11 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True):
     # Home Assistant's 16 KiB recorder state-attributes threshold.
     activity = parent_bonus_activity_today(settings, now)
     active_grants = parent_grants_today(settings, now)
+    if device_id is not None:
+        activity = [row for row in activity if row["device_id"] == device_id]
+        active_grants = [row for row in active_grants if row["device_id"] == device_id]
+    smart_requested = sum(row["minutes"] for row in active_grants
+                          if "smart_adjustments" in row) if device_id is not None else 0
     latest = max(
         activity, key=lambda event: (
             event["cancelled_at_utc"] or event["created_at_utc"]), default=None)
@@ -244,10 +255,10 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True):
         "weekend_bonus_minutes": (
             _validated_weekend_bonus(settings.get("weekend_bonus", 0))
             if base >= 0 and now.weekday() >= 5 else 0),
-        "parent_bonus_minutes": daily_bonus_minutes(settings, now),
+        "parent_bonus_minutes": daily_bonus_minutes(settings, now) + smart_requested,
         "parent_bonus_legacy_minutes": parent_bonus_legacy_today(settings, now),
-        "parent_bonus_grants_today": active_grants[:12],
-        "parent_bonus_activity_today": activity[:12],
+        "parent_bonus_grants_today": [_public_grant(row) for row in active_grants[:12]],
+        "parent_bonus_activity_today": [_public_grant(row) for row in activity[:12]],
         "parent_bonus_recent_action": recent_action,
         "screen_idle_bonus_minutes": screen_idle_bonus_total(settings, now),
         "screen_idle_bonus_status": "automatic",
