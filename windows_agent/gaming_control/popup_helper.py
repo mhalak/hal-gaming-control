@@ -75,6 +75,7 @@ class _PopupWindow:
         self.model = PopupModel()
         self.pending = []
         self.dead = False
+        self._visible_fields = (True, True)
         self._layout()
         root.after(POLL_MS, self._poll)
 
@@ -172,20 +173,46 @@ class _PopupWindow:
         self.heading.configure(text=view["heading"])
         self.reason.configure(text=view["description"])
         self._set_buttons(view["buttons"])
+        self._visibility()
         # Different response layouts change only the button row, not the form.
         self._paint()
         if self.root.state() == "withdrawn":
             self.root.deiconify()  # new show; an update never raises the window
 
+    def _visibility(self):
+        snap = self.model.snapshot()
+        if snap is None:
+            return
+        visible = (snap["time"] is not None, snap["percent"] is not None)
+        if visible == self._visible_fields:
+            return
+        self._visible_fields = visible
+        self.clock.pack_forget()
+        self.bar.pack_forget()
+        self.percent.pack_forget()
+        if visible[0]:
+            self.clock.pack(before=self.detail, pady=(0, 9))
+        if visible[1]:
+            self.bar.pack(before=self.detail, fill="x")
+            self.percent.pack(side="right")
+
+    def _refresh(self, packet):
+        if self.model.refresh(packet):
+            self.reason.configure(text=self.model.snapshot()["description"])
+            self._visibility()
+            self._paint()
+
     def _paint(self):
         snap = self.model.snapshot()
         if snap is None:
             return
-        self.clock.configure(text=snap["time"])
-        self.percent.configure(text=f'{round(snap["percent"])}% remaining')
-        width = max(1, self.bar.winfo_width())
-        self.bar.coords(self.fill, 0, 0, round(width * snap["percent"] / 100), 13)
-        self.bar.itemconfigure(self.fill, fill=snap["bar_color"])
+        self.clock.configure(text=snap["time"] or "")
+        percent = snap["percent"]
+        self.percent.configure(text="" if percent is None else f'{round(percent)}% remaining')
+        if percent is not None:
+            width = max(1, self.bar.winfo_width())
+            self.bar.coords(self.fill, 0, 0, round(width * percent / 100), 13)
+            self.bar.itemconfigure(self.fill, fill=snap["bar_color"])
 
     def _poll(self):
         import pywintypes
@@ -206,6 +233,8 @@ class _PopupWindow:
                 if packet["operation"] == "hide":
                     self.model.hide()
                     self.root.withdraw()
+                elif packet["operation"] == "refresh":
+                    self._refresh(packet)
                 else:
                     self._upsert(packet)
             # Write event frames only after UI has processed the inbound state.

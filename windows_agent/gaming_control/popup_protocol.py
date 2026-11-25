@@ -1,4 +1,4 @@
-"""Strict device-scoped HA->Windows popup UI v1 contract.
+"""Strict device-scoped HA->Windows popup UI v1/v2 contracts.
 
 The contract carries *presentation* data, never OS commands or budget authority.
 No permissive v0/old-format compatibility parser is provided.
@@ -17,6 +17,10 @@ _ROOT = frozenset(("version", "device_id", "producer_epoch", "sequence",
                    "display_stale_after_seconds", "popup_id", "operation"))
 _VIEW = frozenset(("heading", "description", "remaining_seconds",
                    "progress_percent", "buttons"))
+_COUNTDOWN_V2 = frozenset(("remaining_seconds", "countdown_running"))
+_PROGRESS_V2 = frozenset(("progress_percent", "progress_seconds"))
+_VIEW_V2 = _VIEW | _COUNTDOWN_V2 | _PROGRESS_V2
+_REFRESH_V2 = _COUNTDOWN_V2 | _PROGRESS_V2 | {"description"}
 _BUTTON = frozenset(("id", "text", "color"))
 _TOKEN = re.compile(r"[0-9a-f]{32}", re.ASCII)
 _BUTTON_ID = re.compile(r"[a-z][a-z0-9_]{0,31}", re.ASCII)
@@ -68,12 +72,56 @@ def valid_view(view):
         and len({row["id"] for row in buttons}) == len(buttons))
 
 
+def _seconds(value):
+    return type(value) is int and 0 <= value <= MAX_REMAINING
+
+
+def _percent(value):
+    return type(value) in (float, int) and math.isfinite(value) and 0 <= value <= 100
+
+
+def _v2_countdown(view):
+    remaining, running = view["remaining_seconds"], view["countdown_running"]
+    return type(running) is bool and (
+        (remaining is None and not running) or _seconds(remaining))
+
+
+def _v2_progress(view):
+    percent, duration = view["progress_percent"], view["progress_seconds"]
+    if percent is None:
+        return duration is None
+    return _percent(percent) and (duration is None or _seconds(duration))
+
+
+def valid_v2_view(view, *, refresh):
+    if type(view) is not dict:
+        return False
+    keys = view.keys()
+    if refresh:
+        if not keys or not keys <= _REFRESH_V2:
+            return False
+    elif keys != _VIEW_V2:
+        return False
+    for group, validate in ((_COUNTDOWN_V2, _v2_countdown), (_PROGRESS_V2, _v2_progress)):
+        if keys & group and (not group <= keys or not validate(view)):
+            return False
+    if "description" in keys and not _plain(view["description"], 120, empty=True):
+        return False
+    if refresh:
+        return True
+    buttons = view["buttons"]
+    return (_plain(view["heading"], 100)
+            and type(buttons) is list and len(buttons) <= 3
+            and all(valid_button(row) for row in buttons)
+            and len({row["id"] for row in buttons}) == len(buttons))
+
+
 def _valid_identity(packet, device_id):
     return (type(packet) is dict
             and type(device_id) is str
             and _DEVICE_ID.fullmatch(device_id) is not None
             and type(packet.get("version")) is int
-            and packet["version"] == 1
+            and packet["version"] in (1, 2)
             and packet.get("device_id") == device_id
             and _token(packet.get("producer_epoch"))
             and _token(packet.get("popup_id"))
@@ -100,8 +148,13 @@ def validate_popup(packet, device_id, *, retained=False, now=None):
             or packet.keys() not in (_ROOT, _ROOT | {"view"})
             or not _valid_freshness(packet, wall, retained)):
         raise ValueError("Invalid or stale popup instruction")
-    if packet["operation"] == "upsert":
-        if packet.keys() != _ROOT | {"view"} or not valid_view(packet["view"]):
+    if packet["operation"] in ("upsert", "refresh"):
+        if packet.keys() != _ROOT | {"view"}:
+            raise ValueError("Invalid popup form")
+        refresh = packet["operation"] == "refresh"
+        valid = (valid_v2_view(packet["view"], refresh=refresh) if packet["version"] == 2
+                 else not refresh and valid_view(packet["view"]))
+        if not valid:
             raise ValueError("Invalid popup form")
     elif packet["operation"] == "hide":
         if packet.keys() != _ROOT:

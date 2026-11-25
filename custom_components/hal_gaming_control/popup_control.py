@@ -1,8 +1,10 @@
 """HA-owned generic popup channel; no Windows-side policy or implicit fallback.
 
-The Windows agent must explicitly advertise popup_ui_protocol=1 before this
-publisher can be used. An older agent never silently accepts a no-op action.
+Protocol v1 stays available for legacy one-shot forms. Protocol v2 adds
+independent fields and update-only live synchronization.
 """
+import asyncio
+from datetime import timedelta
 import json
 import re
 import secrets
@@ -10,9 +12,11 @@ from time import time
 
 from homeassistant.components import mqtt
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.event import async_track_time_interval
 
 from .const import ROOT
 from .protocol import parse_discovery
+from .popup_view import MODES, automatic_patch
 
 
 def _no_duplicate_fields(pairs):
@@ -56,6 +60,11 @@ class PopupControl:
         self.coordinator = coordinator
         self.root = f"{ROOT}/{coordinator.device_id}"
         self._supported = False
+        self._v2 = False
+        self._lock = asyncio.Lock()
+        self._live_options = None
+        self._sync_unsubscribe = None
+        self._popup_version = 1
         self._unsubscribe = None
         self._event_unsubscribe = None
         self._buttons = set()
@@ -63,6 +72,24 @@ class PopupControl:
         self._epoch = secrets.token_hex(16)
         self._sequence = 0
         self._popup_id = None
+
+    @property
+    def supports_v2(self):
+        return self._supported and self._v2
+
+    def _stop_sync(self):
+        self._live_options = None
+        if self._sync_unsubscribe is not None:
+            self._sync_unsubscribe()
+            self._sync_unsubscribe = None
+
+    def _start_sync(self, options):
+        self._live_options = dict(options)
+        self._sync_unsubscribe = async_track_time_interval(
+            self.coordinator.hass, self._tick, timedelta(seconds=5))
+
+    async def _tick(self, _now):
+        await self.async_sync()
 
     async def async_start(self):
         self._unsubscribe = await mqtt.async_subscribe(
@@ -74,6 +101,7 @@ class PopupControl:
 
     def _on_discovery(self, message):
         self._supported = False
+        self._v2 = False
         try:
             parsed = parse_discovery(message.topic, message.payload)
             raw = json.loads(message.payload)
@@ -83,8 +111,13 @@ class PopupControl:
                 and raw["unified_telemetry_protocol"] == 3
                 and type(raw.get("popup_ui_protocol")) is int
                 and raw["popup_ui_protocol"] == 1)
+            versions = raw.get("popup_ui_protocols")
+            self._v2 = (self._supported and type(versions) is list and versions == [1, 2]
+                        and all(type(version) is int for version in versions))
         except (ValueError, TypeError, KeyError, RecursionError):
             pass
+        if not self.supports_v2:
+            self._stop_sync()
 
     def _on_popup_event(self, message):
         """Child clicks/closing are observations, never permission grants."""
@@ -110,6 +143,10 @@ class PopupControl:
                 **({"button_id": packet["button_id"]}
                    if packet["kind"] == "button" else {}),
             })
+        if packet["kind"] == "closed" and self._popup_version == 2:
+            self._stop_sync()
+            self._popup_id = None
+            self._buttons = set()
 
     def _ensure_ready(self):
         c = self.coordinator
@@ -122,45 +159,103 @@ class PopupControl:
                 or c.foreground.current() is None):
             raise HomeAssistantError("Gaming PC is offline or telemetry is stale")
 
-    async def async_send(self, operation, *, heading=None, description=None,
-                         remaining_seconds=None, progress_percent=None,
-                         buttons=None):
-        self._ensure_ready()
+    async def _publish(self, operation, version, popup_id, view=None, *, live=False):
         self._sequence += 1
-        popup_id = self._popup_id or secrets.token_hex(16)
+        stale = 120
+        if live:
+            stale = 30
+        elif operation == "upsert":
+            stale = min(3600, max(120, (view["remaining_seconds"] or
+                                      view.get("progress_seconds") or 0) + 180))
         packet = {
-            "version": 1,
-            "device_id": self.coordinator.device_id,
-            "producer_epoch": self._epoch,
-            "sequence": self._sequence,
-            "issued_at": int(time()),
-            "message_ttl_seconds": 15,
-            # Let a one-shot warning finish its local countdown. Longer
-            # presentations require an HA refresh; stale UI never enforces rules.
-            "display_stale_after_seconds": (
-                min(3600, max(120, remaining_seconds + 180))
-                if operation == "upsert" else 120),
-            "popup_id": popup_id,
+            "version": version, "device_id": self.coordinator.device_id,
+            "producer_epoch": self._epoch, "sequence": self._sequence,
+            "issued_at": int(time()), "message_ttl_seconds": 15,
+            "display_stale_after_seconds": stale, "popup_id": popup_id,
             "operation": operation,
         }
-        if operation == "upsert":
-            packet["view"] = {
-                "heading": heading, "description": description,
-                "remaining_seconds": remaining_seconds,
-                "progress_percent": progress_percent,
-                "buttons": buttons if buttons is not None else [],
-            }
-        # QoS 1 non-retained; agent must validate TTL, epoch and sequence.
+        if view is not None:
+            packet["view"] = view
         await mqtt.async_publish(
             self.coordinator.hass, self.root + "/ui/popup",
-            json.dumps(packet, separators=(",", ":")),
-            qos=1, retain=False)
-        self._popup_id = popup_id if operation == "upsert" else None
-        self._buttons = ({row["id"] for row in (buttons or [])}
-                         if operation == "upsert" else set())
-        self._seen_events = [] if operation == "hide" else self._seen_events
+            json.dumps(packet, separators=(",", ":")), qos=1, retain=False)
+
+    async def async_send(self, operation, *, heading=None, description=None,
+                         remaining_seconds=None, progress_percent=None,
+                         buttons=None, countdown_running=None, progress_seconds=None,
+                         live_options=None):
+        async with self._lock:
+            self._ensure_ready()
+            if operation == "hide":
+                await self._hide()
+                return
+            version = 2 if countdown_running is not None else 1
+            if version == 2 and not self.supports_v2:
+                raise HomeAssistantError("Windows popup protocol v2 is unavailable")
+            self._stop_sync()
+            popup_id = (secrets.token_hex(16) if version == 2
+                        else self._popup_id or secrets.token_hex(16))
+            view = {"heading": heading, "description": description,
+                    "remaining_seconds": remaining_seconds,
+                    "progress_percent": progress_percent, "buttons": buttons or []}
+            live = version == 2 and live_options is not None and any(
+                live_options[mode] == "automatic" for mode in MODES)
+            if version == 2:
+                view.update(countdown_running=countdown_running, progress_seconds=progress_seconds)
+            self._popup_id, self._popup_version = popup_id, version
+            self._buttons = {row["id"] for row in view["buttons"]}
+            self._seen_events = []
+            try:
+                await self._publish("upsert", version, popup_id, view, live=live)
+            except BaseException:
+                self._popup_id = None
+                self._buttons = set()
+                raise
+            # A close arriving while MQTT publishes must not rearm the session.
+            if live and self._popup_id == popup_id and self.supports_v2:
+                self._start_sync(live_options)
+
+    async def _hide(self):
+        version = self._popup_version
+        if version == 2 and not self.supports_v2:
+            version = 1
+        popup_id = self._popup_id or secrets.token_hex(16)
+        self._stop_sync()
+        self._popup_id = None
+        self._buttons = set()
+        self._seen_events = []
+        await self._publish("hide", version, popup_id)
+
+    async def async_sync(self):
+        """Refresh only an explicitly shown automatic v2 form."""
+        async with self._lock:
+            if self._live_options is None or self._popup_id is None:
+                return
+            try:
+                self._ensure_ready()
+                if not self.supports_v2:
+                    raise HomeAssistantError("Windows popup protocol v2 is unavailable")
+                view = automatic_patch(self.coordinator, self._live_options, v2=True)
+            except HomeAssistantError:
+                # A connected agent can hide immediately; otherwise its short
+                # display lease expires. Recovery never shows a new popup.
+                try:
+                    self._ensure_ready()
+                    await self._hide()
+                except HomeAssistantError:
+                    self._stop_sync()
+                    self._popup_id = None
+                    self._buttons = set()
+                return
+            try:
+                await self._publish("refresh", 2, self._popup_id, view, live=True)
+            except HomeAssistantError:
+                self._stop_sync()
+                self._popup_id = None
+                self._buttons = set()
 
     def close(self):
+        self._stop_sync()
         if self._unsubscribe is not None:
             self._unsubscribe()
             self._unsubscribe = None
@@ -168,6 +263,7 @@ class PopupControl:
             self._event_unsubscribe()
             self._event_unsubscribe = None
         self._supported = False
+        self._v2 = False
         self._popup_id = None
         self._buttons = set()
         self._seen_events = []

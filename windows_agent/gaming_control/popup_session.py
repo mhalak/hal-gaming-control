@@ -112,6 +112,8 @@ class PopupSession:
         except (ValueError, TypeError):
             return False
         self._device_id = device_id
+        if packet["operation"] == "refresh":
+            return self._refresh(packet)
         if packet["operation"] == "hide":
             if self.process is not None:
                 self.pending = packet
@@ -123,6 +125,18 @@ class PopupSession:
             self.packet = packet
             self.deadline = time.monotonic() + packet["display_stale_after_seconds"]
             self.pending = packet
+        return True
+
+    def _refresh(self, packet):
+        """Only an already relayed v2 show can receive a refresh."""
+        if (self.process is None or self.pipe is None or self.packet is None
+                or self.packet["version"] != 2 or self.pending is not None
+                or time.monotonic() >= self.deadline
+                or packet["popup_id"] != self.packet["popup_id"]
+                or packet["producer_epoch"] != self.packet["producer_epoch"]):
+            return False
+        self.pending = packet
+        self.deadline = time.monotonic() + packet["display_stale_after_seconds"]
         return True
 
     def _connect(self):
@@ -188,6 +202,9 @@ class PopupSession:
             self.seen_events.append(value["event_id"])
             self.seen_events = self.seen_events[-64:]
             bridge.publish_popup_event(value)
+            if value["kind"] == "closed" and self.packet["version"] == 2:
+                self.packet = self.pending = None
+                self.deadline = 0
 
     def pump(self, bridge):
         """Poll from service main loop; hide promptly if stale/locked/offline."""

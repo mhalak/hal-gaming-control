@@ -220,6 +220,7 @@ class Bridge:
         # Native MQTT and HA must see the same v3-only capability.
         self.metadata['unified_telemetry_protocol'] = 3
         self.metadata['popup_ui_protocol'] = 1
+        self.metadata['popup_ui_protocols'] = [1, 2]
         if self.updates_enabled:
             self.command_topics[self.root + '/command/update'] = 'update'
 

@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "device_id": "pc1",
+  "producer_epoch": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "sequence": 1,
+  "issued_at": 1795630000,
+  "message_ttl_seconds": 15,
+  "display_stale_after_seconds": 30,
+  "popup_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "operation": "upsert",
+  "view": {
+    "heading": "Gaming time remaining",
+    "description": "Daily budget",
+    "remaining_seconds": null,
+    "progress_percent": 50,
+    "countdown_running": false,
+    "progress_seconds": 1800,
+    "buttons": []
+  }
+}

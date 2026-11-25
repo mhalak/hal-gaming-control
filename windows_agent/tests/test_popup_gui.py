@@ -27,6 +27,9 @@ class Widget:
         self.pack_args = kwargs
         return self
 
+    def pack_forget(self):
+        self.pack_args = None
+
     def grid(self, **kwargs):
         self.grid_args = kwargs
         return self
@@ -277,3 +280,31 @@ def test_popup_helper_open_failure_cannot_create_a_desktop_window():
     with patch.dict(sys.modules, modules):
         assert popup_helper_main(PIPE_PREFIX + "a" * 32, "123", "pc1") == 4
     tk.Tk.assert_not_called()
+
+
+def test_v2_hidden_fields_and_refresh_never_reopens_dismissed_popup():
+    from test_popup_protocol import v2_fixture
+    ui, root, pipe = fake_gui()
+    initial, refresh = v2_fixture("upsert"), v2_fixture("refresh")
+    import types
+    with patch.dict(sys.modules, {"pywintypes": types.SimpleNamespace(error=RuntimeError)}):
+        pipe.inbound.append(json.dumps(initial).encode())
+        ui._poll()
+        assert root.visible and ui.clock.props["text"] == ""
+        assert ui.clock.pack_args is None and ui.bar.pack_args is not None
+        assert ui.percent.props["text"] == "50% remaining"
+        pipe.inbound.append(json.dumps(refresh).encode())
+        ui._poll()
+        assert ui.percent.props["text"] == "40% remaining"
+        ui._closed()
+        pipe.inbound.append(json.dumps(refresh).encode())
+        ui._poll()
+        assert not root.visible
+        initial["sequence"] = 3
+        initial["view"].update(remaining_seconds=60, countdown_running=False,
+                               progress_percent=None, progress_seconds=None)
+        pipe.inbound.append(json.dumps(initial).encode())
+        ui._poll()
+        assert root.visible and ui.clock.props["text"] == "01:00"
+        assert ui.percent.props["text"] == ""
+        assert ui.bar.pack_args is None and ui.percent.pack_args is None

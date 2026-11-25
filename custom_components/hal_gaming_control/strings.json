@@ -170,11 +170,11 @@
         },
         "countdown_mode": {
           "name": "Countdown source",
-          "description": "Automatic starts the local timer at the current effective remaining time; manual uses the entered seconds."
+          "description": "Hidden removes the timer on a v2 agent. Automatic follows the effective budget on v2 (v1 is a one-shot preview); manual uses the entered seconds."
         },
         "progress_mode": {
           "name": "Progress source",
-          "description": "Automatic uses the percentage of the current effective budget; manual uses the entered percentage."
+          "description": "Hidden removes the bar and percentage on v2. Automatic follows the effective budget on v2; manual uses the entered percentage."
         },
         "description_mode": {
           "name": "Detail source",
