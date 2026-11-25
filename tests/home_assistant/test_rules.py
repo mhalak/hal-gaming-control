@@ -441,3 +441,81 @@ def test_smart_journal_cancelled_and_invalid_records():
     bad['parent_bonus_journal']['events'][0]['smart_adjustments']['day'] = '2026-11-20'
     with pytest.raises(ValueError, match='Smart bonus'):
         parent_smart_grants(bad, 'pc1', smart_record_at(19))
+
+
+# Smart bonus replay: use historical intent, not stale adjustment amounts.
+def replay_at(day, hour=None, minute=0):
+    if hour is None:
+        hour, minute = 21, 45
+    return datetime(2026, 11, day, hour, minute, tzinfo=TZ)
+
+
+def replay_options(**overrides):
+    return {'enabled': True, 'schedule_enabled': True, 'schedule_start': '16:00', 'schedule_end': '22:00'} | overrides
+
+
+def test_replay_recalculates_weekly_shortfall():
+    from custom_components.hal_gaming_control.smart_bonus_replay import GrantIntent, replay_grants
+    grants = [GrantIntent('a', replay_at(19, 16), 1800, {'daily': 0, 'weekly': 1200}),
+              GrantIntent('b', replay_at(19, 16, 1), 1800, {'daily': 0, 'weekly': 1200})]
+    full = replay_grants(grants)
+    assert full['a'].plan.extensions == {'daily': 1800, 'weekly': 600}
+    assert full['b'].plan.extensions == {'daily': 1800, 'weekly': 1800}
+    remaining = replay_grants(grants, cancelled_ids={'a'})
+    assert list(remaining) == ['b']
+    assert remaining['b'].plan.extensions == {'daily': 1800, 'weekly': 600}
+    assert grants[1].base_balances == {'daily': 0, 'weekly': 1200}
+
+
+def test_replay_schedule_cancellation_rebases_and_reopens_at_original_grant():
+    from custom_components.hal_gaming_control.smart_bonus_replay import GrantIntent, replay_grants
+    grants = [GrantIntent('a', replay_at(19), 1800, {'daily': 3600}, replay_options()),
+              GrantIntent('b', replay_at(19, 22, 10), 1800, {'daily': 3600}, replay_options())]
+    full = replay_grants(grants)
+    assert full['b'].schedule.start == replay_at(19, 22, 30)
+    assert full['b'].schedule.end == replay_at(19, 23)
+    remaining = replay_grants(grants, cancelled_ids={'a'})
+    assert remaining['b'].schedule.start == replay_at(19, 22, 10)
+    assert remaining['b'].schedule.end == replay_at(19, 22, 40)
+
+
+def test_replay_daily_and_weekly_reset_and_usage_debt():
+    from custom_components.hal_gaming_control.smart_bonus_replay import GrantIntent, replay_grants
+    grants = [GrantIntent('a', replay_at(19), 1800, {'daily': 0, 'weekly': 0}),
+              GrantIntent('b', replay_at(20), 1800, {'daily': 0, 'weekly': -600}),
+              GrantIntent('c', replay_at(23), 1800, {'daily': 0, 'weekly': 0})]
+    full = replay_grants(grants)
+    assert full['b'].plan.extensions == {'daily': 1800, 'weekly': 600}
+    assert full['c'].plan.extensions == {'daily': 1800, 'weekly': 1800}
+    remaining = replay_grants(grants, cancelled_ids={'a'})
+    assert remaining['b'].plan.extensions == {'daily': 1800, 'weekly': 2400}
+
+
+def test_replay_disconnected_interval_never_opens_early():
+    from custom_components.hal_gaming_control.smart_bonus_replay import project_schedule
+    from custom_components.hal_gaming_control.smart_schedule import ScheduleExtension
+    a = ScheduleExtension(replay_at(19, 22), replay_at(19, 22, 15))
+    b = ScheduleExtension(replay_at(19, 22, 30), replay_at(19, 23))
+    assert project_schedule(replay_options(), replay_at(19), [a, b]).deadline == replay_at(19, 22, 15)
+    assert project_schedule(replay_options(), replay_at(19, 22, 20), [a, b]).remaining_seconds == 0
+    assert project_schedule(replay_options(), replay_at(19, 22, 30), [a, b]).remaining_seconds == 1800
+
+
+def test_replay_connected_intervals_and_regular_window():
+    from custom_components.hal_gaming_control.smart_bonus_replay import project_schedule
+    from custom_components.hal_gaming_control.smart_schedule import ScheduleExtension
+    a = ScheduleExtension(replay_at(20, 22), replay_at(21, 0, 30))
+    b = ScheduleExtension(replay_at(21, 2), replay_at(21, 2, 15))
+    config = replay_options(weekend_schedule_start='00:15', weekend_schedule_end='02:00')
+    assert project_schedule(config, replay_at(20), [b, a]).deadline == replay_at(21, 2, 15)
+    assert project_schedule(config, replay_at(21, 2, 15), [a, b]).remaining_seconds == 0
+
+
+def test_replay_rejects_bad_order_ids_and_unknown():
+    from custom_components.hal_gaming_control.smart_bonus_replay import GrantIntent, replay_grants
+    a = GrantIntent('a', replay_at(19), 1800, {'daily': 0})
+    b = GrantIntent('b', replay_at(18), 1800, {'daily': 0})
+    for grants, cancelled in [([a,a], set()), ([a,b], set()), ([a], {'missing'}),
+                               ([GrantIntent('x', replay_at(19), 1800, {'weekly': None})], set())]:
+        with pytest.raises(ValueError):
+            replay_grants(grants, cancelled_ids=cancelled)
