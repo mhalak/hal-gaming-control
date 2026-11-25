@@ -168,6 +168,7 @@ class Bridge:
         self._raw_last = None
         self._raw_sent = float('-inf')
         self._raw_candidate = self._raw_receipt = self._target_offer = None
+        self._target_telemetry = None
         self._display_sent = float('-inf')
         self._display_last_state = None
         self._telemetry_epoch = None
@@ -250,6 +251,7 @@ class Bridge:
             self._raw_last = None
             self._raw_sent = float('-inf')
             self._raw_candidate = self._raw_receipt = self._target_offer = None
+            self._target_telemetry = None
             self._display_sent = float('-inf')
             self._display_last_state = None
             self._telemetry_epoch = uuid4().hex
@@ -283,6 +285,7 @@ class Bridge:
             self._raw_last = None
             self._raw_sent = float('-inf')
             self._raw_candidate = self._raw_receipt = self._target_offer = None
+            self._target_telemetry = None
             self._display_sent = float('-inf')
             self._display_last_state = None
             self._telemetry_epoch = None
@@ -344,14 +347,16 @@ class Bridge:
                     LOG.warning('Invalid update request rejected')
                     return
             elif command == 'terminate_target':
+                offer = self._target_offer
+                if offer is None:
+                    return
                 try:
-                    request = parse_target_request(msg.payload, self.id, self._foreground_epoch)
+                    request = parse_target_request(msg.payload, self.id, offer['epoch'])
                 except (ValueError, TypeError):
                     LOG.warning('Invalid targeted terminate request rejected')
                     return
-                offer = self._target_offer
                 now = time.monotonic()
-                if (offer is None or offer['generation'] != self.generation
+                if (offer['generation'] != self.generation
                         or not 0 <= now - offer['offered_at'] < TARGET_TTL
                         or not secrets.compare_digest(offer['token'], request['token'])):
                     return
@@ -780,6 +785,9 @@ class Bridge:
         now, wall = time.monotonic(), time.time()
         with self.lock:
             prepared = self._prepare_unified(focus, policy, uptime, now, wall)
+            if prepared is not None:
+                self._target_telemetry = self._raw_receipt = self._target_offer = None
+            context = self._foreground_context
         if prepared is None:
             return False
         payload, change, generation = prepared
@@ -801,6 +809,10 @@ class Bridge:
                 self._telemetry_last = change
                 self._telemetry_sent = now
                 self._telemetry_last_clock = (wall, now)
+                if self._target_enabled:
+                    self._target_telemetry = (
+                        json.loads(payload), context, getattr(focus, 'candidate', None),
+                        getattr(focus, 'last_observation_time', None))
         return sent
 
     def prime_target_receipt(self, candidate, context, *, sample_time):
@@ -812,24 +824,34 @@ class Bridge:
         if not self._target_enabled:
             return False
         with self.lock:
-            self._target_offer = self._raw_receipt = None
+            pending = self._target_telemetry
+            self._target_telemetry = None  # A published observation can be primed once.
+            if pending is None:
+                return False
+            packet, published_context, published_candidate, published_sample = pending
             if (not self.connected or self.synced_generation != self.generation
                     or context is None or context is not self._foreground_context
-                    or _raw_identity_parts('foreground', candidate) is None):
+                    or context is not published_context
+                    or candidate != published_candidate or sample_time != published_sample):
                 return False
             generation, observed, captured = context
             now, wall = time.monotonic(), time.time()
             if (generation != self.generation
                     or not _valid_target_sample(sample_time, now, captured)
                     or not math.isfinite(observed)
-                    or abs((wall - observed) - (now - captured)) > FOREGROUND_CLOCK_SKEW):
+                    or abs((wall - observed) - (now - captured)) > FOREGROUND_CLOCK_SKEW
+                    or packet['epoch'] != self._telemetry_epoch):
                 return False
-            self._raw_sequence += 1
+            foreground = packet['foreground']
+            if (foreground['state'] != 'foreground'
+                    or _raw_identity_parts('foreground', candidate) !=
+                    (foreground['process'], foreground['signature'])):
+                return False
             self._raw_receipt = {
                 'candidate': candidate, 'generation': generation,
-                'epoch': self._foreground_epoch,
-                'sequence': self._raw_sequence,
-                'observed_at': observed, 'captured_at': captured,
+                'epoch': packet['epoch'], 'sequence': packet['sequence'],
+                'observed_at': packet['observed_at'] - foreground['sample_age_ms'] / 1000,
+                'captured_at': captured,
             }
         return True
 
@@ -861,6 +883,7 @@ class Bridge:
                 'token': token, 'candidate': candidate,
                 'sample_time': sample_time, 'offered_at': now,
                 'sequence': receipt['sequence'], 'generation': generation,
+                'epoch': receipt['epoch'],
             }
             payload = json.dumps({
                 'version': 1, 'device_id': self.id, 'epoch': receipt['epoch'],
