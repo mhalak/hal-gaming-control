@@ -381,7 +381,7 @@ def test_smart_transaction_rejects_unreplayable_records_and_legacy_target():
 
 def test_smart_transaction_retains_history_and_device_isolation():
     from custom_components.hal_gaming_control.smart_bonus_transaction import prepare_grant
-    old_at = datetime(2026, 5, 1, 14, tzinfo=TZ)
+    old_at = datetime(2026, 10, 1, 14, tzinfo=TZ)
     old = prepare_grant({}, "pc1", old_at, 30, {"weekly": 0})
     other = prepare_grant(old, "pc2", transaction_at(19), 30, {"weekly": 0})
     latest = prepare_grant(other, "pc1", transaction_at(19), 30, {"weekly": 0})
@@ -390,3 +390,33 @@ def test_smart_transaction_retains_history_and_device_isolation():
     assert rows[0] == old["parent_bonus_journal"]["events"][0]
     assert rows[1] == other["parent_bonus_journal"]["events"][1]
     assert rows[2]["smart_adjustments"]["weekly_seconds"] == 1800
+
+
+def test_smart_transaction_prunes_expired_history_without_replaying_frozen_prefix():
+    from custom_components.hal_gaming_control.smart_bonus_transaction import prepare_grant, cancel_grant
+    from custom_components.hal_gaming_control.parent_bonus import parent_smart_grants
+    old_at = datetime(2026, 5, 1, 14, tzinfo=TZ)
+    old = prepare_grant({}, "pc1", old_at, 30, {"weekly": 0})
+    first = prepare_grant(old, "pc1", transaction_at(18), 30, {"weekly": 0})
+    assert len(first["parent_bonus_journal"]["events"]) == 1
+    prefix = first["parent_bonus_journal"]["events"][0]
+    second = prepare_grant(first, "pc1", transaction_at(19), 30, {"weekly": 0})
+    third = prepare_grant(second, "pc1", transaction_at(19, 21, 46), 30, {"weekly": 0})
+    rows = third["parent_bonus_journal"]["events"]
+    assert rows[0] == prefix
+    result = cancel_grant(third, "pc1", rows[1]["id"], transaction_at(19, 21, 47))
+    assert result["parent_bonus_journal"]["events"][0] == prefix
+    active = parent_smart_grants(result, "pc1", transaction_at(19, 21, 47))
+    assert sum(row.weekly_seconds for row in active.values()) == 3600
+
+
+def test_smart_transaction_preserves_old_schedule_interval_needed_by_current_replay():
+    from datetime import timedelta
+    from custom_components.hal_gaming_control.smart_bonus_transaction import prepare_grant
+    from custom_components.hal_gaming_control.parent_bonus import add_smart_parent_grant
+    at = datetime(2026, 5, 1, 14, tzinfo=TZ)
+    # A synthetic long historical extension tests retention independently of
+    # how many ordinary grants would have been necessary to accumulate it.
+    old = add_smart_parent_grant({}, "pc1", at, 30, {"schedule": 220 * 86400}, schedule_anchor=at)
+    with pytest.raises(ValueError, match="intent"):
+        prepare_grant(old, "pc1", transaction_at(19), 30, {"weekly": 0})
