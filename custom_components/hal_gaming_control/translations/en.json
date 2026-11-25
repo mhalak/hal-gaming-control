@@ -170,5 +170,21 @@
         }
       }
     }
+  },
+  "triggers": {
+    "remaining_budget_reached": {
+      "name": "Gaming budget reached threshold",
+      "description": "Triggers when the effective remaining time crosses the selected threshold on a gaming PC.",
+      "fields": {
+        "minutes": {
+          "name": "Remaining time",
+          "description": "Fire on downward crossing. Use zero for exhausted budget."
+        },
+        "device_id": {
+          "name": "Gaming PCs",
+          "description": "Select one or more PCs, or leave empty for any gaming PC."
+        }
+      }
+    }
   }
 }

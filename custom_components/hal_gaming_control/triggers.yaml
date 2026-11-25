@@ -1,0 +1,17 @@
+remaining_budget_reached:
+  fields:
+    minutes:
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 10080
+          step: 1
+          mode: box
+          unit_of_measurement: min
+    device_id:
+      selector:
+        device:
+          multiple: true
+          filter:
+            - integration: hal_gaming_control
