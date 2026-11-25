@@ -1,7 +1,8 @@
 """Atomic journal candidates for Smart Parent Bonus; no live callers yet."""
 from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 
-from .parent_bonus import JOURNAL_KEY, _journal, _write, add_parent_grant, revoke_parent_grant
+from .parent_bonus import JOURNAL_KEY, RETENTION_DAYS, _journal, _write, add_parent_grant, revoke_parent_grant
 from .smart_bonus_intent import capture_intent, read_intent
 from .smart_bonus_record import active_adjustments, make_adjustments
 from .smart_bonus_replay import GrantIntent, replay_grants
@@ -30,11 +31,18 @@ def _intent(row, new_id):
                        snapshot.base_balances, snapshot.schedule_options)
 
 
-def _recompute(journal, device_id, *, new_id=None):
+def _recompute(journal, device_id, *, from_id, new_id=None):
     rows = _smart_rows(journal, device_id)
     intents = [_intent(row, new_id) for row in rows]
+    instants = [intent.at.timestamp() for intent in intents]
+    if instants != sorted(instants):
+        raise ValueError("Smart grants out of chronological order")
+    index = next(i for i, row in enumerate(rows) if row["id"] == from_id)
+    seed = [(intent.at, active_adjustments(row["smart_adjustments"], intent.at))
+            for row, intent in zip(rows[:index], intents[:index]) if row["status"] == "active"]
+    rows, intents = rows[index:], intents[index:]
     cancelled = {row["id"] for row in rows if row["status"] == "cancelled"}
-    applied = replay_grants(intents, cancelled_ids=cancelled)
+    applied = replay_grants(intents, cancelled_ids=cancelled, seed=seed)
     for row, intent in zip(rows, intents):
         if row["id"] in cancelled:
             continue
@@ -46,6 +54,30 @@ def _recompute(journal, device_id, *, new_id=None):
             row["smart_original_adjustments"] = deepcopy(record)
 
 
+def _retain(row, cutoff, earliest):
+    if row["local_date"] >= cutoff:
+        return True
+    if row["status"] != "active":
+        return False
+    end = row.get("smart_adjustments", {}).get("schedule_end_utc")
+    return end is not None and datetime.fromisoformat(end) > earliest
+
+
+def _compact(options, now):
+    """Drop only expired old audit records; retained prefixes are frozen."""
+    journal = _journal(options)
+    cutoff = (now.date() - timedelta(days=RETENTION_DAYS)).isoformat()
+    # Keep old intervals that could still affect any cancellable current-day
+    # grant, including a grant created before a local clock/zone adjustment.
+    current = now.astimezone(timezone.utc)
+    earliest = min([current - timedelta(days=2)] + [
+        datetime.fromisoformat(row["created_at_utc"])
+        for row in journal["events"] if row["local_date"] == now.date().isoformat()
+        and "smart_adjustments" in row])
+    journal["events"] = [row for row in journal["events"] if _retain(row, cutoff, earliest)]
+    return _write(options, journal, now)
+
+
 def prepare_grant(options, device_id, now, amount_minutes, base_balances,
                   schedule_options=None):
     """Build one new grant with its original intent and replayed adjustments.
@@ -55,11 +87,11 @@ def prepare_grant(options, device_id, now, amount_minutes, base_balances,
     complete returned options in one synchronous HA write.
     """
     snapshot = capture_intent(now, base_balances, schedule_options)
-    candidate = add_parent_grant(options, device_id, now, amount_minutes)
+    candidate = add_parent_grant(_compact(options, now), device_id, now, amount_minutes)
     journal = candidate[JOURNAL_KEY]
     event = journal["events"][-1]
     event["smart_intent"] = snapshot
-    _recompute(journal, device_id, new_id=event["id"])
+    _recompute(journal, device_id, from_id=event["id"], new_id=event["id"])
     return _write(candidate, journal, now)
 
 
@@ -79,5 +111,5 @@ def cancel_grant(options, device_id, grant_id, now):
         raise ValueError("Cancellation precedes smart grant")
     candidate = revoke_parent_grant(options, device_id, grant_id, now)
     journal = candidate[JOURNAL_KEY]
-    _recompute(journal, device_id)
+    _recompute(journal, device_id, from_id=grant_id)
     return _write(candidate, journal, now)
