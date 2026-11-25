@@ -234,3 +234,103 @@ def test_smart_budget_fractional_usage_and_input_isolation():
     for snapshot in (select_budget({}), select_budget({}, enabled=False)):
         with pytest.raises(ValueError):
             plan_bonus(snapshot, 60)
+
+
+# Smart schedule: absolute elapsed seconds, shared recurring-window semantics.
+def smart_schedule_options(**overrides):
+    return DEFAULTS | {"enabled": True, "schedule_enabled": True,
+                       "schedule_start": "16:00", "schedule_end": "22:00"} | overrides
+
+
+@pytest.mark.parametrize("hour,minute,expected", [(21, 45, 900), (22, 0, 0), (23, 0, 0), (15, 0, 0)])
+def test_smart_schedule_regular(hour, minute, expected):
+    from custom_components.hal_gaming_control.smart_schedule import schedule_snapshot
+    state = schedule_snapshot(smart_schedule_options(), dt(20, hour, minute))
+    assert state.remaining_seconds == expected
+
+
+def test_smart_schedule_extension_is_absolute_and_reopens():
+    from datetime import timedelta
+    from custom_components.hal_gaming_control.smart_schedule import schedule_snapshot, extend_schedule
+    opts = smart_schedule_options()
+    now = dt(20, 21, 45)
+    extension = extend_schedule(schedule_snapshot(opts, now), now, 1800)
+    assert extension.end == dt(20, 22, 30)
+    assert schedule_snapshot(opts, dt(20, 22, 10), extension).remaining_seconds == 1200
+    assert schedule_snapshot(opts, dt(20, 22, 30), extension).remaining_seconds == 0
+    assert schedule_snapshot(opts, dt(20, 23, 30), extension).remaining_seconds == 0
+    assert schedule_snapshot(opts, dt(21, 16), extension).remaining_seconds == 21600
+    now = dt(20, 22, 20)
+    reopened = extend_schedule(schedule_snapshot(opts, now), now, 1800)
+    assert reopened.start == now and reopened.end == now + timedelta(minutes=30)
+    assert schedule_snapshot(opts, now, reopened).remaining_seconds == 1800
+    assert schedule_snapshot(opts, dt(20, 22, 19), reopened).remaining_seconds == 0
+
+
+def test_smart_schedule_overnight_weekend_and_extension():
+    from custom_components.hal_gaming_control.smart_schedule import schedule_snapshot, extend_schedule
+    opts = smart_schedule_options(schedule_start="20:00", schedule_end="02:00",
+                                  weekend_schedule_start="21:00", weekend_schedule_end="03:00")
+    now = dt(21, 1, 45)
+    state = schedule_snapshot(opts, now)
+    assert state.remaining_seconds == 900 and state.deadline == dt(21, 2)
+    grant = extend_schedule(state, now, 900)
+    assert grant.end == dt(21, 2, 15)
+    assert schedule_snapshot(opts, dt(21, 2, 10), grant).remaining_seconds == 300
+    assert schedule_snapshot(opts, dt(21, 2, 15), grant).remaining_seconds == 0
+    assert schedule_snapshot(opts, dt(22, 2), grant).remaining_seconds == 3600
+
+
+def test_smart_schedule_all_day_contiguous_and_disabled():
+    from custom_components.hal_gaming_control.smart_schedule import schedule_snapshot
+    opts = smart_schedule_options(weekend_schedule_start="12:00", weekend_schedule_end="12:00")
+    assert schedule_snapshot(opts, dt(21, 23)).deadline == dt(23)
+    assert schedule_snapshot(opts, dt(22, 23)).remaining_seconds == 3600
+    assert schedule_snapshot(opts | {"schedule_enabled": False}, dt(20, 12)).remaining_seconds is None
+    assert schedule_snapshot(opts | {"unlimited": True}, dt(20, 12)).remaining_seconds is None
+    assert schedule_snapshot(opts | {"enabled": False}, dt(20, 12)).remaining_seconds is None
+    all_day = smart_schedule_options(schedule_start="00:00", schedule_end="00:00")
+    assert schedule_snapshot(all_day, dt(20, 12)).remaining_seconds is None
+
+
+def test_smart_schedule_dst_gap_and_fold_match_wall_clock_policy():
+    from custom_components.hal_gaming_control.smart_schedule import schedule_snapshot
+    opts = smart_schedule_options(schedule_start="20:00", schedule_end="02:30")
+    spring = datetime(2026, 3, 29, 1, 45, tzinfo=TZ)
+    assert schedule_snapshot(opts, spring).remaining_seconds == 900
+    for fold in (0, 1):
+        autumn = datetime(2026, 10, 25, 2, 15, tzinfo=TZ, fold=fold)
+        assert schedule_snapshot(opts, autumn).remaining_seconds == 900
+    autumn_closed = datetime(2026, 10, 25, 2, 45, tzinfo=TZ, fold=0)
+    assert schedule_snapshot(opts, autumn_closed).remaining_seconds == 0
+
+
+def test_smart_schedule_grants_merge_and_validation():
+    from custom_components.hal_gaming_control.smart_schedule import schedule_snapshot, extend_schedule, ScheduleExtension
+    opts = smart_schedule_options()
+    now = dt(20, 21, 45)
+    first = extend_schedule(schedule_snapshot(opts, now), now, 1800)
+    later = dt(20, 22, 10)
+    second = extend_schedule(schedule_snapshot(opts, later, first), later, 600)
+    assert second.start == first.start and second.end == dt(20, 22, 40)
+    assert schedule_snapshot(opts, later, second).remaining_seconds == 1800
+    for invalid in (0, -1, True, float("nan")):
+        with pytest.raises(ValueError):
+            extend_schedule(schedule_snapshot(opts, now), now, invalid)
+    with pytest.raises(ValueError):
+        ScheduleExtension(dt(20, 22), dt(20, 21))
+    with pytest.raises(ValueError):
+        schedule_snapshot(opts, datetime(2026, 11, 20, 21))
+    with pytest.raises(ValueError):
+        extend_schedule(schedule_snapshot(opts | {"schedule_enabled": False}, now), now, 1800)
+
+
+def test_smart_schedule_extension_crosses_midnight_and_joins_next_window():
+    from custom_components.hal_gaming_control.smart_schedule import schedule_snapshot, extend_schedule
+    opts = smart_schedule_options(schedule_start="16:00", schedule_end="23:45",
+                                  weekend_schedule_start="00:15", weekend_schedule_end="02:00")
+    now = dt(20, 23, 30)
+    grant = extend_schedule(schedule_snapshot(opts, now), now, 2700)
+    assert grant.end == dt(21, 0, 30)
+    assert schedule_snapshot(opts, dt(21, 0, 10), grant).deadline == dt(21, 2)
+    assert schedule_snapshot(opts, dt(21, 2), grant).remaining_seconds == 0
