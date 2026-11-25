@@ -60,7 +60,8 @@ class BudgetSensor(GamingEntity, SensorEntity):
         if self.period == "daily":
             attributes.update(budget_overview(
                 options, totals, now, ready=bool(data.get("ready")),
-                coverage_incomplete=data.get("coverage_incomplete", True)))
+                coverage_incomplete=data.get("coverage_incomplete", True),
+                device_id=self.coordinator.device_id))
         return attributes
 
 

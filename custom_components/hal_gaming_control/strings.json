@@ -110,7 +110,7 @@
     },
     "add_bonus": {
       "name": "Add Parent bonus",
-      "description": "Add a recorded daily Parent bonus without modifying measured gaming time or the weekly allowance.",
+      "description": "Grant effective extra gaming time, extending daily, weekly or schedule limits only where needed. Requires verified usage and enabled finite rules.",
       "fields": {
         "device_id": {
           "name": "Gaming PC",
@@ -118,7 +118,7 @@
         },
         "minutes": {
           "name": "Bonus minutes",
-          "description": "One date-scoped Parent bonus grant (1–600 min); weekly allowance unchanged."
+          "description": "Requested Smart Parent Bonus (1–600 min). Original configured limits stay unchanged."
         }
       }
     },

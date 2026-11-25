@@ -258,21 +258,31 @@ async def test_live_budget_controls_and_action_configuration(hass, enable_custom
             await hass.async_block_till_done()
             assert entry.options[key] == 0
 
+        from custom_components.hal_gaming_control.parent_bonus import parent_smart_grants
         now = datetime(2026, 11, 21, 12, tzinfo=ZoneInfo("Europe/Zagreb"))
-        with patch("custom_components.hal_gaming_control.button.dt_util.now", return_value=now):
+        async def verified_refresh():
+            c.async_set_updated_data({"ready": True, "online": True, "active_game": "idle",
+                                      "active": [], "totals": {"daily": 0, "weekly": 0, "per_game": {}}})
+        with patch.object(c, "async_refresh", side_effect=verified_refresh), \
+             patch("custom_components.hal_gaming_control.smart_parent_control.dt_util.now", return_value=now):
             for _ in range(2):
                 await hass.services.async_call("button", "press",
                                                {"entity_id": bonus}, blocking=True)
                 await hass.async_block_till_done()
-            assert entry.options["bonus_minutes"] == 60
+            active = parent_smart_grants(entry.options, "pc1", now)
+            assert sum(row.daily_seconds for row in active.values()) == 3600
+            assert sum(row.weekly_seconds for row in active.values()) == 3600
             assert entry.options["bonus_date"] == "2026-11-21"
             assert entry.options["weekend_bonus"] == 0
-        with patch("custom_components.hal_gaming_control.button.dt_util.now",
+        with patch.object(c, "async_refresh", side_effect=verified_refresh), \
+             patch("custom_components.hal_gaming_control.smart_parent_control.dt_util.now",
                    return_value=now.replace(day=22)):
             await hass.services.async_call("button", "press",
                                            {"entity_id": bonus}, blocking=True)
             await hass.async_block_till_done()
-            assert entry.options["bonus_minutes"] == 30
+            active = parent_smart_grants(entry.options, "pc1", now.replace(day=22))
+            assert sum(row.daily_seconds for row in active.values()) == 1800
+            assert sum(row.weekly_seconds for row in active.values()) == 3600
         assert entry.runtime_data is c
         assert not publish.called
     assert await hass.config_entries.async_unload(entry.entry_id)

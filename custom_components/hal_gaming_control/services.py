@@ -7,11 +7,9 @@ from homeassistant.components import mqtt
 from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv, service
-from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, ROOT
-from .parent_bonus import add_parent_grant
-from .rule_engine import effective_daily
+from .smart_parent_control import async_add_smart_bonus
 
 
 def _strict_int(value):
@@ -116,16 +114,7 @@ def async_setup_services(hass):
 
     async def async_add_bonus(call):
         c = _coordinator(hass, call.data["device_id"])
-        now = dt_util.now()
-        if effective_daily(c.options, now.weekday() >= 5) < 0:
-            raise HomeAssistantError("Set a finite daily budget before adding time")
-        try:
-            options = add_parent_grant(
-                c.entry.options, c.device_id, now, call.data["minutes"])
-        except (ValueError, TypeError) as exc:
-            raise HomeAssistantError("Could not record Parent bonus") from exc
-        if hass.config_entries.async_update_entry(c.entry, options=options) is False:
-            raise HomeAssistantError("Parent bonus was not saved")
+        await async_add_smart_bonus(hass, c, call.data["minutes"])
 
     async def async_set_unlimited(call):
         c = _coordinator(hass, call.data["device_id"])
