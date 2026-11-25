@@ -8,11 +8,16 @@ This is the **human-readable development changelog**. For full technical release
 
 > **Preview software, not a deployment log.** Version numbers below describe changes recorded in source; they do **not** prove that a tagged GitHub Release, a signed Windows installer or an update on any real PC/HA instance exists. Always check the deployed build and the [current compatibility/deployment instructions](known_limitations.md).
 
-**Current source (Preview 43):** **Home Assistant 0.15.0** and **Windows agent 0.5.1**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
+**Current source (Preview 44):** **Home Assistant 0.15.1** and **Windows agent 0.5.2**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
 
 **🚨 BREAKING CHANGE** means an upgrade can require manual action or break compatibility with prior configs, entity IDs or MQTT payloads. Follow the linked migration instructions before updating; do not assume a normal in-place upgrade is safe.
 
 ## Home Assistant integration
+
+### 0.15.1 — MQTT thread-safety hotfix (#263)
+- Dispatch termination offers, popup events and discovery callbacks on the HA event loop.
+- Notify only the termination button when a capability changes rather than refreshing all coordinator listeners.
+- Pair with Windows 0.5.2 for termination offers bound to the actual verified Unified v3 observation.
 
 ### 0.15.0 — Smart Budget and smart warnings (#241–#243, #258)
 - Central effective remaining time, minimal per-limit parent bonus adjustments, independent reset/expiry and replay-based Undo.
@@ -127,6 +132,10 @@ This is the **human-readable development changelog**. For full technical release
 ### 0.6.0 — 🚨 BREAKING / SUPERSEDED: `parental` (#5)
 - First clean-cut replacement for the former `smarthouse_gaming` domain; **no automatic config or entity migration**.
 - **Do not install**: replaced first by 0.6.1, then 0.7.0.
+
+### 0.5.2 — Verified termination offer identity (#263)
+- Bind one-use termination offers to the exact successfully published Unified v3 epoch, sequence and foreground timestamp. No additional monitoring topic, longer lifetime or relaxed authorization.
+- Keep the existing two-second telemetry cadence and single-offer-per-observation limit.
 
 ### 0.5.14 — Weekday and weekend gaming schedules (#138)
 - Separate allowed-from/until windows for weekdays and weekends.
