@@ -9,6 +9,10 @@ non-retained JSON examples with intentionally *fixed* sample times and opaque ID
 | `v3/telemetry-foreground.json` | `SmartHouse/Gaming/{device_id}/state/telemetry` | `windows_agent/tests/test_unified_telemetry.py` publishes a real Bridge sample and verifies the complete JSON structure and values | `tests/home_assistant/test_options_flow_tracked_apps.py` decodes it and verifies the actual Tracked apps Options Flow |
 | `v1/foreground-candidate.json` | `SmartHouse/Gaming/{device_id}/state/foreground_candidate` | `windows_agent/tests/test_unified_telemetry.py` checks the real candidate publication | `tests/home_assistant/test_options_flow_tracked_apps.py` verifies the candidate during Add/Save and rejects invalid scope/retention |
 
+| `v2/popup-upsert.json`, `v2/popup-refresh.json` | `SmartHouse/Gaming/{device_id}/ui/popup` | HA producer: `tests/home_assistant/test_native_actions.py` verifies actual service publication | Windows consumer: `windows_agent/tests/test_popup_protocol.py` drives real Bridge/decoder and model |
+
+Popup v2 is HA → Windows (the producer/consumer roles are reversed from telemetry). The separate discovery capability `popup_ui_protocols: [1, 2]` preserves v1 clients; Unified MQTT v3 monitoring is unchanged.
+
 ## Rules
 
 1. **Do not edit an existing versioned fixture to make new code green.** A
