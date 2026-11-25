@@ -60,8 +60,12 @@ async def _discover_devices(hass):
     """Subscribe through the mqtt integration (works with HA MQTT discovery disabled)."""
     found = {}
     unsubscribe = None
+    @callback
+    def collect(message):
+        _collect(found, message)
+
     try:
-        unsubscribe = await mqtt.async_subscribe(hass, DISCOVERY_FILTER, lambda m: _collect(found, m), qos=1)
+        unsubscribe = await mqtt.async_subscribe(hass, DISCOVERY_FILTER, collect, qos=1)
         await _listen_window()
     except asyncio.CancelledError:
         raise
@@ -89,6 +93,7 @@ async def _discover_foreground_candidate(hass, device_id):
     found = {}
     unsubscribe = None
 
+    @callback
     def collect(message):
         try:
             candidate = parse_candidate(
@@ -117,6 +122,7 @@ async def _discover_raw_foreground_snapshot(hass, device_id):
     found = {}
     unsubscribe = None
 
+    @callback
     def collect(message):
         if (message.topic != topic
                 or getattr(message, "retain", None) is not False):
