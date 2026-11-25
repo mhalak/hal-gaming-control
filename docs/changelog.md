@@ -8,7 +8,7 @@ This is the **human-readable development changelog**. For full technical release
 
 > **Preview software, not a deployment log.** Version numbers below describe changes recorded in source; they do **not** prove that a tagged GitHub Release, a signed Windows installer or an update on any real PC/HA instance exists. Always check the deployed build and the [current compatibility/deployment instructions](known_limitations.md).
 
-**Current source (Preview 42, 25 November 2026):** **Home Assistant 0.15.0** and **Windows agent 0.5.0**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
+**Current source (Preview 43):** **Home Assistant 0.15.0** and **Windows agent 0.5.1**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
 
 **🚨 BREAKING CHANGE** means an upgrade can require manual action or break compatibility with prior configs, entity IDs or MQTT payloads. Follow the linked migration instructions before updating; do not assume a normal in-place upgrade is safe.
 
@@ -204,6 +204,10 @@ This is the **human-readable development changelog**. For full technical release
 - Initial HA integration and Windows agent protocol used during early development.
 
 ## Windows agent
+
+### 0.5.1 — Always-on-top warning popup (#8)
+- The HAL warning window requests topmost stacking by default. Refreshes never force keyboard focus, raise or reopen the window. Exclusive fullscreen and initial OS activation still require physical testing.
+- Windows-only patch; HA 0.15.0 and both MQTT contracts are unchanged. Source candidate only.
 
 ### 0.5.0 — Popup v2 (#258)
 - Independent countdown/progress visibility and animation, update-only refresh, no reopening dismissed windows. Separate capability advertisement preserves v1.
