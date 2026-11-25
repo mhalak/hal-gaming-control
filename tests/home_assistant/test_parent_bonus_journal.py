@@ -294,3 +294,99 @@ def test_smart_intent_rejects_corruption():
             read_intent(bad)
     with pytest.raises(ValueError):
         capture_intent(at.replace(tzinfo=None), {})
+
+
+def transaction_at(day, hour=21, minute=45):
+    return datetime(2026, 11, day, hour, minute, tzinfo=TZ)
+
+
+def transaction_schedule():
+    return {"enabled": True, "unlimited": False, "schedule_enabled": True,
+            "schedule_start": "16:00", "schedule_end": "22:00"}
+
+
+def test_smart_transaction_replay_preserves_original_audit_after_restart():
+    from custom_components.hal_gaming_control.smart_bonus_transaction import prepare_grant, cancel_grant
+    from custom_components.hal_gaming_control.parent_bonus import parent_smart_grants
+    first = prepare_grant({}, "pc1", transaction_at(19), 30, {"daily": 3600},
+                          transaction_schedule())
+    second = prepare_grant(first, "pc1", transaction_at(19, 22, 10), 30,
+                           {"daily": 3600}, transaction_schedule())
+    restored = json.loads(json.dumps(second))
+    before = json.loads(json.dumps(restored))
+    a, b = restored["parent_bonus_journal"]["events"]
+    assert b["smart_adjustments"]["schedule_end_utc"] == "2026-11-19T22:00:00+00:00"
+    updated = cancel_grant(restored, "pc1", a["id"], transaction_at(19, 22, 15))
+    cancelled, surviving = updated["parent_bonus_journal"]["events"]
+    assert cancelled["status"] == "cancelled"
+    assert surviving["smart_original_adjustments"] == b["smart_adjustments"]
+    assert surviving["smart_intent"] == b["smart_intent"]
+    assert surviving["minutes"] == 30
+    active = parent_smart_grants(updated, "pc1", transaction_at(19, 22, 15))
+    assert list(active) == [b["id"]]
+    assert active[b["id"]].schedule_end == transaction_at(19, 22, 40)
+    assert restored == before
+    assert first["parent_bonus_journal"]["events"][0]["status"] == "active"
+
+
+def test_smart_transaction_weekly_replay_and_legacy():
+    from custom_components.hal_gaming_control.smart_bonus_transaction import prepare_grant, cancel_grant
+    from custom_components.hal_gaming_control.parent_bonus import parent_smart_grants
+    original = add_parent_grant({"daily": 120, "weekly": 300}, "pc1", transaction_at(19), 15)
+    first = prepare_grant(original, "pc1", transaction_at(19), 30, {"daily": 0, "weekly": 1200})
+    second = prepare_grant(first, "pc1", transaction_at(19, 21, 46), 30,
+                           {"daily": 0, "weekly": 1200})
+    legacy, a, b = second["parent_bonus_journal"]["events"]
+    assert b["smart_adjustments"]["weekly_seconds"] == 1800
+    assert parent_bonus_total(second, transaction_at(19)) == 15
+    updated = cancel_grant(second, "pc1", a["id"], transaction_at(19, 21, 47))
+    assert updated["parent_bonus_journal"]["events"][0] == legacy
+    assert updated["parent_bonus_journal"]["events"][2]["smart_adjustments"]["weekly_seconds"] == 600
+    assert parent_smart_grants(updated, "pc1", transaction_at(20))[b["id"]].daily_seconds == 0
+    assert parent_smart_grants(updated, "pc1", transaction_at(20))[b["id"]].weekly_seconds == 600
+    assert parent_smart_grants(updated, "pc1", transaction_at(23)) == {}
+    assert updated["daily"] == 120 and updated["weekly"] == 300
+
+
+def test_smart_transaction_refuses_invalid_or_cross_device_cancel():
+    from custom_components.hal_gaming_control.smart_bonus_transaction import prepare_grant, cancel_grant
+    at = transaction_at(19)
+    options = prepare_grant({}, "pc1", at, 30, {"weekly": 0})
+    row = options["parent_bonus_journal"]["events"][0]
+    for device, when, grant_id in [("pc2", at, row["id"]), ("pc1", transaction_at(20), row["id"]),
+                                  ("pc1", at, "unknown")]:
+        before = json.loads(json.dumps(options))
+        with pytest.raises(ValueError):
+            cancel_grant(options, device, grant_id, when)
+        assert options == before
+    broken = json.loads(json.dumps(options))
+    broken["parent_bonus_journal"]["events"][0]["smart_intent"]["at_utc"] = "2026-11-18T12:00:00+00:00"
+    with pytest.raises(ValueError):
+        prepare_grant(broken, "pc1", at, 30, {"weekly": 0})
+    with pytest.raises(ValueError):
+        prepare_grant(options, "pc1", at, 30, {"weekly": None})
+
+
+def test_smart_transaction_rejects_unreplayable_records_and_legacy_target():
+    from custom_components.hal_gaming_control.smart_bonus_transaction import prepare_grant, cancel_grant
+    from custom_components.hal_gaming_control.parent_bonus import add_smart_parent_grant
+    at = transaction_at(19)
+    incomplete = add_smart_parent_grant({}, "pc1", at, 30, {"weekly": 1800})
+    with pytest.raises(ValueError, match="intent"):
+        prepare_grant(incomplete, "pc1", at, 30, {"weekly": 0})
+    legacy = add_parent_grant({}, "pc1", at, 30)
+    with pytest.raises(ValueError, match="smart"):
+        cancel_grant(legacy, "pc1", legacy["parent_bonus_journal"]["events"][0]["id"], at)
+
+
+def test_smart_transaction_retains_history_and_device_isolation():
+    from custom_components.hal_gaming_control.smart_bonus_transaction import prepare_grant
+    old_at = datetime(2026, 5, 1, 14, tzinfo=TZ)
+    old = prepare_grant({}, "pc1", old_at, 30, {"weekly": 0})
+    other = prepare_grant(old, "pc2", transaction_at(19), 30, {"weekly": 0})
+    latest = prepare_grant(other, "pc1", transaction_at(19), 30, {"weekly": 0})
+    rows = latest["parent_bonus_journal"]["events"]
+    assert len(rows) == 3
+    assert rows[0] == old["parent_bonus_journal"]["events"][0]
+    assert rows[1] == other["parent_bonus_journal"]["events"][1]
+    assert rows[2]["smart_adjustments"]["weekly_seconds"] == 1800
