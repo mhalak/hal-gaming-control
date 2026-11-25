@@ -7,11 +7,10 @@ from homeassistant.components import mqtt
 from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv, service
-from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, ROOT
 from .smart_parent_control import async_add_smart_bonus
-from .smart_policy import effective_snapshot, effective_summary
+from .popup_view import MODES, automatic_patch, v2_initial
 
 
 def _strict_int(value):
@@ -64,8 +63,8 @@ SCHEMA_UNLIMITED = vol.Schema(DEVICE | {
 }, extra=vol.PREVENT_EXTRA)
 _SCHEMA_POPUP_FIELDS = vol.Schema(DEVICE | {
     vol.Optional("operation", default="upsert"): vol.In(("upsert", "hide")),
-    vol.Optional("countdown_mode", default="manual"): vol.In(("manual", "automatic")),
-    vol.Optional("progress_mode", default="manual"): vol.In(("manual", "automatic")),
+    vol.Optional("countdown_mode", default="manual"): vol.In(("hidden", "manual", "automatic")),
+    vol.Optional("progress_mode", default="manual"): vol.In(("hidden", "manual", "automatic")),
     vol.Optional("description_mode", default="manual"): vol.In(("manual", "automatic")),
     vol.Optional("heading"): _bounded_text(100),
     vol.Optional("description"): _bounded_text(120),
@@ -86,6 +85,13 @@ def _ignore_hidden_view_fields(value):
     if isinstance(value, dict) and value.get("operation") == "hide":
         return {key: val for key, val in value.items()
                 if key not in _POPUP_VIEW_FIELDS}
+    if isinstance(value, dict):
+        value = dict(value)
+        for mode, field in (("countdown_mode", "remaining_seconds"),
+                            ("progress_mode", "progress_percent"),
+                            ("description_mode", "description")):
+            if value.get(mode) in ("hidden", "automatic"):
+                value.pop(field, None)
     return value
 
 
@@ -103,34 +109,21 @@ def _coordinator(hass, device_id):
 
 async def _popup_view(coordinator, options):
     """Resolve independent modes from one verified policy snapshot."""
+    v2 = coordinator.popup.supports_v2
+    if not v2 and "hidden" in (options["countdown_mode"], options["progress_mode"]):
+        raise ServiceValidationError("Hidden popup fields require Windows popup protocol v2")
     view = dict(options)
-    automatic = [mode for mode in ("countdown_mode", "progress_mode", "description_mode")
-                 if options[mode] == "automatic"]
-    if automatic:
+    if any(options[mode] == "automatic" for mode in MODES):
         await coordinator.async_refresh()
-        data = coordinator.data or {}
-        totals = data.get("totals", {})
-        snapshot = effective_snapshot(
-            coordinator.options, totals, dt_util.now(), coordinator.device_id,
-            ready=data.get("ready") is True and coordinator.last_update_success)
-        summary = effective_summary(snapshot, totals)
-        if summary["budget_status"] != "limited":
-            raise ServiceValidationError("Automatic popup requires a verified finite effective budget")
-        if "countdown_mode" in automatic:
-            view["remaining_seconds"] = math.ceil(summary["remaining_seconds"])
-        if "progress_mode" in automatic:
-            view["progress_percent"] = summary["remaining_percent"]
-        if "description_mode" in automatic:
-            labels = {"daily": "Daily budget", "weekly": "Weekly budget", "schedule": "Schedule limit"}
-            view["description"] = " / ".join(labels[source] for source in summary["limiting_sources"])
-    for field in ("heading", "remaining_seconds", "progress_percent"):
-        if view.get(field) is None:
+        view.update(automatic_patch(coordinator, options, v2=v2))
+    if v2:
+        v2_initial(view, options)
+    for mode, field in (("countdown_mode", "remaining_seconds"),
+                        ("progress_mode", "progress_percent")):
+        if options[mode] != "hidden" and view.get(field) is None:
             raise ServiceValidationError("Popup upsert requires heading, remaining_seconds and progress_percent")
-    try:
-        vol.All(_strict_int, vol.Range(min=0, max=604800))(view["remaining_seconds"])
-        _percent(view["progress_percent"])
-    except vol.Invalid as exc:
-        raise ServiceValidationError("Resolved popup values exceed protocol bounds") from exc
+    if not view.get("heading"):
+        raise ServiceValidationError("Popup upsert requires heading")
     return view
 
 
@@ -170,6 +163,7 @@ def async_setup_services(hass):
         if operation == "hide":
             await c.popup.async_send("hide")
             return
+        source_options = dict(options)
         options = await _popup_view(c, options)
         buttons = options.get("buttons", [])
         if len({b["id"] for b in buttons}) != len(buttons):
@@ -180,7 +174,10 @@ def async_setup_services(hass):
             description=options.get("description", ""),
             remaining_seconds=options.get("remaining_seconds"),
             progress_percent=options.get("progress_percent"),
-            buttons=buttons)
+            buttons=buttons,
+            countdown_running=options.get("countdown_running"),
+            progress_seconds=options.get("progress_seconds"),
+            live_options=source_options)
 
     for name, handler, schema in (
         ("lock_pc", async_lock_pc, SCHEMA_LOCK),
