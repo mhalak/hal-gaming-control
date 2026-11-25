@@ -181,3 +181,26 @@ async def test_old_prepare_confirm_ha_services_are_gone(hass):
     assert await async_setup(hass, {})
     assert not hass.services.has_service(DOMAIN, "prepare_parent_bonus_undo")
     assert not hass.services.has_service(DOMAIN, "confirm_parent_bonus_undo")
+
+
+@pytest.mark.asyncio
+async def test_smart_receipt_dropdown_undo_routes_through_replay():
+    from custom_components.hal_gaming_control.smart_bonus_transaction import prepare_grant
+    entity, entry, committed = setup_select()
+    stamp = at(hour=21, minute=45)
+    settings = {"enabled": True, "unlimited": False, "daily": 180, "weekly": 300,
+                "schedule_enabled": True, "schedule_start": "16:00", "schedule_end": "22:00"}
+    entry.options = prepare_grant(settings, "pc1", stamp, 30,
+                                  {"daily": 7200, "weekly": 14400}, settings)
+    entity.coordinator.data["totals"] = {"daily": 3600, "weekly": 3600}
+    entity.coordinator.foreground.export_segments.return_value = ()
+    with patch("custom_components.hal_gaming_control.select.dt_util.now", return_value=stamp), \
+         patch.object(entity, "async_write_ha_state"):
+        assert entity.current_option == total(105)
+        assert any("Until Schedule Limit" in row for row in entity.options)
+        choice = next(row for row in entity.options if "Parent Bonus" in row)
+        assert choice.endswith("⛔")
+        await entity.async_select_option(choice)
+        assert len(committed) == 1
+        assert entity.current_option == total(75)
+        assert entry.options["parent_bonus_journal"]["events"][0]["status"] == "cancelled"
