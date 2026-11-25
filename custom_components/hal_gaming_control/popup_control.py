@@ -12,6 +12,7 @@ from time import time
 
 from homeassistant.components import mqtt
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.core import callback
 from homeassistant.helpers.event import async_track_time_interval
 
 from .const import ROOT
@@ -99,6 +100,7 @@ class PopupControl:
             self.coordinator.hass, self.root + '/ui/popup_event',
             self._on_popup_event, qos=1)
 
+    @callback
     def _on_discovery(self, message):
         self._supported = False
         self._v2 = False
@@ -119,6 +121,7 @@ class PopupControl:
         if not self.supports_v2:
             self._stop_sync()
 
+    @callback
     def _on_popup_event(self, message):
         """Child clicks/closing are observations, never permission grants."""
         if (getattr(message, "retain", None) is not False
