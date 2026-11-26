@@ -1,0 +1,28 @@
+name: Verify reusable PR CI
+on:
+  workflow_call:
+    outputs:
+      run_tests:
+        description: Run full checks unless identical green PR evidence was verified
+        value: ${{ jobs.verify.outputs.run_tests }}
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run_tests: ${{ steps.decide.outputs.run_tests }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify merged PR evidence or require full checks
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: python3 tools/ci_reuse.py
