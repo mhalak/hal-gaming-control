@@ -1,4 +1,5 @@
 name: Direct MQTT runtime CI
+run-name: 'CI tested commit ${{ github.sha }}'
 on:
   push:
     branches: [main]
@@ -10,7 +11,16 @@ concurrency:
 permissions:
   contents: read
 jobs:
+  reuse:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    uses: ./.github/workflows/ci-reuse.yml
   runtime:
+    needs: reuse
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.reuse.outputs.run_tests != 'false') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
