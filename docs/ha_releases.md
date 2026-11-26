@@ -1,3 +1,11 @@
+## 0.16.0 — Profile Copy and Configure menu icons (#266)
+
+- Open Configure → 📋 Profile copy on the destination PC, select another configured Gaming Control device (including offline PCs), and submit once to replace its persistent policy.
+- Copies tracked applications, budgets, weekend bonus, weekday/weekend schedules, rule settings and portable trusted update-channel configuration. Missing fields use source defaults; inherited weekend schedules remain inherited.
+- Device identity, MQTT routing, gaming history, existing bonus journals and Unlimited override stay local. Windows update installation authorization is not transferred; changed trust settings require explicit reauthorization. No automatic Windows commands are sent by Profile Copy.
+- Adds four native Configure menu pictograms, translations, regression tests and CI dependency maintenance (#267–#269). No Windows agent or Unified MQTT v3 changes.
+- **Preview 45 / HA 0.16.0 / Windows 0.5.2 unchanged**. Source preview; publication and live deployment are separate gates.
+
 ## 0.15.1 — MQTT thread safety and verified termination (#263)
 
 - Ensure MQTT offer, popup and discovery callbacks run on the HA event loop. Termination offer changes refresh only the relevant button, not every coordinator listener.
