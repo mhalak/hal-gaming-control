@@ -72,9 +72,10 @@ async def test_menu_exposes_only_live_settings_without_mutating_saved_options(
     view = await hass.config_entries.options.async_init(entry.entry_id)
     assert view["type"] == data_entry_flow.FlowResultType.MENU
     assert view["step_id"] == "settings_menu"
-    assert view["menu_options"] == {"mqtt_settings": "MQTT configuration",
-                                       "tracked_apps": "Tracked applications",
-                                       "windows_updates": "Windows updates (advanced)",
+    assert view["menu_options"] == {"mqtt_settings": "🔌 MQTT configuration",
+                                       "profile_copy": "📋 Profile copy",
+                                       "tracked_apps": "🎮 Tracked applications",
+                                       "windows_updates": "🔄 Windows updates (advanced)",
                                        }
     assert entry.options == saved
 
@@ -739,9 +740,10 @@ async def test_translations_explain_single_page_editor_and_mqtt(
         steps = json.loads((PACKAGE / relative).read_text())["options"]["step"]
         assert set(steps) == {"settings_menu", "mqtt_settings", "tracked_apps", "windows_updates"}
         assert steps["settings_menu"]["menu_options"] == {
-            "mqtt_settings": "MQTT configuration",
-            "tracked_apps": "Tracked applications",
-            "windows_updates": "Windows updates (advanced)",
+            "mqtt_settings": "🔌 MQTT configuration",
+                                       "profile_copy": "📋 Profile copy",
+            "tracked_apps": "🎮 Tracked applications",
+            "windows_updates": "🔄 Windows updates (advanced)",
                                        }
         assert "{actions}" not in steps["settings_menu"]["description"]
         assert steps["settings_menu"]["title"] == "HAL Gaming Control"
