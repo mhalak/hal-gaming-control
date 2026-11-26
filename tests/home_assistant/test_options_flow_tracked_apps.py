@@ -738,15 +738,18 @@ async def test_translations_explain_single_page_editor_and_mqtt(
         hass, enable_custom_integrations):
     for relative in ("strings.json", "translations/en.json"):
         steps = json.loads((PACKAGE / relative).read_text())["options"]["step"]
-        assert set(steps) == {"settings_menu", "mqtt_settings", "tracked_apps", "windows_updates"}
+        assert set(steps) == {"settings_menu", "mqtt_settings", "profile_copy",
+                              "tracked_apps", "windows_updates"}
         assert steps["settings_menu"]["menu_options"] == {
             "mqtt_settings": "🔌 MQTT configuration",
-                                       "profile_copy": "📋 Profile copy",
+            "profile_copy": "📋 Profile copy",
             "tracked_apps": "🎮 Tracked applications",
             "windows_updates": "🔄 Windows updates (advanced)",
-                                       }
+        }
         assert "{actions}" not in steps["settings_menu"]["description"]
         assert steps["settings_menu"]["title"] == "HAL Gaming Control"
+        assert steps["profile_copy"]["data"]["source"] == "Copy configuration from"
+        assert "gaming history" in steps["profile_copy"]["description"]
         assert steps["tracked_apps"]["submit"] == "Save changes"
         assert "submit" not in steps["mqtt_settings"]
         tracked = steps["tracked_apps"]["description"]
