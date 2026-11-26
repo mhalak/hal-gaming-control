@@ -8,7 +8,9 @@ from .const import DEFAULTS
 # Explicit ownership: defaults and additional persistent settings are portable;
 # unlimited is a live override, not a profile setting. Unknown keys stay local.
 PROFILE_DEFAULTS = {
-    key: value for key, value in DEFAULTS.items() if key != "unlimited"
+    key: DEFAULTS[key] for key in (
+        "enabled", "daily", "weekly", "weekend_bonus", "schedule_enabled",
+        "schedule_start", "schedule_end", "per_game", "actions")
 } | {"tracked_apps": [], "update_catalog_url": "",
      "ota_release_base_url": "", "ota_signer_public_key": ""}
 INHERITED_FIELDS = ("weekend_schedule_start", "weekend_schedule_end")
