@@ -8,11 +8,16 @@ This is the **human-readable development changelog**. For full technical release
 
 > **Preview software, not a deployment log.** Version numbers below describe changes recorded in source; they do **not** prove that a tagged GitHub Release, a signed Windows installer or an update on any real PC/HA instance exists. Always check the deployed build and the [current compatibility/deployment instructions](known_limitations.md).
 
-**Current source (Preview 44):** **Home Assistant 0.15.1** and **Windows agent 0.5.2**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
+**Current source (Preview 45):** **Home Assistant 0.16.0** and **Windows agent 0.5.2**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
 
 **🚨 BREAKING CHANGE** means an upgrade can require manual action or break compatibility with prior configs, entity IDs or MQTT payloads. Follow the linked migration instructions before updating; do not assume a normal in-place upgrade is safe.
 
 ## Home Assistant integration
+
+### 0.16.0 — Profile Copy and Configure icons (#266)
+- Copy another PC’s persistent configuration in one native dropdown submission, including offline sources.
+- Preserve the destination’s identity, gaming history, bonus grants and active Unlimited override; never transfer Windows installation authorization.
+- Add four Configure menu pictograms and regression tests. Windows 0.5.2 and Unified MQTT v3 unchanged.
 
 ### 0.15.1 — MQTT thread-safety hotfix (#263)
 - Dispatch termination offers, popup events and discovery callbacks on the HA event loop.
