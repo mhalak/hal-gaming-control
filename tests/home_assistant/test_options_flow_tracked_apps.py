@@ -72,9 +72,10 @@ async def test_menu_exposes_only_live_settings_without_mutating_saved_options(
     view = await hass.config_entries.options.async_init(entry.entry_id)
     assert view["type"] == data_entry_flow.FlowResultType.MENU
     assert view["step_id"] == "settings_menu"
-    assert view["menu_options"] == {"mqtt_settings": "MQTT configuration",
-                                       "tracked_apps": "Tracked applications",
-                                       "windows_updates": "Windows updates (advanced)",
+    assert view["menu_options"] == {"mqtt_settings": "🔌 MQTT configuration",
+                                       "profile_copy": "📋 Profile copy",
+                                       "tracked_apps": "🎮 Tracked applications",
+                                       "windows_updates": "🔄 Windows updates (advanced)",
                                        }
     assert entry.options == saved
 
@@ -737,14 +738,18 @@ async def test_translations_explain_single_page_editor_and_mqtt(
         hass, enable_custom_integrations):
     for relative in ("strings.json", "translations/en.json"):
         steps = json.loads((PACKAGE / relative).read_text())["options"]["step"]
-        assert set(steps) == {"settings_menu", "mqtt_settings", "tracked_apps", "windows_updates"}
+        assert set(steps) == {"settings_menu", "mqtt_settings", "profile_copy",
+                              "tracked_apps", "windows_updates"}
         assert steps["settings_menu"]["menu_options"] == {
-            "mqtt_settings": "MQTT configuration",
-            "tracked_apps": "Tracked applications",
-            "windows_updates": "Windows updates (advanced)",
-                                       }
+            "mqtt_settings": "🔌 MQTT configuration",
+            "profile_copy": "📋 Profile copy",
+            "tracked_apps": "🎮 Tracked applications",
+            "windows_updates": "🔄 Windows updates (advanced)",
+        }
         assert "{actions}" not in steps["settings_menu"]["description"]
         assert steps["settings_menu"]["title"] == "HAL Gaming Control"
+        assert steps["profile_copy"]["data"]["source"] == "Copy configuration from"
+        assert "gaming history" in steps["profile_copy"]["description"]
         assert steps["tracked_apps"]["submit"] == "Save changes"
         assert "submit" not in steps["mqtt_settings"]
         tracked = steps["tracked_apps"]["description"]
@@ -787,3 +792,159 @@ async def test_editor_replaces_top_level_save_without_resetting_legacy_settings(
     for key, value in saved.items():
         assert result["data"][key] == value
     assert result["data"]["tracked_apps"][0]["name"] == "Roblox"
+
+
+async def test_profile_copy_full_replacement_offline_and_latest_local_state(
+        hass, enable_custom_integrations):
+    from copy import deepcopy
+
+    apps = [{"process": "javaw.exe", "signature": MINECRAFT["signature"],
+             "name": "Minecraft"}]
+    source_options = {
+        "enabled": False, "daily": 0, "weekly": 420, "weekend_bonus": 30,
+        "schedule_enabled": True, "schedule_start": "12:00",
+        "schedule_end": "19:30", "tracked_apps": apps,
+        "unlimited": False, "bonus_minutes": 99,
+        "ota_install_enabled": True,
+    }
+    source = add_device(hass, DATA2, source_options)
+    target = add_device(hass, DATA1, {
+        "enabled": True, "daily": 180, "weekly": 600, "weekend_bonus": 10,
+        "weekend_schedule_start": "08:00", "unlimited": True,
+        "tracked_apps": [], "bonus_minutes": 10,
+        "update_catalog_url": "https://example.com/catalog.json",
+        "ota_install_enabled": True,
+    })
+    foreign = MockConfigEntry(domain="mqtt", title="Other", data={"device_id": "foreign"})
+    foreign.add_to_hass(hass)
+    before = deepcopy(dict(source.options))
+    identity = deepcopy(dict(target.data))
+
+    manager, view = await open_step(hass, target, "profile_copy")
+    assert view["type"] == data_entry_flow.FlowResultType.FORM
+    field = next(iter(view["data_schema"].schema.values()))
+    assert field.config["options"] == [
+        {"value": source.entry_id, "label": "Gaming PC 2 (pc2)"}]
+    # An accounting write after the form opened must survive Submit.
+    hass.config_entries.async_update_entry(
+        target, options=dict(target.options) | {"bonus_minutes": 25})
+    with patch.object(cf.mqtt, "async_publish", new=AsyncMock()) as publish:
+        result = await manager.async_configure(view["flow_id"], {"source": source.entry_id})
+        publish.assert_not_called()
+
+    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert target.data == identity
+    assert source.options == before
+    assert target.options["daily"] == 0
+    assert target.options["weekly"] == 420
+    assert target.options["enabled"] is False
+    assert target.options["schedule_enabled"] is True
+    assert target.options["schedule_start"] == "12:00"
+    assert target.options["schedule_end"] == "19:30"
+    assert target.options["weekend_bonus"] == 30
+    assert "weekend_schedule_start" not in target.options
+    assert target.options["tracked_apps"] == apps
+    assert target.options["bonus_minutes"] == 25
+    assert target.options["unlimited"] is True
+    assert target.options["ota_install_enabled"] is False
+    assert target.options["update_catalog_url"] == ""
+
+
+async def test_profile_copy_without_sources_aborts_without_changes(
+        hass, enable_custom_integrations):
+    target = add_device(hass, DATA1, {"daily": 90})
+    _, view = await open_step(hass, target, "profile_copy")
+    assert view["type"] == data_entry_flow.FlowResultType.ABORT
+    assert view["reason"] == "no_profile_sources"
+    assert target.options == {"daily": 90}
+
+
+async def test_profile_copy_invalid_source_configuration_does_not_save(
+        hass, enable_custom_integrations):
+    source = add_device(hass, DATA2, {"weekend_bonus": "bad"})
+    target = add_device(hass, DATA1, {"daily": 90})
+    manager, view = await open_step(hass, target, "profile_copy")
+    result = await manager.async_configure(view["flow_id"], {"source": source.entry_id})
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert result["errors"]["base"] == "invalid_profile_configuration"
+    assert target.options == {"daily": 90}
+
+
+async def test_profile_copy_deleted_source_cannot_be_used(
+        hass, enable_custom_integrations):
+    source = add_device(hass, DATA2, {"daily": 30})
+    target = add_device(hass, DATA1, {"daily": 90})
+    manager, view = await open_step(hass, target, "profile_copy")
+    await hass.config_entries.async_remove(source.entry_id)
+    result = await manager.async_configure(view["flow_id"], {"source": source.entry_id})
+    assert result["type"] == data_entry_flow.FlowResultType.ABORT
+    assert result["reason"] == "no_profile_sources"
+    assert target.options == {"daily": 90}
+
+
+async def test_profile_copy_policy_schema_defaults_and_nested_isolation():
+    from custom_components.hal_gaming_control.const import DEFAULTS
+    from custom_components.hal_gaming_control.profile_copy import (
+        PROFILE_DEFAULTS, INHERITED_FIELDS, copy_profile)
+
+    assert set(DEFAULTS) == set(PROFILE_DEFAULTS).intersection(DEFAULTS) | {"unlimited"}
+    assert set(INHERITED_FIELDS) == {"weekend_schedule_start", "weekend_schedule_end"}
+    target = {
+        "daily": 90, "weekly": 300, "weekend_bonus": 20,
+        "schedule_enabled": True, "weekend_schedule_start": "09:00",
+        "per_game": {"Roblox": 45}, "actions": ["lock_pc"],
+        "parent_bonus_journal": {"events": [{"id": "target"}]},
+        "screen_idle_bonus_journal": {"events": [{"id": "target"}]},
+        "unlimited": True, "future_device_local_key": {"value": 1},
+    }
+    source = {"tracked_apps": [{"process": "javaw.exe",
+                                "signature": dict(MINECRAFT["signature"]),
+                                "name": "Minecraft"}],
+              "parent_bonus_journal": {"events": [{"id": "source"}]},
+              "screen_idle_bonus_journal": {"events": [{"id": "source"}]},
+              "unlimited": False, "foreign_runtime": True}
+    copied = copy_profile(source, target)
+    assert copied["daily"] == DEFAULTS["daily"]
+    assert copied["weekly"] == DEFAULTS["weekly"]
+    assert copied["weekend_bonus"] == 0
+    assert copied["schedule_enabled"] is False
+    assert copied["per_game"] == {}
+    assert copied["actions"] == []
+    assert "weekend_schedule_start" not in copied
+    assert "foreign_runtime" not in copied
+    assert copied["unlimited"] is True
+    for key in ("parent_bonus_journal", "screen_idle_bonus_journal", "future_device_local_key"):
+        assert copied[key] == target[key]
+        assert copied[key] is not target[key]
+    copied["tracked_apps"][0]["signature"]["value"] = "changed"
+    assert source["tracked_apps"][0]["signature"] == MINECRAFT["signature"]
+
+
+async def test_profile_copy_ota_authorization_is_not_transferred():
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from custom_components.hal_gaming_control.profile_copy import copy_profile
+
+    public_key = Ed25519PrivateKey.generate().public_key().public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo).decode()
+    trust = {"update_catalog_url": "https://example.com/catalog.json",
+             "ota_release_base_url": "https://example.com/releases/",
+             "ota_signer_public_key": public_key}
+    assert copy_profile(trust | {"ota_install_enabled": True},
+                        {"ota_install_enabled": False})["ota_install_enabled"] is False
+    assert copy_profile(trust, trust | {"ota_install_enabled": True})["ota_install_enabled"] is True
+    changed = trust | {"update_catalog_url": "https://example.com/new.json"}
+    assert copy_profile(changed, trust | {"ota_install_enabled": True})["ota_install_enabled"] is False
+
+
+async def test_profile_copy_revalidates_forged_source(hass, enable_custom_integrations):
+    target = add_device(hass, DATA1, {"daily": 90})
+    source = add_device(hass, DATA2, {"daily": 30})
+    foreign = MockConfigEntry(domain="mqtt", title="Other", data={"device_id": "foreign"})
+    foreign.add_to_hass(hass)
+    manager, view = await open_step(hass, target, "profile_copy")
+    for candidate in (target.entry_id, foreign.entry_id, "missing"):
+        with pytest.raises(data_entry_flow.InvalidData):
+            await manager.async_configure(view["flow_id"], {"source": candidate})
+        assert target.options == {"daily": 90}
+    assert source.options == {"daily": 30}

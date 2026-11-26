@@ -25,6 +25,14 @@ Home Assistant is the family's control panel: see gaming time, choose apps, give
 
 **HACS installs only the Home Assistant part.** It can't install the Windows program on your child's PC.
 
+## Copy a device profile
+
+Open **Settings → Devices & services → HAL Gaming Control → Configure → 📋 Profile copy** on the destination PC. Select another configured Gaming Control PC from the dropdown and press **Submit**. The source PC can be offline.
+
+The destination's persistent policy is replaced, including tracked applications, budgets, weekday and weekend schedules, rule settings and portable Windows update channel settings. Inherited weekend schedules remain inherited. The source is unchanged, and subsequent edits are independent.
+
+Device identity, MQTT routing, accounting history, existing bonus grants and live Unlimited override remain local to the destination. Windows installation authorization is never copied; changing the trusted update channel disables any prior authorization until explicitly re-enabled. Shared HA MQTT settings and HA automations are not copied.
+
 ## Track an app
 
 Open **Settings → Devices & services → HAL Gaming Control**, choose the Windows hostname-based PC and select **Configure → Tracked applications**. Only fresh Unified v3 foreground samples are accepted; there is no telemetry protocol selection under Configure.

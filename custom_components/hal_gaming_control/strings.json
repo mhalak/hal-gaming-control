@@ -25,11 +25,12 @@
     "step": {
       "settings_menu": {
         "title": "HAL Gaming Control",
-        "description": "Manage tracked applications, MQTT connection or a separately provisioned, trusted Windows update channel.",
+        "description": "Manage MQTT configuration, copy device profiles, configure tracked applications or manage trusted Windows updates.",
         "menu_options": {
-          "mqtt_settings": "MQTT configuration",
-          "tracked_apps": "Tracked applications",
-          "windows_updates": "Windows updates (advanced)"
+          "mqtt_settings": "🔌 MQTT configuration",
+          "profile_copy": "📋 Profile copy",
+          "tracked_apps": "🎮 Tracked applications",
+          "windows_updates": "🔄 Windows updates (advanced)"
         }
       },
       "mqtt_settings": {
@@ -54,6 +55,13 @@
           "ota_signer_public_key": "Operator-pinned Ed25519 PUBLIC key (PEM)"
         },
         "submit": "Save trusted update settings"
+      },
+      "profile_copy": {
+        "title": "Profile copy",
+        "description": "Copy the complete configuration from another Gaming Control device. Submit replaces the current profile. Device identity, gaming history and existing bonus grants are preserved. Windows update installation authorization is never copied.",
+        "data": {
+          "source": "Copy configuration from"
+        }
       }
     },
     "error": {
@@ -61,10 +69,13 @@
       "configuration_changed": "The HA application list changed while this form was open. Reopen the flow before editing.",
       "invalid_application": "Invalid application row, duplicate process, or invalid name. Only the verified foreground process can be added.",
       "no_tracked_apps": "No HA-managed applications to modify yet.",
-      "invalid_signed_release": "Use a fixed HTTPS catalog and release directory, a valid Ed25519 PUBLIC PEM key, and all required fields when enabling updates. No settings were changed."
+      "invalid_signed_release": "Use a fixed HTTPS catalog and release directory, a valid Ed25519 PUBLIC PEM key, and all required fields when enabling updates. No settings were changed.",
+      "invalid_profile_source": "The selected source is no longer available. Choose another Gaming Control device.",
+      "invalid_profile_configuration": "The source profile contains invalid settings. No settings were changed."
     },
     "abort": {
-      "invalid_app_configuration": "Stored tracked applications are invalid; no changes were made."
+      "invalid_app_configuration": "Stored tracked applications are invalid; no changes were made.",
+      "no_profile_sources": "No other Gaming Control device is configured yet."
     }
   },
   "services": {

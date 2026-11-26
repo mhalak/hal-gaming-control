@@ -24,9 +24,10 @@ async def test_options_menu_has_no_legacy_action_editors(hass, enable_custom_int
     manager = hass.config_entries.options
     result = await manager.async_init(entry.entry_id)
     assert result["type"] == data_entry_flow.FlowResultType.MENU
-    assert result["menu_options"] == {"mqtt_settings": "MQTT configuration",
-                                       "tracked_apps": "Tracked applications",
-                                       "windows_updates": "Windows updates (advanced)",
+    assert result["menu_options"] == {"mqtt_settings": "🔌 MQTT configuration",
+                                       "profile_copy": "📋 Profile copy",
+                                       "tracked_apps": "🎮 Tracked applications",
+                                       "windows_updates": "🔄 Windows updates (advanced)",
                                        }
     assert not {"add_action", "remove_action", "move_action"} & set(result["menu_options"])
     # Opening Configure and saving an unchanged HA app list must not erase

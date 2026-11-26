@@ -10,6 +10,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 from homeassistant.util import dt as dt_util
 from .const import DOMAIN, ROOT
+from .profile_copy import copy_profile, validate_update_settings
 from .candidate_protocol import parse_candidate
 from .app_registry import load_apps, normalized_name
 from .app_editor import (apply_app_editor, editor_choices, editor_rows,
@@ -277,10 +278,56 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_menu(
             step_id="settings_menu",
             menu_options={
-                "mqtt_settings": "MQTT configuration",
-                "tracked_apps": "Tracked applications",
-                "windows_updates": "Windows updates (advanced)",
+                "mqtt_settings": "🔌 MQTT configuration",
+                "profile_copy": "📋 Profile copy",
+                "tracked_apps": "🎮 Tracked applications",
+                "windows_updates": "🔄 Windows updates (advanced)",
             },
+        )
+
+    def _profile_sources(self):
+        """Find other configured PCs, independent of MQTT availability."""
+        target = self.config_entry
+        return {
+            entry.entry_id: entry
+            for entry in self.hass.config_entries.async_entries(DOMAIN)
+            if entry.entry_id != target.entry_id
+            and entry.data.get("device_id")
+            and entry.data["device_id"] != target.data.get("device_id")
+        }
+
+    async def async_step_profile_copy(self, user_input=None):
+        """Replace portable policy in one save, preserving current local state."""
+        sources = self._profile_sources()
+        errors = {}
+        if user_input is not None:
+            source_id = user_input.get("source")
+            source = sources.get(source_id) if isinstance(source_id, str) else None
+            if source is None:
+                errors["base"] = "invalid_profile_source"
+            else:
+                try:
+                    new = copy_profile(source.options, self.config_entry.options)
+                except (ValueError, TypeError, UnicodeError):
+                    errors["base"] = "invalid_profile_configuration"
+                else:
+                    return self.async_create_entry(title="", data=new)
+        if not sources:
+            return self.async_abort(reason="no_profile_sources")
+        choices = [
+            {"value": entry.entry_id,
+             "label": f"{entry.title} ({entry.data['device_id']})"}
+            for entry in sorted(sources.values(),
+                                key=lambda item: (item.title.casefold(), item.entry_id))
+        ]
+        return self.async_show_form(
+            step_id="profile_copy",
+            data_schema=vol.Schema({
+                vol.Required("source"): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=choices, mode=selector.SelectSelectorMode.DROPDOWN)),
+            }),
+            errors=errors,
         )
 
     async def async_step_mqtt_settings(self, user_input=None):
@@ -313,11 +360,6 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
         passed to MQTT; the public verification key is entered out of band.
         The optional MQTT install mode is always OFF until configured.
         """
-        from cryptography.hazmat.primitives import serialization
-        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-        from .update_protocol import catalog_url
-        from .ota_release import release_url
-
         old = dict(self.config_entry.options)
         errors = {}
         if user_input is not None:
@@ -326,18 +368,7 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
             public_key = user_input.get("ota_signer_public_key", "").strip()
             enabled = user_input.get("ota_install_enabled") is True
             try:
-                if catalog:
-                    catalog_url(catalog)
-                if base:
-                    release_url(base, "windows-agent-0.0.0.json")
-                if public_key:
-                    if len(public_key) > 8192:
-                        raise ValueError("Public signing key too large")
-                    key = serialization.load_pem_public_key(public_key.encode("ascii"))
-                    if not isinstance(key, Ed25519PublicKey):
-                        raise ValueError("Expected pinned Ed25519 public key")
-                if enabled and not (catalog and base and public_key):
-                    raise ValueError("All trusted release details must be configured")
+                validate_update_settings(catalog, base, public_key, enabled)
             except (ValueError, TypeError, UnicodeError):
                 errors["base"] = "invalid_signed_release"
             if not errors:
