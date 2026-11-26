@@ -1,5 +1,5 @@
 {
-  "release": "HAL Gaming Control Preview 44",
+  "release": "HAL Gaming Control Preview 45",
   "windows_agent": "0.5.2",
-  "home_assistant": "0.15.1"
+  "home_assistant": "0.16.0"
 }
