@@ -1,4 +1,4 @@
-"""Regression checks for CI policy: once per PR revision; all main pushes."""
+"""Regression checks for CI policy: full PR revisions; main pushes execute or verify equivalent evidence."""
 from pathlib import Path
 
 import pytest
