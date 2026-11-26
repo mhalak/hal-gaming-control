@@ -877,3 +877,72 @@ async def test_profile_copy_deleted_source_cannot_be_used(
     assert result["type"] == data_entry_flow.FlowResultType.ABORT
     assert result["reason"] == "no_profile_sources"
     assert target.options == {"daily": 90}
+
+
+async def test_profile_copy_policy_schema_defaults_and_nested_isolation():
+    from custom_components.hal_gaming_control.const import DEFAULTS
+    from custom_components.hal_gaming_control.profile_copy import (
+        PROFILE_DEFAULTS, INHERITED_FIELDS, copy_profile)
+
+    assert set(DEFAULTS) == set(PROFILE_DEFAULTS).intersection(DEFAULTS) | {"unlimited"}
+    assert set(INHERITED_FIELDS) == {"weekend_schedule_start", "weekend_schedule_end"}
+    target = {
+        "daily": 90, "weekly": 300, "weekend_bonus": 20,
+        "schedule_enabled": True, "weekend_schedule_start": "09:00",
+        "per_game": {"Roblox": 45}, "actions": ["lock_pc"],
+        "parent_bonus_journal": {"events": [{"id": "target"}]},
+        "screen_idle_bonus_journal": {"events": [{"id": "target"}]},
+        "unlimited": True, "future_device_local_key": {"value": 1},
+    }
+    source = {"tracked_apps": [{"process": "javaw.exe",
+                                "signature": dict(MINECRAFT["signature"]),
+                                "name": "Minecraft"}],
+              "parent_bonus_journal": {"events": [{"id": "source"}]},
+              "screen_idle_bonus_journal": {"events": [{"id": "source"}]},
+              "unlimited": False, "foreign_runtime": True}
+    copied = copy_profile(source, target)
+    assert copied["daily"] == DEFAULTS["daily"]
+    assert copied["weekly"] == DEFAULTS["weekly"]
+    assert copied["weekend_bonus"] == 0
+    assert copied["schedule_enabled"] is False
+    assert copied["per_game"] == {}
+    assert copied["actions"] == []
+    assert "weekend_schedule_start" not in copied
+    assert "foreign_runtime" not in copied
+    assert copied["unlimited"] is True
+    for key in ("parent_bonus_journal", "screen_idle_bonus_journal", "future_device_local_key"):
+        assert copied[key] == target[key]
+        assert copied[key] is not target[key]
+    copied["tracked_apps"][0]["signature"]["value"] = "changed"
+    assert source["tracked_apps"][0]["signature"] == MINECRAFT["signature"]
+
+
+async def test_profile_copy_ota_authorization_is_not_transferred():
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from custom_components.hal_gaming_control.profile_copy import copy_profile
+
+    public_key = Ed25519PrivateKey.generate().public_key().public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo).decode()
+    trust = {"update_catalog_url": "https://example.com/catalog.json",
+             "ota_release_base_url": "https://example.com/releases/",
+             "ota_signer_public_key": public_key}
+    assert copy_profile(trust | {"ota_install_enabled": True},
+                        {"ota_install_enabled": False})["ota_install_enabled"] is False
+    assert copy_profile(trust, trust | {"ota_install_enabled": True})["ota_install_enabled"] is True
+    changed = trust | {"update_catalog_url": "https://example.com/new.json"}
+    assert copy_profile(changed, trust | {"ota_install_enabled": True})["ota_install_enabled"] is False
+
+
+async def test_profile_copy_revalidates_forged_source(hass, enable_custom_integrations):
+    target = add_device(hass, DATA1, {"daily": 90})
+    source = add_device(hass, DATA2, {"daily": 30})
+    foreign = MockConfigEntry(domain="mqtt", title="Other", data={"device_id": "foreign"})
+    foreign.add_to_hass(hass)
+    manager, view = await open_step(hass, target, "profile_copy")
+    flow = manager.async_get(view["flow_id"])
+    for candidate in (target.entry_id, foreign.entry_id, "missing"):
+        result = await flow.async_step_profile_copy({"source": candidate})
+        assert result["errors"]["base"] == "invalid_profile_source"
+        assert target.options == {"daily": 90}
+    assert source.options == {"daily": 30}
