@@ -40,15 +40,8 @@ def validate_update_settings(catalog, base, public_key, enabled):
         raise ValueError("All trusted release details must be configured")
 
 
-def copy_profile(source, target):
-    """Return one validated replacement; neither input is mutated."""
-    profile = {key: deepcopy(source.get(key, default))
-               for key, default in PROFILE_DEFAULTS.items()}
-    # Preserve inheritance, not just today's effective weekend value.
-    for field in INHERITED_FIELDS:
-        if field in source:
-            profile[field] = deepcopy(source[field])
-
+def _validate_budgets(profile):
+    """Validate persistent rule flags and budget values."""
     for key in ("enabled", "schedule_enabled"):
         if type(profile[key]) is not bool:
             raise ValueError("Invalid policy switch")
@@ -59,6 +52,10 @@ def copy_profile(source, target):
     bonus = profile["weekend_bonus"]
     if type(bonus) is not int or not 0 <= bonus <= 600 or bonus % 10:
         raise ValueError("Invalid weekend bonus")
+
+
+def _validate_schedule(profile):
+    """Validate local clock values, including explicitly set weekend hours."""
     for key in ("schedule_start", "schedule_end", *INHERITED_FIELDS):
         if key in profile:
             if not isinstance(profile[key], str):
@@ -66,6 +63,10 @@ def copy_profile(source, target):
             clock = time.fromisoformat(profile[key])
             if clock.tzinfo is not None or clock.microsecond:
                 raise ValueError("Invalid schedule")
+
+
+def _validate_app_policy(profile):
+    """Validate the application registry and legacy policy values."""
     profile["tracked_apps"] = list(load_apps(profile["tracked_apps"]).values())
     per_game = profile["per_game"]
     if (not isinstance(per_game, dict)
@@ -74,6 +75,20 @@ def copy_profile(source, target):
         raise ValueError("Invalid per-game policy")
     if not isinstance(profile["actions"], list):
         raise ValueError("Invalid legacy actions configuration")
+
+
+def copy_profile(source, target):
+    """Return one validated replacement; neither input is mutated."""
+    profile = {key: deepcopy(source.get(key, default))
+               for key, default in PROFILE_DEFAULTS.items()}
+    # Preserve inheritance, not just today's effective weekend value.
+    for field in INHERITED_FIELDS:
+        if field in source:
+            profile[field] = deepcopy(source[field])
+
+    _validate_budgets(profile)
+    _validate_schedule(profile)
+    _validate_app_policy(profile)
 
     trust = tuple(profile[key] for key in TRUST_FIELDS)
     validate_update_settings(*trust, False)
