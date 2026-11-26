@@ -54,7 +54,7 @@ def test_operator_only_unsigned_candidate_workflow_is_fail_closed():
                       "upload-release-asset", "Start-Service", "install.ps1 -Config"):
         assert forbidden not in cfg
     for used in ("actions/checkout@3d3c42e5", "actions/setup-python@6d4fd22",
-                 "actions/upload-artifact@ea165f8d"):
+                 "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9"):
         assert used in cfg
 
 
