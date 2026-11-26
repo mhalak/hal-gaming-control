@@ -940,9 +940,8 @@ async def test_profile_copy_revalidates_forged_source(hass, enable_custom_integr
     foreign = MockConfigEntry(domain="mqtt", title="Other", data={"device_id": "foreign"})
     foreign.add_to_hass(hass)
     manager, view = await open_step(hass, target, "profile_copy")
-    flow = manager.async_get(view["flow_id"])
     for candidate in (target.entry_id, foreign.entry_id, "missing"):
-        result = await flow.async_step_profile_copy({"source": candidate})
-        assert result["errors"]["base"] == "invalid_profile_source"
+        with pytest.raises(data_entry_flow.InvalidData):
+            await manager.async_configure(view["flow_id"], {"source": candidate})
         assert target.options == {"daily": 90}
     assert source.options == {"daily": 30}
