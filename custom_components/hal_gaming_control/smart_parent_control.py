@@ -8,7 +8,7 @@ from .const import DEFAULTS
 from .gaming_penalty import active_penalties
 from .parent_bonus import _journal
 from .rule_engine import inside_weekly_schedule
-from .smart_bonus_transaction import prepare_grant
+from .smart_bonus_transaction import prepare_grant, prepare_sync_grant
 from .smart_policy import effective_snapshot
 from .smart_schedule import _day_boundaries, _utc
 
@@ -30,7 +30,7 @@ def _schedule_ended_today(options, now, device_id):
     return False
 
 
-def prepare_live_grant(options, device_id, now, minutes, totals, *, ready):
+def _live_grant_context(options, device_id, now, totals, *, ready):
     settings = DEFAULTS | options
     if settings["gaming_suspended"]:
         raise ValueError("Gaming is suspended; lift the suspension before granting time")
@@ -48,8 +48,17 @@ def prepare_live_grant(options, device_id, now, minutes, totals, *, ready):
         raise ValueError("Smart Bonus requires enabled rules and a known finite effective budget")
     if snapshot.schedule.remaining_seconds == 0 and not _schedule_ended_today(settings, now, device_id):
         raise ValueError("Cannot reopen schedule before today's first allowed window")
-    return prepare_grant(options, device_id, now, minutes, snapshot.base_balances,
-                         settings if settings["schedule_enabled"] else None)
+    return snapshot.base_balances, settings if settings["schedule_enabled"] else None
+
+
+def prepare_live_grant(options, device_id, now, minutes, totals, *, ready):
+    balances, schedule = _live_grant_context(options, device_id, now, totals, ready=ready)
+    return prepare_grant(options, device_id, now, minutes, balances, schedule)
+
+
+def prepare_live_sync_grant(options, device_id, now, seconds, totals, *, ready):
+    balances, schedule = _live_grant_context(options, device_id, now, totals, ready=ready)
+    return prepare_sync_grant(options, device_id, now, seconds, balances, schedule)
 
 
 async def async_add_smart_bonus(hass, coordinator, minutes):
