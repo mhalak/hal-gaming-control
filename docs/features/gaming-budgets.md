@@ -48,6 +48,12 @@ Each grant is one transaction, not three separate bonuses. See [Budget Overview 
 
 **Source preview (#241):** requires an installed build containing the smart-control changes. No release or deployment is implied.
 
+### Sync bonus with other devices — the sibling peace treaty
+
+**Planned ([#276](https://github.com/mhalak/hal-gaming-control/issues/276)).** “How come she gets more time than me?!” The king no longer needs a calculator. Press **Sync bonus with other devices** on the PC that needs a top-up: if one child has received 37.5 bonus minutes today and the other has received 30, the selected PC gets exactly 7.5 minutes. Nobody loses time, and pressing the button again adds nothing once the bonuses match.
+
+The proposed comparison uses today's active Parent bonuses and verified Screen idle bonuses, not remaining playtime, regular budgets, Weekend bonus or unlimited overrides. Smart Parent Bonus will adjust the applicable limits only as needed. The top-up will be recorded as one grant in Budget Overview, with the normal Undo rules. This is a one-time parent action, not continuous synchronization or a shared gaming budget. Gaming penalties and persistent suspensions, if introduced separately, are not bonus entitlements: this proposed action must not copy, lift or propagate them between PCs.
+
 ## Allowed gaming hours
 
 The PC's Configuration section has **Schedule enabled** plus two independent allowed-hour windows: **Weekday allowed from/until** (Mon–Fri) and **Weekend allowed from/until** (Sat–Sun). Weekend hours initially inherit the saved weekday hours until explicitly edited, avoiding policy changes on upgrade. The daily windows may cross midnight, anchored to their starting day; they use HA local time. **Gaming rules enabled** must also be ON for schedule restrictions to apply. They never alter recorded gaming time or issue Windows commands.
