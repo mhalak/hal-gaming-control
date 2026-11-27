@@ -36,3 +36,19 @@ async def async_apply_penalty(hass, coordinator, *, minutes=None, cancel_today=F
     if candidate is not entry.options and hass.config_entries.async_update_entry(
             entry, options=candidate) is False:
         raise HomeAssistantError("Gaming penalty was not saved")
+
+
+def set_gaming_override(hass, coordinator, key, enabled):
+    """Persist mutually exclusive parent overrides in one config entry write."""
+    if key not in ("gaming_suspended", "unlimited") or type(enabled) is not bool:
+        raise HomeAssistantError("Invalid gaming override")
+    entry = coordinator.entry
+    if key == "unlimited" and enabled and entry.options.get("gaming_suspended"):
+        raise HomeAssistantError("Lift the gaming suspension before enabling Unlimited")
+    updated = dict(entry.options)
+    updated[key] = enabled
+    if key == "gaming_suspended" and enabled:
+        updated["unlimited"] = False
+    if updated != entry.options and hass.config_entries.async_update_entry(
+            entry, options=updated) is False:
+        raise HomeAssistantError("Gaming override was not saved")
