@@ -4,6 +4,11 @@ These fakes deliberately model widget lifetime and the message pipe, so the
 security/IPC code and presentation logic are covered on CI (Linux + Windows).
 """
 import json
+import base64
+import hashlib
+import struct
+
+import pytest
 import sys
 import time
 from types import SimpleNamespace
@@ -65,8 +70,9 @@ class Widget:
 
 
 class Root(Widget):
-    def __init__(self):
+    def __init__(self, scaling=96 / 72):
         super().__init__()
+        self.tk = SimpleNamespace(call=Mock(return_value=scaling))
         self.visible = False
         self.closed = False
         self.after_calls = []
@@ -145,10 +151,24 @@ def packet(seq=1, *, operation="upsert", buttons=2, remaining=598):
     return result
 
 
-def fake_gui():
-    root, pipe = Root(), Pipe()
+class PhotoImage:
+    def __init__(self, *, master, data, format):
+        self.master, self.data, self.format = master, data, format
+        self.zoom_args, self.subsample_args = (1, 1), (1, 1)
+
+    def zoom(self, x, y):
+        self.zoom_args = (x, y)
+        return self
+
+    def subsample(self, x, y):
+        self.subsample_args = (x, y)
+        return self
+
+
+def fake_gui(scaling=96 / 72):
+    root, pipe = Root(scaling), Pipe()
     tk = SimpleNamespace(Frame=Widget, Canvas=Widget, Label=Widget,
-                         Button=Widget)
+                         Button=Widget, PhotoImage=PhotoImage)
     win32file = SimpleNamespace(ReadFile=pipe.read, WriteFile=pipe.write)
     win32pipe = SimpleNamespace(PeekNamedPipe=pipe.peek)
     ui = _PopupWindow(root, tk, pipe, "pc1", win32file, win32pipe)
@@ -266,7 +286,7 @@ def test_popup_helper_launches_fixed_theme_with_verified_system_pipe():
         SetNamedPipeHandleState=Mock(), PIPE_READMODE_MESSAGE=2,
         PeekNamedPipe=Mock(return_value=(None, 0, None)))
     tk = SimpleNamespace(Tk=lambda: root, Frame=Widget, Canvas=Widget,
-                         Label=Widget, Button=Widget)
+                         Label=Widget, Button=Widget, PhotoImage=PhotoImage)
     modules = {
         "win32file": files, "win32pipe": pipe, "tkinter": tk,
         "pywintypes": types.SimpleNamespace(error=RuntimeError),
@@ -358,4 +378,39 @@ def test_popup_does_not_force_fixed_height_for_long_content_or_button_changes():
         assert root.minimum_size == (420, 300)
         assert not hasattr(root, "geometry_text")
         assert ui.reason.props["text"] == sample["view"]["description"]
+        assert len(ui.actions.winfo_children()) == count
+
+
+@pytest.mark.parametrize("scale,zoom,subsample", [
+    (1.0, (1, 1), (3, 3)),
+    (1.25, (1, 1), (2, 2)),
+    (1.5, (1, 1), (2, 2)),
+    (2.0, (2, 2), (3, 3)),
+])
+def test_official_footer_asset_is_embedded_centered_and_retained(scale, zoom, subsample):
+    ui, root, _ = fake_gui(scale * 96 / 72)
+    from gaming_control.popup_wordmark import WORDMARK_PNG_BASE64
+    data = base64.b64decode(WORDMARK_PNG_BASE64, validate=True)
+    assert data.startswith(b"\x89PNG\r\n\x1a\n")
+    assert hashlib.sha256(data).hexdigest() == (
+        "3bde4089ac6236d815d47b59f367fe339f1d625fb5f9054be019d66cbd59bc11")
+    assert struct.unpack(">II", data[16:24]) == (277, 93)
+    assert b"tRNS" in data
+    footer = ui.footer
+    assert footer.parent is root
+    assert footer.pack_args["fill"] == "x"
+    assert footer.props["pady"] >= 8
+    logo, = footer.winfo_children()
+    assert logo.props["image"] is ui.footer_logo
+    assert logo.props.get("text", "") == ""
+    assert logo.props["bg"] == footer.props["bg"]
+    assert ui.footer_logo.data == WORDMARK_PNG_BASE64
+    assert ui.footer_logo.zoom_args == zoom
+    assert ui.footer_logo.subsample_args == subsample
+    for count in (1, 2, 3):
+        view = packet(seq=count, buttons=count)
+        view["view"]["description"] = "Long budget detail " * 8
+        ui._upsert(view)
+        assert footer.winfo_children() == [logo]
+        assert logo.props["image"] is ui.footer_logo
         assert len(ui.actions.winfo_children()) == count
