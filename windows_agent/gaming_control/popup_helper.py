@@ -9,6 +9,7 @@ import secrets
 
 from .popup_model import PopupModel, BUTTON_COLORS
 from .popup_protocol import parse_popup, make_event
+from .popup_wordmark import wordmark_image
 
 PIPE_PREFIX = r"\\.\pipe\HALGamingPopup-"
 MAX_PIPE_MESSAGE = 4096
@@ -131,9 +132,11 @@ class _PopupWindow:
         self.percent.pack(side="right")
         self.actions = tk.Frame(frame, bg="#111A2C")
         self.actions.pack(fill="x")
-        tk.Label(root, text="P O W E R E D   B Y   H A L   S Y S T E M S",
-                 font=("Segoe UI", 8), bg="#18243A", fg="#8495AE",
-                 pady=10).pack(fill="x")
+        self.footer = tk.Frame(root, bg="#18243A", pady=8)
+        self.footer.pack(fill="x", side="bottom")
+        self.footer_logo = wordmark_image(tk, root)
+        tk.Label(self.footer, image=self.footer_logo, bg="#18243A",
+                 borderwidth=0, highlightthickness=0).pack()
 
     def _closed(self):
         snap = self.model.snapshot()
