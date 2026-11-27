@@ -25,12 +25,13 @@
     "step": {
       "settings_menu": {
         "title": "HAL Gaming Control",
-        "description": "Manage MQTT configuration, copy device profiles, configure tracked applications or manage trusted Windows updates.",
+        "description": "Manage MQTT configuration, copy device profiles, configure tracked applications, public holidays or trusted Windows updates.",
         "menu_options": {
           "mqtt_settings": "🔌 MQTT configuration",
           "profile_copy": "📋 Profile copy",
           "tracked_apps": "🎮 Tracked applications",
-          "windows_updates": "🔄 Windows updates (advanced)"
+          "windows_updates": "🔄 Windows updates (advanced)",
+          "public_holidays": "📅 Public holidays"
         }
       },
       "mqtt_settings": {
@@ -62,6 +63,27 @@
         "data": {
           "source": "Copy configuration from"
         }
+      },
+      "public_holidays": {
+        "title": "Public holidays",
+        "description": "Use existing Weekend budget and allowed hours on nationwide public holidays. Calendar calculation is local. Current country: **{country}**. Status: **{status}**. Last successful load: {loaded_at}.",
+        "data": {
+          "enabled": "Enable public holidays"
+        }
+      },
+      "holiday_country": {
+        "title": "Choose holiday country",
+        "description": "Select a supported country explicitly. Only nationwide public holidays are included.",
+        "data": {
+          "country": "Country"
+        }
+      },
+      "holiday_confirm": {
+        "title": "Verify public holiday calendar",
+        "description": "Holiday data loaded: **{country}, {year} — {count} public holidays**.\n\nLast loaded: {loaded_at}.\n\nSample dates (up to 20):\n{dates}\n\nConfirm to apply weekend rules on these dates.",
+        "data": {
+          "confirm": "Confirm and enable public holidays"
+        }
       }
     },
     "error": {
@@ -71,11 +93,14 @@
       "no_tracked_apps": "No HA-managed applications to modify yet.",
       "invalid_signed_release": "Use a fixed HTTPS catalog and release directory, a valid Ed25519 PUBLIC PEM key, and all required fields when enabling updates. No settings were changed.",
       "invalid_profile_source": "The selected source is no longer available. Choose another Gaming Control device.",
-      "invalid_profile_configuration": "The source profile contains invalid settings. No settings were changed."
+      "invalid_profile_configuration": "The source profile contains invalid settings. No settings were changed.",
+      "holiday_load_failed": "Holiday calendar could not be loaded or validated. No settings changed.",
+      "holiday_country_unsupported": "Select a supported country."
     },
     "abort": {
       "invalid_app_configuration": "Stored tracked applications are invalid; no changes were made.",
-      "no_profile_sources": "No other Gaming Control device is configured yet."
+      "no_profile_sources": "No other Gaming Control device is configured yet.",
+      "holiday_configuration_changed": "Holiday settings or calendar year changed. Reopen Configure."
     }
   },
   "services": {
