@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from math import isfinite
 
 from .const import DEFAULTS
-from .parent_bonus import _journal, parent_bonus_legacy_today
+from .parent_bonus import _journal, grant_seconds, parent_bonus_legacy_today
 from .rule_engine import effective_budget_limit, windows
 from .screen_idle_bonus import screen_idle_events_today
 
@@ -89,12 +89,17 @@ def _titles(rows, now):
     for row, clock in zip(rows, clocks):
         seen[clock] += 1
         suffix = f" #{seen[clock]}" if counts[clock] > 1 else ""
-        result[row["id"]] = f"Parent Bonus ({clock}{suffix})"
+        kind = "Sync Bonus" if row.get("source") == "sync" else "Parent Bonus"
+        result[row["id"]] = f"{kind} ({clock}{suffix})"
     return result
 
 
 def _parent_line(row, amount, title, eligible):
-    if amount != row["minutes"] * 60:
+    seconds = grant_seconds(row)
+    if row.get("source") == "sync" and (seconds % 60 or amount != seconds):
+        minutes, remainder = divmod(seconds, 60)
+        title += f" (+{minutes}m {remainder}s granted)"
+    elif amount != seconds:
         title += f" (+{row['minutes']} min granted)"
     return ReceiptLine(title, amount, row["id"] if eligible else None)
 
