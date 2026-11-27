@@ -75,6 +75,7 @@ async def test_menu_exposes_only_live_settings_without_mutating_saved_options(
     assert view["menu_options"] == {"mqtt_settings": "🔌 MQTT configuration",
                                        "profile_copy": "📋 Profile copy",
                                        "tracked_apps": "🎮 Tracked applications",
+                                       "public_holidays": "📅 Public holidays",
                                        "windows_updates": "🔄 Windows updates (advanced)",
                                        }
     assert entry.options == saved
@@ -739,11 +740,13 @@ async def test_translations_explain_single_page_editor_and_mqtt(
     for relative in ("strings.json", "translations/en.json"):
         steps = json.loads((PACKAGE / relative).read_text())["options"]["step"]
         assert set(steps) == {"settings_menu", "mqtt_settings", "profile_copy",
-                              "tracked_apps", "windows_updates"}
+                              "tracked_apps", "windows_updates", "public_holidays",
+                              "holiday_country", "holiday_confirm"}
         assert steps["settings_menu"]["menu_options"] == {
             "mqtt_settings": "🔌 MQTT configuration",
             "profile_copy": "📋 Profile copy",
             "tracked_apps": "🎮 Tracked applications",
+                                       "public_holidays": "📅 Public holidays",
             "windows_updates": "🔄 Windows updates (advanced)",
         }
         assert "{actions}" not in steps["settings_menu"]["description"]
@@ -955,3 +958,72 @@ async def test_profile_copy_revalidates_forged_source(hass, enable_custom_integr
             await manager.async_configure(view["flow_id"], {"source": candidate})
         assert target.options == {"daily": 90}
     assert source.options == {"daily": 30}
+
+
+async def test_public_holiday_options_load_confirm_disable_and_preserve_latest_policy(
+        hass, enable_custom_integrations):
+    from homeassistant.util import dt as dt_util
+    from custom_components.hal_gaming_control import holiday_provider as hp
+    year = dt_util.now().year
+    entry = add_device(hass, DATA1, {"daily": 90})
+    cache = {"version": 1, "country": "HR", "years": {
+        str(y): {"dates": {f"{y}-01-01": "New Year"}, "loaded_at": f"{year}-01-01T00:00:00+00:00"}
+        for y in (year - 1, year, year + 1)}}
+    with patch.object(hp, "async_countries", new=AsyncMock(return_value=["HR", "DE"])) as countries, \
+            patch.object(hp, "async_load_calendar", new=AsyncMock(return_value=cache)) as load:
+        manager, view = await open_step(hass, entry, "public_holidays")
+        countries.assert_not_awaited()
+        load.assert_not_awaited()
+        view = await manager.async_configure(view["flow_id"], {"enabled": True})
+        assert view["step_id"] == "holiday_country"
+        assert entry.options == {"daily": 90}
+        view = await manager.async_configure(view["flow_id"], {"country": "HR"})
+        assert view["step_id"] == "holiday_confirm"
+        assert view["description_placeholders"]["count"] == "1"
+        assert "New Year" in view["description_placeholders"]["dates"]
+        assert entry.options == {"daily": 90}
+        hass.config_entries.async_update_entry(entry, options={"daily": 120})
+        result = await manager.async_configure(view["flow_id"], {"confirm": True})
+        assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+        assert entry.options["daily"] == 120
+        assert entry.options["public_holidays_enabled"] is True
+        assert entry.options["public_holiday_country"] == "HR"
+        assert entry.options["public_holiday_cache"] == cache
+        manager, view = await open_step(hass, entry, "public_holidays")
+        result = await manager.async_configure(view["flow_id"], {"enabled": False})
+        assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+        assert entry.options["public_holidays_enabled"] is False
+        assert load.await_count == 1
+
+
+async def test_public_holiday_provider_failure_never_enables_or_erases_configuration(
+        hass, enable_custom_integrations):
+    from custom_components.hal_gaming_control import holiday_provider as hp
+    saved = {"daily": 90}
+    entry = add_device(hass, DATA1, saved)
+    with patch.object(hp, "async_countries", new=AsyncMock(return_value=["HR"])), \
+            patch.object(hp, "async_load_calendar", new=AsyncMock(side_effect=ValueError("empty"))):
+        manager, view = await open_step(hass, entry, "public_holidays")
+        view = await manager.async_configure(view["flow_id"], {"enabled": True})
+        view = await manager.async_configure(view["flow_id"], {"country": "HR"})
+        assert view["step_id"] == "holiday_country"
+        assert view["errors"]["base"] == "holiday_load_failed"
+        assert entry.options == saved
+
+
+async def test_offline_holiday_calendar_uses_national_public_only_and_rejects_empty():
+    from datetime import datetime, timezone, date
+    from custom_components.hal_gaming_control.holiday_provider import build_calendar
+    now = datetime(2026, 11, 27, tzinfo=timezone.utc)
+    calls = []
+    def provider(country, **kwargs):
+        calls.append((country, kwargs))
+        return {date(kwargs["years"], 1, 1): "New Year"}
+    cache = build_calendar("HR", now, provider, ["HR"])
+    assert set(cache["years"]) == {"2025", "2026", "2027"}
+    assert all(country == "HR" and kw["subdiv"] is None and kw["categories"] == ("public",)
+               and kw["expand"] is False for country, kw in calls)
+    with pytest.raises(ValueError):
+        build_calendar("XX", now, provider, ["HR"])
+    with pytest.raises(ValueError):
+        build_calendar("HR", now, lambda *a, **k: {}, ["HR"])
