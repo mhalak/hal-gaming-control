@@ -4,6 +4,8 @@ from datetime import datetime, time, timedelta, timezone
 from math import isfinite
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from .public_holidays import historical_holiday_policy
+
 
 @dataclass(frozen=True)
 class IntentSnapshot:
@@ -36,6 +38,7 @@ def _schedule(options):
         if not isinstance(value, str) or time.fromisoformat(value).tzinfo is not None:
             raise ValueError("Invalid historical schedule clock")
         result[key] = value
+    result.update(historical_holiday_policy(options))
     return result
 
 
