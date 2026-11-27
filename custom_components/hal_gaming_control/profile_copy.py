@@ -4,6 +4,7 @@ from datetime import time
 
 from .app_registry import load_apps
 from .const import DEFAULTS
+from .public_holidays import CACHE, COUNTRY, ENABLED, validate_cache
 
 # Explicit ownership: defaults and additional persistent settings are portable;
 # Unlimited and Gaming suspended are live overrides, not profile settings.
@@ -78,6 +79,19 @@ def _validate_app_policy(profile):
         raise ValueError("Invalid legacy actions configuration")
 
 
+def _copy_holiday_policy(source):
+    """Copy only validated portable calendar data; never local usage."""
+    enabled = source.get(ENABLED, False)
+    if type(enabled) is not bool:
+        raise ValueError("Invalid public holiday policy switch")
+    if not enabled:
+        # Disabled/missing source policy must not retain target activation.
+        return {ENABLED: False} if ENABLED in source else {}
+    country = source.get(COUNTRY)
+    cache = validate_cache(source.get(CACHE), country)
+    return {ENABLED: True, COUNTRY: country, CACHE: deepcopy(cache)}
+
+
 def copy_profile(source, target):
     """Return one validated replacement; neither input is mutated."""
     profile = {key: deepcopy(source.get(key, default))
@@ -95,9 +109,11 @@ def copy_profile(source, target):
     validate_update_settings(*trust, False)
 
     result = deepcopy(dict(target))
-    for field in (*PROFILE_DEFAULTS, *INHERITED_FIELDS, "weekend_daily", "weekend_total"):
+    for field in (*PROFILE_DEFAULTS, *INHERITED_FIELDS, "weekend_daily", "weekend_total",
+                  ENABLED, COUNTRY, CACHE):
         result.pop(field, None)
     result.update(profile)
+    result.update(_copy_holiday_policy(source))
     # Never transplant consent or silently extend an existing consent to a
     # different catalog, distribution directory, or verification key.
     if target.get("ota_install_enabled") is True:
