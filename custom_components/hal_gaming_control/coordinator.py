@@ -148,6 +148,15 @@ class GamingCoordinator(DataUpdateCoordinator):
                 "display_details": self.foreground.display_details,
                 "uptime_seconds": self.foreground.system_uptime}
 
+    def restriction_violation(self):
+        """Reevaluate live policy and verified accounting immediately."""
+        if self.foreground is None or not self.storage_healthy:
+            return None, []
+        data = self._foreground_data(dt_util.now())
+        if not data["ready"] or not data["active"] or not data["reasons"]:
+            return None, []
+        return data["active_game"], data["reasons"]
+
     @property
     def options(self):
         return DEFAULTS | {k: v for k, v in self.entry.options.items() if k not in {"weekend_total", "weekend_daily",

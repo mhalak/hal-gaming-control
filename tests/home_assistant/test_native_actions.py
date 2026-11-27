@@ -533,3 +533,125 @@ async def test_mqtt_callbacks_run_on_ha_event_loop_and_only_notify_terminate(
         assert hass.states.get(eid).state == "unavailable"
         refresh.assert_not_called()
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_restriction_trigger_relaunch_late_offer_and_guard(
+        hass, enable_custom_integrations, mqtt_mock):
+    """Use actual HA registry, coordinator, MQTT decoder and native service."""
+    from unittest.mock import Mock
+    from homeassistant.helpers.trigger import TriggerConfig
+    from custom_components.hal_gaming_control.trigger import RestrictionViolatedTrigger
+
+    options = {"enabled": True, "daily": 0, "weekly": 300,
+               "tracked_apps": [{"name": "Roblox", "process": "RobloxPlayerBeta.exe",
+                                 "signature": None}]}
+    entry, device_id = await setup_device(hass, options=options)
+    c = entry.runtime_data
+    config = await RestrictionViolatedTrigger.async_validate_config(hass, {})
+    trigger = RestrictionViolatedTrigger(hass, TriggerConfig(
+        key=DOMAIN + ".restriction_violated", options=config["options"]))
+    action = Mock()
+    with patch("custom_components.hal_gaming_control.trigger.async_track_time_interval") as timer:
+        detach = await trigger.async_attach_runner(action)
+        tick = timer.call_args.args[1]
+        tick(None)  # No live evidence at attachment.
+        action.assert_not_called()
+        await make_fresh(hass)
+        assert c.restriction_violation() == ("Roblox", ["daily"])
+        tick(None)  # Foreground alone is not a valid termination offer.
+        action.assert_not_called()
+
+        async def offer(token):
+            raw = c.foreground.last_raw
+            payload = {key: raw[key] for key in (
+                "device_id", "epoch", "sequence", "observed_at", "process", "signature")}
+            send(hass, "pc1", "state/terminate_offer", payload | {"version": 1, "token": token})
+            await hass.async_block_till_done()
+            assert c.termination.available
+
+        await offer("b" * 32)
+        tick(None)
+        tick(None)
+        action.assert_called_once()
+        assert action.call_args.args[0] == {
+            "device_id": device_id, "active_game": "Roblox", "reasons": ["daily"],
+            "reason": "daily"}
+        with patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish:
+            await call(hass, "terminate_game", device_id, require_restriction=True)
+            assert publish.await_count == 1
+            assert not c.termination.available
+
+            send(hass, "pc1", "state/telemetry", packet("pc1", 3, state="idle"))
+            await hass.async_block_till_done()
+            tick(None)
+            send(hass, "pc1", "state/telemetry", packet("pc1", 4))
+            await hass.async_block_till_done()
+            await offer("c" * 32)
+            tick(None)
+            assert action.call_count == 2
+            # The parent changes policy after dispatch but before execution.
+            await call(hass, "set_unlimited", device_id, enabled=True)
+            await hass.async_block_till_done()
+            await call(hass, "terminate_game", device_id, require_restriction=True)
+            assert publish.await_count == 1
+            tick(None)
+            assert action.call_count == 2
+            # Manual parent termination still works with Unlimited enabled.
+            await call(hass, "terminate_game", device_id)
+            assert publish.await_count == 2
+        detach()
+        timer.return_value.assert_called_once()
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_restriction_trigger_filters_devices_and_retries_fresh_offers(hass):
+    """Exercise the actual trigger dispatch callback with controlled time."""
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from homeassistant.config_entries import ConfigEntryState
+    from homeassistant.helpers.trigger import TriggerConfig
+    from custom_components.hal_gaming_control.trigger import RestrictionViolatedTrigger
+
+    def pc(name):
+        return SimpleNamespace(device_id=name,
+            restriction_violation=Mock(return_value=("Roblox", ["schedule"])),
+            termination=SimpleNamespace(available=True, offer={"token": "first"}))
+
+    a, b = pc("a"), pc("b")
+    entries = [SimpleNamespace(state=ConfigEntryState.LOADED, runtime_data=c) for c in (a, b)]
+    registry = Mock()
+    registry.async_get_device.side_effect = lambda *, identifiers: SimpleNamespace(
+        id="id-" + next(iter(identifiers))[1][-1])
+    action = Mock()
+    config = await RestrictionViolatedTrigger.async_validate_config(
+        hass, {"options": {"device_id": ["id-a"]}})
+    trigger = RestrictionViolatedTrigger(hass, TriggerConfig(
+        key=DOMAIN + ".restriction_violated", options=config["options"]))
+    with patch("custom_components.hal_gaming_control.trigger.dr.async_get", return_value=registry), \
+         patch.object(hass.config_entries, "async_entries", return_value=entries), \
+         patch("custom_components.hal_gaming_control.trigger.async_track_time_interval") as timer, \
+         patch("custom_components.hal_gaming_control.trigger.monotonic", return_value=0) as clock:
+        detach = await trigger.async_attach_runner(action)
+        tick = timer.call_args.args[1]
+        tick(None)
+        assert action.call_count == 1
+        assert action.call_args.args[0]["device_id"] == "id-a"
+        b.restriction_violation.assert_not_called()
+        a.termination.offer = {"token": "second"}
+        clock.return_value = 4
+        tick(None)
+        assert action.call_count == 1
+        clock.return_value = 5
+        tick(None)
+        assert action.call_count == 2
+        tick(None)
+        assert action.call_count == 2
+        a.restriction_violation.return_value = (None, [])
+        tick(None)
+        a.restriction_violation.return_value = ("Minecraft", ["game:Minecraft"])
+        a.termination.offer = {"token": "third"}
+        tick(None)
+        assert action.call_count == 3
+        assert action.call_args.args[0]["reason"] == "game:Minecraft"
+        detach()
+        timer.return_value.assert_called_once()

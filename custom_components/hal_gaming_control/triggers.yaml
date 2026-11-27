@@ -15,3 +15,12 @@ remaining_budget_reached:
           multiple: true
           filter:
             - integration: hal_gaming_control
+
+restriction_violated:
+  fields:
+    device_id:
+      selector:
+        device:
+          multiple: true
+          filter:
+            - integration: hal_gaming_control

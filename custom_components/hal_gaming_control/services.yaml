@@ -16,6 +16,11 @@ terminate_game:
         device:
           integration: hal_gaming_control
 
+    require_restriction:
+      default: false
+      selector:
+        boolean:
+
 add_bonus:
   fields:
     device_id:

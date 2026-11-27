@@ -1,3 +1,10 @@
+## 0.16.1 — Restriction enforcement on repeated game launches (#280)
+
+- Add native opt-in Gaming restriction violated trigger, with optional device selection and a fresh matching termination offer.
+- Recheck live restrictions before guarded termination; retry persistent violations with a new offer no more than once per five seconds for the same game.
+- Preserve existing threshold warnings, manual actions, Windows 0.5.2 and Unified MQTT v3.
+- Preview 46 / HA 0.16.1 source candidate only. No automatic enforcement installed; supervised acceptance and release are separate gates.
+
 ## 0.16.0 — Profile Copy and Configure menu icons (#266)
 
 - Open Configure → 📋 Profile copy on the destination PC, select another configured Gaming Control device (including offline PCs), and submit once to replace its persistent policy.
