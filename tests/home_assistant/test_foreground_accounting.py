@@ -132,3 +132,97 @@ def test_missing_snapshots_are_not_replaced_with_legacy_process_presence():
     ledger = ForegroundLedger("pc1", ["Roblox"])
     assert ledger.totals(datetime.fromtimestamp(200, UTC))["weekly"] == 0
     assert ledger.current(100200) is None
+
+
+def test_unlimited_bonus_credits_only_confirmed_play_and_keeps_raw_segments():
+    from custom_components.hal_gaming_control.unlimited_bonus import (
+        record_override, unlimited_credits)
+    from datetime import timedelta
+
+    start = datetime(2026, 11, 23, 12, tzinfo=LOCAL)
+    end = start + timedelta(hours=5)
+    stamp = start.timestamp()
+    segments = ((stamp - 2400, stamp, "Roblox"),
+                (stamp, stamp + 7200, "Roblox"),
+                (stamp + 10800, stamp + 14400, "Minecraft"))
+    options = record_override({}, "pc1", start, True)
+    assert record_override(options, "pc1", start, True) == options
+    provisional = unlimited_credits(options, "pc1", end, segments)
+    assert provisional == {"daily": 10800, "weekly": 10800,
+                           "per_game": {"Roblox": 7200, "Minecraft": 3600}}
+    closed = record_override(options, "pc1", end, False)
+    assert record_override(closed, "pc1", end, False) == closed
+    assert unlimited_credits(closed, "pc1", end, segments) == provisional
+    assert len(segments) == 3
+    assert options["unlimited_bonus_journal"]["intervals"][-1][1] is None
+
+
+def test_unlimited_bonus_local_rollover_and_restart_json_roundtrip():
+    from custom_components.hal_gaming_control.unlimited_bonus import (
+        record_override, unlimited_credits)
+    from datetime import timedelta
+
+    start = datetime(2026, 11, 22, 23, 50, tzinfo=LOCAL)
+    end = start + timedelta(minutes=20)
+    stamp = start.timestamp()
+    options = record_override({}, "pc1", start, True)
+    restored = json.loads(json.dumps(options))
+    closed = record_override(restored, "pc1", end, False)
+    segments = ((stamp, end.timestamp(), "Roblox"),)
+    assert unlimited_credits(closed, "pc1", end, segments) == {
+        "daily": 600, "weekly": 600, "per_game": {"Roblox": 600}}
+    tomorrow = end + timedelta(days=1)
+    assert unlimited_credits(closed, "pc1", tomorrow, segments) == {
+        "daily": 0, "weekly": 600, "per_game": {}}
+
+
+def test_unlimited_bonus_partial_overlap_gaps_and_multiple_sessions():
+    from custom_components.hal_gaming_control.unlimited_bonus import (
+        record_override, unlimited_credits)
+    from datetime import timedelta
+
+    start = datetime(2026, 11, 23, 12, tzinfo=LOCAL)
+    at = lambda seconds: start + timedelta(seconds=seconds)
+    stamp = start.timestamp()
+    options = record_override({}, "pc1", at(10), True)
+    options = record_override(options, "pc1", at(20), False)
+    options = record_override(options, "pc1", at(30), True)
+    segments = ((stamp, stamp + 15, "Roblox"),
+                (stamp + 18, stamp + 35, "Minecraft"),
+                (stamp + 40, stamp + 50, "Roblox"))
+    assert unlimited_credits(options, "pc1", at(45), segments) == {
+        "daily": 17, "weekly": 17, "per_game": {"Roblox": 10, "Minecraft": 7}}
+
+
+def test_unlimited_bonus_rejects_foreign_corrupt_and_backward_records():
+    import pytest
+    from custom_components.hal_gaming_control.unlimited_bonus import (
+        record_override, unlimited_credits)
+    from datetime import timedelta
+
+    start = datetime(2026, 11, 23, 12, tzinfo=LOCAL)
+    options = record_override({}, "pc1", start, True)
+    with pytest.raises(ValueError):
+        unlimited_credits(options, "pc2", start, ())
+    with pytest.raises(ValueError):
+        record_override(options, "pc1", start - timedelta(seconds=1), False)
+    corrupted = {"unlimited_bonus_journal": {
+        "version": 1, "device_id": "pc1",
+        "intervals": [[10, 30], [20, 40]]}}
+    with pytest.raises(ValueError):
+        unlimited_credits(corrupted, "pc1", start, ())
+    assert unlimited_credits({}, "pc1", start, ()) == {
+        "daily": 0, "weekly": 0, "per_game": {}}
+
+
+def test_unlimited_bonus_dst_fall_back_uses_elapsed_seconds():
+    from custom_components.hal_gaming_control.unlimited_bonus import (
+        record_override, unlimited_credits)
+
+    first = datetime(2026, 10, 25, 2, 15, tzinfo=LOCAL, fold=0)
+    last = datetime(2026, 10, 25, 2, 15, tzinfo=LOCAL, fold=1)
+    options = record_override({}, "pc1", first, True)
+    options = record_override(options, "pc1", last, False)
+    assert unlimited_credits(options, "pc1", last, (
+        (first.timestamp(), last.timestamp(), "Roblox"),)) == {
+        "daily": 3600, "weekly": 3600, "per_game": {"Roblox": 3600}}
