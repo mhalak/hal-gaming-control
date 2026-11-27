@@ -187,7 +187,7 @@ def _receipt_status(settings, limit):
 
 
 def _receipt_grants(settings, now, device_id):
-    from .parent_bonus import parent_bonus_activity_today, parent_grants_today
+    from .parent_bonus import grant_seconds, parent_bonus_activity_today, parent_grants_today
 
     # The full journal belongs to config-entry options, not Recorder attrs.
     # Mirror only the newest entries: 50 active + 50 audit entries can exceed
@@ -197,8 +197,8 @@ def _receipt_grants(settings, now, device_id):
     if device_id is not None:
         activity = [row for row in activity if row["device_id"] == device_id]
         active_grants = [row for row in active_grants if row["device_id"] == device_id]
-    smart_requested = sum(row["minutes"] for row in active_grants
-                          if "smart_adjustments" in row) if device_id is not None else 0
+    smart_requested = sum(grant_seconds(row) for row in active_grants
+                          if "smart_adjustments" in row) / 60 if device_id is not None else 0
     latest = max(
         activity, key=lambda event: (
             event["cancelled_at_utc"] or event["created_at_utc"]), default=None)
