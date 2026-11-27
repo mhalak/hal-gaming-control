@@ -264,3 +264,40 @@ async def test_new_penalty_switch_and_button_reject_non_admin_context():
     await cancel.async_press()
     assert entry.options["gaming_penalty_journal"]["events"][-1]["cancel_today"] is True
     assert len(committed) == 3
+
+
+def test_sync_bonus_exact_seconds_and_only_positive_difference():
+    from custom_components.hal_gaming_control.bonus_sync import sync_difference
+    assert sync_difference("pc1", {"pc1": 1800, "pc2": 2250}) == 450
+    assert sync_difference("pc1", {"pc1": 1800, "pc2": 1801}) == 1
+    assert sync_difference("pc1", {"pc1": 1800, "pc2": 1800}) == 0
+    assert sync_difference("pc1", {"pc1": 2250, "pc2": 1800}) == 0
+    assert sync_difference("pc1", {"pc1": 0}) == 0
+    assert sync_difference("pc1", {"pc1": 10, "pc2": 100, "pc3": 80}) == 90
+    for invalid in ({"pc2": 10}, {"pc1": 0, "pc2": None},
+                    {"pc1": 0, "pc2": True}, {"pc1": 0, "pc2": -1},
+                    {"pc1": 0, "pc2": 0.5}, {"pc1": 0, "pc2": 36001}):
+        with pytest.raises(ValueError):
+            sync_difference("pc1", invalid)
+
+
+def test_sync_entitlement_counts_active_parent_grants_once_and_excludes_overrides():
+    from custom_components.hal_gaming_control.bonus_sync import bonus_entitlement_seconds
+    from custom_components.hal_gaming_control.parent_bonus import revoke_parent_grant
+    options = {"bonus_date": "2026-11-23", "bonus_minutes": 5,
+               "daily": 180, "weekend_bonus": 60, "unlimited": True,
+               "gaming_suspended": True,
+               "screen_idle_bonus_journal": {"version": 1, "device_id": "pc1",
+                   "events": [{"id": "receipt", "date": "2026-11-23",
+                               "minutes": 7, "off_at_utc": at().timestamp()}]}}
+    options = add_parent_grant(options, "pc1", at(minute=1), 30)
+    options = add_parent_grant(options, "pc1", at(minute=2), 10)
+    cancelled = options["parent_bonus_journal"]["events"][-1]["id"]
+    options = revoke_parent_grant(options, "pc1", cancelled, at(minute=3))
+    assert bonus_entitlement_seconds(options, "pc1", at()) == 2520
+    assert bonus_entitlement_seconds(options, "pc1", at(day=24)) == 0
+    with pytest.raises(ValueError):
+        bonus_entitlement_seconds(options, "pc2", at())
+    with pytest.raises(ValueError):
+        bonus_entitlement_seconds(options | {"screen_idle_bonus_journal": {"version": 99}},
+                                  "pc1", at())
