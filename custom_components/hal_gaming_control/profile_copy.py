@@ -6,7 +6,8 @@ from .app_registry import load_apps
 from .const import DEFAULTS
 
 # Explicit ownership: defaults and additional persistent settings are portable;
-# unlimited is a live override, not a profile setting. Unknown keys stay local.
+# Unlimited and Gaming suspended are live overrides, not profile settings.
+# Penalty journals and unknown keys stay local.
 PROFILE_DEFAULTS = {
     key: DEFAULTS[key] for key in (
         "enabled", "daily", "weekly", "weekend_bonus", "schedule_enabled",
