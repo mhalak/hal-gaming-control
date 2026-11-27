@@ -1027,3 +1027,42 @@ async def test_offline_holiday_calendar_uses_national_public_only_and_rejects_em
         build_calendar("XX", now, provider, ["HR"])
     with pytest.raises(ValueError):
         build_calendar("HR", now, lambda *a, **k: {}, ["HR"])
+
+
+async def test_holiday_refresh_preserves_other_edits_and_never_overwrites_country_change(hass):
+    from datetime import datetime, timezone
+    from custom_components.hal_gaming_control import holiday_provider as hp
+    stamp = datetime(2027, 1, 1, tzinfo=timezone.utc)
+    entry = add_device(hass, DATA1, {"daily": 90, "public_holidays_enabled": True,
+                                   "public_holiday_country": "HR"})
+    result_cache = {"version": 1, "country": "HR", "years": {
+        str(y): {"dates": {f"{y}-01-01": "New Year"}, "loaded_at": stamp.isoformat()}
+        for y in (2026, 2027, 2028)}}
+    assert hp.cache_needs_refresh(entry.options, stamp)
+
+    async def fetch(_hass, country, now):
+        assert country == "HR" and now == stamp
+        hass.config_entries.async_update_entry(entry, options=dict(entry.options, daily=120))
+        return result_cache
+
+    with patch.object(hp, "async_load_calendar", side_effect=fetch):
+        assert await hp.async_refresh_calendar(hass, entry, stamp)
+    assert entry.options["daily"] == 120
+    assert entry.options["public_holiday_cache"] == result_cache
+    assert not hp.cache_needs_refresh(entry.options, stamp)
+    assert not hp.cache_needs_refresh(dict(entry.options, public_holidays_enabled=False), stamp)
+    next_year = stamp.replace(year=2028)
+    assert hp.cache_needs_refresh(entry.options, next_year)
+
+    async def changed_country(*args):
+        hass.config_entries.async_update_entry(entry, options=dict(entry.options, public_holiday_country="DE"))
+        return result_cache
+
+    with patch.object(hp, "async_load_calendar", side_effect=changed_country):
+        assert not await hp.async_refresh_calendar(hass, entry, next_year)
+    assert entry.options["public_holiday_country"] == "DE"
+    assert entry.options["public_holiday_cache"] == result_cache
+    with patch.object(hp, "async_load_calendar", side_effect=ValueError("empty")):
+        with pytest.raises(ValueError):
+            await hp.async_refresh_calendar(hass, entry, next_year)
+    assert entry.options["public_holiday_cache"] == result_cache
