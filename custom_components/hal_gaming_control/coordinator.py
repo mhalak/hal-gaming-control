@@ -13,6 +13,7 @@ from .foreground_source import ForegroundSource
 from .foreground_store import ForegroundStore, ForegroundStoreError
 from .foreground_cutover import async_activate_cutover
 from .screen_idle_bonus import maybe_add_screen_idle_grant
+from .unlimited_bonus import unlimited_credits, record_override
 from .rule_engine import violations
 from .targeted_action import TargetedTermination
 from .popup_control import PopupControl
@@ -53,6 +54,11 @@ class GamingCoordinator(DataUpdateCoordinator):
             self.hass, self.entry.entry_id, self.device_id)
         store = ForegroundStore(self.hass, self.entry.entry_id, self.device_id)
         segments = await store.async_load(self.cutover_since)
+        if self.options.get("unlimited") and not self.options.get("gaming_suspended"):
+            updated = record_override(self.entry.options, self.device_id, dt_util.now(), True)
+            if updated != self.entry.options and self.hass.config_entries.async_update_entry(
+                    self.entry, options=updated) is False:
+                raise ForegroundStoreError("Unlimited journal migration could not be saved")
         self.foreground_store = store
         self._saved_segments = segments
         self.storage_healthy = True
@@ -133,6 +139,14 @@ class GamingCoordinator(DataUpdateCoordinator):
                  for key, row in self.foreground.ledger.apps.items()}
         totals = dict(raw, per_game=names)
         ready = self.storage_healthy and alias is not None
+        try:
+            credits = unlimited_credits(self.entry.options, self.device_id, now,
+                                       self.foreground.export_segments())
+            credits["per_game"] = {row["name"]: credits["per_game"].get(key, 0)
+                                   for key, row in self.foreground.ledger.apps.items()}
+            totals["unlimited_bonus"] = credits
+        except ValueError:
+            ready = False  # Corrupt journal cannot silently erase or fabricate allowances.
         active = [alias] if ready and alias != "idle" else []
         # Confirmed intervals are a lower bound; gaps are never known idle.
         # The restriction signal is policy-only; never publish a command here.
