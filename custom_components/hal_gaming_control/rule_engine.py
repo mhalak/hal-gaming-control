@@ -78,7 +78,7 @@ def effective_budget_limit(options, now, period, *, device_id=None, totals=None)
         from .smart_policy import quota_limits
         if period not in ("daily", "weekly"):
             raise ValueError("Unsupported budget period")
-        _, limits = quota_limits(options, now, parent_smart_grants(options, device_id, now))
+        _, limits = quota_limits(options, now, parent_smart_grants(options, device_id, now), totals)
         if period not in limits:
             return -1
         minutes = limits[period] / 60
@@ -151,7 +151,7 @@ def violations(options, totals, now, active_games, *, device_id=None):
             reasons.append("schedule")
     for game in sorted(active_games):
         limit = options["per_game"].get(game, -1)
-        if limit >= 0 and totals["per_game"].get(game, 0) >= limit * 60:
+        if limit >= 0 and totals["per_game"].get(game, 0) - credit_seconds(totals, "per_game", game) >= limit * 60:
             reasons.append("game:" + game)
     return reasons
 
