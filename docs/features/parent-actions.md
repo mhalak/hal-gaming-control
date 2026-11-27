@@ -90,6 +90,36 @@ The trigger fires on a verified downward crossing, not on startup or recovery fr
 
 Windows agent 0.5.1 requests **Always on Top** by default, without a HA setting. Live refresh does not raise, reopen or explicitly focus the popup. Ordinary desktop and borderless windows should respect topmost stacking; exclusive fullscreen and first-show activation depend on Windows and the game. Verify on the actual PC.
 
+## Restriction enforcement trigger (HA 0.16.1 candidate)
+
+For supervised enforcement testing, use the separate **Gaming restriction violated**
+trigger. Unlike the remaining-budget threshold trigger, it can fire again when
+a tracked game is launched after the limit has already been reached. It also
+checks newly attached/reconnected PCs and retries a persistent violation at
+most once per five seconds with a fresh matching offer. Idle, unavailable,
+untracked or allowed activity does not trigger. The optional device selector
+defaults to all gaming PCs.
+
+```yaml
+alias: Gaming restriction enforcement
+triggers:
+  - trigger: hal_gaming_control.restriction_violated
+actions:
+  - action: hal_gaming_control.terminate_game
+    data:
+      device_id: "{{ trigger.device_id }}"
+      require_restriction: true
+mode: parallel
+max: 2
+```
+
+The action rechecks live policy before sending a command, so a bonus or
+Unlimited override can cancel pending enforcement. Manual termination
+continues to work without this option. No enforcement automation is installed
+by default. Do not enable this candidate until CI, review and supervised
+real-PC acceptance are complete. Keep the warning threshold automation
+unchanged; replace the zero-minute termination automation only after validation.
+
 ## Use a manual control
 
 1. Open the **correct child's PC** in Home Assistant.

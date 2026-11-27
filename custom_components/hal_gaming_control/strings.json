@@ -116,6 +116,10 @@
         "device_id": {
           "name": "Gaming PC",
           "description": "Choose exactly one HAL Gaming Control device."
+        },
+        "require_restriction": {
+          "name": "Require active restriction",
+          "description": "Recheck gaming rules before termination. Leave off for manual parent controls."
         }
       }
     },
@@ -192,6 +196,44 @@
           "description": "Automatic shows the limiting budget or schedule; manual uses the entered text."
         }
       }
+    },
+    "add_penalty": {
+      "name": "Remove gaming time",
+      "description": "Deduct up to the requested minutes from today's verified effective remaining time.",
+      "fields": {
+        "device_id": {
+          "name": "Gaming PC",
+          "description": "Select one PC."
+        },
+        "minutes": {
+          "name": "Penalty minutes",
+          "description": "1–600 whole minutes, capped by available time."
+        }
+      }
+    },
+    "cancel_today": {
+      "name": "Cancel today's gaming",
+      "description": "Suspend gaming until local midnight or parent Undo. Unlimited remains an explicit override.",
+      "fields": {
+        "device_id": {
+          "name": "Gaming PC",
+          "description": "Select one PC."
+        }
+      }
+    },
+    "set_suspended": {
+      "name": "Set Gaming suspended",
+      "description": "Suspend tracked gaming until explicitly lifted. Disables Unlimited and overrides normal rules; never sends Windows commands directly.",
+      "fields": {
+        "device_id": {
+          "name": "Gaming PC",
+          "description": "Select one PC."
+        },
+        "enabled": {
+          "name": "Suspended",
+          "description": "Enable or explicitly lift the persistent suspension."
+        }
+      }
     }
   },
   "triggers": {
@@ -203,6 +245,16 @@
           "name": "Remaining time",
           "description": "Fire on downward crossing. Use zero for exhausted budget."
         },
+        "device_id": {
+          "name": "Gaming PCs",
+          "description": "Select one or more PCs, or leave empty for any gaming PC."
+        }
+      }
+    },
+    "restriction_violated": {
+      "name": "Gaming restriction violated",
+      "description": "Triggers when a tracked foreground game violates a verified restriction and a fresh termination offer is available.",
+      "fields": {
         "device_id": {
           "name": "Gaming PCs",
           "description": "Select one or more PCs, or leave empty for any gaming PC."

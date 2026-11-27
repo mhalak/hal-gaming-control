@@ -48,6 +48,12 @@ Each grant is one transaction, not three separate bonuses. See [Budget Overview 
 
 **Source preview (#241):** requires an installed build containing the smart-control changes. No release or deployment is implied.
 
+### Sync bonus with other devices — the sibling peace treaty
+
+**Planned ([#276](https://github.com/mhalak/hal-gaming-control/issues/276)).** “How come she gets more time than me?!” The king no longer needs a calculator. Press **Sync bonus with other devices** on the PC that needs a top-up: if one child has received 37.5 bonus minutes today and the other has received 30, the selected PC gets exactly 7.5 minutes. Nobody loses time, and pressing the button again adds nothing once the bonuses match.
+
+The proposed comparison uses today's active Parent bonuses and verified Screen idle bonuses, not remaining playtime, regular budgets, Weekend bonus or unlimited overrides. Smart Parent Bonus will adjust the applicable limits only as needed. The top-up will be recorded as one grant in Budget Overview, with the normal Undo rules. This is a one-time parent action, not continuous synchronization or a shared gaming budget. Gaming penalties and persistent suspensions, if introduced separately, are not bonus entitlements: this proposed action must not copy, lift or propagate them between PCs.
+
 ## Allowed gaming hours
 
 The PC's Configuration section has **Schedule enabled** plus two independent allowed-hour windows: **Weekday allowed from/until** (Mon–Fri) and **Weekend allowed from/until** (Sat–Sun). Weekend hours initially inherit the saved weekday hours until explicitly edited, avoiding policy changes on upgrade. The daily windows may cross midnight, anchored to their starting day; they use HA local time. **Gaming rules enabled** must also be ON for schedule restrictions to apply. They never alter recorded gaming time or issue Windows commands.
@@ -78,3 +84,13 @@ More: [Controls & automations](parent-actions.md) · [Known limitations](../know
 ---
 
 **Explore more features:** [← Local mode](local-mode.md) · [Track applications →](tracked-applications.md)
+
+
+## Gaming Penalty (source candidate, #282)
+
+Parents can use **Remove 30 minutes** or the device-scoped `hal_gaming_control.add_penalty` action (1–600 minutes). The deduction is capped at verified available time, applies to today's effective allowance regardless of limiting budget, and does not change measured play or configured budgets. **Cancel today's gaming** (`hal_gaming_control.cancel_today`) is a separate suspension through local midnight, including when no finite quota exists. Both are reversible from the Budget Overview via the ⛔ entry. Ordinary bonuses cannot bypass a complete cancellation; undo the cancellation first. Where a deduction exceeds the current unpenalized balance, undo a penalty before granting more time to avoid an unintended grant against penalty debt. Unlimited gaming and disabled rules retain their explicit override behavior. Penalties remain device-local and expire at midnight; no automatic commands or automations are installed. The existing opt-in restriction enforcement automation handles verified restricted foreground play. Partial deductions need fresh finite budget evidence; full cancellation can be recorded offline. Confirm real-PC acceptance before enabling enforcement. Native HA button permissions apply, with an additional administrator check; use the native administrator action for automation. No Windows protocol change.
+
+
+### Gaming suspended — no expiry
+
+The **Gaming suspended** switch and administrator action `hal_gaming_control.set_suspended` (device_id, enabled) are independent of daily penalties. Enabling suspension atomically clears Unlimited; Unlimited cannot be enabled until suspension is lifted. Suspension takes priority even with normal rules disabled, survives midnight and HA restarts, and is never lifted by ordinary bonuses, profile copying or policy changes. Disabling it restores current normal policy, not the old Unlimited state. Usage remains measured, and enforcement still requires fresh tracked foreground evidence and an owner-configured restriction automation. The switch works while the PC is offline. No Windows command is sent by the switch itself.

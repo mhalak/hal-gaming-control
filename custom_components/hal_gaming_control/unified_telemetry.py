@@ -238,8 +238,9 @@ def display_v2(packet):
 class TelemetryOrder:
     """Per-PC anti-replay watermark spanning publisher reconnects.
 
-    A broker loss or offline LWT retires the current epoch, requiring a new
-    publisher session to resume; clock monotonicity is checked separately.
+    An explicit publisher offline LWT retires its epoch. A subscriber-only
+    disconnect invalidates liveness but preserves ordering watermarks so
+    a still-connected publisher can resume with newer fresh observations.
     """
     def __init__(self):
         self.epoch = None
@@ -248,8 +249,8 @@ class TelemetryOrder:
         self.retired = {}
         self.received = None
 
-    def suspend(self):
-        if self.epoch is not None:
+    def suspend(self, *, retire=True):
+        if retire and self.epoch is not None:
             self.retired[self.epoch] = float("inf")
         self.received = None
 

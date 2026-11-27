@@ -204,3 +204,63 @@ async def test_smart_receipt_dropdown_undo_routes_through_replay():
         assert len(committed) == 1
         assert entity.current_option == f"∑{FIGURE * 2}75 min - TOTAL"
         assert entry.options["parent_bonus_journal"]["events"][0]["status"] == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_penalty_undo_requires_admin_and_restores_only_selected_record():
+    from custom_components.hal_gaming_control.gaming_penalty import add_penalty, active_penalties
+
+    entity, entry, committed = setup_select()
+    entry.options = add_penalty(entry.options, "pc1", at(minute=10),
+                                minutes=30, remaining_seconds=12600)
+    entry.options = add_penalty(entry.options, "pc1", at(minute=11),
+                                cancel_today=True)
+    with patch("custom_components.hal_gaming_control.select.dt_util.now",
+               return_value=at()), patch.object(entity, "async_write_ha_state"):
+        label = next(row for row in entity.options if "Gaming cancelled today" in row)
+        assert label.endswith("⛔")
+        entity.async_set_context(Context(user_id="child"))
+        entity.hass.auth.async_get_user.return_value = SimpleNamespace(is_admin=False)
+        with pytest.raises(HomeAssistantError, match="administrator"):
+            await entity.async_select_option(label)
+        assert not committed
+        entity.async_set_context(Context(user_id="parent-A"))
+        entity.hass.auth.async_get_user.return_value = SimpleNamespace(is_admin=True)
+        await entity.async_select_option(label)
+        assert len(committed) == 1
+        remaining = active_penalties(entry.options, "pc1", at())
+        assert len(remaining) == 1 and remaining[0]["seconds"] == 1800
+        assert parent_bonus_total(entry.options, at()) == 90
+        assert entity.current_option == total(180)
+
+
+@pytest.mark.asyncio
+async def test_new_penalty_switch_and_button_reject_non_admin_context():
+    from custom_components.hal_gaming_control.button import GamingPenaltyButton
+    from custom_components.hal_gaming_control.switch import GamingSuspendedSwitch
+
+    entity, entry, committed = setup_select()
+    coordinator = entity.coordinator
+    coordinator.options = entry.options
+    suspended = GamingSuspendedSwitch(coordinator)
+    cancel = GamingPenaltyButton(coordinator, True)
+    for control, action in ((suspended, suspended.async_turn_on),
+                            (cancel, cancel.async_press)):
+        control.hass = entity.hass
+        for context in (Context(), Context(user_id="child")):
+            control.async_set_context(context)
+            control.hass.auth.async_get_user.return_value = SimpleNamespace(is_admin=False)
+            with pytest.raises(HomeAssistantError, match="administrator"):
+                await action()
+    assert not committed
+    suspended.async_set_context(Context(user_id="parent-A"))
+    suspended.hass.auth.async_get_user.return_value = SimpleNamespace(is_admin=True)
+    with patch.object(suspended, "async_write_ha_state"):
+        await suspended.async_turn_on()
+        assert entry.options["gaming_suspended"] is True
+        await suspended.async_turn_off()
+        assert entry.options["gaming_suspended"] is False
+    cancel.async_set_context(Context(user_id="parent-A"))
+    await cancel.async_press()
+    assert entry.options["gaming_penalty_journal"]["events"][-1]["cancel_today"] is True
+    assert len(committed) == 3

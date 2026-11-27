@@ -1,13 +1,18 @@
 """Native HA threshold trigger for the authoritative effective-budget sensor."""
+from datetime import timedelta
 from math import isfinite
+from time import monotonic
 
 import probatio
 from homeassistant.const import CONF_OPTIONS, EVENT_STATE_CHANGED, STATE_UNKNOWN, STATE_UNAVAILABLE
-from homeassistant.core import callback
-from homeassistant.helpers import config_validation as cv, entity_registry as er
+from homeassistant.config_entries import ConfigEntryState
+from homeassistant.core import Context, callback
+from homeassistant.helpers import config_validation as cv, device_registry as dr, entity_registry as er
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.trigger import Trigger
 
 from .const import DOMAIN
+from .restriction_dispatch import RestrictionDispatch
 
 
 def _minutes(value):
@@ -74,5 +79,54 @@ class RemainingBudgetTrigger(Trigger):
         return self._hass.bus.async_listen(EVENT_STATE_CHANGED, changed)
 
 
+_RESTRICTION_SCHEMA = probatio.Schema({
+    probatio.Optional(CONF_OPTIONS, default=dict): {
+        probatio.Optional("device_id", default=list): probatio.All(cv.ensure_list, [cv.string]),
+    },
+})
+
+
+class RestrictionViolatedTrigger(Trigger):
+    """Dispatch a verified violation when a matching termination offer exists."""
+
+    @classmethod
+    async def async_validate_config(cls, hass, config):
+        return _RESTRICTION_SCHEMA(config)
+
+    def __init__(self, hass, config):
+        super().__init__(hass, config)
+        self._devices = frozenset(config.options.get("device_id", []))
+
+    async def async_attach_runner(self, run_action, did_not_trigger=None):
+        registry = dr.async_get(self._hass)
+        dispatch = RestrictionDispatch()
+
+        @callback
+        def check(_now):
+            seen = set()
+            for entry in self._hass.config_entries.async_entries(DOMAIN):
+                if entry.state != ConfigEntryState.LOADED:
+                    continue
+                c = entry.runtime_data
+                device = registry.async_get_device(
+                    identifiers={("mqtt", f"smarthouse_gaming_{c.device_id}")})
+                if device is None or (self._devices and device.id not in self._devices):
+                    continue
+                seen.add(device.id)
+                game, reasons = c.restriction_violation()
+                token = c.termination.offer["token"] if c.termination.available else None
+                if dispatch.should_fire(device.id, game, token, monotonic()):
+                    run_action({"device_id": device.id, "active_game": game,
+                                "reasons": reasons, "reason": reasons[0]},
+                               "gaming restriction violated", Context())
+            dispatch.prune(seen)
+
+        # The offer and telemetry are independent MQTT messages. A short
+        # interval also covers initial attachment, recovery and missed commands,
+        # without depending on the order or enabled state of dashboard entities.
+        return async_track_time_interval(self._hass, check, timedelta(seconds=1))
+
+
 async def async_get_triggers(hass):
-    return {"remaining_budget_reached": RemainingBudgetTrigger}
+    return {"remaining_budget_reached": RemainingBudgetTrigger,
+            "restriction_violated": RestrictionViolatedTrigger}
