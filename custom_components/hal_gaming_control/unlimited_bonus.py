@@ -144,9 +144,9 @@ def credit_seconds(totals, period, game=None):
         credit = credit.get(game, 0) if isinstance(credit, dict) else 0
     if (type(used) not in (int, float) or type(credit) not in (int, float)
             or not isfinite(used) or not isfinite(credit)
-            or used < 0 or credit < 0 or credit > used):
+            or used < 0 or credit < 0 or credit > used + 1e-6):
         return 0
-    return credit
+    return min(used, credit)
 
 
 def override_options(options, device_id, now, key, enabled):
@@ -156,11 +156,34 @@ def override_options(options, device_id, now, key, enabled):
     if key == "gaming_suspended" and enabled:
         updated["unlimited"] = False
     if key == "unlimited" or (key == "gaming_suspended" and enabled):
-        updated = record_override(updated, device_id, now, bool(updated.get("unlimited")))
+        try:
+            if KEY in options:
+                _validate_live_state(options, device_id, now)
+            updated = record_override(updated, device_id, now, bool(updated.get("unlimited")))
+        except ValueError:
+            # Explicitly disabling an override or suspending gaming must remain
+            # possible. Retain invalid history for repair, never recreate credit.
+            if updated.get("unlimited"):
+                raise
     return updated
 
 
-def excluded_seconds(options, device_id, first, last):
-    """Seconds of one verified segment already eligible for Unlimited credit."""
+def _validate_live_state(options, device_id, now):
+    rows = _journal(options, device_id)
+    active = bool(rows and rows[-1][1] is None)
+    if active != bool(options.get("unlimited")) or (active and options.get("gaming_suspended")):
+        raise ValueError("Unlimited journal and override disagree")
+    if rows and _instant(now) < (rows[-1][0] if active else rows[-1][1]):
+        raise ValueError("Unlimited clock moved backwards")
+
+
+def live_unlimited_credits(options, device_id, now, segments):
+    """Reject inconsistent live state rather than extending a stale open interval."""
+    _validate_live_state(options, device_id, now)
+    return unlimited_credits(options, device_id, now, segments)
+
+
+def excluded_seconds(options, device_id, segments, end):
+    """Seconds already eligible for Unlimited credit within verified segments."""
     return sum(right - left for left, right, _ in _overlap_segments(
-        _journal(options, device_id), ((first, last, "screen"),), last))
+        _journal(options, device_id), segments, end))
