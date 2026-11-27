@@ -300,3 +300,30 @@ def test_penalty_receipt_undo_rows_and_balanced_total():
     assert "160 min - TOTAL" in rows[-3][0]
     assert "120 min - Gaming Session" in rows[-2][0]
     assert "40 min - Remaining Budget" in rows[-1][0]
+
+
+def test_persistent_gaming_suspension_overrides_all_policy_and_survives_rollover():
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    from custom_components.hal_gaming_control.budget_select import budget_select_rows
+    opts = settings(daily=-1, weekly=-1, enabled=False, unlimited=True, gaming_suspended=True)
+    totals = {"daily": 600, "weekly": 1200, "per_game": {}}
+    for now in (at(23), at(24), at(30)):
+        snap = effective_snapshot(opts, totals, now, "pc1", ready=True)
+        assert snap.selection.remaining_seconds == 0
+        assert snap.selection.limiting_sources == ("suspended",)
+        assert violations(opts, totals, now, [], device_id="pc1") == ["suspended"]
+        rows = budget_select_rows(opts, "pc1", {"ready": True, "totals": totals}, now)
+        assert "Gaming suspended" in rows[-3][0]
+        assert "10 min - Gaming Session" in rows[-2][0]
+        assert "0 min - Remaining Budget" in rows[-1][0]
+    assert effective_snapshot(opts, {}, at(23), "pc1", ready=False).selection.status == "unknown"
+    restored = opts | {"gaming_suspended": False, "unlimited": False, "enabled": True}
+    assert effective_snapshot(restored, totals, at(24), "pc1", ready=True).selection.status == "unlimited"
+
+
+def test_persistent_suspension_rejects_bonus():
+    import pytest
+    from custom_components.hal_gaming_control.smart_parent_control import prepare_live_grant
+    with pytest.raises(ValueError, match="suspend"):
+        prepare_live_grant(settings(gaming_suspended=True), "pc1", at(23), 30,
+                           {"daily": 0, "weekly": 0, "per_game": {}}, ready=True)
