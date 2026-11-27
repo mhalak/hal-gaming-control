@@ -52,7 +52,7 @@ Each grant is one transaction, not three separate bonuses. See [Budget Overview 
 
 **Planned ([#276](https://github.com/mhalak/hal-gaming-control/issues/276)).** “How come she gets more time than me?!” The king no longer needs a calculator. Press **Sync bonus with other devices** on the PC that needs a top-up: if one child has received 37.5 bonus minutes today and the other has received 30, the selected PC gets exactly 7.5 minutes. Nobody loses time, and pressing the button again adds nothing once the bonuses match.
 
-The proposed comparison uses today's active Parent bonuses and verified Screen idle bonuses, not remaining playtime, regular budgets, Weekend bonus or unlimited overrides. Smart Parent Bonus will adjust the applicable limits only as needed. The top-up will be recorded as one grant in Budget Overview, with the normal Undo rules. This is a one-time parent action, not continuous synchronization or a shared gaming budget.
+The proposed comparison uses today's active Parent bonuses and verified Screen idle bonuses, not remaining playtime, regular budgets, Weekend bonus or unlimited overrides. Smart Parent Bonus will adjust the applicable limits only as needed. The top-up will be recorded as one grant in Budget Overview, with the normal Undo rules. This is a one-time parent action, not continuous synchronization or a shared gaming budget. Gaming penalties and persistent suspensions, if introduced separately, are not bonus entitlements: this proposed action must not copy, lift or propagate them between PCs.
 
 ## Allowed gaming hours
 
