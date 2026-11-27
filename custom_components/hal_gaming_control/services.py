@@ -54,7 +54,9 @@ BUTTON = vol.Schema({
     vol.Required("color"): vol.In(("neutral", "primary", "success", "warning", "danger")),
 }, extra=vol.PREVENT_EXTRA)
 SCHEMA_LOCK = vol.Schema(DEVICE, extra=vol.PREVENT_EXTRA)
-SCHEMA_TERMINATE = vol.Schema(DEVICE, extra=vol.PREVENT_EXTRA)
+SCHEMA_TERMINATE = vol.Schema(DEVICE | {
+    vol.Optional("require_restriction", default=False): _strict_bool,
+}, extra=vol.PREVENT_EXTRA)
 SCHEMA_BONUS = vol.Schema(DEVICE | {
     vol.Required("minutes"): vol.All(_strict_int, vol.Range(min=1, max=600)),
 }, extra=vol.PREVENT_EXTRA)
@@ -142,6 +144,8 @@ def async_setup_services(hass):
 
     async def async_terminate_game(call):
         c = _coordinator(hass, call.data["device_id"])
+        if call.data.get("require_restriction") and not c.restriction_violation()[0]:
+            return  # Policy changed before the queued enforcement action ran.
         await c.termination.async_terminate()
 
     async def async_add_bonus(call):
