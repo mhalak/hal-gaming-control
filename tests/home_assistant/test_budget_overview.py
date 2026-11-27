@@ -327,3 +327,63 @@ def test_persistent_suspension_rejects_bonus():
     with pytest.raises(ValueError, match="suspend"):
         prepare_live_grant(settings(gaming_suspended=True), "pc1", at(23), 30,
                            {"daily": 0, "weekly": 0, "per_game": {}}, ready=True)
+
+
+def _holiday_options(**overrides):
+    return settings(daily=120, weekly=300, weekend_bonus=60,
+                    schedule_enabled=True, schedule_start="16:00",
+                    schedule_end="18:00", weekend_schedule_start="20:00",
+                    weekend_schedule_end="02:00",
+                    public_holidays_enabled=True, public_holiday_country="HR",
+                    public_holiday_cache={"version": 1, "country": "HR",
+                        "years": {"2026": {"dates": {"2026-11-18": "Public holiday"},
+                            "loaded_at": "2026-11-01T12:00:00+00:00"}}},
+                    **overrides)
+
+
+def test_verified_weekday_public_holiday_uses_weekend_budget_and_schedule():
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    opts = _holiday_options()
+    now = at(18, 20)
+    totals = {"daily": 0, "weekly": 0, "per_game": {}}
+    assert effective_budget_limit(opts, now, "daily") == 180
+    assert effective_budget_limit(opts, now, "weekly") == 300
+    assert violations(opts, totals, now, []) == []
+    receipt = budget_overview(opts, totals, now, ready=True, device_id="pc1")
+    assert receipt["weekend_bonus_minutes"] == 60
+    assert receipt["daily_limit_minutes"] == 180
+    snap = effective_snapshot(opts, totals, now, "pc1", ready=True)
+    assert snap.schedule.remaining_seconds == 6 * 3600
+    assert snap.selection.remaining_seconds == 180 * 60
+
+
+def test_holiday_overnight_carries_starting_day_policy_not_current_day():
+    from custom_components.hal_gaming_control.rule_engine import inside_weekly_schedule
+    from custom_components.hal_gaming_control.smart_schedule import schedule_snapshot
+    opts = _holiday_options()
+    assert inside_weekly_schedule(at(18, 21), opts)
+    assert inside_weekly_schedule(at(19, 1), opts)
+    assert not inside_weekly_schedule(at(19, 2), opts)
+    assert not inside_weekly_schedule(at(18, 1), opts)
+    assert not inside_weekly_schedule(at(19, 20), opts)
+    assert inside_weekly_schedule(at(19, 16), opts)
+    assert schedule_snapshot(opts, at(19, 1)).remaining_seconds == 3600
+    assert effective_budget_limit(opts, at(19, 1), "daily") == 120
+
+
+def test_holiday_policy_disabled_missing_foreign_or_corrupt_is_original_policy():
+    from copy import deepcopy
+    opts = _holiday_options()
+    for changed in (opts | {"public_holidays_enabled": False},
+                    opts | {"public_holiday_country": "DE"},
+                    opts | {"public_holiday_cache": {}},
+                    opts | {"public_holiday_cache": {"version": 1, "country": "HR",
+                               "years": {"2026": {"dates": {}, "loaded_at": "invalid"}}}}):
+        assert effective_budget_limit(changed, at(18, 20), "daily") == 120
+        assert effective_budget_limit(changed, at(21, 20), "daily") == 180
+        assert "schedule" in violations(changed, {"daily": 0, "weekly": 0},
+                                        at(18, 20), [])
+    weekend = deepcopy(opts)
+    weekend["public_holiday_cache"]["years"]["2026"]["dates"]["2026-11-21"] = "Public holiday"
+    assert effective_budget_limit(weekend, at(21, 20), "daily") == 180
+    assert effective_budget_limit(opts | {"daily": -1}, at(18, 20), "daily") == -1
