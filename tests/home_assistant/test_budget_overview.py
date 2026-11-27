@@ -230,3 +230,57 @@ def test_effective_time_sensor_unknown_unlimited_zero_and_weekly():
         assert sensor.extra_state_attributes["budget_status"] == "unlimited"
         c.options["enabled"] = False
         assert sensor.extra_state_attributes["budget_status"] == "disabled"
+
+
+def test_gaming_penalty_deducts_effective_balance_without_mutating_usage():
+    from custom_components.hal_gaming_control.gaming_penalty import add_penalty, undo_penalty, active_penalties
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    opts = settings(daily=220, weekly=600)
+    now = at(23)
+    totals = {"daily": 120 * 60, "weekly": 120 * 60, "per_game": {}}
+    candidate = add_penalty(opts, "pc1", now, minutes=60, remaining_seconds=6000)
+    snap = effective_snapshot(candidate, totals, now, "pc1", ready=True)
+    assert snap.selection.remaining_seconds == 2400
+    assert totals["daily"] == 7200 and candidate["daily"] == 220
+    assert effective_snapshot(candidate, totals, now, "pc2", ready=True).selection.remaining_seconds == 6000
+    assert effective_snapshot(candidate, totals, at(24), "pc1", ready=True).selection.remaining_seconds == 6000
+    row = active_penalties(candidate, "pc1", now)[0]
+    restored = undo_penalty(candidate, "pc1", now, row["id"])
+    assert effective_snapshot(restored, totals, now, "pc1", ready=True).selection.remaining_seconds == 6000
+
+
+def test_gaming_penalty_weekly_schedule_and_cancel_unlimited():
+    from custom_components.hal_gaming_control.gaming_penalty import add_penalty
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    now = at(23, 18)
+    totals = {"daily": 0, "weekly": 0, "per_game": {}}
+    for opts in (settings(daily=180, weekly=10),
+                 settings(daily=180, weekly=300, schedule_enabled=True,
+                          schedule_start="16:00", schedule_end="18:10")):
+        candidate = add_penalty(opts, "pc1", now, minutes=30, remaining_seconds=600)
+        snap = effective_snapshot(candidate, totals, now, "pc1", ready=True)
+        assert snap.selection.remaining_seconds == 0
+        assert "penalty" in violations(candidate, totals, now, [], device_id="pc1")
+        assert candidate["weekly"] == opts["weekly"]
+    unlimited = settings(daily=-1, weekly=-1)
+    cancelled = add_penalty(unlimited, "pc1", now, cancel_today=True)
+    assert effective_snapshot(cancelled, totals, now, "pc1", ready=True).selection.remaining_seconds == 0
+    assert violations(cancelled, totals, now, [], device_id="pc1") == ["penalty"]
+    assert effective_snapshot(cancelled | {"unlimited": True}, totals, now, "pc1", ready=True).selection.status == "unlimited"
+    assert effective_snapshot(cancelled, totals, at(24), "pc1", ready=True).selection.status == "unlimited"
+    assert effective_snapshot(cancelled, {}, now, "pc1", ready=False).selection.status == "unknown"
+
+
+def test_gaming_penalty_duplicate_cancel_and_invalid_amounts():
+    import pytest
+    from custom_components.hal_gaming_control.gaming_penalty import add_penalty, active_penalties, undo_penalty
+    now = at(23)
+    candidate = add_penalty(settings(), "pc1", now, cancel_today=True)
+    assert add_penalty(candidate, "pc1", now, cancel_today=True) == candidate
+    row = active_penalties(candidate, "pc1", now)[0]
+    with pytest.raises(ValueError):
+        undo_penalty(candidate, "pc2", now, row["id"])
+    for value in (0, -1, True, 601, 1.5):
+        with pytest.raises(ValueError):
+            add_penalty(settings(), "pc1", now, minutes=value, remaining_seconds=3600)
+    assert add_penalty(settings(), "pc1", now, minutes=30, remaining_seconds=0) == settings()
