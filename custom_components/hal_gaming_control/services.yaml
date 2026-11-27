@@ -39,6 +39,14 @@ add_bonus:
           mode: box
           unit_of_measurement: min
 
+sync_bonus:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: hal_gaming_control
+
 set_unlimited:
   fields:
     device_id:
