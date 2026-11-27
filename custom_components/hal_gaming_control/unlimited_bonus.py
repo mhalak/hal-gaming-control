@@ -1,4 +1,4 @@
-"""Verified Unlimited credit projection; no live policy or control callers yet."""
+"""Verified Unlimited interval journal and credit projection."""
 from datetime import datetime, time, timedelta
 from math import isfinite
 
@@ -131,3 +131,36 @@ def unlimited_credits(options, device_id, now, segments):
             result["daily"] += daily
             result["per_game"][key] = result["per_game"].get(key, 0) + daily
     return result
+
+
+def credit_seconds(totals, period, game=None):
+    """Read an authoritative credit, never more than the measured usage."""
+    credits = totals.get("unlimited_bonus", {})
+    if not isinstance(credits, dict):
+        return 0
+    used, credit = totals.get(period), credits.get(period, 0)
+    if game is not None:
+        used = used.get(game) if isinstance(used, dict) else None
+        credit = credit.get(game, 0) if isinstance(credit, dict) else 0
+    if (type(used) not in (int, float) or type(credit) not in (int, float)
+            or not isfinite(used) or not isfinite(credit)
+            or used < 0 or credit < 0 or credit > used):
+        return 0
+    return credit
+
+
+def override_options(options, device_id, now, key, enabled):
+    """Atomic policy + journal candidate, including suspension ending Unlimited."""
+    updated = dict(options)
+    updated[key] = enabled
+    if key == "gaming_suspended" and enabled:
+        updated["unlimited"] = False
+    if key == "unlimited" or (key == "gaming_suspended" and enabled):
+        updated = record_override(updated, device_id, now, bool(updated.get("unlimited")))
+    return updated
+
+
+def excluded_seconds(options, device_id, first, last):
+    """Seconds of one verified segment already eligible for Unlimited credit."""
+    return sum(right - left for left, right, _ in _overlap_segments(
+        _journal(options, device_id), ((first, last, "screen"),), last))
