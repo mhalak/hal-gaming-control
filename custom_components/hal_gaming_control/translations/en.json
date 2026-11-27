@@ -196,6 +196,30 @@
           "description": "Automatic shows the limiting budget or schedule; manual uses the entered text."
         }
       }
+    },
+    "add_penalty": {
+      "name": "Remove gaming time",
+      "description": "Deduct up to the requested minutes from today's verified effective remaining time.",
+      "fields": {
+        "device_id": {
+          "name": "Gaming PC",
+          "description": "Select one PC."
+        },
+        "minutes": {
+          "name": "Penalty minutes",
+          "description": "1–600 whole minutes, capped by available time."
+        }
+      }
+    },
+    "cancel_today": {
+      "name": "Cancel today's gaming",
+      "description": "Suspend gaming until local midnight or parent Undo. Unlimited remains an explicit override.",
+      "fields": {
+        "device_id": {
+          "name": "Gaming PC",
+          "description": "Select one PC."
+        }
+      }
     }
   },
   "triggers": {
