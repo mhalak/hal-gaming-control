@@ -180,6 +180,7 @@ class GamingCoordinator(DataUpdateCoordinator):
         if tick - self._holiday_check_at < 3600:
             return
         self._holiday_check_at = tick
+        now = dt_util.as_local(now)
         if not cache_needs_refresh(self.entry.options, now):
             return
         try:
