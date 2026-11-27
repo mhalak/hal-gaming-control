@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta, time
 from .const import DEFAULTS
 from .protocol import games_from_state
+from .public_holidays import weekend_equivalent, holiday_receipt
 
 
 def windows(now):
@@ -86,7 +87,7 @@ def effective_budget_limit(options, now, period, *, device_id=None):
         return options["weekly"]
     if period != "daily":
         raise ValueError("Unsupported budget period")
-    base = effective_daily(options, now.weekday() >= 5)
+    base = effective_daily(options, weekend_equivalent(options, now.date()))
     if base < 0:
         return base
     from .screen_idle_bonus import screen_idle_bonus_total
@@ -112,6 +113,12 @@ def _schedule_for_weekday(options, weekday):
     return time.fromisoformat(start), time.fromisoformat(end)
 
 
+def _schedule_for_date(options, day):
+    """Select a window using its starting local date, including public holidays."""
+    weekday = 5 if weekend_equivalent(options, day) else day.weekday()
+    return _schedule_for_weekday(options, weekday)
+
+
 def inside_weekly_schedule(now, options):
     """Is local wall time within today's or yesterday's started window?
 
@@ -120,15 +127,15 @@ def inside_weekly_schedule(now, options):
     Compare local clock values to honor DST without inventing elapsed time.
     """
     clock = now.time().replace(tzinfo=None)
-    start, end = _schedule_for_weekday(options, now.weekday())
+    start, end = _schedule_for_date(options, now.date())
     if start == end:
         return True  # Equal endpoints explicitly mean all-day permission.
     if start < end and start <= clock < end:
         return True
     if start > end and clock >= start:
         return True
-    previous_start, previous_end = _schedule_for_weekday(
-        options, (now.weekday() - 1) % 7)
+    previous_start, previous_end = _schedule_for_date(
+        options, now.date() - timedelta(days=1))
     return previous_start > previous_end and clock < previous_end
 
 
@@ -264,7 +271,7 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True, de
         "base_daily_minutes": base if base >= 0 else None,
         "weekend_bonus_minutes": (
             _validated_weekend_bonus(settings.get("weekend_bonus", 0))
-            if base >= 0 and now.weekday() >= 5 else 0),
+            if base >= 0 and weekend_equivalent(settings, now.date()) else 0),
         "parent_bonus_minutes": daily_bonus_minutes(settings, now) + smart_requested,
         "parent_bonus_legacy_minutes": parent_bonus_legacy_today(settings, now),
         "parent_bonus_grants_today": [_public_grant(row) for row in active_grants[:12]],
@@ -283,4 +290,5 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True, de
         "weekly_remaining_seconds": weekly_left,
         "weekly_remaining_minutes": whole_hundredths(weekly_left),
         "coverage_incomplete": bool(coverage_incomplete),
+        **holiday_receipt(settings, now.date()),
     }
