@@ -173,16 +173,7 @@ def budget_select_rows(options, device_id, data, now, *, segments=None):
                 ("− Unknown - Gaming Session", None),
                 ("∑ Unknown - Remaining Budget", None)]
     if options.get("gaming_suspended") is True:
-        lines = _penalty_rows(penalties, now, None)
-        used = data.get("totals", {}).get("daily")
-        usage = (_amount_label(ceil(used / 60), "Gaming Session", 3, sign="−")
-                 if data.get("ready") is True and type(used) in (int, float)
-                 and isfinite(used) and used >= 0 else "− Unknown - Gaming Session")
-        lines.extend([("∑ Gaming suspended - TOTAL", None), (usage, None),
-                      (_amount_label(0, "Remaining Budget", 3, sign="∑")
-                       if snapshot.selection.status == "limited"
-                       else "∑ Unknown - Remaining Budget", None)])
-        return _display_action_column(lines)
+        return _suspended_display(data, now, snapshot, penalties)
     if penalties:
         return _penalty_display(options, device_id, data, now, snapshot, segments, penalties)
     has_smart = bool(parent_smart_grants(options, device_id, now)) or any(
@@ -190,6 +181,23 @@ def budget_select_rows(options, device_id, data, now, *, segments=None):
     if has_smart or (snapshot.selection.limiting_sources
                      and snapshot.selection.limiting_sources[0] != "daily"):
         return _smart_display(options, device_id, data, now, snapshot, segments)
+    return _daily_display(options, device_id, data, now)
+
+
+def _suspended_display(data, now, snapshot, penalties):
+    lines = _penalty_rows(penalties, now, None)
+    used = data.get("totals", {}).get("daily")
+    usage = (_amount_label(ceil(used / 60), "Gaming Session", 3, sign="−")
+             if data.get("ready") is True and type(used) in (int, float)
+             and isfinite(used) and used >= 0 else "− Unknown - Gaming Session")
+    lines.extend([("∑ Gaming suspended - TOTAL", None), (usage, None),
+                  (_amount_label(0, "Remaining Budget", 3, sign="∑")
+                   if snapshot.selection.status == "limited"
+                   else "∑ Unknown - Remaining Budget", None)])
+    return _display_action_column(lines)
+
+
+def _daily_display(options, device_id, data, now):
     receipt = budget_overview(
         options, data.get("totals", {}), now, ready=bool(data.get("ready")),
         coverage_incomplete=data.get("coverage_incomplete", True))
