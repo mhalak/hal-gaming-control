@@ -284,3 +284,19 @@ def test_gaming_penalty_duplicate_cancel_and_invalid_amounts():
         with pytest.raises(ValueError):
             add_penalty(settings(), "pc1", now, minutes=value, remaining_seconds=3600)
     assert add_penalty(settings(), "pc1", now, minutes=30, remaining_seconds=0) == settings()
+
+
+def test_penalty_receipt_undo_rows_and_balanced_total():
+    from custom_components.hal_gaming_control.budget_select import budget_select_rows
+    from custom_components.hal_gaming_control.gaming_penalty import add_penalty
+    now = at(23)
+    opts = add_penalty(settings(daily=220, weekly=600), "pc1", now,
+                       minutes=60, remaining_seconds=6000)
+    rows = budget_select_rows(opts, "pc1", {
+        "ready": True, "totals": {"daily": 7200, "weekly": 7200, "per_game": {}}
+    }, now)
+    assert any("60 min - Gaming Penalty" in label and key.startswith("penalty:")
+               for label, key in rows if key)
+    assert "160 min - TOTAL" in rows[-3][0]
+    assert "120 min - Gaming Session" in rows[-2][0]
+    assert "40 min - Remaining Budget" in rows[-1][0]
