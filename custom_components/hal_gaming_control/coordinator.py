@@ -5,6 +5,7 @@ from time import monotonic
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.core import callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 from datetime import timedelta
 from .const import DEFAULTS, DOMAIN, SCAN_SECONDS
@@ -16,6 +17,8 @@ from .screen_idle_bonus import maybe_add_screen_idle_grant
 from .rule_engine import violations
 from .targeted_action import TargetedTermination
 from .popup_control import PopupControl
+from .holiday_provider import async_refresh_calendar, cache_needs_refresh
+from .public_holidays import ENABLED
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,6 +40,7 @@ class GamingCoordinator(DataUpdateCoordinator):
         self.storage_healthy = False
         self._saved_segments = ()
         self._save_task = None
+        self._holiday_check_at = float('-inf')
         self.termination = TargetedTermination(self)
         self.popup = PopupControl(self)
 
@@ -168,12 +172,28 @@ class GamingCoordinator(DataUpdateCoordinator):
             return registry.async_get_entity_id(domain, DOMAIN, f"{self.device_id}_{key}")
         return registry.async_get_entity_id(domain, "mqtt", f"smarthouse_gaming_{self.device_id}_{key}")
 
+    async def _async_refresh_holiday_cache(self, now):
+        """At most hourly, preserve existing validated data if refresh fails."""
+        if self.options.get(ENABLED) is not True:
+            return
+        tick = monotonic()
+        if tick - self._holiday_check_at < 3600:
+            return
+        self._holiday_check_at = tick
+        if not cache_needs_refresh(self.entry.options, now):
+            return
+        try:
+            await async_refresh_calendar(self.hass, self.entry, now)
+        except (HomeAssistantError, ValueError, OSError, ImportError, TypeError):
+            _LOGGER.warning("Public holiday calendar refresh failed; retaining prior cache")
+
     async def _async_update_data(self):
         """Never replay old scalar MQTT/Recorder game or uptime observations."""
         if self.foreground is None:
             # Setup has not established a valid unified v3 reader. No backup
             # monitoring source exists after this breaking clean cut.
             return {"ready": False, "online": False}
+        await self._async_refresh_holiday_cache(dt_util.now())
         return self._foreground_data(dt_util.now())
 
     @callback
