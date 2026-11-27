@@ -160,3 +160,15 @@ cancel_today:
       selector:
         device:
           integration: hal_gaming_control
+
+set_suspended:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: hal_gaming_control
+    enabled:
+      required: true
+      selector:
+        boolean:
