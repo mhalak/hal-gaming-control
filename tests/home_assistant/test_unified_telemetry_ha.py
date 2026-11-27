@@ -207,7 +207,7 @@ async def test_replay_wrong_pc_stale_retained_and_reconnect_fail_closed(hass):
                             "name": "PC", "games": [], "actions": [],
                             "unified_telemetry_protocol": 3})))
     deliver(cb, root + "/state/telemetry", v3(ts=112, seq=8), ts=112)
-    assert s.current(10112) is None  # old epoch retired
+    assert s.current(10112) is None  # same epoch accepted; fresh ON needs another sample
     deliver(cb, root + "/state/telemetry",
             v3(ts=114, seq=1, epoch="c" * 32), ts=114)
     # First new epoch can arm ON but must not immediately credit old focus.
@@ -815,3 +815,25 @@ async def test_native_discovery_uptime_uses_same_text_format_as_direct():
         {},
     ):
         assert rendered.render(value_json=packet).strip() == "unavailable"
+
+
+async def test_epoch_rotation_while_waiting_for_post_on_foreground_recovers(hass):
+    s, cb, _, bonus, _ = await start(hass)
+    root = "SmartHouse/Gaming/pc1"
+    deliver(cb, root + "/availability", "online", ts=99)
+    deliver(cb, root + "/state/telemetry", v3(ts=100, seq=100), ts=100)
+    assert s.current(10100) is None
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=102, seq=1, epoch="c" * 32), ts=102)
+    assert s.current(10102) is None
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=104, seq=2, epoch="c" * 32), ts=104)
+    assert s.current(10104) == "Roblox"
+    assert total(s) == 0
+    deliver(cb, root + "/state/telemetry",
+            v3(ts=106, seq=3, epoch="c" * 32), ts=106)
+    assert total(s) == 2
+    deliver(cb, root + "/state/telemetry", v3(ts=107, seq=101), ts=107)
+    assert total(s) == 2
+    bonus.assert_not_called()
+    s.close()
