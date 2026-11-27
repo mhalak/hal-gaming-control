@@ -55,7 +55,11 @@ def effective_snapshot(options, totals, now, device_id, *, ready, include_penalt
         balances["schedule"] = schedule.remaining_seconds if ready else None
     selection = select_budget(balances, enabled=settings["enabled"],
                               unlimited=settings["unlimited"])
-    if include_penalties:
+    if settings["gaming_suspended"]:
+        # An explicit parent suspension outranks every ordinary policy/override.
+        selection = (BudgetSelection("limited", {"suspended": 0}, 0, ("suspended",))
+                     if ready else BudgetSelection("unknown", {"suspended": None}))
+    elif include_penalties:
         selection = project_penalties(selection, settings, device_id, now, ready=ready)
     return EffectiveSnapshot(selection, base_balances, effective, schedule)
 
