@@ -764,3 +764,33 @@ async def test_native_sync_bonus_is_exact_idempotent_and_device_local(
         publish.assert_not_called()
     assert await hass.config_entries.async_unload(target.entry_id)
     assert await hass.config_entries.async_unload(peer.entry_id)
+
+
+async def test_native_sync_rejects_suspension_and_serializes_concurrent_topups(
+        hass, enable_custom_integrations, mqtt_mock):
+    import asyncio
+    from homeassistant.util import dt as dt_util
+    from custom_components.hal_gaming_control.parent_bonus import add_parent_grant
+    from custom_components.hal_gaming_control.bonus_sync import bonus_entitlement_seconds
+
+    stamp = dt_util.now()
+    policy = {"enabled": True, "daily": 120, "weekly": 300}
+    target, device_id = await setup_device(hass, "pc1", options=policy)
+    peer, _ = await setup_device(hass, "pc2", options=add_parent_grant(policy, "pc2", stamp, 30))
+    other, _ = await setup_device(hass, "pc3", options=add_parent_grant(policy, "pc3", stamp, 10))
+    await make_fresh(hass, "pc1")
+    await call(hass, "set_suspended", device_id, enabled=True)
+    await hass.async_block_till_done()
+    with pytest.raises(HomeAssistantError, match="suspended"):
+        await call(hass, "sync_bonus", device_id)
+    assert "parent_bonus_journal" not in target.options
+    await call(hass, "set_suspended", device_id, enabled=False)
+    await hass.async_block_till_done()
+    await asyncio.gather(call(hass, "sync_bonus", device_id),
+                         call(hass, "sync_bonus", device_id))
+    await hass.async_block_till_done()
+    assert bonus_entitlement_seconds(target.options, "pc1", dt_util.now()) == 1800
+    assert len(target.options["parent_bonus_journal"]["events"]) == 1
+    assert bonus_entitlement_seconds(other.options, "pc3", dt_util.now()) == 600
+    for entry in (target, peer, other):
+        assert await hass.config_entries.async_unload(entry.entry_id)
