@@ -88,6 +88,9 @@ class Root(Widget):
     def geometry(self, geometry):
         self.geometry_text = geometry
 
+    def minsize(self, width, height):
+        self.minimum_size = (width, height)
+
     def protocol(self, kind, callback):
         self.close_callback = callback
 
@@ -155,7 +158,9 @@ def fake_gui():
 def test_fixed_theme_and_equal_dynamic_buttons_stay_in_same_window():
     ui, root, _ = fake_gui()
     assert root.title_text == "HAL Gaming Control"
-    assert root.geometry_text == "420x300"
+    assert root.minimum_size == (420, 300)
+    assert not hasattr(root, "geometry_text")
+    assert ui.reason.props["wraplength"] == 240
     assert root.visible is False
     assert root.after_calls
     assert ui.actions.winfo_children() == []
@@ -342,3 +347,15 @@ def test_popup_is_topmost_by_default_without_forcing_focus_on_refresh():
     root.deiconify.assert_not_called()
     root.focus_force.assert_not_called()
     root.lift.assert_not_called()
+
+
+def test_popup_does_not_force_fixed_height_for_long_content_or_button_changes():
+    ui, root, _ = fake_gui()
+    for count in (1, 2, 3):
+        sample = packet(seq=count, buttons=count)
+        sample["view"]["description"] = "A longer budget explanation " * 4
+        ui._upsert(sample)
+        assert root.minimum_size == (420, 300)
+        assert not hasattr(root, "geometry_text")
+        assert ui.reason.props["text"] == sample["view"]["description"]
+        assert len(ui.actions.winfo_children()) == count
