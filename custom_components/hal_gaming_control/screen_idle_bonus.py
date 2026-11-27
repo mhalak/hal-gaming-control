@@ -101,8 +101,13 @@ def _verified_minutes(row, segments, now, options=None, device_id=None):
     start_date = dt_util.as_local(datetime.fromtimestamp(start, timezone.utc)).date()
     if off_date != now.date() or start_date != off_date:
         return 0  # Midnight/DST crossing needs a full split journal; fail closed.
+    return _measured_idle_minutes(segments, start, off, options, device_id)
+
+
+def _measured_idle_minutes(segments, start, off, options, device_id):
     cursor, measured = start, 0.0
-    for first, last, _key in segments:
+    covered = []
+    for first, last, key in segments:
         if last <= start or first >= off:
             continue
         if first > cursor + 3:
@@ -110,12 +115,13 @@ def _verified_minutes(row, segments, now, options=None, device_id=None):
         left, right = max(first, cursor, start), min(last, off)
         if right > left:
             measured += right - left
-            if options is not None:
-                measured -= excluded_seconds(options, device_id, left, right)
+            covered.append((left, right, key))
             cursor = right
     if cursor < off - 3:
         return 0
-    return min(MAX_PER_EVENT_MINUTES, int(measured // 60))
+    if options is not None:
+        measured -= excluded_seconds(options, device_id, covered, off)
+    return min(MAX_PER_EVENT_MINUTES, int(max(0, measured) // 60))
 
 
 def maybe_add_screen_idle_grant(options, device_id, row, segments, now):
