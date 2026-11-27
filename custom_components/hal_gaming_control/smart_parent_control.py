@@ -5,6 +5,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 
 from .const import DEFAULTS
+from .gaming_penalty import active_penalties
 from .parent_bonus import _journal
 from .rule_engine import inside_weekly_schedule
 from .smart_bonus_transaction import prepare_grant
@@ -33,7 +34,14 @@ def prepare_live_grant(options, device_id, now, minutes, totals, *, ready):
     settings = DEFAULTS | options
     if not ready:
         raise ValueError("Verified gaming usage is required before granting a Smart Bonus")
-    snapshot = effective_snapshot(settings, totals, now, device_id, ready=ready)
+    penalties = active_penalties(settings, device_id, now)
+    if any(row["cancel_today"] for row in penalties):
+        raise ValueError("Undo today's gaming cancellation before granting extra time")
+    snapshot = effective_snapshot(settings, totals, now, device_id, ready=ready,
+                                  include_penalties=False)
+    if penalties and snapshot.selection.remaining_seconds is not None and (
+            snapshot.selection.remaining_seconds < sum(row["seconds"] for row in penalties)):
+        raise ValueError("Undo a gaming penalty before granting time against penalty debt")
     if snapshot.selection.status != "limited":
         raise ValueError("Smart Bonus requires enabled rules and a known finite effective budget")
     if snapshot.schedule.remaining_seconds == 0 and not _schedule_ended_today(settings, now, device_id):
