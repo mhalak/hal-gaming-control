@@ -691,3 +691,38 @@ async def test_native_gaming_penalties_are_local_reversible_and_guarded(
         assert "penalty" in c.restriction_violation()[1]
         publish.assert_not_called()
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_persistent_suspension_native_action_and_mutual_exclusion(
+        hass, enable_custom_integrations, mqtt_mock):
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    from homeassistant.util import dt as dt_util
+
+    entry, device_id = await setup_device(hass, options={
+        "enabled": False, "unlimited": True, "daily": -1, "weekly": -1,
+        "tracked_apps": [{"name": "Roblox", "process": "RobloxPlayerBeta.exe",
+                          "signature": None}]})
+    peer, peer_id = await setup_device(hass, device="pc2")
+    with patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish:
+        await call(hass, "set_suspended", device_id, enabled=True)  # offline
+        await hass.async_block_till_done()
+        assert entry.options["gaming_suspended"] is True
+        assert entry.options["unlimited"] is False
+        assert not peer.options.get("gaming_suspended", False)
+        assert peer_id != device_id
+        with pytest.raises(HomeAssistantError, match="suspension"):
+            await call(hass, "set_unlimited", device_id, enabled=True)
+        await make_fresh(hass)
+        c = entry.runtime_data
+        assert c.restriction_violation() == ("Roblox", ["suspended"])
+        snapshot = effective_snapshot(c.options, c.data["totals"], dt_util.now(),
+                                      c.device_id, ready=True)
+        assert snapshot.selection.remaining_seconds == 0
+        await call(hass, "set_suspended", device_id, enabled=False)
+        await hass.async_block_till_done()
+        assert c.restriction_violation() == (None, [])
+        assert entry.options["unlimited"] is False
+        assert entry.options["enabled"] is False
+        publish.assert_not_called()
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    assert await hass.config_entries.async_unload(peer.entry_id)
