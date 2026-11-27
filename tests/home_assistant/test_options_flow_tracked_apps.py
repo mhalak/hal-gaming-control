@@ -887,7 +887,7 @@ async def test_profile_copy_policy_schema_defaults_and_nested_isolation():
     from custom_components.hal_gaming_control.profile_copy import (
         PROFILE_DEFAULTS, INHERITED_FIELDS, copy_profile)
 
-    assert set(DEFAULTS) == set(PROFILE_DEFAULTS).intersection(DEFAULTS) | {"unlimited"}
+    assert set(DEFAULTS) == set(PROFILE_DEFAULTS).intersection(DEFAULTS) | {"unlimited", "gaming_suspended"}
     assert set(INHERITED_FIELDS) == {"weekend_schedule_start", "weekend_schedule_end"}
     target = {
         "daily": 90, "weekly": 300, "weekend_bonus": 20,
@@ -895,14 +895,18 @@ async def test_profile_copy_policy_schema_defaults_and_nested_isolation():
         "per_game": {"Roblox": 45}, "actions": ["lock_pc"],
         "parent_bonus_journal": {"events": [{"id": "target"}]},
         "screen_idle_bonus_journal": {"events": [{"id": "target"}]},
-        "unlimited": True, "future_device_local_key": {"value": 1},
+        "unlimited": True, "gaming_suspended": False,
+        "gaming_penalty_journal": {"events": [{"id": "target-penalty"}]},
+        "future_device_local_key": {"value": 1},
     }
     source = {"tracked_apps": [{"process": "javaw.exe",
                                 "signature": dict(MINECRAFT["signature"]),
                                 "name": "Minecraft"}],
               "parent_bonus_journal": {"events": [{"id": "source"}]},
               "screen_idle_bonus_journal": {"events": [{"id": "source"}]},
-              "unlimited": False, "foreign_runtime": True}
+              "unlimited": False, "gaming_suspended": True,
+              "gaming_penalty_journal": {"events": [{"id": "source-penalty"}]},
+              "foreign_runtime": True}
     copied = copy_profile(source, target)
     assert copied["daily"] == DEFAULTS["daily"]
     assert copied["weekly"] == DEFAULTS["weekly"]
@@ -913,7 +917,10 @@ async def test_profile_copy_policy_schema_defaults_and_nested_isolation():
     assert "weekend_schedule_start" not in copied
     assert "foreign_runtime" not in copied
     assert copied["unlimited"] is True
-    for key in ("parent_bonus_journal", "screen_idle_bonus_journal", "future_device_local_key"):
+    assert copied["gaming_suspended"] is False
+    assert copy_profile({"gaming_suspended": False}, {"gaming_suspended": True})["gaming_suspended"] is True
+    for key in ("parent_bonus_journal", "screen_idle_bonus_journal",
+                "gaming_penalty_journal", "future_device_local_key"):
         assert copied[key] == target[key]
         assert copied[key] is not target[key]
     copied["tracked_apps"][0]["signature"]["value"] = "changed"
