@@ -172,6 +172,17 @@ def budget_select_rows(options, device_id, data, now, *, segments=None):
         return [("∑ Invalid penalty journal - TOTAL", None),
                 ("− Unknown - Gaming Session", None),
                 ("∑ Unknown - Remaining Budget", None)]
+    if options.get("gaming_suspended") is True:
+        lines = _penalty_rows(penalties, now, None)
+        used = data.get("totals", {}).get("daily")
+        usage = (_amount_label(ceil(used / 60), "Gaming Session", 3, sign="−")
+                 if data.get("ready") is True and type(used) in (int, float)
+                 and isfinite(used) and used >= 0 else "− Unknown - Gaming Session")
+        lines.extend([("∑ Gaming suspended - TOTAL", None), (usage, None),
+                      (_amount_label(0, "Remaining Budget", 3, sign="∑")
+                       if snapshot.selection.status == "limited"
+                       else "∑ Unknown - Remaining Budget", None)])
+        return _display_action_column(lines)
     if penalties:
         return _penalty_display(options, device_id, data, now, snapshot, segments, penalties)
     has_smart = bool(parent_smart_grants(options, device_id, now)) or any(
