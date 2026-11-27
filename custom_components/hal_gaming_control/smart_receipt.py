@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from math import isfinite
 
 from .const import DEFAULTS
+from .public_holidays import weekend_equivalent
 from .parent_bonus import _journal, parent_bonus_legacy_today
 from .rule_engine import effective_budget_limit, windows
 from .screen_idle_bonus import screen_idle_events_today
@@ -105,7 +106,7 @@ def _quota_lines(options, rows, device_id, now, totals, source, titles):
         lines = [ReceiptLine("Weekly Budget", settings["weekly"] * 60)]
     else:
         lines = [ReceiptLine("Daily Budget", settings["daily"] * 60)]
-        if now.weekday() >= 5 and settings["weekend_bonus"]:
+        if weekend_equivalent(settings, now.date()) and settings["weekend_bonus"]:
             lines.append(ReceiptLine("Weekend Bonus", settings["weekend_bonus"] * 60))
         legacy = parent_bonus_legacy_today(settings, now)
         if legacy:
