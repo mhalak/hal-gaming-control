@@ -13,6 +13,7 @@ from .entity import GamingEntity
 from .budget_select import TOTAL_ROW_INDEX, budget_select_rows
 from .parent_bonus import parent_bonus_legacy_today, parent_grants_today, revoke_parent_grant
 from .smart_bonus_transaction import cancel_grant
+from .gaming_penalty import undo_penalty
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -28,7 +29,7 @@ class ParentBonusGrantSelect(GamingEntity, SelectEntity):
         # Keep the original unique ID: existing HA dashboards stay attached.
         super().__init__(coordinator, "parent_bonus_undo_target",
                          "Budget overview (Undo)")
-        self._undo_status = "Choose a ⛔ Parent bonus to cancel it immediately"
+        self._undo_status = "Choose a ⛔ bonus or penalty to undo it immediately"
 
     @property
     def available(self):
@@ -108,10 +109,14 @@ class ParentBonusGrantSelect(GamingEntity, SelectEntity):
         entry = self.coordinator.entry
         try:
             stamp = dt_util.now()
-            grant = next((row for row in parent_grants_today(entry.options, stamp)
-                          if row["id"] == grant_id), {})
-            revoke = cancel_grant if "smart_intent" in grant else revoke_parent_grant
-            updated = revoke(entry.options, self.coordinator.device_id, grant_id, stamp)
+            if grant_id.startswith("penalty:"):
+                updated = undo_penalty(entry.options, self.coordinator.device_id,
+                                       stamp, grant_id.removeprefix("penalty:"))
+            else:
+                grant = next((row for row in parent_grants_today(entry.options, stamp)
+                              if row["id"] == grant_id), {})
+                revoke = cancel_grant if "smart_intent" in grant else revoke_parent_grant
+                updated = revoke(entry.options, self.coordinator.device_id, grant_id, stamp)
         except ValueError as err:
             raise HomeAssistantError(str(err)) from err
         result = self.hass.config_entries.async_update_entry(entry, options=updated)
