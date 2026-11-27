@@ -349,3 +349,44 @@ async def test_exact_sync_receipt_displays_granted_seconds_and_can_undo():
         assert len(committed) == 1
         assert bonus_entitlement_seconds(entry.options, "pc1", at()) == 0
         assert entity.current_option == total(120)
+
+
+def test_sync_journal_rejects_downgrade_and_inconsistent_exact_amount():
+    from copy import deepcopy
+    from custom_components.hal_gaming_control.smart_bonus_transaction import prepare_sync_grant
+    from custom_components.hal_gaming_control.parent_bonus import _journal, JOURNAL_KEY
+    from custom_components.hal_gaming_control.bonus_sync import bonus_entitlement_seconds
+
+    exact = prepare_sync_grant({"enabled": True, "daily": 120, "weekly": 300},
+                               "pc1", at(), 1, {"daily": 7200, "weekly": 18000})
+    assert _journal(exact)["version"] == 2
+    assert bonus_entitlement_seconds(exact, "pc1", at()) == 1
+    for change in ({"amount_seconds": True}, {"amount_seconds": 0},
+                   {"minutes": 1}, {"source": "unknown"}):
+        bad = deepcopy(exact)
+        bad[JOURNAL_KEY]["events"][0].update(change)
+        with pytest.raises(ValueError):
+            _journal(bad)
+    bad = deepcopy(exact)
+    bad[JOURNAL_KEY]["version"] = 1
+    with pytest.raises(ValueError):
+        _journal(bad)
+
+
+@pytest.mark.asyncio
+async def test_sync_button_requires_admin_context():
+    from custom_components.hal_gaming_control.button import SyncBonusButton
+    entity, entry, committed = setup_select()
+    control = SyncBonusButton(entity.coordinator)
+    control.hass = entity.hass
+    with patch("custom_components.hal_gaming_control.button.async_sync_bonus", new_callable=AsyncMock) as sync:
+        control.async_set_context(Context(user_id="child"))
+        control.hass.auth.async_get_user.return_value = SimpleNamespace(is_admin=False)
+        with pytest.raises(HomeAssistantError, match="administrator"):
+            await control.async_press()
+        sync.assert_not_awaited()
+        control.async_set_context(Context(user_id="parent-A"))
+        control.hass.auth.async_get_user.return_value = SimpleNamespace(is_admin=True)
+        await control.async_press()
+        sync.assert_awaited_once_with(control.hass, entity.coordinator)
+    assert not committed
