@@ -4,6 +4,7 @@ from math import isfinite
 from typing import Mapping
 
 from .const import DEFAULTS
+from .gaming_penalty import project_penalties
 from .parent_bonus import parent_smart_grants
 from .rule_engine import effective_budget_limit
 from .smart_budget import BudgetSelection, Seconds, select_budget
@@ -36,7 +37,7 @@ def quota_limits(options, now, adjustments):
     return base, effective
 
 
-def effective_snapshot(options, totals, now, device_id, *, ready):
+def effective_snapshot(options, totals, now, device_id, *, ready, include_penalties=True):
     """One policy snapshot for restriction, future receipt, and warning actions."""
     settings = DEFAULTS | options
     adjustments = parent_smart_grants(settings, device_id, now)
@@ -54,6 +55,8 @@ def effective_snapshot(options, totals, now, device_id, *, ready):
         balances["schedule"] = schedule.remaining_seconds if ready else None
     selection = select_budget(balances, enabled=settings["enabled"],
                               unlimited=settings["unlimited"])
+    if include_penalties:
+        selection = project_penalties(selection, settings, device_id, now, ready=ready)
     return EffectiveSnapshot(selection, base_balances, effective, schedule)
 
 
