@@ -244,3 +244,36 @@ def test_override_options_closes_unlimited_on_suspension_without_mutating_source
         (start.timestamp(), start.timestamp() + 600, "Roblox"),))["daily"] == 300
     assert credit_seconds({"daily": 10, "unlimited_bonus": {"daily": 11}}, "daily") == 0
     assert credit_seconds({"daily": 10, "unlimited_bonus": {"daily": 5}}, "daily") == 5
+
+
+def test_corrupt_unlimited_journal_never_prevents_explicit_suspension():
+    import pytest
+    from custom_components.hal_gaming_control.unlimited_bonus import (
+        override_options, live_unlimited_credits, KEY as JOURNAL)
+    stamp = datetime(2026, 11, 23, 12, tzinfo=LOCAL)
+    corrupted = {"unlimited": True, JOURNAL: {
+        "version": 999, "device_id": "pc1", "intervals": []}}
+    suspended = override_options(corrupted, "pc1", stamp, "gaming_suspended", True)
+    assert suspended["gaming_suspended"] is True and suspended["unlimited"] is False
+    assert suspended[JOURNAL] == corrupted[JOURNAL]
+    with pytest.raises(ValueError):
+        live_unlimited_credits(suspended, "pc1", stamp, ())
+    disabled = override_options(corrupted, "pc1", stamp, "unlimited", False)
+    assert disabled["unlimited"] is False
+    with pytest.raises(ValueError):
+        override_options(disabled, "pc1", stamp, "unlimited", True)
+
+
+def test_inconsistent_open_unlimited_interval_cannot_credit_or_resume_retroactively():
+    import pytest
+    from custom_components.hal_gaming_control.unlimited_bonus import (
+        override_options, live_unlimited_credits)
+    from datetime import timedelta
+    stamp = datetime(2026, 11, 23, 12, tzinfo=LOCAL)
+    active = override_options({}, "pc1", stamp, "unlimited", True)
+    inconsistent = active | {"unlimited": False}
+    now = stamp + timedelta(minutes=5)
+    with pytest.raises(ValueError):
+        live_unlimited_credits(inconsistent, "pc1", now, ())
+    with pytest.raises(ValueError):
+        override_options(inconsistent, "pc1", now, "unlimited", True)
