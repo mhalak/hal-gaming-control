@@ -13,6 +13,7 @@ from homeassistant.util import dt as dt_util
 
 from .parent_bonus import parent_bonus_legacy_today, parent_grants_today, parent_smart_grants
 from .smart_policy import effective_snapshot
+from .gaming_penalty import active_penalties
 from .smart_receipt import smart_receipt
 from .rule_engine import budget_overview
 from .screen_idle_bonus import screen_idle_events_today
@@ -165,6 +166,14 @@ def budget_select_rows(options, device_id, data, now, *, segments=None):
     data = data or {}
     snapshot = effective_snapshot(options, data.get("totals", {}), now, device_id,
                                   ready=data.get("ready") is True)
+    try:
+        penalties = active_penalties(options, device_id, now)
+    except ValueError:
+        return [("∑ Invalid penalty journal - TOTAL", None),
+                ("− Unknown - Gaming Session", None),
+                ("∑ Unknown - Remaining Budget", None)]
+    if penalties:
+        return _penalty_display(options, device_id, data, now, snapshot, segments, penalties)
     has_smart = bool(parent_smart_grants(options, device_id, now)) or any(
         "smart_adjustments" in row for row in parent_grants_today(options, now))
     if has_smart or (snapshot.selection.limiting_sources
@@ -226,3 +235,60 @@ def _smart_display(options, device_id, data, now, snapshot, segments):
                  (_amount_label(used, title, width, sign="−"), None),
                  (_amount_label(remaining, "Remaining Budget", width, sign="∑"), None)])
     return _display_action_column(rows)
+
+
+def _penalty_rows(penalties, now, remaining):
+    """Render independent Undo rows and reconcile conservative display rounding."""
+    rows = []
+    for index, row in enumerate(penalties, 1):
+        clock = datetime.fromisoformat(row["created_at"]).astimezone(now.tzinfo).strftime("%H:%M")
+        suffix = f" ({clock} #{index})"
+        amount = row["seconds"]
+        if remaining is None:
+            label = ("Gaming cancelled today" if row["cancel_today"] else
+                     _amount_label(ceil(amount / 60), "Gaming Penalty", 3, sign="−"))
+        else:
+            after = 0 if row["cancel_today"] else max(0, remaining - amount)
+            deducted = floor(remaining / 60) - floor(after / 60)
+            title = "Gaming cancelled today" if row["cancel_today"] else "Gaming Penalty"
+            if not row["cancel_today"] and deducted != ceil(amount / 60):
+                title += f" ({ceil(amount / 60)} min assigned)"
+            label = _amount_label(deducted, title, 3, sign="−")
+            remaining = after
+        rows.append((label + suffix, "penalty:" + row["id"]))
+    return rows
+
+
+def _penalty_display(options, device_id, data, now, snapshot, segments, penalties):
+    """Keep the base receipt and show today's temporary deductions separately."""
+    raw = effective_snapshot(options, data.get("totals", {}), now, device_id,
+                             ready=data.get("ready") is True, include_penalties=False)
+    selection = snapshot.selection
+    if raw.selection.status == "limited" and selection.status == "limited":
+        base_rows = _smart_display(options, device_id, data, now, raw, segments)
+        receipt = smart_receipt(options, data.get("totals", {}), now, device_id, raw, segments)
+        if receipt is not None:
+            used = ceil(receipt.used / 60)
+            remaining = floor(selection.remaining_seconds / 60)
+            lines = [(label.split(ACTION_GAP + "⛔")[0].rstrip(FIGURE_SPACE), grant)
+                     for label, grant in base_rows[:-3]]
+            lines.extend(_penalty_rows(penalties, now, raw.selection.remaining_seconds))
+            lines.extend([(_amount_label(used + remaining, "TOTAL", 3, sign="∑"), None),
+                          base_rows[-2],
+                          (_amount_label(remaining, "Remaining Budget", 3, sign="∑"), None)])
+            return _display_action_column(lines)
+    lines = _penalty_rows(penalties, now, None)
+    if selection.status == "limited":
+        used = data.get("totals", {}).get("daily")
+        if type(used) in (int, float) and isfinite(used) and used >= 0:
+            played = ceil(used / 60)
+            remaining = floor(selection.remaining_seconds / 60)
+            lines.extend([(_amount_label(played + remaining, "TOTAL", 3, sign="∑"), None),
+                          (_amount_label(played, "Gaming Session", 3, sign="−"), None),
+                          (_amount_label(remaining, "Remaining Budget", 3, sign="∑"), None)])
+            return _display_action_column(lines)
+    status = {"disabled": "Rules Disabled", "unlimited": "Unlimited"}.get(selection.status, "Unknown")
+    lines.extend([(f"∑{FIGURE_SPACE}{status} - TOTAL", None),
+                  ("− Unknown - Gaming Session", None),
+                  (f"∑{FIGURE_SPACE}{status} - Remaining Budget", None)])
+    return _display_action_column(lines)
