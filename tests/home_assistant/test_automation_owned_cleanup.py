@@ -27,6 +27,7 @@ async def test_options_menu_has_no_legacy_action_editors(hass, enable_custom_int
     assert result["menu_options"] == {"mqtt_settings": "🔌 MQTT configuration",
                                        "profile_copy": "📋 Profile copy",
                                        "tracked_apps": "🎮 Tracked applications",
+                                       "public_holidays": "📅 Public holidays",
                                        "windows_updates": "🔄 Windows updates (advanced)",
                                        }
     assert not {"add_action", "remove_action", "move_action"} & set(result["menu_options"])
