@@ -7,6 +7,8 @@ from datetime import datetime, timedelta, timezone
 import math
 import re
 
+from .unlimited_bonus import excluded_seconds
+
 KEY = "screen_idle_bonus_journal"
 MAX_EVENTS = 2048
 RETENTION_DAYS = 90
@@ -76,7 +78,7 @@ def screen_idle_events_today(options, now, device_id):
         return []
 
 
-def _verified_minutes(row, segments, now):
+def _verified_minutes(row, segments, now, options=None, device_id=None):
     """Require a continuous, measured tracked-game interval since last input."""
     if now.tzinfo is None or now.utcoffset() is None:
         return 0
@@ -108,6 +110,8 @@ def _verified_minutes(row, segments, now):
         left, right = max(first, cursor, start), min(last, off)
         if right > left:
             measured += right - left
+            if options is not None:
+                measured -= excluded_seconds(options, device_id, left, right)
             cursor = right
     if cursor < off - 3:
         return 0
@@ -134,7 +138,7 @@ def maybe_add_screen_idle_grant(options, device_id, row, segments, now):
     event_id = f"{epoch}:{seq}"
     if any(event["id"] == event_id for event in journal["events"]):
         return options
-    count = _verified_minutes(row, segments, now)
+    count = _verified_minutes(row, segments, now, options, device_id)
     current = screen_idle_bonus_total(options, now, device_id)
     count = min(count, MAX_DAILY_MINUTES - current)
     if count < 1:
