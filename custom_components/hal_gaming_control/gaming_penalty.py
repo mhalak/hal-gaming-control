@@ -13,6 +13,34 @@ def _day(now):
     return now.date().isoformat()
 
 
+def _validate_record(row, ids):
+    if not isinstance(row, dict) or set(row) != {
+        "id", "device_id", "date", "created_at", "seconds", "cancel_today", "undone_at"
+    }:
+        raise ValueError("Invalid penalty record")
+    if (not isinstance(row["id"], str) or not row["id"] or row["id"] in ids
+            or not isinstance(row["device_id"], str) or not row["device_id"]
+            or type(row["cancel_today"]) is not bool
+            or type(row["seconds"]) not in (int, float)
+            or not isfinite(row["seconds"]) or not 0 <= row["seconds"] <= 36000
+            or (row["seconds"] == 0) != row["cancel_today"]):
+        raise ValueError("Invalid penalty fields")
+    _validate_timestamps(row)
+    ids.add(row["id"])
+
+
+def _validate_timestamps(row):
+    try:
+        datetime.strptime(row["date"], "%Y-%m-%d")
+        created = datetime.fromisoformat(row["created_at"])
+        undone = datetime.fromisoformat(row["undone_at"]) if row["undone_at"] is not None else None
+        if created.utcoffset() != timedelta(0) or (undone is not None and
+                (undone.utcoffset() != timedelta(0) or undone < created)):
+            raise ValueError("Invalid penalty timestamps")
+    except (TypeError, ValueError) as err:
+        raise ValueError("Invalid penalty timestamps") from err
+
+
 def _events(options):
     journal = options.get(KEY, {"version": 1, "events": []})
     if not isinstance(journal, dict) or journal.get("version") != 1:
@@ -22,27 +50,7 @@ def _events(options):
         raise ValueError("Invalid penalty records")
     ids = set()
     for row in rows:
-        if not isinstance(row, dict) or set(row) != {
-            "id", "device_id", "date", "created_at", "seconds", "cancel_today", "undone_at"
-        }:
-            raise ValueError("Invalid penalty record")
-        if (not isinstance(row["id"], str) or not row["id"] or row["id"] in ids
-                or not isinstance(row["device_id"], str) or not row["device_id"]
-                or type(row["cancel_today"]) is not bool
-                or type(row["seconds"]) not in (int, float)
-                or not isfinite(row["seconds"]) or not 0 <= row["seconds"] <= 36000
-                or (row["seconds"] == 0) != row["cancel_today"]):
-            raise ValueError("Invalid penalty fields")
-        try:
-            datetime.strptime(row["date"], "%Y-%m-%d")
-            created = datetime.fromisoformat(row["created_at"])
-            undone = datetime.fromisoformat(row["undone_at"]) if row["undone_at"] is not None else None
-            if created.utcoffset() != timedelta(0) or (undone is not None and
-                    (undone.utcoffset() != timedelta(0) or undone < created)):
-                raise ValueError("Invalid penalty timestamps")
-        except (TypeError, ValueError) as err:
-            raise ValueError("Invalid penalty timestamps") from err
-        ids.add(row["id"])
+        _validate_record(row, ids)
     return rows
 
 
