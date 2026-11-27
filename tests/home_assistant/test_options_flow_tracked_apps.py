@@ -1066,3 +1066,41 @@ async def test_holiday_refresh_preserves_other_edits_and_never_overwrites_countr
         with pytest.raises(ValueError):
             await hp.async_refresh_calendar(hass, entry, next_year)
     assert entry.options["public_holiday_cache"] == result_cache
+
+
+async def test_profile_copy_includes_holiday_policy_but_preserves_local_history(
+        hass, enable_custom_integrations):
+    from homeassistant.util import dt as dt_util
+    year = dt_util.now().year
+    cache = {"version": 1, "country": "HR", "years": {
+        str(y): {"dates": {f"{y}-01-01": "New Year"},
+                 "loaded_at": f"{year}-01-01T00:00:00+00:00"}
+        for y in (year - 1, year, year + 1)}}
+    source = add_device(hass, DATA1, {"daily": 90, "public_holidays_enabled": True,
+                                    "public_holiday_country": "HR", "public_holiday_cache": cache})
+    target = add_device(hass, DATA2, {"daily": 180, "public_holidays_enabled": False,
+                                    "local_history": {"seconds": 321}})
+    manager, view = await open_step(hass, target, "profile_copy")
+    result = await manager.async_configure(view["flow_id"], {"source": source.entry_id})
+    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert target.options["public_holidays_enabled"] is True
+    assert target.options["public_holiday_country"] == "HR"
+    assert target.options["public_holiday_cache"] == cache
+    assert target.options["daily"] == 90
+    assert target.options["local_history"] == {"seconds": 321}
+    assert source.options["public_holiday_cache"] == cache
+
+
+async def test_profile_copy_holidays_disabled_and_invalid_cache_are_safe():
+    from custom_components.hal_gaming_control.profile_copy import copy_profile
+    target = {"public_holidays_enabled": True, "public_holiday_country": "HR",
+              "public_holiday_cache": {"invalid": True}, "local_history": [1]}
+    result = copy_profile({}, target)
+    assert result.get("public_holidays_enabled", False) is False
+    assert "public_holiday_country" not in result
+    assert "public_holiday_cache" not in result
+    assert result["local_history"] == [1]
+    with pytest.raises(ValueError):
+        copy_profile({"public_holidays_enabled": True, "public_holiday_country": "HR",
+                      "public_holiday_cache": {"invalid": True}}, target)
+    assert target["public_holidays_enabled"] is True
