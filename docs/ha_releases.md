@@ -2,7 +2,7 @@
 
 - Add native opt-in Gaming restriction violated trigger, with optional device selection and a fresh matching termination offer.
 - Recheck live restrictions before guarded termination; retry persistent violations with a new offer no more than once per five seconds for the same game.
-- Gaming Penalty source candidate: daily deduction and cancel-today controls, native actions, device-local journal, and reversible budget receipt.
+- Gaming Penalty source candidate: daily deduction and cancel-today controls, native actions, device-local journal, reversible budget receipt, and persistent Gaming suspended override (explicit lift only).
 - Preserve existing threshold warnings, manual actions, Windows 0.5.2 and Unified MQTT v3.
 - Preview 46 / HA 0.16.1 source candidate only. No automatic enforcement installed; supervised acceptance and release are separate gates.
 
