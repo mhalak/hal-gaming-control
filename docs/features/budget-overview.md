@@ -113,3 +113,8 @@ More: [Gaming budgets](gaming-budgets.md) · [Screen idle bonus](screen-idle-bon
 ---
 
 **Explore more features:** [← AFK grind](screen-idle-bonus.md) · [Feature index](../../README.md#feature-budget-overview)
+
+
+### Unlimited bonus (development candidate, #164)
+
+A distinct, read-only Unlimited Bonus row shows verified play exempted from the selected daily or weekly quota. The gaming session row still contains actual measured play. During a schedule-limited receipt the credited play is displayed separately within the compensated accounting base, not as a schedule extension. During Unlimited override the total remains Unlimited, not a finite countdown. Daily and weekly credit attributes preserve exact seconds; the UI rounds only the displayed receipt.
