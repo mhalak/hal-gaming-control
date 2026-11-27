@@ -220,6 +220,20 @@
           "description": "Select one PC."
         }
       }
+    },
+    "set_suspended": {
+      "name": "Set Gaming suspended",
+      "description": "Suspend tracked gaming until explicitly lifted. Disables Unlimited and overrides normal rules; never sends Windows commands directly.",
+      "fields": {
+        "device_id": {
+          "name": "Gaming PC",
+          "description": "Select one PC."
+        },
+        "enabled": {
+          "name": "Suspended",
+          "description": "Enable or explicitly lift the persistent suspension."
+        }
+      }
     }
   },
   "triggers": {
