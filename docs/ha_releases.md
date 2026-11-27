@@ -1,3 +1,10 @@
+## 0.16.2 — Recover verified v3 telemetry (#288)
+
+- Resume live telemetry after a subscriber-only MQTT reconnect without retiring a still-current publisher epoch; explicit publisher offline still retires it.
+- Re-arm display and foreground evidence on a new accepted publisher epoch without charging unverified gaps.
+- Add bounded rejection diagnostics; preserve existing freshness and anti-replay checks. Windows 0.5.3 recovers the publisher after a clock discontinuity instead of latching until reconnect.
+- Preview 47 source candidate. Synchronized system clocks, package trust, and physical acceptance on both PCs remain required; no deployed fix is claimed.
+
 ## 0.16.1 — Restriction enforcement and Gaming Penalty (#280, #282)
 
 - Add native opt-in Gaming restriction violated trigger, with optional device selection and a fresh matching termination offer.
