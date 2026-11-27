@@ -113,3 +113,8 @@ More: [Gaming budgets](gaming-budgets.md) · [Screen idle bonus](screen-idle-bon
 ---
 
 **Explore more features:** [← AFK grind](screen-idle-bonus.md) · [Feature index](../../README.md#feature-budget-overview)
+
+
+### Sync Bonus (development candidate, #276)
+
+A one-shot sibling bonus top-up uses an exact whole-second amount in the same Smart Parent Bonus replay ledger. Its row is labeled Sync Bonus and includes the exact granted duration when a whole-minute display or the selected limiter differs from the original grant. Existing minute grants retain their original values and Undo behavior; the displayed subtotal and remaining rows retain the existing conservative whole-minute rounding. The first sync grant upgrades the Parent bonus journal to version 2, which reads existing version 1 grants. Back up the HA config entry before updating. Older integration releases cannot read version 2; rolling back requires restoring a compatible pre-upgrade backup (newer bonus events would not be retained). No Windows protocol change.
