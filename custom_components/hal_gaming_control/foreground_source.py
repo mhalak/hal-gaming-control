@@ -223,6 +223,17 @@ class ForegroundSource:
             self._needs_post_on = False
             self._post_on_sequence = self._post_on_timestamp = None
 
+    def _reset_epoch_evidence(self):
+        """A new publisher epoch cannot inherit a pending ON sequence or usage."""
+        self.ledger.invalidate()
+        self.display.invalidate()
+        self.last_raw = None
+        self.observed_game = None
+        self._needs_post_on = False
+        self._post_on_sequence = self._post_on_timestamp = None
+        # Retain the OFF latch and display ordering watermark; a fresh
+        # accepted ON followed by fresh foreground must re-arm accounting.
+
     def _log_rejected_packet(self, error, mono):
         if mono - self._last_rejection_log >= 60:
             self._last_rejection_log = mono
@@ -249,8 +260,11 @@ class ForegroundSource:
             self._log_rejected_packet(error, mono)
             self.invalidate()
             return
+        previous_epoch = self.telemetry_order.epoch
         if not self.telemetry_order.accept(packet, monotonic_now=mono):
             return  # Duplicate/replay cannot mutate display or accounting.
+        if previous_epoch is not None and previous_epoch != packet["epoch"]:
+            self._reset_epoch_evidence()
         self.system_uptime = packet["system"]["uptime_seconds"]
         self.system_status = dict(packet["system"])
         display_state = self._v3_display(packet, wall, mono)
