@@ -78,3 +78,8 @@ More: [Controls & automations](parent-actions.md) · [Known limitations](../know
 ---
 
 **Explore more features:** [← Local mode](local-mode.md) · [Track applications →](tracked-applications.md)
+
+
+## Gaming Penalty (source candidate, #282)
+
+Parents can use **Remove 30 minutes** or the device-scoped `hal_gaming_control.add_penalty` action (1–600 minutes). The deduction is capped at verified available time, applies to today's effective allowance regardless of limiting budget, and does not change measured play or configured budgets. **Cancel today's gaming** (`hal_gaming_control.cancel_today`) is a separate suspension through local midnight, including when no finite quota exists. Both are reversible from the Budget Overview via the ⛔ entry. Ordinary bonuses cannot bypass a complete cancellation; undo the cancellation first. Where a deduction exceeds the current unpenalized balance, undo a penalty before granting more time to avoid an unintended grant against penalty debt. Unlimited gaming and disabled rules retain their explicit override behavior. Penalties remain device-local and expire at midnight; no automatic commands or automations are installed. The existing opt-in restriction enforcement automation handles verified restricted foreground play. Partial deductions need fresh finite budget evidence; full cancellation can be recorded offline. Confirm real-PC acceptance before enabling enforcement. Native HA button permissions apply, with an additional administrator check; use the native administrator action for automation. No Windows protocol change.
