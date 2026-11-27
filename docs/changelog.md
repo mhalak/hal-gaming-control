@@ -14,9 +14,10 @@ This is the **human-readable development changelog**. For full technical release
 
 ## Home Assistant integration
 
-### 0.16.1 — Repeated restriction enforcement (#280)
+### 0.16.1 — Repeated restriction enforcement and Gaming Penalty (#280, #282)
 - Native opt-in violation trigger for restricted tracked gameplay, including relaunches and late offers.
 - Guarded termination rechecks current rules; existing warning trigger and Windows agent remain unchanged.
+- Daily gaming penalties and complete day cancellation, with reversible native controls; source candidate only.
 - Source candidate; verify on a real PC before enabling enforcement.
 
 ### 0.16.0 — Profile Copy and Configure icons (#266)

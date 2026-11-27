@@ -7,7 +7,8 @@ from homeassistant.util import dt as dt_util
 from .smart_policy import effective_snapshot, effective_summary
 
 MODES = ("countdown_mode", "progress_mode", "description_mode")
-LABELS = {"daily": "Daily budget", "weekly": "Weekly budget", "schedule": "Schedule limit"}
+LABELS = {"daily": "Daily budget", "weekly": "Weekly budget", "schedule": "Schedule limit",
+          "penalty": "Gaming penalty", "suspended": "Gaming suspended"}
 
 
 def automatic_patch(coordinator, options, *, v2):

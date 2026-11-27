@@ -134,3 +134,41 @@ popup:
           color: primary
       selector:
         object:
+
+add_penalty:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: hal_gaming_control
+    minutes:
+      required: true
+      example: 30
+      selector:
+        number:
+          min: 1
+          max: 600
+          step: 1
+          mode: box
+          unit_of_measurement: min
+
+cancel_today:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: hal_gaming_control
+
+set_suspended:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: hal_gaming_control
+    enabled:
+      required: true
+      selector:
+        boolean:

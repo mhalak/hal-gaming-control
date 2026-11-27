@@ -655,3 +655,74 @@ async def test_restriction_trigger_filters_devices_and_retries_fresh_offers(hass
         assert action.call_args.args[0]["reason"] == "game:Minecraft"
         detach()
         timer.return_value.assert_called_once()
+
+
+async def test_native_gaming_penalties_are_local_reversible_and_guarded(
+        hass, enable_custom_integrations, mqtt_mock):
+    from custom_components.hal_gaming_control.gaming_penalty import active_penalties
+    from homeassistant.util import dt as dt_util
+
+    entry, device_id = await setup_device(hass, options={
+        "enabled": True, "daily": 120, "weekly": 300,
+        "tracked_apps": [{"name": "Roblox", "process": "RobloxPlayerBeta.exe",
+                          "signature": None}]})
+    c = entry.runtime_data
+    with patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish:
+        await make_fresh(hass)
+        await call(hass, "add_penalty", device_id, minutes=30)
+        await hass.async_block_till_done()
+        assert active_penalties(entry.options, "pc1", dt_util.now())[0]["seconds"] == 1800
+        assert entry.options["daily"] == 120
+        await call(hass, "cancel_today", device_id)
+        await hass.async_block_till_done()
+        assert "penalty" in c.restriction_violation()[1]
+        await call(hass, "cancel_today", device_id)
+        await hass.async_block_till_done()
+        assert len(active_penalties(entry.options, "pc1", dt_util.now())) == 2
+        selector = er.async_get(hass).async_get_entity_id(
+            "select", DOMAIN, "pc1_parent_bonus_undo_target")
+        assert any("Gaming cancelled today" in label and "⛔" in label
+                   for label in hass.states.get(selector).attributes["options"])
+        await call(hass, "set_unlimited", device_id, enabled=True)
+        await hass.async_block_till_done()
+        assert c.restriction_violation() == (None, [])
+        await call(hass, "set_unlimited", device_id, enabled=False)
+        await hass.async_block_till_done()
+        assert "penalty" in c.restriction_violation()[1]
+        publish.assert_not_called()
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_persistent_suspension_native_action_and_mutual_exclusion(
+        hass, enable_custom_integrations, mqtt_mock):
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    from homeassistant.util import dt as dt_util
+
+    entry, device_id = await setup_device(hass, options={
+        "enabled": False, "unlimited": True, "daily": -1, "weekly": -1,
+        "tracked_apps": [{"name": "Roblox", "process": "RobloxPlayerBeta.exe",
+                          "signature": None}]})
+    peer, peer_id = await setup_device(hass, device="pc2")
+    with patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish:
+        await call(hass, "set_suspended", device_id, enabled=True)  # offline
+        await hass.async_block_till_done()
+        assert entry.options["gaming_suspended"] is True
+        assert entry.options["unlimited"] is False
+        assert not peer.options.get("gaming_suspended", False)
+        assert peer_id != device_id
+        with pytest.raises(HomeAssistantError, match="suspension"):
+            await call(hass, "set_unlimited", device_id, enabled=True)
+        await make_fresh(hass)
+        c = entry.runtime_data
+        assert c.restriction_violation() == ("Roblox", ["suspended"])
+        snapshot = effective_snapshot(c.options, c.data["totals"], dt_util.now(),
+                                      c.device_id, ready=True)
+        assert snapshot.selection.remaining_seconds == 0
+        await call(hass, "set_suspended", device_id, enabled=False)
+        await hass.async_block_till_done()
+        assert c.restriction_violation() == (None, [])
+        assert entry.options["unlimited"] is False
+        assert entry.options["enabled"] is False
+        publish.assert_not_called()
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    assert await hass.config_entries.async_unload(peer.entry_id)

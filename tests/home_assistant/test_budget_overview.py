@@ -230,3 +230,100 @@ def test_effective_time_sensor_unknown_unlimited_zero_and_weekly():
         assert sensor.extra_state_attributes["budget_status"] == "unlimited"
         c.options["enabled"] = False
         assert sensor.extra_state_attributes["budget_status"] == "disabled"
+
+
+def test_gaming_penalty_deducts_effective_balance_without_mutating_usage():
+    from custom_components.hal_gaming_control.gaming_penalty import add_penalty, undo_penalty, active_penalties
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    opts = settings(daily=220, weekly=600)
+    now = at(23)
+    totals = {"daily": 120 * 60, "weekly": 120 * 60, "per_game": {}}
+    candidate = add_penalty(opts, "pc1", now, minutes=60, remaining_seconds=6000)
+    snap = effective_snapshot(candidate, totals, now, "pc1", ready=True)
+    assert snap.selection.remaining_seconds == 2400
+    assert totals["daily"] == 7200 and candidate["daily"] == 220
+    assert effective_snapshot(candidate, totals, now, "pc2", ready=True).selection.remaining_seconds == 6000
+    assert effective_snapshot(candidate, totals, at(24), "pc1", ready=True).selection.remaining_seconds == 6000
+    row = active_penalties(candidate, "pc1", now)[0]
+    restored = undo_penalty(candidate, "pc1", now, row["id"])
+    assert effective_snapshot(restored, totals, now, "pc1", ready=True).selection.remaining_seconds == 6000
+
+
+def test_gaming_penalty_weekly_schedule_and_cancel_unlimited():
+    from custom_components.hal_gaming_control.gaming_penalty import add_penalty
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    now = at(23, 18)
+    totals = {"daily": 0, "weekly": 0, "per_game": {}}
+    for opts in (settings(daily=180, weekly=10),
+                 settings(daily=180, weekly=300, schedule_enabled=True,
+                          schedule_start="16:00", schedule_end="18:10")):
+        candidate = add_penalty(opts, "pc1", now, minutes=30, remaining_seconds=600)
+        snap = effective_snapshot(candidate, totals, now, "pc1", ready=True)
+        assert snap.selection.remaining_seconds == 0
+        assert "penalty" in violations(candidate, totals, now, [], device_id="pc1")
+        assert candidate["weekly"] == opts["weekly"]
+    unlimited = settings(daily=-1, weekly=-1)
+    cancelled = add_penalty(unlimited, "pc1", now, cancel_today=True)
+    assert effective_snapshot(cancelled, totals, now, "pc1", ready=True).selection.remaining_seconds == 0
+    assert violations(cancelled, totals, now, [], device_id="pc1") == ["penalty"]
+    assert effective_snapshot(cancelled | {"unlimited": True}, totals, now, "pc1", ready=True).selection.status == "unlimited"
+    assert effective_snapshot(cancelled, totals, at(24), "pc1", ready=True).selection.status == "unlimited"
+    assert effective_snapshot(cancelled, {}, now, "pc1", ready=False).selection.status == "unknown"
+
+
+def test_gaming_penalty_duplicate_cancel_and_invalid_amounts():
+    import pytest
+    from custom_components.hal_gaming_control.gaming_penalty import add_penalty, active_penalties, undo_penalty
+    now = at(23)
+    candidate = add_penalty(settings(), "pc1", now, cancel_today=True)
+    assert add_penalty(candidate, "pc1", now, cancel_today=True) == candidate
+    row = active_penalties(candidate, "pc1", now)[0]
+    with pytest.raises(ValueError):
+        undo_penalty(candidate, "pc2", now, row["id"])
+    for value in (0, -1, True, 601, 1.5):
+        with pytest.raises(ValueError):
+            add_penalty(settings(), "pc1", now, minutes=value, remaining_seconds=3600)
+    assert add_penalty(settings(), "pc1", now, minutes=30, remaining_seconds=0) == settings()
+
+
+def test_penalty_receipt_undo_rows_and_balanced_total():
+    from custom_components.hal_gaming_control.budget_select import budget_select_rows
+    from custom_components.hal_gaming_control.gaming_penalty import add_penalty
+    now = at(23)
+    opts = add_penalty(settings(daily=220, weekly=600), "pc1", now,
+                       minutes=60, remaining_seconds=6000)
+    rows = budget_select_rows(opts, "pc1", {
+        "ready": True, "totals": {"daily": 7200, "weekly": 7200, "per_game": {}}
+    }, now)
+    assert any("60 min - Gaming Penalty" in label and key.startswith("penalty:")
+               for label, key in rows if key)
+    assert "160 min - TOTAL" in rows[-3][0]
+    assert "120 min - Gaming Session" in rows[-2][0]
+    assert "40 min - Remaining Budget" in rows[-1][0]
+
+
+def test_persistent_gaming_suspension_overrides_all_policy_and_survives_rollover():
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    from custom_components.hal_gaming_control.budget_select import budget_select_rows
+    opts = settings(daily=-1, weekly=-1, enabled=False, unlimited=True, gaming_suspended=True)
+    totals = {"daily": 600, "weekly": 1200, "per_game": {}}
+    for now in (at(23), at(24), at(30)):
+        snap = effective_snapshot(opts, totals, now, "pc1", ready=True)
+        assert snap.selection.remaining_seconds == 0
+        assert snap.selection.limiting_sources == ("suspended",)
+        assert violations(opts, totals, now, [], device_id="pc1") == ["suspended"]
+        rows = budget_select_rows(opts, "pc1", {"ready": True, "totals": totals}, now)
+        assert "Gaming suspended" in rows[-3][0]
+        assert "10 min - Gaming Session" in rows[-2][0]
+        assert "0 min - Remaining Budget" in rows[-1][0]
+    assert effective_snapshot(opts, {}, at(23), "pc1", ready=False).selection.status == "unknown"
+    restored = opts | {"gaming_suspended": False, "unlimited": False, "enabled": True}
+    assert effective_snapshot(restored, totals, at(24), "pc1", ready=True).selection.status == "unlimited"
+
+
+def test_persistent_suspension_rejects_bonus():
+    import pytest
+    from custom_components.hal_gaming_control.smart_parent_control import prepare_live_grant
+    with pytest.raises(ValueError, match="suspend"):
+        prepare_live_grant(settings(gaming_suspended=True), "pc1", at(23), 30,
+                           {"daily": 0, "weekly": 0, "per_game": {}}, ready=True)

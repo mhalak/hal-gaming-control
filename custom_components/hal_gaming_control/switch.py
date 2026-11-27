@@ -2,10 +2,12 @@
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import EntityCategory
 from .entity import GamingEntity
+from .penalty_control import async_require_admin, set_gaming_override
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities([UnlimitedGamingSwitch(entry.runtime_data),
+                        GamingSuspendedSwitch(entry.runtime_data),
                         GamingRulesSwitch(entry.runtime_data),
                         ScheduleEnabledSwitch(entry.runtime_data)])
 
@@ -27,10 +29,7 @@ class UnlimitedGamingSwitch(GamingEntity, SwitchEntity):
         return bool(self.coordinator.options["unlimited"])
 
     async def _set_override(self, value):
-        entry = self.coordinator.entry
-        if self.is_on != value:
-            self.hass.config_entries.async_update_entry(
-                entry, options=dict(entry.options) | {"unlimited": value})
+        set_gaming_override(self.hass, self.coordinator, "unlimited", value)
         self.async_write_ha_state()
 
     async def async_turn_on(self, **kwargs):
@@ -100,3 +99,31 @@ class ScheduleEnabledSwitch(GamingEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs):
         await self._set_schedule_enabled(False)
+
+
+class GamingSuspendedSwitch(GamingEntity, SwitchEntity):
+    """Explicit indefinite suspension, independent of normal budget rules."""
+
+    _attr_icon = "mdi:cancel"
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator, "gaming_suspended", "Gaming suspended")
+
+    @property
+    def available(self):
+        return True
+
+    @property
+    def is_on(self):
+        return self.coordinator.options.get("gaming_suspended") is True
+
+    async def _set_suspended(self, value):
+        await async_require_admin(self.hass, getattr(self, "_context", None))
+        set_gaming_override(self.hass, self.coordinator, "gaming_suspended", value)
+        self.async_write_ha_state()
+
+    async def async_turn_on(self, **kwargs):
+        await self._set_suspended(True)
+
+    async def async_turn_off(self, **kwargs):
+        await self._set_suspended(False)

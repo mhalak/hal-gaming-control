@@ -134,6 +134,8 @@ def inside_weekly_schedule(now, options):
 
 def violations(options, totals, now, active_games, *, device_id=None):
     options = DEFAULTS | options
+    if options["gaming_suspended"]:
+        return ["suspended"]
     if not options["enabled"] or options["unlimited"]:
         return []
     if device_id is not None:
