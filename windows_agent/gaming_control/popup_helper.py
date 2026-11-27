@@ -84,7 +84,9 @@ class _PopupWindow:
         root.title("HAL Gaming Control")
         root.configure(bg="#111A2C")
         root.resizable(False, False)
-        root.geometry("420x300")
+        # Keep the original minimum footprint, but let Tk request the full
+        # content height (including the footer) as fonts and controls grow.
+        root.minsize(420, 300)
         root.protocol("WM_DELETE_WINDOW", self._closed)
         root.withdraw()
         # Keep warnings above normal windows without forcing keyboard focus.
@@ -121,7 +123,8 @@ class _PopupWindow:
         self.detail = tk.Frame(frame, bg="#111A2C")
         self.detail.pack(fill="x", pady=(8, 14))
         self.reason = tk.Label(self.detail, bg="#111A2C", fg="#B4C0D3",
-                               font=("Segoe UI", 9))
+                               font=("Segoe UI", 9), wraplength=240,
+                               justify="left")
         self.reason.pack(side="left")
         self.percent = tk.Label(self.detail, bg="#111A2C", fg="#B4C0D3",
                                 font=("Segoe UI", 9))
