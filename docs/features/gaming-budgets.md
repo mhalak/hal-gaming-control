@@ -94,3 +94,10 @@ Parents can use **Remove 30 minutes** or the device-scoped `hal_gaming_control.a
 ### Gaming suspended — no expiry
 
 The **Gaming suspended** switch and administrator action `hal_gaming_control.set_suspended` (device_id, enabled) are independent of daily penalties. Enabling suspension atomically clears Unlimited; Unlimited cannot be enabled until suspension is lifted. Suspension takes priority even with normal rules disabled, survives midnight and HA restarts, and is never lifted by ordinary bonuses, profile copying or policy changes. Disabling it restores current normal policy, not the old Unlimited state. Usage remains measured, and enforcement still requires fresh tracked foreground evidence and an owner-configured restriction automation. The switch works while the PC is offline. No Windows command is sent by the switch itself.
+
+
+## Public holidays (development candidate, #140)
+
+Planned configuration: explicitly enable country-wide public holidays in the native per-PC Configure menu and confirm the supported country and loaded annual calendar. No locale is inferred from the PC or household. A verified weekday public holiday uses the existing Weekend bonus and Weekend allowed hours; the weekly cap and real playtime do not change. Saturday/Sunday holidays do not double the bonus. An overnight window follows its starting local date, so a holiday window ending at 02:00 may continue into a normal weekday. If the country or annual cache is missing or invalid, ordinary weekday/weekend rules remain in force and holiday status is unknown. The historical smart-bonus intent freezes the calendar used when granting time so later calendar changes do not rewrite replay history.
+
+The policy foundation is testable on this development branch only. The country selection, offline provider, cache refresh and complete configuration flow are follow-up work; no new public control or automatic activation path is provided by this increment. No Windows protocol change or deployment.
