@@ -10,7 +10,7 @@ from homeassistant.helpers import config_validation as cv, service
 
 from .const import DOMAIN, ROOT
 from .smart_parent_control import async_add_smart_bonus
-from .penalty_control import async_apply_penalty
+from .penalty_control import async_apply_penalty, set_gaming_override
 from .popup_view import MODES, automatic_patch, v2_initial
 
 
@@ -163,11 +163,11 @@ def async_setup_services(hass):
 
     async def async_set_unlimited(call):
         c = _coordinator(hass, call.data["device_id"])
-        enabled = call.data["enabled"]
-        if bool(c.options["unlimited"]) != enabled:
-            updated = dict(c.entry.options) | {"unlimited": enabled}
-            if hass.config_entries.async_update_entry(c.entry, options=updated) is False:
-                raise HomeAssistantError("Unlimited gaming setting was not saved")
+        set_gaming_override(hass, c, "unlimited", call.data["enabled"])
+
+    async def async_set_suspended(call):
+        c = _coordinator(hass, call.data["device_id"])
+        set_gaming_override(hass, c, "gaming_suspended", call.data["enabled"])
 
     async def async_popup(call):
         c = _coordinator(hass, call.data["device_id"])
@@ -199,6 +199,7 @@ def async_setup_services(hass):
         ("add_penalty", async_add_penalty, SCHEMA_BONUS),
         ("cancel_today", async_cancel_today, SCHEMA_LOCK),
         ("set_unlimited", async_set_unlimited, SCHEMA_UNLIMITED),
+        ("set_suspended", async_set_suspended, SCHEMA_UNLIMITED),
         ("popup", async_popup, SCHEMA_POPUP),
     ):
         service.async_register_admin_service(
