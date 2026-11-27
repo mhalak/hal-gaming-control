@@ -226,3 +226,21 @@ def test_unlimited_bonus_dst_fall_back_uses_elapsed_seconds():
     assert unlimited_credits(options, "pc1", last, (
         (first.timestamp(), last.timestamp(), "Roblox"),)) == {
         "daily": 3600, "weekly": 3600, "per_game": {"Roblox": 3600}}
+
+
+def test_override_options_closes_unlimited_on_suspension_without_mutating_source():
+    from custom_components.hal_gaming_control.unlimited_bonus import (
+        override_options, unlimited_credits, credit_seconds)
+    from datetime import timedelta
+    start = datetime(2026, 11, 23, 12, tzinfo=LOCAL)
+    before = {"unlimited": False, "daily": 120}
+    active = override_options(before, "pc1", start, "unlimited", True)
+    stopped = override_options(active, "pc1", start + timedelta(minutes=5),
+                               "gaming_suspended", True)
+    assert before["unlimited"] is False
+    assert active["unlimited"] is True
+    assert stopped["unlimited"] is False and stopped["gaming_suspended"] is True
+    assert unlimited_credits(stopped, "pc1", start + timedelta(minutes=10), (
+        (start.timestamp(), start.timestamp() + 600, "Roblox"),))["daily"] == 300
+    assert credit_seconds({"daily": 10, "unlimited_bonus": {"daily": 11}}, "daily") == 0
+    assert credit_seconds({"daily": 10, "unlimited_bonus": {"daily": 5}}, "daily") == 5
