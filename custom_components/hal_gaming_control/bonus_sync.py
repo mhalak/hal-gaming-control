@@ -2,7 +2,7 @@
 
 No live service, button, journal mutation or automatic policy change.
 """
-from .parent_bonus import _journal as parent_journal
+from .parent_bonus import _journal as parent_journal, grant_seconds
 from .screen_idle_bonus import _journal as screen_journal, MAX_DAILY_MINUTES
 
 MAX_SYNC_SECONDS = 600 * 60
@@ -20,13 +20,13 @@ def bonus_entitlement_seconds(options, device_id, now):
     if any(row["device_id"] != device_id for row in rows):
         raise ValueError("Foreign Parent bonus journal record")
     legacy = parent["legacy"]
-    minutes = legacy["minutes"] if legacy["date"] == day else 0
-    minutes += sum(row["minutes"] for row in rows
+    seconds = legacy["minutes"] * 60 if legacy["date"] == day else 0
+    seconds += sum(grant_seconds(row) for row in rows
                    if row["local_date"] == day and row["status"] == "active")
     screen = screen_journal(options, device_id)
-    minutes += min(MAX_DAILY_MINUTES, sum(
+    seconds += 60 * min(MAX_DAILY_MINUTES, sum(
         row["minutes"] for row in screen["events"] if row["date"] == day))
-    return minutes * 60
+    return seconds
 
 
 def sync_difference(target, entitlements):
