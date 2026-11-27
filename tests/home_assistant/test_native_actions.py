@@ -726,3 +726,41 @@ async def test_persistent_suspension_native_action_and_mutual_exclusion(
         publish.assert_not_called()
     assert await hass.config_entries.async_unload(entry.entry_id)
     assert await hass.config_entries.async_unload(peer.entry_id)
+
+
+async def test_native_sync_bonus_is_exact_idempotent_and_device_local(
+        hass, enable_custom_integrations, mqtt_mock):
+    from homeassistant.util import dt as dt_util
+    from custom_components.hal_gaming_control.bonus_sync import bonus_entitlement_seconds
+    from custom_components.hal_gaming_control.parent_bonus import add_parent_grant
+    from custom_components.hal_gaming_control.smart_bonus_transaction import prepare_sync_grant
+
+    stamp = dt_util.now()
+    policy = {"enabled": True, "daily": 120, "weekly": 300}
+    target_opts = add_parent_grant(policy, "pc1", stamp, 30)
+    peer_opts = prepare_sync_grant(policy, "pc2", stamp, 2250,
+                                    {"daily": 7200, "weekly": 18000})
+    target, target_id = await setup_device(hass, "pc1", options=target_opts)
+    peer, peer_id = await setup_device(hass, "pc2", options=peer_opts)
+    assert target_id != peer_id
+    assert hass.services.has_service(DOMAIN, "sync_bonus")
+    button_id = er.async_get(hass).async_get_entity_id("button", DOMAIN, "pc1_sync_bonus")
+    assert button_id is not None
+    with patch.object(mqtt, "async_publish", new_callable=AsyncMock) as publish:
+        with pytest.raises(HomeAssistantError):
+            await call(hass, "sync_bonus", target_id)
+        assert target.options == target_opts
+        await make_fresh(hass, "pc1")
+        await call(hass, "sync_bonus", target_id)
+        await hass.async_block_till_done()
+        events = target.options["parent_bonus_journal"]["events"]
+        assert len(events) == 2 and events[-1]["amount_seconds"] == 450
+        assert events[-1]["source"] == "sync"
+        assert bonus_entitlement_seconds(target.options, "pc1", dt_util.now()) == 2250
+        assert peer.options == peer_opts
+        saved = dict(target.options)
+        await call(hass, "sync_bonus", target_id)
+        assert target.options == saved
+        publish.assert_not_called()
+    assert await hass.config_entries.async_unload(target.entry_id)
+    assert await hass.config_entries.async_unload(peer.entry_id)
