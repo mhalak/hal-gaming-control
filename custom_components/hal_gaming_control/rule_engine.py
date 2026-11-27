@@ -176,8 +176,11 @@ def remaining_budget_percent(options, totals, now, period, *, device_id=None):
 
 def _public_grant(row):
     """Keep full historical intent and original adjustment audit out of Recorder."""
-    return {key: value for key, value in row.items()
-            if key not in ("smart_intent", "smart_original_adjustments")}
+    result = {key: value for key, value in row.items()
+              if key not in ("smart_intent", "smart_original_adjustments")}
+    if row.get("source") == "sync":
+        result["minutes"] = row["amount_seconds"] / 60
+    return result
 
 
 def _receipt_status(settings, limit):
@@ -204,10 +207,13 @@ def _receipt_grants(settings, now, device_id):
             event["cancelled_at_utc"] or event["created_at_utc"]), default=None)
     recent_action = ({
         "action": "cancelled" if latest["status"] == "cancelled" else "added",
-        "minutes": latest["minutes"],
+        "minutes": grant_seconds(latest) / 60 if latest.get("source") == "sync" else latest["minutes"],
         "at_utc": latest["cancelled_at_utc"] or latest["created_at_utc"],
         "grant_id": latest["id"],
     } if latest else None)
+    if latest and latest.get("source") == "sync":
+        recent_action["amount_seconds"] = grant_seconds(latest)
+        recent_action["source"] = "sync"
 
     return activity, active_grants, smart_requested, recent_action
 
