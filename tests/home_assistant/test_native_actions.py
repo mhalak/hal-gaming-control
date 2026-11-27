@@ -726,3 +726,37 @@ async def test_persistent_suspension_native_action_and_mutual_exclusion(
         publish.assert_not_called()
     assert await hass.config_entries.async_unload(entry.entry_id)
     assert await hass.config_entries.async_unload(peer.entry_id)
+
+
+async def test_unlimited_native_override_persists_and_suspension_closes_interval(
+        hass, enable_custom_integrations, mqtt_mock):
+    from custom_components.hal_gaming_control.unlimited_bonus import KEY, unlimited_credits
+    from homeassistant.util import dt as dt_util
+    from datetime import timedelta
+
+    entry, device_id = await setup_device(hass, options={
+        "enabled": True, "daily": 120, "weekly": 300,
+        "tracked_apps": [{"name": "Roblox", "process": "RobloxPlayerBeta.exe",
+                          "signature": None}]})
+    await call(hass, "set_unlimited", device_id, enabled=True)
+    await hass.async_block_till_done()
+    saved = entry.options[KEY]
+    start = saved["intervals"][0][0]
+    assert saved["intervals"][0][1] is None
+    await call(hass, "set_unlimited", device_id, enabled=True)
+    assert entry.options[KEY] == saved
+    # A restart/reload must retain the original open interval, not recreate it.
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.options[KEY] == saved
+    await call(hass, "set_suspended", device_id, enabled=True)
+    await hass.async_block_till_done()
+    first, end = entry.options[KEY]["intervals"][0]
+    assert first == start and end >= start
+    assert entry.options["gaming_suspended"] is True
+    assert entry.options["unlimited"] is False
+    stamp = dt_util.now() + timedelta(seconds=10)
+    assert unlimited_credits(entry.options, "pc1", stamp,
+                             ((start, end + 5, "Roblox"),))["weekly"] <= end - start
+    assert await hass.config_entries.async_unload(entry.entry_id)
