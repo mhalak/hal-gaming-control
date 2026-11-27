@@ -387,3 +387,44 @@ def test_holiday_policy_disabled_missing_foreign_or_corrupt_is_original_policy()
     weekend["public_holiday_cache"]["years"]["2026"]["dates"]["2026-11-21"] = "Public holiday"
     assert effective_budget_limit(weekend, at(21, 20), "daily") == 180
     assert effective_budget_limit(opts | {"daily": -1}, at(18, 20), "daily") == -1
+
+
+def test_holiday_cache_status_and_historical_schedule_are_independent_of_later_changes():
+    from custom_components.hal_gaming_control.public_holidays import holiday_info
+    from custom_components.hal_gaming_control.smart_bonus_intent import capture_intent, read_intent
+    from custom_components.hal_gaming_control.smart_schedule import schedule_snapshot
+
+    opts = _holiday_options(unlimited=False)
+    stamp = at(18, 21)
+    assert holiday_info(opts, stamp.date()) == {
+        "status": "holiday", "name": "Public holiday",
+        "loaded_at": "2026-11-01T12:00:00+00:00"}
+    assert holiday_info(opts, at(19).date())["status"] == "ordinary"
+    assert holiday_info(opts, stamp.date().replace(year=2027))["status"] == "unknown"
+    assert holiday_info(opts | {"public_holidays_enabled": False}, stamp.date())["status"] == "disabled"
+    snapshot = capture_intent(stamp, {"daily": 3600, "weekly": 7200}, opts)
+    opts["public_holiday_cache"]["years"]["2026"]["dates"] = {"2026-11-19": "Changed"}
+    historical = read_intent(snapshot)
+    assert schedule_snapshot(historical.schedule_options, historical.at).remaining_seconds == 5 * 3600
+    assert schedule_snapshot(opts, stamp).remaining_seconds == 0
+    receipt = budget_overview(opts | {"public_holiday_cache": {}}, {"daily": 0, "weekly": 0},
+                              stamp, ready=True, device_id="pc1")
+    assert receipt["public_holiday_status"] == "unknown"
+    assert receipt["daily_limit_minutes"] == 120
+
+
+def test_holiday_year_boundary_uses_previous_annual_cache_for_overnight_window():
+    from datetime import datetime
+    from custom_components.hal_gaming_control.rule_engine import inside_weekly_schedule
+    from custom_components.hal_gaming_control.smart_schedule import schedule_snapshot
+    opts = _holiday_options()
+    opts["public_holiday_cache"]["years"] = {
+        "2026": {"dates": {"2026-12-31": "Holiday"},
+                 "loaded_at": "2026-11-01T12:00:00+00:00"},
+        "2027": {"dates": {"2027-01-06": "Holiday"},
+                 "loaded_at": "2026-11-01T12:00:00+00:00"}}
+    stamp = datetime(2027, 1, 1, 1, tzinfo=TZ)
+    assert inside_weekly_schedule(stamp, opts)
+    assert schedule_snapshot(opts, stamp).remaining_seconds == 3600
+    assert effective_budget_limit(opts, stamp, "daily") == 120
+    assert not inside_weekly_schedule(stamp.replace(hour=2), opts)
