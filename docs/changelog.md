@@ -8,7 +8,7 @@ This is the **human-readable development changelog**. For full technical release
 
 > **Preview software, not a deployment log.** Version numbers below describe changes recorded in source; they do **not** prove that a tagged GitHub Release, a signed Windows installer or an update on any real PC/HA instance exists. Always check the deployed build and the [current compatibility/deployment instructions](known_limitations.md).
 
-**Current source (Preview 47):** **Home Assistant 0.16.2** and **Windows agent 0.5.3**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
+**Current source (Preview 48):** **Home Assistant 0.16.2** and **Windows agent 0.5.4**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
 
 **🚨 BREAKING CHANGE** means an upgrade can require manual action or break compatibility with prior configs, entity IDs or MQTT payloads. Follow the linked migration instructions before updating; do not assume a normal in-place upgrade is safe.
 
@@ -229,6 +229,13 @@ This is the **human-readable development changelog**. For full technical release
 - Initial HA integration and Windows agent protocol used during early development.
 
 ## Windows agent
+
+### 0.5.4 — HAL Systems popup footer (#275)
+- Embed the approved banner wordmark locally; remove Powered by text, center the transparent logo and let the window fit content.
+- No changes to protocol or enforcement. Real Windows DPI and frozen-package visual acceptance remain required.
+
+### 0.5.3 — Telemetry recovery (#288)
+- Recover from wall-clock steps and discard stale private termination receipts; retain the v3 contract.
 
 ### 0.5.1 — Always-on-top warning popup (#8)
 - The HAL warning window requests topmost stacking by default. Refreshes never force keyboard focus, raise or reopen the window. Exclusive fullscreen and initial OS activation still require physical testing.
