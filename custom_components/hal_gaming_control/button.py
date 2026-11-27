@@ -4,6 +4,7 @@ from .direct_mqtt import DirectAction
 from .action_registry import ACTION_REGISTRY
 from .entity import GamingEntity
 from .smart_parent_control import async_add_smart_bonus
+from .bonus_sync_control import async_sync_bonus
 from .penalty_control import async_apply_penalty, async_require_admin
 
 BONUS_INCREMENT = 30
@@ -11,7 +12,7 @@ BONUS_INCREMENT = 30
 
 async def async_setup_entry(hass, entry, async_add_entities):
     c = entry.runtime_data
-    entities = [AddDailyBudget(c), TerminateTrackedGame(c),
+    entities = [AddDailyBudget(c), SyncBonusButton(c), TerminateTrackedGame(c),
                 GamingPenaltyButton(c, False), GamingPenaltyButton(c, True)]
     if c.direct:
         entities.extend(DirectAction(c, key) for key in ACTION_REGISTRY if key in c.advertised)
@@ -30,6 +31,23 @@ class AddDailyBudget(GamingEntity, ButtonEntity):
 
     async def async_press(self):
         await async_add_smart_bonus(self.hass, self.coordinator, BONUS_INCREMENT)
+
+
+class SyncBonusButton(GamingEntity, ButtonEntity):
+    """One administrator-authorized sync for this PC only."""
+
+    _attr_icon = "mdi:sync"
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator, "sync_bonus", "Sync bonus with other devices")
+
+    @property
+    def available(self):
+        return True
+
+    async def async_press(self):
+        await async_require_admin(self.hass, getattr(self, "_context", None))
+        await async_sync_bonus(self.hass, self.coordinator)
 
 
 class TerminateTrackedGame(GamingEntity, ButtonEntity):
