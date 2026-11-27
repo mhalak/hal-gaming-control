@@ -32,6 +32,8 @@ def _schedule_ended_today(options, now, device_id):
 
 def prepare_live_grant(options, device_id, now, minutes, totals, *, ready):
     settings = DEFAULTS | options
+    if settings["gaming_suspended"]:
+        raise ValueError("Gaming is suspended; lift the suspension before granting time")
     if not ready:
         raise ValueError("Verified gaming usage is required before granting a Smart Bonus")
     penalties = active_penalties(settings, device_id, now)
