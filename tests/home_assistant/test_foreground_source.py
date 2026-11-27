@@ -135,3 +135,41 @@ async def test_partial_subscribe_failure_unsubscribes_earlier_topics(hass):
             await watcher.async_start()
     unsub.assert_called_once()
     assert watcher.current() is None
+
+
+async def test_ha_only_broker_reconnect_resumes_same_publisher_without_charging_gap(hass):
+    watcher, cb, _, _ = await make_source(hass, "pc1", [ROBLOX])
+    discover(cb, "pc1")
+    deliver(cb, "pc1", "availability", "online")
+    for stamp, seq in ((100, 1), (102, 2), (104, 3)):
+        deliver(cb, "pc1", "state/telemetry", packet("pc1", stamp, seq), ts=stamp)
+    assert watcher.current(10104) == "Roblox"
+    assert total(watcher, 104) == 2
+    watcher._connection(False)
+    assert watcher.current(10105) is None
+    watcher._connection(True)
+    discover(cb, "pc1")
+    deliver(cb, "pc1", "availability", "online", ts=105)
+    # A duplicate sequence is not a recovery sample.
+    deliver(cb, "pc1", "state/telemetry", packet("pc1", 104, 3), ts=105)
+    assert watcher.current(10105) is None
+    for stamp, seq in ((106, 4), (108, 5), (110, 6)):
+        deliver(cb, "pc1", "state/telemetry", packet("pc1", stamp, seq), ts=stamp)
+    assert watcher.current(10110) == "Roblox"
+    assert total(watcher, 110) == 4
+    watcher.close()
+
+
+async def test_future_clock_rejection_is_rate_limited_and_never_fabricates_idle(hass, caplog):
+    watcher, cb, _, _ = await make_source(hass, "pc1", [ROBLOX])
+    discover(cb, "pc1")
+    deliver(cb, "pc1", "availability", "online")
+    for stamp, seq in ((100, 1), (102, 2), (104, 3)):
+        deliver(cb, "pc1", "state/telemetry", packet("pc1", stamp + 2.6, seq), ts=stamp)
+    assert watcher.current(10104) is None
+    assert total(watcher, 104) == 0
+    assert caplog.text.count("Invalid unified telemetry timestamp") == 1
+    for stamp, seq in ((106, 4), (108, 5)):
+        deliver(cb, "pc1", "state/telemetry", packet("pc1", stamp, seq), ts=stamp)
+    assert watcher.current(10108) == "Roblox"
+    watcher.close()
