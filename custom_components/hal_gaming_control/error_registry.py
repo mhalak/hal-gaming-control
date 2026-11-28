@@ -2,6 +2,8 @@
 from datetime import datetime, timezone
 from time import monotonic
 
+from .diagnostic_protocol import WINDOWS_ERRORS
+
 CATALOG = {
     "HA_STORAGE_FAILURE": ("critical", "Storage failure", "Check HA storage and logs."),
     "HA_INVALID_BUDGET": ("error", "Invalid gaming budget data", "Check bonus journal and logs."),
@@ -26,6 +28,9 @@ class ErrorRegistry:
         self._last_publish = {}
         self._last_resolved = None
         self.health = "Waiting for telemetry"
+        self.remote_status = "Not supported"
+        self._remote = {}
+        self._remote_resolved = None
 
     def report(self, code, *, clock_delta_seconds=None):
         severity, title, action = CATALOG[code]
@@ -49,15 +54,39 @@ class ErrorRegistry:
             self._last_publish.pop(code, None)
             self._last_resolved = dict(row, resolved_at=self._timestamp())
 
+    def update_remote(self, packet):
+        """Replace only Windows records after a fresh, validated response."""
+        now = self._timestamp()
+        active = {}
+        for item in packet["active"]:
+            code = item["code"]
+            severity, title, action = WINDOWS_ERRORS[code]
+            prior = self._remote.get(code, {})
+            active[code] = {
+                "code": code, "severity": severity, "source": "Windows",
+                "title": title, "description": title, "suggested_action": action,
+                "first_seen": prior.get("first_seen", now), "last_seen": now,
+                "occurrences": item["occurrences"],
+            }
+        self._remote = active
+        resolved = packet["last_resolved"]
+        if resolved != self._remote_resolved:
+            self._remote_resolved = dict(resolved) if resolved else None
+        self.remote_status = "Current"
+
     def snapshot(self, *, ready=False):
-        active = sorted(self._published.values(),
+        remote = [dict(row, evidence=self.remote_status) for row in self._remote.values()]
+        active = sorted([*self._published.values(), *remote],
                         key=lambda row: (PRIORITY[row["severity"]], row["first_seen"], row["code"]))
         primary = active[0] if active else None
         state = (primary["title"] if primary else
-                 "OK" if ready and self.health == "Online" else
+                 "OK" if ready and self.health == "Online" and self.remote_status == "Current" else
+                 "Diagnostics unavailable" if ready and self.health == "Online" else
                  "Waiting for telemetry" if self.health == "Online" else self.health)
         attributes = {
-            "diagnostic_scope": "HA only",
+            "diagnostic_scope": "HA and Windows" if self.remote_status != "Not supported" else "HA only",
+            "windows_diagnostics": self.remote_status,
+            "windows_last_resolved_error": (dict(self._remote_resolved) if self._remote_resolved else None),
             "connection_state": self.health,
             "active_error_count": len(active),
             "active_errors": [dict(row) for row in active],

@@ -7,6 +7,8 @@ becomes synthetic idle or gaming time.
 import json
 import logging
 from time import monotonic, time
+from secrets import token_hex
+from .diagnostic_protocol import decode_diagnostics
 
 from homeassistant.components import mqtt
 from homeassistant.core import callback
@@ -38,6 +40,9 @@ class ForegroundSource:
         self._availability_seen = False
         self._online_since = None
         self._last_packet_at = None
+        self._diagnostic_capable = False
+        self._diagnostic_pending = None
+        self._diagnostic_received = None
         self.ledger = HAOwnedForeground(device_id, tracked_apps, intervals=intervals)
         self.root = f"{ROOT}/{device_id}"
         self._connected = False
@@ -76,6 +81,9 @@ class ForegroundSource:
             self._unsub.append(await mqtt.async_subscribe(
                 self.hass, self.root + "/state/telemetry",
                 self._telemetry_snapshot, qos=0))
+            self._unsub.append(await mqtt.async_subscribe(
+                self.hass, self.root + "/diagnostics/response",
+                self._diagnostic_response, qos=0))
         except BaseException:
             self.close()
             raise
@@ -89,6 +97,9 @@ class ForegroundSource:
         if not self._connected:
             if was_connected:
                 self.errors.report("HA_MQTT_DISCONNECTED")
+            self._diagnostic_pending = self._diagnostic_received = None
+            self._diagnostic_capable = False
+            self.errors.remote_status = "Unavailable"
             self._availability_seen = False
             self._online_since = self._last_packet_at = None
             self._online = False
@@ -116,6 +127,9 @@ class ForegroundSource:
         if self._online and not was_online:
             self._online_since = self._last_packet_at = None
         if not self._online:
+            self._diagnostic_pending = self._diagnostic_received = None
+            if self._diagnostic_capable:
+                self.errors.remote_status = "Unavailable"
             self._online_since = self._last_packet_at = None
             self.errors.resolve("HA_TELEMETRY_MISSING")
             self.last_raw = None
@@ -135,10 +149,13 @@ class ForegroundSource:
         if self._closed:
             return
         capable = False
+        diagnostic_capable = False
         if message.topic == self.root + "/discovery":
             try:
                 parse_discovery(message.topic, message.payload)
                 raw = json.loads(message.payload)
+                diagnostic_capable = (type(raw.get("diagnostics_protocol")) is int
+                                      and raw["diagnostics_protocol"] == 1)
                 capable = (
                     raw.get("device_id") == self.device_id
                     and type(raw.get("unified_telemetry_protocol")) is int
@@ -146,6 +163,10 @@ class ForegroundSource:
                 )
             except (ValueError, TypeError, RecursionError):
                 pass
+        if diagnostic_capable != self._diagnostic_capable:
+            self._diagnostic_capable = diagnostic_capable
+            self._diagnostic_pending = self._diagnostic_received = None
+            self.errors.remote_status = "Waiting" if diagnostic_capable else "Not supported"
         if capable:
             self.errors.resolve("HA_PROTOCOL_UNSUPPORTED")
         elif self._online:
@@ -324,6 +345,41 @@ class ForegroundSource:
                 and self.on_screen_off is not None):
             self.on_screen_off(event, self.ledger.export_segments())
         return accepted or before != after
+
+    async def async_poll_diagnostics(self, _now=None):
+        """Independent bounded challenge; no clock comparison with Windows."""
+        if self._closed or not self._connected or not self._online or not self._diagnostic_capable:
+            return
+        now = monotonic()
+        if self._diagnostic_received is None or now - self._diagnostic_received >= 15:
+            self.errors.remote_status = "Unavailable"
+            self.on_update()
+        nonce = token_hex(16)
+        self._diagnostic_pending = (nonce, now)
+        try:
+            await mqtt.async_publish(self.hass, self.root + "/diagnostics/request",
+                                     nonce, qos=0, retain=False)
+        except (ValueError, OSError, RuntimeError):
+            self._diagnostic_pending = None
+
+    @callback
+    def _diagnostic_response(self, message):
+        pending = self._diagnostic_pending
+        now = monotonic()
+        if (self._closed or not self._connected or not self._online
+                or not self._diagnostic_capable or pending is None
+                or message.topic != self.root + "/diagnostics/response"
+                or not 0 <= now - pending[1] < 5):
+            return
+        try:
+            packet = decode_diagnostics(message.payload, self.device_id, pending[0],
+                                        retained=getattr(message, "retain", None))
+        except (ValueError, TypeError, RecursionError):
+            return
+        self._diagnostic_pending = None
+        self._diagnostic_received = now
+        self.errors.update_remote(packet)
+        self.on_update()
 
     def _diagnostic_health(self, observed):
         if not self._connected:

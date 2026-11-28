@@ -437,3 +437,25 @@ def test_clean_cut_connection_drops_at_last_retained_tombstone_ack():
     assert b.refresh_requested
     assert not any(c.args[:2] == (b.root + "/availability", "online")
                    for c in b.client.publish.call_args_list)
+
+
+def test_read_only_diagnostics_request_survives_invalid_telemetry():
+    import json
+    b = connected_bridge()
+    b.errors.report("WIN_INVALID_SYSTEM_METADATA")
+    nonce = b"a" * 32
+    request = SimpleNamespace(topic=b.root + "/diagnostics/request", payload=nonce, retain=False)
+    b.client.publish.reset_mock()
+    b.on_message(b.client, None, request)
+    call, = b.client.publish.call_args_list
+    assert call.args[0] == b.root + "/diagnostics/response"
+    data = json.loads(call.args[1])
+    assert data == {"version": 1, "device_id": "pc1", "nonce": nonce.decode(),
+                    "active": [{"code": "WIN_INVALID_SYSTEM_METADATA", "occurrences": 1}],
+                    "last_resolved": None}
+    assert call.kwargs["retain"] is False
+    assert list(b.drain_commands()) == []
+    b.client.publish.reset_mock()
+    request.retain = True
+    b.on_message(b.client, None, request)
+    assert not b.client.publish.called

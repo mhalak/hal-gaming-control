@@ -45,6 +45,7 @@ def test_registry_priority_coalescing_recovery_and_isolation():
     registry = ErrorRegistry(clock=lambda: tick[0], timestamp=lambda: str(tick[0]))
     other = ErrorRegistry()
     registry.health = "Online"
+    registry.remote_status = "Current"
     assert registry.snapshot(ready=True)["state"] == "OK"
     registry.report("HA_CLOCK_SKEW", clock_delta_seconds=2.61)
     first = registry.snapshot()

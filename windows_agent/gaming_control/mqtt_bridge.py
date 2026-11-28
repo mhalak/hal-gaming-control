@@ -13,6 +13,7 @@ import paho.mqtt.client as mqtt
 from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.properties import Properties
 from .core import COMMANDS
+from .error_registry import AgentErrors
 from .popup_protocol import PopupOrder, parse_popup
 from .targeted_terminate import TARGET_TTL, parse_target_request
 from .ota_mqtt import OtaMqttReceiver
@@ -177,6 +178,8 @@ class Bridge:
         self._telemetry_sent = float('-inf')
         self._telemetry_last_clock = None
         self._telemetry_log_at = float('-inf')
+        self.errors = AgentErrors()
+        self._diagnostic_sent = float('-inf')
         # MQTT 5 preserves the retain flag even on live deliveries.
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f'gaming-{self.id}',
                                   protocol=mqtt.MQTTv5)
@@ -221,6 +224,7 @@ class Bridge:
         self.metadata['focus_protocol'] = 1
         # Native MQTT and HA must see the same v3-only capability.
         self.metadata['unified_telemetry_protocol'] = 3
+        self.metadata['diagnostics_protocol'] = 1
         self.metadata['popup_ui_protocol'] = 1
         self.metadata['popup_ui_protocols'] = [1, 2]
         if self.updates_enabled:
@@ -260,10 +264,12 @@ class Bridge:
             self._telemetry_last = None
             self._telemetry_sent = float('-inf')
             self._telemetry_last_clock = None
+            self._diagnostic_sent = float('-inf')
         # Do not receive stored retained actions; reject any live retained action as well.
         options = mqtt.SubscribeOptions(qos=0, retainAsPublished=True, retainHandling=2)
         for topic in self.command_topics:
             client.subscribe(topic, options=options)
+        client.subscribe(self.root + '/diagnostics/request', options=options)
         # UI commands are separate from mandatory v3 monitoring: no retained replay.
         popup_options = mqtt.SubscribeOptions(qos=1, retainAsPublished=True,
                                                retainHandling=2)
@@ -328,8 +334,32 @@ class Bridge:
             LOG.warning('Popup command queue full; instruction dropped')
         return True
 
+    def _diagnostic_request(self, client, msg):
+        """Answer a fresh read-only nonce even when v3 construction is failing."""
+        if (not self.connected or msg.retain is not False
+                or not isinstance(msg.payload, bytes)
+                or not re.fullmatch(rb"[0-9a-f]{32}", msg.payload)):
+            return
+        now = time.monotonic()
+        if now - self._diagnostic_sent < 1:
+            return
+        self._diagnostic_sent = now
+        payload = json.dumps({
+            "version": 1, "device_id": self.id, "nonce": msg.payload.decode("ascii"),
+            **self.errors.snapshot()}, separators=(",", ":"))
+        props = Properties(PacketTypes.PUBLISH)
+        props.MessageExpiryInterval = 5
+        try:
+            client.publish(self.root + '/diagnostics/response', payload,
+                           qos=0, retain=False, properties=props)
+        except (RuntimeError, ValueError, OSError):
+            pass
+
     def on_message(self, client, userdata, msg):
         with self.lock:
+            if msg.topic == self.root + '/diagnostics/request':
+                self._diagnostic_request(client, msg)
+                return
             if msg.topic == self.prefix + '/status':
                 if msg.payload == b'online':
                     self.refresh_requested = True
@@ -756,6 +786,7 @@ class Bridge:
         self._telemetry_last_clock = (wall, now)
         self._target_telemetry = self._raw_receipt = self._target_offer = None
         self._foreground_context = None
+        self.errors.report("WIN_CLOCK_DISCONTINUITY")
         self._warn_unified(now, "clock discontinuity; starting a fresh epoch")
         return False
 
@@ -778,8 +809,10 @@ class Bridge:
                 uptime, self.metadata['agent_version'],
                 self.metadata.get('agent_build_sha'))
         except ValueError:
+            self.errors.report("WIN_INVALID_SYSTEM_METADATA")
             self._warn_unified(now, "invalid system metadata")
             return None
+        self.errors.resolve("WIN_INVALID_SYSTEM_METADATA")
         change = transition_key(
             {'foreground': foreground, 'display': display},
             candidate if foreground['state'] == 'foreground' else None)
@@ -793,8 +826,10 @@ class Bridge:
             payload = make_snapshot(self.id, self._telemetry_epoch,
                                     sequence, wall, foreground, display, system)
         except ValueError:
+            self.errors.report("WIN_INVALID_SNAPSHOT")
             self._warn_unified(now, "invalid snapshot fields")
             return None
+        self.errors.resolve("WIN_INVALID_SNAPSHOT")
         self._telemetry_sequence = sequence
         return payload, change, self.generation
 
@@ -829,7 +864,11 @@ class Bridge:
         with self.lock:
             if not self.connected or generation != self.generation:
                 return False
+            if not sent:
+                self.errors.report("WIN_TELEMETRY_PUBLISH_FAILED")
             if sent:
+                self.errors.resolve("WIN_TELEMETRY_PUBLISH_FAILED")
+                self.errors.resolve("WIN_CLOCK_DISCONTINUITY")
                 self._telemetry_last = change
                 self._telemetry_sent = now
                 self._telemetry_last_clock = (wall, now)
