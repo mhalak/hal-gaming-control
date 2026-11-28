@@ -118,3 +118,8 @@ More: [Gaming budgets](gaming-budgets.md) · [Screen idle bonus](screen-idle-bon
 ### Unlimited bonus (development candidate, #164)
 
 A distinct, read-only Unlimited Bonus row shows verified play exempted from the selected daily or weekly quota. The gaming session row still contains actual measured play. During a schedule-limited receipt the credited play is displayed separately within the compensated accounting base, not as a schedule extension. During Unlimited override the total remains Unlimited, not a finite countdown. Daily and weekly credit attributes preserve exact seconds; the UI rounds only the displayed receipt.
+
+
+### Sync Bonus (development candidate, #276)
+
+A one-shot sibling bonus top-up uses an exact whole-second amount in the same Smart Parent Bonus replay ledger. Its row is labeled Sync Bonus and includes the exact granted duration when a whole-minute display or the selected limiter differs from the original grant. Existing minute grants retain their original values and Undo behavior; the displayed subtotal and remaining rows retain the existing conservative whole-minute rounding. The first sync grant upgrades the Parent bonus journal to version 2, which reads existing version 1 grants. Back up the HA config entry before updating. Older integration releases cannot read version 2; rolling back requires restoring a compatible pre-upgrade backup (newer bonus events would not be retained). No Windows protocol change.

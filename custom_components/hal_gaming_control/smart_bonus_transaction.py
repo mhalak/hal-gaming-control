@@ -2,7 +2,10 @@
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 
-from .parent_bonus import JOURNAL_KEY, RETENTION_DAYS, _journal, _write, add_parent_grant, revoke_parent_grant
+from .parent_bonus import (
+    JOURNAL_KEY, RETENTION_DAYS, SYNC_JOURNAL_VERSION, _append_grant, _journal,
+    _write, add_parent_grant, grant_seconds, revoke_parent_grant,
+)
 from .smart_bonus_intent import capture_intent, read_intent
 from .smart_bonus_record import active_adjustments, make_adjustments
 from .smart_bonus_replay import GrantIntent, replay_grants
@@ -27,7 +30,7 @@ def _intent(row, new_id):
                 or original.get("day") != row["local_date"]):
             raise ValueError("Smart bonus original adjustment audit missing or invalid")
         active_adjustments(original, snapshot.at)
-    return GrantIntent(row["id"], snapshot.at, row["minutes"] * 60,
+    return GrantIntent(row["id"], snapshot.at, grant_seconds(row),
                        snapshot.base_balances, snapshot.schedule_options)
 
 
@@ -91,6 +94,23 @@ def prepare_grant(options, device_id, now, amount_minutes, base_balances,
     journal = candidate[JOURNAL_KEY]
     event = journal["events"][-1]
     event["smart_intent"] = snapshot
+    _recompute(journal, device_id, from_id=event["id"], new_id=event["id"])
+    return _write(candidate, journal, now)
+
+
+def prepare_sync_grant(options, device_id, now, amount_seconds, base_balances,
+                       schedule_options=None):
+    """Persist one exact-second sync grant, using the same replay as manual grants."""
+    if type(amount_seconds) is not int or not 0 < amount_seconds <= 36000:
+        raise ValueError("Sync bonus must be 1–36000 whole seconds")
+    snapshot = capture_intent(now, base_balances, schedule_options)
+    candidate = _compact(options, now)
+    journal = _append_grant(candidate, device_id, now, {
+        "minutes": amount_seconds // 60, "amount_seconds": amount_seconds,
+        "source": "sync", "smart_intent": snapshot,
+    })
+    journal["version"] = SYNC_JOURNAL_VERSION
+    event = journal["events"][-1]
     _recompute(journal, device_id, from_id=event["id"], new_id=event["id"])
     return _write(candidate, journal, now)
 
