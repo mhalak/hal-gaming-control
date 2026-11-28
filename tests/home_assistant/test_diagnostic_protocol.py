@@ -62,3 +62,42 @@ async def test_production_poll_and_response_use_shared_read_only_contract():
         assert result["attributes"]["windows_diagnostics"] == "Current"
         assert source.current(11) is None
     source.close()
+
+
+def test_old_agent_rediscovery_after_broker_reconnect_reports_unsupported():
+    source = ForegroundSource(Mock(), "pc1", [], Mock())
+    source._connected = source._online = True
+    source._connection(False)
+    source._connection(True)
+    source._v3_discovery(Mock(topic=source.root + "/discovery", payload=json.dumps({
+        "protocol_version": 1, "device_id": "pc1", "name": "PC",
+        "games": [], "actions": [], "unified_telemetry_protocol": 3})))
+    assert source.errors.remote_status == "Not supported"
+    assert source.errors.snapshot(ready=True)["attributes"]["diagnostic_scope"] == "HA only"
+    source.close()
+
+
+def test_remote_fault_receipt_coalesces_and_recovers_without_touching_ha_errors():
+    from custom_components.hal_gaming_control.error_registry import ErrorRegistry
+
+    tick = [0]
+    registry = ErrorRegistry(clock=lambda: tick[0], timestamp=lambda: str(tick[0]))
+    registry.health = "Online"
+    registry.report("HA_CLOCK_SKEW", clock_delta_seconds=2.61)
+    registry.update_remote(ROW)
+    first = registry.snapshot(ready=True)
+    tick[0] = 5
+    registry.update_remote(ROW | {"active": [dict(ROW["active"][0], occurrences=2)]})
+    assert registry.snapshot(ready=True) == first
+    tick[0] = 60
+    registry.update_remote(ROW | {"active": [dict(ROW["active"][0], occurrences=3)]})
+    after = registry.snapshot(ready=True)["attributes"]["active_errors"]
+    remote = next(row for row in after if row["source"] == "Windows")
+    assert remote["occurrences"] == 3
+    assert remote["last_seen"] == "60"
+    registry.remote_status = "Unavailable"
+    assert registry.snapshot()["attributes"]["active_error_count"] == 2
+    tick[0] = 61
+    registry.update_remote(ROW | {"active": [], "last_resolved": dict(ROW["active"][0], occurrences=3)})
+    assert registry.snapshot()["attributes"]["active_error_count"] == 1
+    assert registry.snapshot()["state"] == "Clock synchronization error"
