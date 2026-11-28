@@ -8,11 +8,14 @@ This is the **human-readable development changelog**. For full technical release
 
 > **Preview software, not a deployment log.** Version numbers below describe changes recorded in source; they do **not** prove that a tagged GitHub Release, a signed Windows installer or an update on any real PC/HA instance exists. Always check the deployed build and the [current compatibility/deployment instructions](known_limitations.md).
 
-**Current source (Preview 52):** **Home Assistant 0.19.1** and **Windows agent 0.5.4**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
+**Current source (Preview 53):** **Home Assistant 0.19.2** and **Windows agent 0.5.4**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
 
 **🚨 BREAKING CHANGE** means an upgrade can require manual action or break compatibility with prior configs, entity IDs or MQTT payloads. Follow the linked migration instructions before updating; do not assume a normal in-place upgrade is safe.
 
 ## Home Assistant integration
+
+### 0.19.2 — Budget Overview initialization (#294)
+- Preserve the default TOTAL row and unknown usage when all budget amounts are non-numeric; prevent select setup from failing with a TypeError.
 
 ### 0.19.1 — Error state diagnostics (#291)
 - One always-enabled diagnostic sensor per device; bounded, prioritized HA errors and safe clock-skew details, independently of normal telemetry readiness.

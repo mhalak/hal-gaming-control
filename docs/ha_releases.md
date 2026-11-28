@@ -1,3 +1,8 @@
+## 0.19.2 — Budget Overview initialization (#294)
+
+- Render the existing receipt safely even when no integer amounts are available (including unavailable telemetry with unlimited budgets). Keep the minimum numeric column width, TOTAL default selection and policy/usage semantics unchanged.
+- Preview 53; Windows 0.5.4 unchanged. Source-only candidate.
+
 ## 0.19.1 — HA Error state diagnostics (#291)
 
 - Add one default-enabled diagnostic sensor per device, independent of gameplay readiness, with structured error attributes and coalesced occurrences.

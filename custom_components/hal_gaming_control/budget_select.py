@@ -216,8 +216,9 @@ def _daily_display(options, device_id, data, now):
         amounts.append(ceil(used / 60))
     if type(remaining) is int and remaining >= 0:
         amounts.append(remaining // 60)
-    width = max(3, *(len(str(amount)) for amount in amounts
-                     if isinstance(amount, int)))
+    width = max((len(str(amount)) for amount in amounts
+                 if isinstance(amount, int)), default=3)
+    width = max(3, width)
     rows, spent_before = _fixed_rows(receipt, options, now, width)
     for event, label in zip(events, _event_labels(events, width)):
         eligible = _can_undo(event, receipt, data, spent_before)
