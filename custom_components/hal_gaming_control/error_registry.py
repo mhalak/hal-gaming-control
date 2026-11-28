@@ -30,6 +30,7 @@ class ErrorRegistry:
         self.health = "Waiting for telemetry"
         self.remote_status = "Not supported"
         self._remote = {}
+        self._remote_published_at = {}
         self._remote_resolved = None
 
     def report(self, code, *, clock_delta_seconds=None):
@@ -56,12 +57,17 @@ class ErrorRegistry:
 
     def update_remote(self, packet):
         """Replace only Windows records after a fresh, validated response."""
-        now = self._timestamp()
-        active = {}
+        now, tick = self._timestamp(), self._clock()
+        active, published_at = {}, {}
         for item in packet["active"]:
             code = item["code"]
             severity, title, action = WINDOWS_ERRORS[code]
             prior = self._remote.get(code, {})
+            last = self._remote_published_at.get(code, float("-inf"))
+            if prior and self.remote_status == "Current" and 0 <= tick - last < 60:
+                active[code], published_at[code] = prior, last
+                continue
+            published_at[code] = tick
             active[code] = {
                 "code": code, "severity": severity, "source": "Windows",
                 "title": title, "description": title, "suggested_action": action,
@@ -69,6 +75,7 @@ class ErrorRegistry:
                 "occurrences": item["occurrences"],
             }
         self._remote = active
+        self._remote_published_at = published_at
         resolved = packet["last_resolved"]
         if resolved != self._remote_resolved:
             self._remote_resolved = dict(resolved) if resolved else None

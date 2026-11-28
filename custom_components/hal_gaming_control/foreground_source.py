@@ -150,10 +150,12 @@ class ForegroundSource:
             return
         capable = False
         diagnostic_capable = False
+        valid_discovery = False
         if message.topic == self.root + "/discovery":
             try:
                 parse_discovery(message.topic, message.payload)
                 raw = json.loads(message.payload)
+                valid_discovery = True
                 diagnostic_capable = (type(raw.get("diagnostics_protocol")) is int
                                       and raw["diagnostics_protocol"] == 1)
                 capable = (
@@ -163,10 +165,7 @@ class ForegroundSource:
                 )
             except (ValueError, TypeError, RecursionError):
                 pass
-        if diagnostic_capable != self._diagnostic_capable:
-            self._diagnostic_capable = diagnostic_capable
-            self._diagnostic_pending = self._diagnostic_received = None
-            self.errors.remote_status = "Waiting" if diagnostic_capable else "Not supported"
+        diagnostic_changed = self._update_diagnostic_capability(diagnostic_capable, valid_discovery)
         if capable:
             self.errors.resolve("HA_PROTOCOL_UNSUPPORTED")
         elif self._online:
@@ -177,8 +176,20 @@ class ForegroundSource:
                 self.invalidate()
             else:
                 self.on_update()
-        elif not capable and self._online:
+        elif diagnostic_changed or (not capable and self._online):
             self.on_update()
+
+    def _update_diagnostic_capability(self, capable, valid):
+        """Keep fresh reports on repeated discovery; distinguish legacy and invalid."""
+        if capable and self._diagnostic_capable:
+            return False
+        status = "Waiting" if capable else "Not supported" if valid else "Unavailable"
+        if capable == self._diagnostic_capable and self.errors.remote_status == status:
+            return False
+        self._diagnostic_capable = capable
+        self._diagnostic_pending = self._diagnostic_received = None
+        self.errors.remote_status = status
+        return True
 
     def _v3_display(self, packet, wall, mono):
         previous = self.display.current(mono)
