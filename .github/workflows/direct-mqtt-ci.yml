@@ -37,5 +37,5 @@ jobs:
             requirements-quality.txt
             windows_agent/requirements-dev.txt
             windows_agent/requirements.txt
-      - run: uv pip install --system pytest-homeassistant-custom-component==0.13.373
+      - run: uv pip install --system pytest-homeassistant-custom-component==0.13.373 home-assistant-frontend==20260930.4
       - run: python -m pytest -q -o asyncio_mode=auto tests/home_assistant/test_direct_mqtt.py

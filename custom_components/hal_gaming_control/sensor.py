@@ -1,5 +1,7 @@
 """Expose raw telemetry and the two owner-requested budget indicators."""
 from math import floor, isfinite
+from time import time
+from homeassistant.core import Context, callback
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.const import PERCENTAGE, UnitOfTime
 from homeassistant.const import EntityCategory
@@ -9,6 +11,7 @@ from .agent_version import AgentVersionSensor, IntegrationVersionSensor
 from .entity import GamingEntity
 from .rule_engine import remaining_budget_percent, effective_budget_limit, budget_overview
 from .smart_policy import effective_snapshot, effective_summary
+from .diagnostic_activity import EVENT, transition_data
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -34,6 +37,32 @@ class ErrorStateSensor(GamingEntity, SensorEntity):
 
     def __init__(self, coordinator):
         super().__init__(coordinator, "error_state", "Error state")
+
+    @callback
+    def _handle_coordinator_update(self):
+        """Give each actual diagnostic transition its own recorded origin."""
+        old = self.hass.states.get(self.entity_id)
+        data = transition_data(self.entity_id, old, self._diagnostic())
+        if data is None:
+            super()._handle_coordinator_update()
+            return
+        # Do not replace a recent context supplied by HA for a user/automation
+        # operation. Autonomous telemetry updates get their own event origin.
+        prior = self._context
+        recent = self._context_set is not None and time() - self._context_set <= 5
+        if recent and prior is not None and (prior.user_id or prior.parent_id):
+            self.hass.bus.async_fire(EVENT, data, context=Context(parent_id=prior.id))
+            super()._handle_coordinator_update()
+            return
+        context = Context()
+        self.hass.bus.async_fire(EVENT, data, context=context)
+        self.async_set_context(context)
+        try:
+            super()._handle_coordinator_update()
+        finally:
+            # HA retains entity contexts for five seconds by default. This
+            # context belongs to this transition, not later attribute updates.
+            self._context = self._context_set = None
 
     @property
     def available(self):

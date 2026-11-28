@@ -1,3 +1,9 @@
+## 0.19.5 — Diagnostic Activity causes (#296)
+
+- Publish one entity-scoped native Logbook integration event on each actual Error state or diagnostic reason transition, including recovery. Attach an independent context at state-write time; preserve recent user/automation context and do not reuse autonomous cause contexts for later writes. The cause name includes the human explanation and message includes available measured evidence. Full structured evidence remains in sensor attributes.
+- Requires native HA Activity details support for the cause dialog; Recorder/Logbook filtering may hide the cause. A separate concise Activity event is also available for same-state reason changes. No additional entities or frontend modifications. Physical UI validation remains outstanding.
+- Preview 56 / Windows 0.5.5 unchanged.
+
 ## 0.19.4 — Diagnostic incident evidence (#296)
 
 - Error state retains a reason code, explanation and frozen evidence per semantic transition. Distinguish packet receipt from validated acceptance, normal post-ON foreground waits, unknown or expired samples, missing discovery, timeout and unavailable remote diagnostics.
