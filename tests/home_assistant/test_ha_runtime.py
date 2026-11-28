@@ -43,6 +43,7 @@ async def test_options_menu_adds_advanced_windows_updates_without_losing_legacy_
     assert result["menu_options"] == {"mqtt_settings": "🔌 MQTT configuration",
                                        "profile_copy": "📋 Profile copy",
                                        "tracked_apps": "🎮 Tracked applications",
+                                       "public_holidays": "📅 Public holidays",
                                        "windows_updates": "🔄 Windows updates (advanced)",
                                        }
     # Removed UI paths must not erase persisted limits, update settings or actions.
@@ -520,6 +521,7 @@ async def test_legacy_limit_values_survive_opening_configure(
     assert result["menu_options"] == {"mqtt_settings": "🔌 MQTT configuration",
                                        "profile_copy": "📋 Profile copy",
                                        "tracked_apps": "🎮 Tracked applications",
+                                       "public_holidays": "📅 Public holidays",
                                        "windows_updates": "🔄 Windows updates (advanced)",
                                        }
     assert entry.options == old
@@ -561,6 +563,7 @@ async def test_per_game_editor_hidden_preserving_existing_settings(hass, enable_
     assert result["menu_options"] == {"mqtt_settings": "🔌 MQTT configuration",
                                        "profile_copy": "📋 Profile copy",
                                        "tracked_apps": "🎮 Tracked applications",
+                                       "public_holidays": "📅 Public holidays",
                                        "windows_updates": "🔄 Windows updates (advanced)",
                                        }
     # Preserve concurrent changes to a hidden legacy setting when the active

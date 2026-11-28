@@ -7,10 +7,13 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.components import mqtt
 from homeassistant.core import callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import selector
 from homeassistant.util import dt as dt_util
 from .const import DOMAIN, ROOT
 from .profile_copy import copy_profile, validate_update_settings
+from . import holiday_provider
+from .public_holidays import CACHE, COUNTRY, ENABLED, holiday_info, validate_cache
 from .candidate_protocol import parse_candidate
 from .app_registry import load_apps, normalized_name
 from .app_editor import (apply_app_editor, editor_choices, editor_rows,
@@ -281,7 +284,89 @@ class GamingOptionsFlow(config_entries.OptionsFlow):
                 "mqtt_settings": "🔌 MQTT configuration",
                 "profile_copy": "📋 Profile copy",
                 "tracked_apps": "🎮 Tracked applications",
+                "public_holidays": "📅 Public holidays",
                 "windows_updates": "🔄 Windows updates (advanced)",
+            },
+        )
+
+    async def async_step_public_holidays(self, user_input=None):
+        options = self.config_entry.options
+        if user_input is not None:
+            if user_input.get("enabled") is False:
+                return self.async_create_entry(title="", data=dict(options, **{ENABLED: False}))
+            self._holiday_baseline = {key: options.get(key) for key in (ENABLED, COUNTRY, CACHE)}
+            try:
+                self._holiday_countries = await holiday_provider.async_countries(self.hass)
+                if not self._holiday_countries:
+                    raise ValueError("No supported countries")
+            except (HomeAssistantError, ValueError, OSError, ImportError):
+                return self._holiday_enable_form(options, "holiday_load_failed")
+            return await self.async_step_holiday_country()
+        return self._holiday_enable_form(options)
+
+    def _holiday_enable_form(self, options, error=None):
+        info = holiday_info(options, dt_util.now().date())
+        return self.async_show_form(
+            step_id="public_holidays",
+            data_schema=vol.Schema({
+                vol.Required("enabled", default=options.get(ENABLED) is True): bool,
+            }),
+            errors={"base": error} if error else {},
+            description_placeholders={
+                "country": options.get(COUNTRY) or "Not selected",
+                "status": info["status"],
+                "loaded_at": info["loaded_at"] or "Not loaded",
+            },
+        )
+
+    async def async_step_holiday_country(self, user_input=None):
+        errors = {}
+        if user_input is not None:
+            country = user_input.get("country")
+            if country not in self._holiday_countries:
+                errors["base"] = "holiday_country_unsupported"
+            else:
+                try:
+                    now = dt_util.now()
+                    cache = await holiday_provider.async_load_calendar(self.hass, country, now)
+                    validate_cache(cache, country)
+                    if str(now.year) not in cache["years"]:
+                        raise ValueError("Missing current year")
+                except (HomeAssistantError, ValueError, OSError, ImportError, TypeError):
+                    errors["base"] = "holiday_load_failed"
+                else:
+                    self._holiday_candidate = cache
+                    return await self.async_step_holiday_confirm()
+        saved = self.config_entry.options.get(COUNTRY)
+        field = (vol.Required("country", default=saved) if saved in self._holiday_countries
+                 else vol.Required("country"))
+        return self.async_show_form(
+            step_id="holiday_country",
+            data_schema=vol.Schema({field: selector.CountrySelector(
+                selector.CountrySelectorConfig(countries=self._holiday_countries))}),
+            errors=errors,
+        )
+
+    async def async_step_holiday_confirm(self, user_input=None):
+        cache = self._holiday_candidate
+        current = self.config_entry.options
+        annual = cache["years"].get(str(dt_util.now().year))
+        if annual is None or any(current.get(key) != value
+                                for key, value in self._holiday_baseline.items()):
+            return self.async_abort(reason="holiday_configuration_changed")
+        if user_input is not None:
+            if user_input.get("confirm") is True:
+                return self.async_create_entry(title="", data=dict(
+                    current, **{ENABLED: True, COUNTRY: cache["country"], CACHE: cache}))
+            return await self.async_step_holiday_country()
+        dates = annual["dates"]
+        return self.async_show_form(
+            step_id="holiday_confirm",
+            data_schema=vol.Schema({vol.Required("confirm", default=False): bool}),
+            description_placeholders={
+                "country": cache["country"], "year": str(dt_util.now().year),
+                "count": str(len(dates)), "loaded_at": annual["loaded_at"],
+                "dates": "\n".join(f"- {day}: {name}" for day, name in list(sorted(dates.items()))[:20]),
             },
         )
 

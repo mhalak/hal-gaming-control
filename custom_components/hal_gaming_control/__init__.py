@@ -20,6 +20,8 @@ async def async_setup(hass, config):
 async def async_setup_entry(hass, entry):
     from homeassistant.components import mqtt
     from homeassistant.exceptions import ConfigEntryNotReady
+    from homeassistant.helpers.event import async_track_time_interval
+    from datetime import timedelta
     from .coordinator import GamingCoordinator
     if not await mqtt.async_wait_for_mqtt_client(hass):
         raise ConfigEntryNotReady("MQTT unavailable")
@@ -45,6 +47,10 @@ async def async_setup_entry(hass, entry):
         raise
     entry.runtime_data = coordinator
     entry.async_on_unload(coordinator.close)
+    # Live MQTT updates can continually defer coordinator polling. Refresh
+    # the calendar independently so annual turnover does not rely on silence.
+    entry.async_on_unload(async_track_time_interval(
+        hass, coordinator._async_refresh_holiday_cache, timedelta(hours=1)))
     # Policy/accounting must run even when the administrative update entity is disabled.
     entry.async_on_unload(coordinator.async_add_listener(lambda: None))
     entry.async_on_unload(entry.add_update_listener(_reload))

@@ -4,7 +4,7 @@ from datetime import datetime, time, timedelta, timezone
 from math import floor, isfinite
 
 from .const import DEFAULTS
-from .rule_engine import _schedule_for_weekday, inside_weekly_schedule
+from .rule_engine import _schedule_for_date, inside_weekly_schedule
 
 UTC = timezone.utc
 
@@ -57,8 +57,8 @@ def _boundary_instants(wall, zone):
 
 
 def _day_boundaries(day, zone, options):
-    start, end = _schedule_for_weekday(options, day.weekday())
-    _, previous_end = _schedule_for_weekday(options, (day.weekday() - 1) % 7)
+    start, end = _schedule_for_date(options, day)
+    _, previous_end = _schedule_for_date(options, day - timedelta(days=1))
     return {instant for clock in (time.min, start, end, previous_end)
             for instant in _boundary_instants(datetime.combine(day, clock), zone)}
 

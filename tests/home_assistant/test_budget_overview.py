@@ -368,3 +368,125 @@ def test_unlimited_bonus_does_not_extend_schedule_or_erase_prior_penalty():
     assert "schedule" in violations(opts, totals, now, [], device_id="pc1")
     opts = settings(daily=60, weekly=300)
     assert effective_snapshot(opts, totals, now, "pc1", ready=True).selection.remaining_seconds == 0
+
+
+def _holiday_options(**overrides):
+    return settings(daily=120, weekly=300, weekend_bonus=60,
+                    schedule_enabled=True, schedule_start="16:00",
+                    schedule_end="18:00", weekend_schedule_start="20:00",
+                    weekend_schedule_end="02:00",
+                    public_holidays_enabled=True, public_holiday_country="HR",
+                    public_holiday_cache={"version": 1, "country": "HR",
+                        "years": {"2026": {"dates": {"2026-11-18": "Public holiday"},
+                            "loaded_at": "2026-11-01T12:00:00+00:00"}}},
+                    **overrides)
+
+
+def test_verified_weekday_public_holiday_uses_weekend_budget_and_schedule():
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    opts = _holiday_options()
+    now = at(18, 20)
+    totals = {"daily": 0, "weekly": 0, "per_game": {}}
+    assert effective_budget_limit(opts, now, "daily") == 180
+    assert effective_budget_limit(opts, now, "weekly") == 300
+    assert violations(opts, totals, now, []) == []
+    receipt = budget_overview(opts, totals, now, ready=True, device_id="pc1")
+    assert receipt["weekend_bonus_minutes"] == 60
+    assert receipt["daily_limit_minutes"] == 180
+    snap = effective_snapshot(opts, totals, now, "pc1", ready=True)
+    assert snap.schedule.remaining_seconds == 6 * 3600
+    assert snap.selection.remaining_seconds == 180 * 60
+
+
+def test_holiday_overnight_carries_starting_day_policy_not_current_day():
+    from custom_components.hal_gaming_control.rule_engine import inside_weekly_schedule
+    from custom_components.hal_gaming_control.smart_schedule import schedule_snapshot
+    opts = _holiday_options()
+    assert inside_weekly_schedule(at(18, 21), opts)
+    assert inside_weekly_schedule(at(19, 1), opts)
+    assert not inside_weekly_schedule(at(19, 2), opts)
+    assert not inside_weekly_schedule(at(18, 1), opts)
+    assert not inside_weekly_schedule(at(19, 20), opts)
+    assert inside_weekly_schedule(at(19, 16), opts)
+    assert schedule_snapshot(opts, at(19, 1)).remaining_seconds == 3600
+    assert effective_budget_limit(opts, at(19, 1), "daily") == 120
+
+
+def test_holiday_policy_disabled_missing_foreign_or_corrupt_is_original_policy():
+    from copy import deepcopy
+    opts = _holiday_options()
+    for changed in (opts | {"public_holidays_enabled": False},
+                    opts | {"public_holiday_country": "DE"},
+                    opts | {"public_holiday_cache": {}},
+                    opts | {"public_holiday_cache": {"version": 1, "country": "HR",
+                               "years": {"2026": {"dates": {}, "loaded_at": "invalid"}}}}):
+        assert effective_budget_limit(changed, at(18, 20), "daily") == 120
+        assert effective_budget_limit(changed, at(21, 20), "daily") == 180
+        assert "schedule" in violations(changed, {"daily": 0, "weekly": 0},
+                                        at(18, 20), [])
+    weekend = deepcopy(opts)
+    weekend["public_holiday_cache"]["years"]["2026"]["dates"]["2026-11-21"] = "Public holiday"
+    assert effective_budget_limit(weekend, at(21, 20), "daily") == 180
+    assert effective_budget_limit(opts | {"daily": -1}, at(18, 20), "daily") == -1
+
+
+def test_holiday_cache_status_and_historical_schedule_are_independent_of_later_changes():
+    from custom_components.hal_gaming_control.public_holidays import holiday_info
+    from custom_components.hal_gaming_control.smart_bonus_intent import capture_intent, read_intent
+    from custom_components.hal_gaming_control.smart_schedule import schedule_snapshot
+
+    opts = _holiday_options(unlimited=False)
+    stamp = at(18, 21)
+    assert holiday_info(opts, stamp.date()) == {
+        "status": "holiday", "name": "Public holiday",
+        "loaded_at": "2026-11-01T12:00:00+00:00"}
+    assert holiday_info(opts, at(19).date())["status"] == "ordinary"
+    assert holiday_info(opts, stamp.date().replace(year=2027))["status"] == "unknown"
+    assert holiday_info(opts | {"public_holidays_enabled": False}, stamp.date())["status"] == "disabled"
+    snapshot = capture_intent(stamp, {"daily": 3600, "weekly": 7200}, opts)
+    opts["public_holiday_cache"]["years"]["2026"]["dates"] = {"2026-11-19": "Changed"}
+    historical = read_intent(snapshot)
+    assert schedule_snapshot(historical.schedule_options, historical.at).remaining_seconds == 5 * 3600
+    assert schedule_snapshot(opts, stamp).remaining_seconds == 0
+    receipt = budget_overview(opts | {"public_holiday_cache": {}}, {"daily": 0, "weekly": 0},
+                              stamp, ready=True, device_id="pc1")
+    assert receipt["public_holiday_status"] == "unknown"
+    assert receipt["daily_limit_minutes"] == 120
+
+
+def test_holiday_year_boundary_uses_previous_annual_cache_for_overnight_window():
+    from datetime import datetime
+    from custom_components.hal_gaming_control.rule_engine import inside_weekly_schedule
+    from custom_components.hal_gaming_control.smart_schedule import schedule_snapshot
+    opts = _holiday_options()
+    opts["public_holiday_cache"]["years"] = {
+        "2026": {"dates": {"2026-12-31": "Holiday"},
+                 "loaded_at": "2026-11-01T12:00:00+00:00"},
+        "2027": {"dates": {"2027-01-06": "Holiday"},
+                 "loaded_at": "2026-11-01T12:00:00+00:00"}}
+    stamp = datetime(2027, 1, 1, 1, tzinfo=TZ)
+    assert inside_weekly_schedule(stamp, opts)
+    assert schedule_snapshot(opts, stamp).remaining_seconds == 3600
+    assert effective_budget_limit(opts, stamp, "daily") == 120
+    assert not inside_weekly_schedule(stamp.replace(hour=2), opts)
+
+
+def test_holiday_sync_and_unlimited_credits_use_one_consistent_budget():
+    from custom_components.hal_gaming_control.smart_parent_control import prepare_live_sync_grant
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    from custom_components.hal_gaming_control.smart_receipt import smart_receipt
+    from custom_components.hal_gaming_control.bonus_sync import bonus_entitlement_seconds
+
+    opts = _holiday_options()
+    now = at(18, 20)
+    totals = {"daily": 3600, "weekly": 3600, "per_game": {},
+              "unlimited_bonus": {"daily": 1800, "weekly": 1800, "per_game": {}}}
+    options = prepare_live_sync_grant(opts, "pc1", now, 450, totals, ready=True)
+    snapshot = effective_snapshot(options, totals, now, "pc1", ready=True)
+    assert snapshot.selection.remaining_seconds == 9450
+    assert bonus_entitlement_seconds(options, "pc1", now) == 450
+    receipt = smart_receipt(options, totals, now, "pc1", snapshot, ())
+    assert receipt.remaining == 9450
+    assert any(row.title == "Weekend Bonus" and row.seconds == 3600 for row in receipt.lines)
+    assert any(row.title == "Unlimited Bonus" and row.seconds == 1800 for row in receipt.lines)
+    assert any("Sync Bonus" in row.title and row.seconds == 450 for row in receipt.lines)
