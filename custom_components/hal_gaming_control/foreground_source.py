@@ -12,12 +12,14 @@ from homeassistant.components import mqtt
 from homeassistant.core import callback
 
 from .const import ROOT
+from .error_registry import ErrorRegistry
 from .app_registry import identity_key
 from .protocol import parse_discovery
 from .raw_foreground import HAOwnedForeground
 from .screen_idle import DisplayGate
 from .unified_telemetry import (
-    MAX_AGE, TelemetryOrder, decode_telemetry, display_v2, foreground_v2,
+    MAX_AGE, TelemetryOrder, TelemetryTimestampError, decode_telemetry,
+    display_v2, foreground_v2,
 )
 
 
@@ -28,10 +30,14 @@ class ForegroundSource:
     """Consume only non-retained unified v3 for one gaming PC."""
 
     def __init__(self, hass, device_id, tracked_apps, on_update, *, intervals=(),
-                 on_screen_off=None):
+                 on_screen_off=None, errors=None):
         self.hass = hass
         self.device_id = device_id
         self.on_update = on_update
+        self.errors = errors if errors is not None else ErrorRegistry()
+        self._availability_seen = False
+        self._online_since = None
+        self._last_packet_at = None
         self.ledger = HAOwnedForeground(device_id, tracked_apps, intervals=intervals)
         self.root = f"{ROOT}/{device_id}"
         self._connected = False
@@ -78,8 +84,13 @@ class ForegroundSource:
     def _connection(self, connected):
         if self._closed:
             return
+        was_connected = self._connected
         self._connected = connected is True
         if not self._connected:
+            if was_connected:
+                self.errors.report("HA_MQTT_DISCONNECTED")
+            self._availability_seen = False
+            self._online_since = self._last_packet_at = None
             self._online = False
             self.last_raw = None
             self.observed_game = None
@@ -98,9 +109,15 @@ class ForegroundSource:
         if self._closed:
             return
         value = message.payload
+        was_online = self._online
+        self._availability_seen = True
         self._online = (message.topic == self.root + "/availability"
                         and value in ("online", b"online"))
+        if self._online and not was_online:
+            self._online_since = self._last_packet_at = None
         if not self._online:
+            self._online_since = self._last_packet_at = None
+            self.errors.resolve("HA_TELEMETRY_MISSING")
             self.last_raw = None
             self.observed_game = None
             self.ledger.invalidate()
@@ -129,12 +146,18 @@ class ForegroundSource:
                 )
             except (ValueError, TypeError, RecursionError):
                 pass
+        if capable:
+            self.errors.resolve("HA_PROTOCOL_UNSUPPORTED")
+        elif self._online:
+            self.errors.report("HA_PROTOCOL_UNSUPPORTED")
         if capable != self.v3_capable:
             self.v3_capable = capable
             if not capable:
                 self.invalidate()
             else:
                 self.on_update()
+        elif not capable and self._online:
+            self.on_update()
 
     def _v3_display(self, packet, wall, mono):
         previous = self.display.current(mono)
@@ -257,12 +280,22 @@ class ForegroundSource:
                 message.payload, self.device_id,
                 retained=getattr(message, "retain", None), wall_now=wall)
         except (ValueError, TypeError, RecursionError) as error:
+            code = (error.code if isinstance(error, TelemetryTimestampError)
+                    else "HA_INVALID_TELEMETRY")
+            delta = error.delta if isinstance(error, TelemetryTimestampError) else None
+            self._last_packet_at = mono
+            self.errors.resolve("HA_TELEMETRY_MISSING")
+            self.errors.report(code, clock_delta_seconds=delta)
             self._log_rejected_packet(error, mono)
             self.invalidate()
             return
         previous_epoch = self.telemetry_order.epoch
         if not self.telemetry_order.accept(packet, monotonic_now=mono):
             return  # Duplicate/replay cannot mutate display or accounting.
+        self._last_packet_at = mono
+        self.errors.resolve("HA_TELEMETRY_MISSING")
+        for code in ("HA_CLOCK_SKEW", "HA_TELEMETRY_STALE", "HA_INVALID_TELEMETRY"):
+            self.errors.resolve(code)
         if previous_epoch is not None and previous_epoch != packet["epoch"]:
             self._reset_epoch_evidence()
         self.system_uptime = packet["system"]["uptime_seconds"]
@@ -292,11 +325,29 @@ class ForegroundSource:
             self.on_screen_off(event, self.ledger.export_segments())
         return accepted or before != after
 
+    def _diagnostic_health(self, observed):
+        if not self._connected:
+            self.errors.health = "Diagnostics unavailable"
+            return
+        self.errors.resolve("HA_MQTT_DISCONNECTED")
+        if not self._online:
+            self.errors.health = "Offline" if self._availability_seen else "Waiting for telemetry"
+            return
+        self.errors.health = "Online"
+        if self._online_since is None or observed < self._online_since:
+            self._online_since = observed
+        last = self._last_packet_at
+        if last is None or observed < last:
+            last = self._online_since
+        if observed - last >= MAX_AGE:
+            self.errors.report("HA_TELEMETRY_MISSING")
+
     def current(self, monotonic_now=None):
-        """Friendly HA alias, 'idle', or None (unknown/unavailable)."""
+        """Friendly HA alias, 'idle' or None (unknown/unavailable)."""
+        observed = monotonic() if monotonic_now is None else monotonic_now
+        self._diagnostic_health(observed)
         if not (self._connected and self._online) or self._closed:
             return None
-        observed = monotonic() if monotonic_now is None else monotonic_now
         last = self.telemetry_order.received
         if (not self.v3_capable or last is None
                 or not 0 <= observed - last < MAX_AGE):
