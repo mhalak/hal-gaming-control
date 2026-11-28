@@ -264,3 +264,150 @@ async def test_new_penalty_switch_and_button_reject_non_admin_context():
     await cancel.async_press()
     assert entry.options["gaming_penalty_journal"]["events"][-1]["cancel_today"] is True
     assert len(committed) == 3
+
+
+def test_sync_bonus_exact_seconds_and_only_positive_difference():
+    from custom_components.hal_gaming_control.bonus_sync import sync_difference
+    assert sync_difference("pc1", {"pc1": 1800, "pc2": 2250}) == 450
+    assert sync_difference("pc1", {"pc1": 1800, "pc2": 1801}) == 1
+    assert sync_difference("pc1", {"pc1": 1800, "pc2": 1800}) == 0
+    assert sync_difference("pc1", {"pc1": 2250, "pc2": 1800}) == 0
+    assert sync_difference("pc1", {"pc1": 0}) == 0
+    assert sync_difference("pc1", {"pc1": 10, "pc2": 100, "pc3": 80}) == 90
+    for invalid in ({"pc2": 10}, {"pc1": 0, "pc2": None},
+                    {"pc1": 0, "pc2": True}, {"pc1": 0, "pc2": -1},
+                    {"pc1": 0, "pc2": 0.5}, {"pc1": 0, "pc2": 36001}):
+        with pytest.raises(ValueError):
+            sync_difference("pc1", invalid)
+
+
+def test_sync_entitlement_counts_active_parent_grants_once_and_excludes_overrides():
+    from custom_components.hal_gaming_control.bonus_sync import bonus_entitlement_seconds
+    from custom_components.hal_gaming_control.parent_bonus import revoke_parent_grant
+    options = {"bonus_date": "2026-11-23", "bonus_minutes": 5,
+               "daily": 180, "weekend_bonus": 60, "unlimited": True,
+               "gaming_suspended": True,
+               "screen_idle_bonus_journal": {"version": 1, "device_id": "pc1",
+                   "events": [{"id": "receipt", "date": "2026-11-23",
+                               "minutes": 7, "off_at_utc": at().timestamp()}]}}
+    options = add_parent_grant(options, "pc1", at(minute=1), 30)
+    options = add_parent_grant(options, "pc1", at(minute=2), 10)
+    cancelled = options["parent_bonus_journal"]["events"][-1]["id"]
+    options = revoke_parent_grant(options, "pc1", cancelled, at(minute=3))
+    assert bonus_entitlement_seconds(options, "pc1", at()) == 2520
+    assert bonus_entitlement_seconds(options, "pc1", at(day=24)) == 0
+    with pytest.raises(ValueError):
+        bonus_entitlement_seconds(options, "pc2", at())
+    with pytest.raises(ValueError):
+        bonus_entitlement_seconds(options | {"screen_idle_bonus_journal": {"version": 99}},
+                                  "pc1", at())
+
+
+def test_exact_sync_grant_replays_legacy_and_preserves_second_precision():
+    import json
+    from custom_components.hal_gaming_control.smart_bonus_transaction import (
+        prepare_grant, prepare_sync_grant, cancel_grant)
+    from custom_components.hal_gaming_control.parent_bonus import grant_seconds
+    from custom_components.hal_gaming_control.bonus_sync import bonus_entitlement_seconds
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+
+    settings = {"enabled": True, "daily": 120, "weekly": 300}
+    totals = {"daily": 0, "weekly": 0, "per_game": {}}
+    base = {"daily": 7200, "weekly": 18000}
+    manual = prepare_grant(settings, "pc1", at(minute=1), 30, base)
+    exact = prepare_sync_grant(manual, "pc1", at(minute=2), 450, base)
+    exact = prepare_sync_grant(exact, "pc1", at(minute=3), 1, base)
+    persisted = json.loads(json.dumps(exact))
+    events = persisted["parent_bonus_journal"]["events"]
+    assert [grant_seconds(row) for row in events] == [1800, 450, 1]
+    assert events[1]["source"] == "sync" and events[2]["source"] == "sync"
+    assert persisted["bonus_minutes"] == 0
+    assert bonus_entitlement_seconds(persisted, "pc1", at()) == 2251
+    assert effective_snapshot(persisted, totals, at(), "pc1", ready=True).selection.remaining_seconds == 9451
+    undone = cancel_grant(persisted, "pc1", events[1]["id"], at())
+    assert bonus_entitlement_seconds(undone, "pc1", at()) == 1801
+    assert effective_snapshot(undone, totals, at(), "pc1", ready=True).selection.remaining_seconds == 9001
+    assert bonus_entitlement_seconds(persisted, "pc1", at()) == 2251
+    for value in (0, -1, True, 1.5, 36001):
+        with pytest.raises(ValueError):
+            prepare_sync_grant(manual, "pc1", at(minute=2), value, base)
+
+
+@pytest.mark.asyncio
+async def test_exact_sync_receipt_displays_granted_seconds_and_can_undo():
+    from custom_components.hal_gaming_control.smart_bonus_transaction import prepare_sync_grant
+    from custom_components.hal_gaming_control.bonus_sync import bonus_entitlement_seconds
+    entity, entry, committed = setup_select()
+    settings = {"enabled": True, "daily": 120, "weekly": 300}
+    entry.options = prepare_sync_grant(settings, "pc1", at(minute=1), 450,
+                                       {"daily": 7200, "weekly": 18000})
+    with patch("custom_components.hal_gaming_control.select.dt_util.now",
+               return_value=at()), patch.object(entity, "async_write_ha_state"):
+        label = next(row for row in entity.options if "Sync Bonus" in row)
+        assert "7m 30s" in label and label.endswith("⛔")
+        await entity.async_select_option(label)
+        assert len(committed) == 1
+        assert bonus_entitlement_seconds(entry.options, "pc1", at()) == 0
+        assert entity.current_option == total(120)
+
+
+def test_sync_journal_rejects_downgrade_and_inconsistent_exact_amount():
+    from copy import deepcopy
+    from custom_components.hal_gaming_control.smart_bonus_transaction import prepare_sync_grant
+    from custom_components.hal_gaming_control.parent_bonus import _journal, JOURNAL_KEY
+    from custom_components.hal_gaming_control.bonus_sync import bonus_entitlement_seconds
+
+    exact = prepare_sync_grant({"enabled": True, "daily": 120, "weekly": 300},
+                               "pc1", at(), 1, {"daily": 7200, "weekly": 18000})
+    assert _journal(exact)["version"] == 2
+    assert bonus_entitlement_seconds(exact, "pc1", at()) == 1
+    for change in ({"amount_seconds": True}, {"amount_seconds": 0},
+                   {"minutes": 1}, {"source": "unknown"}):
+        bad = deepcopy(exact)
+        bad[JOURNAL_KEY]["events"][0].update(change)
+        with pytest.raises(ValueError):
+            _journal(bad)
+    bad = deepcopy(exact)
+    bad[JOURNAL_KEY]["version"] = 1
+    with pytest.raises(ValueError):
+        _journal(bad)
+
+
+@pytest.mark.asyncio
+async def test_sync_button_requires_admin_context():
+    from custom_components.hal_gaming_control.button import SyncBonusButton
+    entity, entry, committed = setup_select()
+    control = SyncBonusButton(entity.coordinator)
+    control.hass = entity.hass
+    with patch("custom_components.hal_gaming_control.button.async_sync_bonus", new_callable=AsyncMock) as sync:
+        control.async_set_context(Context(user_id="child"))
+        control.hass.auth.async_get_user.return_value = SimpleNamespace(is_admin=False)
+        with pytest.raises(HomeAssistantError, match="administrator"):
+            await control.async_press()
+        sync.assert_not_awaited()
+        control.async_set_context(Context(user_id="parent-A"))
+        control.hass.auth.async_get_user.return_value = SimpleNamespace(is_admin=True)
+        await control.async_press()
+        sync.assert_awaited_once_with(control.hass, entity.coordinator)
+    assert not committed
+
+
+def test_sync_bonus_uses_verified_unlimited_credit_without_copying_it():
+    from custom_components.hal_gaming_control.smart_parent_control import prepare_live_sync_grant
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    from custom_components.hal_gaming_control.smart_receipt import smart_receipt
+    from custom_components.hal_gaming_control.bonus_sync import bonus_entitlement_seconds
+
+    settings = {"enabled": True, "daily": 120, "weekly": 300}
+    totals = {"daily": 3600, "weekly": 3600, "per_game": {},
+              "unlimited_bonus": {"daily": 1800, "weekly": 1800, "per_game": {}}}
+    options = prepare_live_sync_grant(settings, "pc1", at(), 450, totals, ready=True)
+    snapshot = effective_snapshot(options, totals, at(), "pc1", ready=True)
+    assert snapshot.selection.remaining_seconds == 5850
+    assert bonus_entitlement_seconds(options, "pc1", at()) == 450
+    receipt = smart_receipt(options, totals, at(), "pc1", snapshot, ())
+    assert receipt.remaining == 5850
+    assert any(row.title == "Unlimited Bonus" and row.seconds == 1800
+               for row in receipt.lines)
+    assert any("Sync Bonus" in row.title and row.seconds == 450
+               for row in receipt.lines)

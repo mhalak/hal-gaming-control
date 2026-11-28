@@ -1,6 +1,7 @@
 """Pure rule evaluation and calendar windows. All timestamps are timezone-aware."""
 from datetime import datetime, timedelta, time
 from .const import DEFAULTS
+from .unlimited_bonus import credit_seconds
 from .protocol import games_from_state
 from .public_holidays import weekend_equivalent, holiday_receipt
 
@@ -71,14 +72,14 @@ def daily_bonus_minutes(options, now):
     return value if type(value) is int and value >= 0 else 0
 
 
-def effective_budget_limit(options, now, period, *, device_id=None):
+def effective_budget_limit(options, now, period, *, device_id=None, totals=None):
     options = DEFAULTS | options
     if device_id is not None:
         from .parent_bonus import parent_smart_grants
         from .smart_policy import quota_limits
         if period not in ("daily", "weekly"):
             raise ValueError("Unsupported budget period")
-        _, limits = quota_limits(options, now, parent_smart_grants(options, device_id, now))
+        _, limits = quota_limits(options, now, parent_smart_grants(options, device_id, now), totals)
         if period not in limits:
             return -1
         minutes = limits[period] / 60
@@ -157,7 +158,7 @@ def violations(options, totals, now, active_games, *, device_id=None):
             reasons.append("schedule")
     for game in sorted(active_games):
         limit = options["per_game"].get(game, -1)
-        if limit >= 0 and totals["per_game"].get(game, 0) >= limit * 60:
+        if limit >= 0 and totals["per_game"].get(game, 0) - credit_seconds(totals, "per_game", game) >= limit * 60:
             reasons.append("game:" + game)
     return reasons
 
@@ -173,7 +174,7 @@ def remaining_budget_percent(options, totals, now, period, *, device_id=None):
     options = DEFAULTS | options
     if not options["enabled"] or options["unlimited"]:
         return None
-    limit = effective_budget_limit(options, now, period, device_id=device_id)
+    limit = effective_budget_limit(options, now, period, device_id=device_id, totals=totals)
     if limit < 0 or period not in totals:
         return None
     if limit == 0:
@@ -183,8 +184,11 @@ def remaining_budget_percent(options, totals, now, period, *, device_id=None):
 
 def _public_grant(row):
     """Keep full historical intent and original adjustment audit out of Recorder."""
-    return {key: value for key, value in row.items()
-            if key not in ("smart_intent", "smart_original_adjustments")}
+    result = {key: value for key, value in row.items()
+              if key not in ("smart_intent", "smart_original_adjustments")}
+    if row.get("source") == "sync":
+        result["minutes"] = row["amount_seconds"] / 60
+    return result
 
 
 def _receipt_status(settings, limit):
@@ -194,7 +198,7 @@ def _receipt_status(settings, limit):
 
 
 def _receipt_grants(settings, now, device_id):
-    from .parent_bonus import parent_bonus_activity_today, parent_grants_today
+    from .parent_bonus import grant_seconds, parent_bonus_activity_today, parent_grants_today
 
     # The full journal belongs to config-entry options, not Recorder attrs.
     # Mirror only the newest entries: 50 active + 50 audit entries can exceed
@@ -204,17 +208,20 @@ def _receipt_grants(settings, now, device_id):
     if device_id is not None:
         activity = [row for row in activity if row["device_id"] == device_id]
         active_grants = [row for row in active_grants if row["device_id"] == device_id]
-    smart_requested = sum(row["minutes"] for row in active_grants
-                          if "smart_adjustments" in row) if device_id is not None else 0
+    smart_requested = sum(grant_seconds(row) for row in active_grants
+                          if "smart_adjustments" in row) / 60 if device_id is not None else 0
     latest = max(
         activity, key=lambda event: (
             event["cancelled_at_utc"] or event["created_at_utc"]), default=None)
     recent_action = ({
         "action": "cancelled" if latest["status"] == "cancelled" else "added",
-        "minutes": latest["minutes"],
+        "minutes": grant_seconds(latest) / 60 if latest.get("source") == "sync" else latest["minutes"],
         "at_utc": latest["cancelled_at_utc"] or latest["created_at_utc"],
         "grant_id": latest["id"],
     } if latest else None)
+    if latest and latest.get("source") == "sync":
+        recent_action["amount_seconds"] = grant_seconds(latest)
+        recent_action["source"] = "sync"
 
     return activity, active_grants, smart_requested, recent_action
 
@@ -233,8 +240,8 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True, de
     from .screen_idle_bonus import screen_idle_bonus_total
     settings = DEFAULTS | options
     base = settings["daily"]
-    daily_limit = effective_budget_limit(settings, now, "daily", device_id=device_id)
-    weekly_limit = effective_budget_limit(settings, now, "weekly", device_id=device_id)
+    daily_limit = effective_budget_limit(settings, now, "daily", device_id=device_id, totals=totals)
+    weekly_limit = effective_budget_limit(settings, now, "weekly", device_id=device_id, totals=totals)
     daily_status = _receipt_status(settings, daily_limit)
     weekly_status = _receipt_status(settings, weekly_limit)
 
@@ -280,6 +287,8 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True, de
         "screen_idle_bonus_minutes": screen_idle_bonus_total(settings, now),
         "screen_idle_bonus_status": "automatic",
         "daily_limit_minutes": daily_finite,
+        "daily_unlimited_bonus_seconds": credit_seconds(totals, "daily") if ready else None,
+        "weekly_unlimited_bonus_seconds": credit_seconds(totals, "weekly") if ready else None,
         "daily_used_seconds": daily_used,
         "daily_used_minutes": whole_hundredths(daily_used),
         "daily_remaining_seconds": daily_left,

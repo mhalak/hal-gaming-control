@@ -9,6 +9,7 @@ import secrets
 
 from .popup_model import PopupModel, BUTTON_COLORS
 from .popup_protocol import parse_popup, make_event
+from .popup_wordmark import wordmark_image
 
 PIPE_PREFIX = r"\\.\pipe\HALGamingPopup-"
 MAX_PIPE_MESSAGE = 4096
@@ -84,7 +85,9 @@ class _PopupWindow:
         root.title("HAL Gaming Control")
         root.configure(bg="#111A2C")
         root.resizable(False, False)
-        root.geometry("420x300")
+        # Keep the original minimum footprint, but let Tk request the full
+        # content height (including the footer) as fonts and controls grow.
+        root.minsize(420, 300)
         root.protocol("WM_DELETE_WINDOW", self._closed)
         root.withdraw()
         # Keep warnings above normal windows without forcing keyboard focus.
@@ -121,16 +124,19 @@ class _PopupWindow:
         self.detail = tk.Frame(frame, bg="#111A2C")
         self.detail.pack(fill="x", pady=(8, 14))
         self.reason = tk.Label(self.detail, bg="#111A2C", fg="#B4C0D3",
-                               font=("Segoe UI", 9))
+                               font=("Segoe UI", 9), wraplength=240,
+                               justify="left")
         self.reason.pack(side="left")
         self.percent = tk.Label(self.detail, bg="#111A2C", fg="#B4C0D3",
                                 font=("Segoe UI", 9))
         self.percent.pack(side="right")
         self.actions = tk.Frame(frame, bg="#111A2C")
         self.actions.pack(fill="x")
-        tk.Label(root, text="P O W E R E D   B Y   H A L   S Y S T E M S",
-                 font=("Segoe UI", 8), bg="#18243A", fg="#8495AE",
-                 pady=10).pack(fill="x")
+        self.footer = tk.Frame(root, bg="#18243A", pady=8)
+        self.footer.pack(fill="x", side="bottom")
+        self.footer_logo = wordmark_image(tk, root)
+        tk.Label(self.footer, image=self.footer_logo, bg="#18243A",
+                 borderwidth=0, highlightthickness=0).pack()
 
     def _closed(self):
         snap = self.model.snapshot()

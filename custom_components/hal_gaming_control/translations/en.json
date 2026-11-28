@@ -259,6 +259,16 @@
           "description": "Enable or explicitly lift the persistent suspension."
         }
       }
+    },
+    "sync_bonus": {
+      "name": "Sync bonus with other devices",
+      "description": "Give this PC only the difference to the highest active discretionary bonus today. Does not change other PCs or synchronize remaining gaming time.",
+      "fields": {
+        "device_id": {
+          "name": "Gaming PC",
+          "description": "Select the PC that should receive the bonus."
+        }
+      }
     }
   },
   "triggers": {

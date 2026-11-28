@@ -50,9 +50,9 @@ Each grant is one transaction, not three separate bonuses. See [Budget Overview 
 
 ### Sync bonus with other devices — the sibling peace treaty
 
-**Planned ([#276](https://github.com/mhalak/hal-gaming-control/issues/276)).** “How come she gets more time than me?!” The king no longer needs a calculator. Press **Sync bonus with other devices** on the PC that needs a top-up: if one child has received 37.5 bonus minutes today and the other has received 30, the selected PC gets exactly 7.5 minutes. Nobody loses time, and pressing the button again adds nothing once the bonuses match.
+**Development candidate ([#276](https://github.com/mhalak/hal-gaming-control/issues/276)).** “How come she gets more time than me?!” The king no longer needs a calculator. Press **Sync bonus with other devices** on the PC that needs a top-up: if one child has received 37.5 bonus minutes today and the other has received 30, the selected PC gets exactly 7.5 minutes. Nobody loses time, and pressing the button again adds nothing once the bonuses match.
 
-The proposed comparison uses today's active Parent bonuses and verified Screen idle bonuses, not remaining playtime, regular budgets, Weekend bonus or unlimited overrides. Smart Parent Bonus will adjust the applicable limits only as needed. The top-up will be recorded as one grant in Budget Overview, with the normal Undo rules. This is a one-time parent action, not continuous synchronization or a shared gaming budget. Gaming penalties and persistent suspensions, if introduced separately, are not bonus entitlements: this proposed action must not copy, lift or propagate them between PCs.
+The comparison uses today's active Parent bonuses (including previous sync grants once) and verified Screen idle bonuses, not remaining playtime, regular budgets, Weekend bonus or Unlimited bonuses. The selected PC must have fresh, verified accounting and eligible finite rules. A peer may be offline if its stored journal is valid. Smart Parent Bonus adjusts only the applicable limits; the top-up is recorded in exact whole seconds as one Sync Bonus grant in Budget Overview with normal Undo rules. This is a one-time administrator action, not continuous synchronization or a shared gaming budget. Gaming penalties and persistent suspensions are not copied or lifted. The native `hal_gaming_control.sync_bonus` action accepts the target HA device ID. Invalid peer journals or a difference above 600 minutes reject the operation; no peer is modified. Source candidate only; not part of HA 0.16.1.
 
 ## Allowed gaming hours
 
@@ -94,6 +94,11 @@ Parents can use **Remove 30 minutes** or the device-scoped `hal_gaming_control.a
 ### Gaming suspended — no expiry
 
 The **Gaming suspended** switch and administrator action `hal_gaming_control.set_suspended` (device_id, enabled) are independent of daily penalties. Enabling suspension atomically clears Unlimited; Unlimited cannot be enabled until suspension is lifted. Suspension takes priority even with normal rules disabled, survives midnight and HA restarts, and is never lifted by ordinary bonuses, profile copying or policy changes. Disabling it restores current normal policy, not the old Unlimited state. Usage remains measured, and enforcement still requires fresh tracked foreground evidence and an owner-configured restriction automation. The switch works while the PC is offline. No Windows command is sent by the switch itself.
+
+
+### Unlimited bonus (development candidate, #164)
+
+Unlimited gaming still measures actual tracked foreground play. HA records the override boundaries per device and credits only their overlap with confirmed gameplay, independently for the current day and week. Per-game daily limits also exclude the verified Unlimited overlap; raw daily, weekly and per-game measurements are unchanged. The compensation does not extend schedule windows, cancel penalties or lift a suspension. Activating Gaming suspended closes the active Unlimited interval atomically. Existing Unlimited sessions at first upgrade start compensation from the migration observation, never retroactively. Midnight/week boundaries use local time; offline and unconfirmed intervals are not credited. The Screen Off Bonus excludes verified seconds already covered by Unlimited, including partial overlap. Coverage remains incomplete when telemetry has gaps. This is development work, not part of the prepared HA 0.16.1 release.
 
 
 ## Public holidays (development candidate, #140)

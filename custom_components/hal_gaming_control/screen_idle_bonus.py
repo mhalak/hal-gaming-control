@@ -7,6 +7,8 @@ from datetime import datetime, timedelta, timezone
 import math
 import re
 
+from .unlimited_bonus import excluded_seconds
+
 KEY = "screen_idle_bonus_journal"
 MAX_EVENTS = 2048
 RETENTION_DAYS = 90
@@ -76,7 +78,7 @@ def screen_idle_events_today(options, now, device_id):
         return []
 
 
-def _verified_minutes(row, segments, now):
+def _verified_minutes(row, segments, now, options=None, device_id=None):
     """Require a continuous, measured tracked-game interval since last input."""
     if now.tzinfo is None or now.utcoffset() is None:
         return 0
@@ -99,8 +101,13 @@ def _verified_minutes(row, segments, now):
     start_date = dt_util.as_local(datetime.fromtimestamp(start, timezone.utc)).date()
     if off_date != now.date() or start_date != off_date:
         return 0  # Midnight/DST crossing needs a full split journal; fail closed.
+    return _measured_idle_minutes(segments, start, off, options, device_id)
+
+
+def _measured_idle_minutes(segments, start, off, options, device_id):
     cursor, measured = start, 0.0
-    for first, last, _key in segments:
+    covered = []
+    for first, last, key in segments:
         if last <= start or first >= off:
             continue
         if first > cursor + 3:
@@ -108,10 +115,13 @@ def _verified_minutes(row, segments, now):
         left, right = max(first, cursor, start), min(last, off)
         if right > left:
             measured += right - left
+            covered.append((left, right, key))
             cursor = right
     if cursor < off - 3:
         return 0
-    return min(MAX_PER_EVENT_MINUTES, int(measured // 60))
+    if options is not None:
+        measured -= excluded_seconds(options, device_id, covered, off)
+    return min(MAX_PER_EVENT_MINUTES, int(max(0, measured) // 60))
 
 
 def maybe_add_screen_idle_grant(options, device_id, row, segments, now):
@@ -134,7 +144,7 @@ def maybe_add_screen_idle_grant(options, device_id, row, segments, now):
     event_id = f"{epoch}:{seq}"
     if any(event["id"] == event_id for event in journal["events"]):
         return options
-    count = _verified_minutes(row, segments, now)
+    count = _verified_minutes(row, segments, now, options, device_id)
     current = screen_idle_bonus_total(options, now, device_id)
     count = min(count, MAX_DAILY_MINUTES - current)
     if count < 1:

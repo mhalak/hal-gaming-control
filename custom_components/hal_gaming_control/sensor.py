@@ -49,7 +49,7 @@ class BudgetSensor(GamingEntity, SensorEntity):
         totals = data.get("totals", {})
         now = dt_util.now()
         options = self.coordinator.options
-        limit = effective_budget_limit(options, now, self.period, device_id=self.coordinator.device_id)
+        limit = effective_budget_limit(options, now, self.period, device_id=self.coordinator.device_id, totals=totals)
         used = totals.get(self.period) if data.get("ready") else None
         attributes = {
             "budget_minutes": limit if limit >= 0 else None,

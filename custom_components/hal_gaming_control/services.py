@@ -10,6 +10,7 @@ from homeassistant.helpers import config_validation as cv, service
 
 from .const import DOMAIN, ROOT
 from .smart_parent_control import async_add_smart_bonus
+from .bonus_sync_control import async_sync_bonus
 from .penalty_control import async_apply_penalty, set_gaming_override
 from .popup_view import MODES, automatic_patch, v2_initial
 
@@ -153,6 +154,10 @@ def async_setup_services(hass):
         c = _coordinator(hass, call.data["device_id"])
         await async_add_smart_bonus(hass, c, call.data["minutes"])
 
+    async def async_sync(call):
+        c = _coordinator(hass, call.data["device_id"])
+        await async_sync_bonus(hass, c)
+
     async def async_add_penalty(call):
         c = _coordinator(hass, call.data["device_id"])
         await async_apply_penalty(hass, c, minutes=call.data["minutes"])
@@ -196,6 +201,7 @@ def async_setup_services(hass):
         ("lock_pc", async_lock_pc, SCHEMA_LOCK),
         ("terminate_game", async_terminate_game, SCHEMA_TERMINATE),
         ("add_bonus", async_add_bonus, SCHEMA_BONUS),
+        ("sync_bonus", async_sync, SCHEMA_LOCK),
         ("add_penalty", async_add_penalty, SCHEMA_BONUS),
         ("cancel_today", async_cancel_today, SCHEMA_LOCK),
         ("set_unlimited", async_set_unlimited, SCHEMA_UNLIMITED),

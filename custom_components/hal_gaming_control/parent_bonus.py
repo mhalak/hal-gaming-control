@@ -1,6 +1,6 @@
 """Persistent, auditable, device-scoped Parent bonus grants.
 
-Version 1 of the journal lives inside the HA config-entry options, retaining
+The journal lives inside the HA config-entry options, retaining
 the existing bonus_date/bonus_minutes as a compatibility mirror. It never
 touches measured gaming time or Windows/MQTT.
 """
@@ -12,6 +12,7 @@ from .smart_bonus_record import active_adjustments, make_adjustments
 
 JOURNAL_KEY = "parent_bonus_journal"
 JOURNAL_VERSION = 1
+SYNC_JOURNAL_VERSION = 2
 RETENTION_DAYS = 90
 MAX_EVENTS = 2048
 
@@ -25,16 +26,33 @@ def _legacy(options):
     return {"date": date, "minutes": amount}
 
 
+def grant_seconds(event):
+    """Exact original intent; legacy whole-minute records remain unchanged."""
+    minutes = event.get("minutes")
+    if "amount_seconds" not in event and "source" not in event:
+        if type(minutes) is not int or minutes <= 0:
+            raise ValueError("Invalid Parent bonus minutes")
+        return minutes * 60
+    seconds = event.get("amount_seconds")
+    if (event.get("source") != "sync" or type(seconds) is not int
+            or not 0 < seconds <= 36000 or type(minutes) is not int
+            or minutes != seconds // 60):
+        raise ValueError("Invalid exact-second Sync bonus")
+    return seconds
+
+
 def _validate_event(event):
     if (not isinstance(event, dict)
             or not isinstance(event.get("id"), str)
             or not isinstance(event.get("device_id"), str)
             or not isinstance(event.get("local_date"), str)
             or not isinstance(event.get("created_at_utc"), str)
-            or type(event.get("minutes")) is not int
-            or event["minutes"] <= 0
             or event.get("status") not in ("active", "cancelled")):
         raise ValueError("Invalid Parent bonus journal record")
+    grant_seconds(event)
+    if event.get("source") == "sync" and not all(
+            key in event for key in ("smart_intent", "smart_adjustments", "smart_original_adjustments")):
+        raise ValueError("Sync bonus requires replayable intent and adjustments")
     cancelled_at = event.get("cancelled_at_utc")
     if event["status"] == "cancelled" and not isinstance(cancelled_at, str):
         raise ValueError("Invalid Parent bonus cancellation timestamp")
@@ -61,7 +79,8 @@ def _journal(options):
         return {"version": JOURNAL_VERSION,
                 "legacy": _legacy(options), "events": []}
     if (not isinstance(stored, dict)
-            or stored.get("version") != JOURNAL_VERSION
+            or type(stored.get("version")) is not int
+            or stored["version"] not in (JOURNAL_VERSION, SYNC_JOURNAL_VERSION)
             or not isinstance(stored.get("legacy"), dict)
             or not isinstance(stored.get("events"), list)):
         raise ValueError("Invalid Parent bonus journal")
@@ -76,10 +95,12 @@ def _journal(options):
     seen = set()
     for event in events:
         _validate_event(event)
+        if event.get("source") == "sync" and stored["version"] != SYNC_JOURNAL_VERSION:
+            raise ValueError("Sync bonus requires journal version 2")
         if event["id"] in seen:
             raise ValueError("Duplicate Parent bonus journal ID")
         seen.add(event["id"])
-    return {"version": JOURNAL_VERSION, "legacy": legacy,
+    return {"version": stored["version"], "legacy": legacy,
             "events": deepcopy(events)}
 
 
@@ -138,12 +159,10 @@ def _write(options, journal, now):
     return updated
 
 
-def add_parent_grant(options, device_id, now, amount_minutes=30):
-    """Pure atomic mutation candidate; caller commits options synchronously."""
+def _append_grant(options, device_id, now, fields):
+    """Build a new journal row before recording all of its smart adjustments."""
     if not isinstance(device_id, str) or not device_id:
         raise ValueError("Invalid Parent bonus device")
-    if type(amount_minutes) is not int or not 0 < amount_minutes <= 600:
-        raise ValueError("Invalid Parent bonus minutes")
     date = _date(now)
     journal = _journal(options)
     cutoff = (now.date() - timedelta(days=RETENTION_DAYS)).isoformat()
@@ -157,10 +176,18 @@ def add_parent_grant(options, device_id, now, amount_minutes=30):
         "device_id": device_id,
         "local_date": date,
         "created_at_utc": _timestamp(now),
-        "minutes": amount_minutes,
+        **fields,
         "status": "active",
         "cancelled_at_utc": None,
     })
+    return journal
+
+
+def add_parent_grant(options, device_id, now, amount_minutes=30):
+    """Pure atomic mutation candidate; caller commits options synchronously."""
+    if type(amount_minutes) is not int or not 0 < amount_minutes <= 600:
+        raise ValueError("Invalid Parent bonus minutes")
+    journal = _append_grant(options, device_id, now, {"minutes": amount_minutes})
     return _write(options, journal, now)
 
 

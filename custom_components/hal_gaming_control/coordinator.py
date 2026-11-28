@@ -14,6 +14,7 @@ from .foreground_source import ForegroundSource
 from .foreground_store import ForegroundStore, ForegroundStoreError
 from .foreground_cutover import async_activate_cutover
 from .screen_idle_bonus import maybe_add_screen_idle_grant
+from .unlimited_bonus import KEY as UNLIMITED_KEY, live_unlimited_credits, record_override
 from .rule_engine import violations
 from .targeted_action import TargetedTermination
 from .popup_control import PopupControl
@@ -57,6 +58,12 @@ class GamingCoordinator(DataUpdateCoordinator):
             self.hass, self.entry.entry_id, self.device_id)
         store = ForegroundStore(self.hass, self.entry.entry_id, self.device_id)
         segments = await store.async_load(self.cutover_since)
+        if (UNLIMITED_KEY not in self.entry.options and self.options.get("unlimited")
+                and not self.options.get("gaming_suspended")):
+            updated = record_override(self.entry.options, self.device_id, dt_util.now(), True)
+            if updated != self.entry.options and self.hass.config_entries.async_update_entry(
+                    self.entry, options=updated) is False:
+                raise ForegroundStoreError("Unlimited journal migration could not be saved")
         self.foreground_store = store
         self._saved_segments = segments
         self.storage_healthy = True
@@ -137,6 +144,17 @@ class GamingCoordinator(DataUpdateCoordinator):
                  for key, row in self.foreground.ledger.apps.items()}
         totals = dict(raw, per_game=names)
         ready = self.storage_healthy and alias is not None
+        recorded = totals
+        if UNLIMITED_KEY in self.entry.options:
+            try:
+                credits = live_unlimited_credits(self.entry.options, self.device_id, now,
+                                           self.foreground.export_segments())
+                credits["per_game"] = {row["name"]: credits["per_game"].get(key, 0)
+                                       for key, row in self.foreground.ledger.apps.items()}
+                totals = dict(totals, unlimited_bonus=credits)
+            except ValueError:
+                # Explicit suspension needs only trusted foreground, not credit.
+                ready = ready and self.options.get("gaming_suspended") is True
         active = [alias] if ready and alias != "idle" else []
         # Confirmed intervals are a lower bound; gaps are never known idle.
         # The restriction signal is policy-only; never publish a command here.
@@ -145,7 +163,7 @@ class GamingCoordinator(DataUpdateCoordinator):
                 # UI-only fresh Windows observation: may remain Roblox while
                 # screen OFF forces the independent accounting game to idle.
                 "observed_game": self.foreground.observed_game if ready else None,
-                "totals": totals if ready else {}, "recorded_totals": totals,
+                "totals": totals if ready else {}, "recorded_totals": recorded,
                 "coverage_incomplete": True, "cutover_since": self.cutover_since,
                 "reasons": reasons, "active": active,
                 "unified_telemetry": True,

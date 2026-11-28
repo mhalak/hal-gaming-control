@@ -4,6 +4,7 @@ from homeassistant.util import dt as dt_util
 
 from .gaming_penalty import add_penalty
 from .smart_policy import effective_snapshot
+from .unlimited_bonus import override_options
 
 
 async def async_require_admin(hass, context):
@@ -45,10 +46,10 @@ def set_gaming_override(hass, coordinator, key, enabled):
     entry = coordinator.entry
     if key == "unlimited" and enabled and entry.options.get("gaming_suspended"):
         raise HomeAssistantError("Lift the gaming suspension before enabling Unlimited")
-    updated = dict(entry.options)
-    updated[key] = enabled
-    if key == "gaming_suspended" and enabled:
-        updated["unlimited"] = False
+    try:
+        updated = override_options(entry.options, coordinator.device_id, dt_util.now(), key, enabled)
+    except ValueError as error:
+        raise HomeAssistantError(str(error)) from error
     if updated != entry.options and hass.config_entries.async_update_entry(
             entry, options=updated) is False:
         raise HomeAssistantError("Gaming override was not saved")

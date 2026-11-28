@@ -176,6 +176,7 @@ class Bridge:
         self._telemetry_last = None
         self._telemetry_sent = float('-inf')
         self._telemetry_last_clock = None
+        self._telemetry_log_at = float('-inf')
         # MQTT 5 preserves the retain flag even on live deliveries.
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f'gaming-{self.id}',
                                   protocol=mqtt.MQTTv5)
@@ -730,19 +731,40 @@ class Bridge:
             self._display_last_state = (state, epoch, seq)
         return True
 
+    def _warn_unified(self, now, reason):
+        """Bound logs; never include telemetry payloads or private identity."""
+        if math.isfinite(now) and now - self._telemetry_log_at >= 60:
+            self._telemetry_log_at = now
+            LOG.warning("Unified telemetry skipped: %s", reason)
+
+    def _unified_clock_ready(self, now, wall):
+        previous = self._telemetry_last_clock
+        if (not math.isfinite(now) or not math.isfinite(wall) or wall < 0
+                or (previous is not None and now <= previous[1])):
+            return False
+        if previous is None or (wall > previous[0]
+                and abs((wall - previous[0]) - (now - previous[1])) <= FOREGROUND_CLOCK_SKEW):
+            return True
+        # A real wall-clock step invalidates the previous observation context.
+        # Skip this sample and start a new epoch on the next poll, so HA
+        # cannot integrate play across the clock discontinuity. Do not
+        # manufacture a timestamp or preserve an old termination capability.
+        self._telemetry_epoch = uuid4().hex
+        self._telemetry_sequence = 0
+        self._telemetry_last = None
+        self._telemetry_sent = float('-inf')
+        self._telemetry_last_clock = (wall, now)
+        self._target_telemetry = self._raw_receipt = self._target_offer = None
+        self._foreground_context = None
+        self._warn_unified(now, "clock discontinuity; starting a fresh epoch")
+        return False
+
     def _prepare_unified(self, focus, policy, uptime, now, wall):
         """Prepare exactly one fully sanitized sample while self.lock is held."""
         if (not self.connected or self.synced_generation != self.generation
                 or self._telemetry_epoch is None):
             return None
-        previous_clock = self._telemetry_last_clock
-        if (not math.isfinite(now) or not math.isfinite(wall) or wall < 0
-                or (previous_clock is not None
-                    and (wall <= previous_clock[0]
-                         or now <= previous_clock[1]
-                         or abs((wall - previous_clock[0])
-                                - (now - previous_clock[1])) > FOREGROUND_CLOCK_SKEW))):
-            # Neither clock regression nor wall/monotonic drift is trusted.
+        if not self._unified_clock_ready(now, wall):
             return None
         sample_age = sample_age_ms(
             getattr(focus, 'last_observation_time', None), now)
@@ -756,6 +778,7 @@ class Bridge:
                 uptime, self.metadata['agent_version'],
                 self.metadata.get('agent_build_sha'))
         except ValueError:
+            self._warn_unified(now, "invalid system metadata")
             return None
         change = transition_key(
             {'foreground': foreground, 'display': display},
@@ -770,12 +793,13 @@ class Bridge:
             payload = make_snapshot(self.id, self._telemetry_epoch,
                                     sequence, wall, foreground, display, system)
         except ValueError:
+            self._warn_unified(now, "invalid snapshot fields")
             return None
         self._telemetry_sequence = sequence
         return payload, change, self.generation
 
     def publish_unified_telemetry(self, focus, policy, uptime):
-        """One new MQTT v3 snapshot; retained v2 remains authoritative in HA.
+        """One new non-retained MQTT v3 snapshot; v3 remains authoritative in HA.
 
         A QoS0 drop is not retried from cache. A fresh new observation provides
         an ordered resync at the next polling deadline.

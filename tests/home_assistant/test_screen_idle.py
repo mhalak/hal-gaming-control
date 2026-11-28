@@ -388,3 +388,16 @@ async def test_end_to_end_unified_v3_suppresses_off_charging_and_recovers_on(has
     assert source.current(10114) is None
     source.close()
     assert len(unsubscribed) == 4
+
+
+def test_screen_idle_bonus_excludes_only_unlimited_overlap():
+    from custom_components.hal_gaming_control.unlimited_bonus import record_override
+    entire = record_override({}, DEV, now(T0 - 600), True)
+    assert maybe_add_screen_idle_grant(entire, DEV, receipt(), segments(), now()) == entire
+    half = record_override({}, DEV, now(T0 - 300), True)
+    half = record_override(half, DEV, now(T0), False)
+    granted = maybe_add_screen_idle_grant(half, DEV, receipt(), segments(), now())
+    assert screen_idle_bonus_total(granted, now()) == 4
+    later = record_override({}, DEV, now(T0 + 10), True)
+    assert screen_idle_bonus_total(
+        maybe_add_screen_idle_grant(later, DEV, receipt(), segments(), now()), now()) == 9

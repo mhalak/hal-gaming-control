@@ -6,7 +6,8 @@ from math import isfinite
 
 from .const import DEFAULTS
 from .public_holidays import weekend_equivalent
-from .parent_bonus import _journal, parent_bonus_legacy_today
+from .unlimited_bonus import credit_seconds
+from .parent_bonus import _journal, grant_seconds, parent_bonus_legacy_today
 from .rule_engine import effective_budget_limit, windows
 from .screen_idle_bonus import screen_idle_events_today
 
@@ -77,7 +78,7 @@ def _smart_eligible(row, prior, options, totals, now):
             return False
         carry = sum(_quota_adjustment(item, period, now) for item in prior
                     if "smart_adjustments" in item)
-        if used > limit * 60 + carry:
+        if used - credit_seconds(totals, period) > limit * 60 + carry:
             return False
     return bool(interval or record["daily_seconds"] or record["weekly_seconds"])
 
@@ -90,12 +91,17 @@ def _titles(rows, now):
     for row, clock in zip(rows, clocks):
         seen[clock] += 1
         suffix = f" #{seen[clock]}" if counts[clock] > 1 else ""
-        result[row["id"]] = f"Parent Bonus ({clock}{suffix})"
+        kind = "Sync Bonus" if row.get("source") == "sync" else "Parent Bonus"
+        result[row["id"]] = f"{kind} ({clock}{suffix})"
     return result
 
 
 def _parent_line(row, amount, title, eligible):
-    if amount != row["minutes"] * 60:
+    seconds = grant_seconds(row)
+    if row.get("source") == "sync" and (seconds % 60 or amount != seconds):
+        minutes, remainder = divmod(seconds, 60)
+        title += f" (+{minutes}m {remainder}s granted)"
+    elif amount != seconds:
         title += f" (+{row['minutes']} min granted)"
     return ReceiptLine(title, amount, row["id"] if eligible else None)
 
@@ -114,6 +120,9 @@ def _quota_lines(options, rows, device_id, now, totals, source, titles):
         for event in screen_idle_events_today(settings, now, device_id):
             clock = datetime.fromtimestamp(event["off_at_utc"], now.tzinfo).strftime("%H:%M")
             lines.append(ReceiptLine(f"Screen Off Bonus ({clock})", event["minutes"] * 60))
+    credit = credit_seconds(totals, source)
+    if credit:
+        lines.append(ReceiptLine("Unlimited Bonus", credit))
     for index, row in enumerate(rows):
         amount = _quota_adjustment(row, source, now)
         if not amount and row["local_date"] != now.date().isoformat():
@@ -130,7 +139,8 @@ def _quota_lines(options, rows, device_id, now, totals, source, titles):
                                if "smart_adjustments" not in item)
             all_legacy = sum(_quota_adjustment(item, "daily", now) for item in rows
                              if "smart_adjustments" not in item)
-            eligible = _verified(used) and used <= base - all_legacy + prior_legacy
+            eligible = (_verified(used) and used - credit_seconds(totals, "daily")
+                        <= base - all_legacy + prior_legacy)
         lines.append(_parent_line(row, amount, titles[row["id"]], eligible))
     return lines
 
@@ -174,7 +184,10 @@ def _schedule_lines(options, rows, now, totals, snapshot, segments, titles):
                             for start, end in elapsed for first, last, _ in segments))
     regular = max(0, remaining - _duration(future))
     label = "Daily Budget (Schedule Adjusted)" if regular else "Daily Budget"
-    lines = [ReceiptLine(label, used - played)]
+    credit = credit_seconds(totals, "daily")
+    lines = [ReceiptLine(label, used - played - credit)]
+    if credit:
+        lines.append(ReceiptLine("Unlimited Bonus", credit))
     if regular:
         lines.append(ReceiptLine("Until Schedule Limit", regular))
     lines.extend(parents)

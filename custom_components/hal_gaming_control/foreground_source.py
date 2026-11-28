@@ -5,6 +5,7 @@ Verified HA accounting checkpoints remain intact; missing evidence never
 becomes synthetic idle or gaming time.
 """
 import json
+import logging
 from time import monotonic, time
 
 from homeassistant.components import mqtt
@@ -18,6 +19,9 @@ from .screen_idle import DisplayGate
 from .unified_telemetry import (
     MAX_AGE, TelemetryOrder, decode_telemetry, display_v2, foreground_v2,
 )
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class ForegroundSource:
@@ -50,6 +54,7 @@ class ForegroundSource:
         self._needs_post_on = False
         self._post_on_sequence = None
         self._post_on_timestamp = None
+        self._last_rejection_log = float('-inf')
 
     async def async_start(self):
         """Subscribe only to Unified v3; no legacy monitoring subscriptions."""
@@ -79,7 +84,7 @@ class ForegroundSource:
             self.last_raw = None
             self.observed_game = None
             self.ledger.invalidate()
-            self.telemetry_order.suspend()
+            self.telemetry_order.suspend(retire=False)
             self.system_uptime = self.system_status = self.display_details = None
             self.v3_capable = False
             self._needs_post_on = False
@@ -218,6 +223,25 @@ class ForegroundSource:
             self._needs_post_on = False
             self._post_on_sequence = self._post_on_timestamp = None
 
+    def _reset_epoch_evidence(self):
+        """A new publisher epoch cannot inherit a pending ON sequence or usage."""
+        self.ledger.invalidate()
+        self.display.invalidate()
+        self.last_raw = None
+        self.observed_game = None
+        self._needs_post_on = False
+        self._post_on_sequence = self._post_on_timestamp = None
+        # Retain the OFF latch and display ordering watermark; a fresh
+        # accepted ON followed by fresh foreground must re-arm accounting.
+
+    def _log_rejected_packet(self, error, mono):
+        if mono - self._last_rejection_log >= 60:
+            self._last_rejection_log = mono
+            reason = ("Invalid unified telemetry timestamp"
+                      if str(error) == "Invalid unified telemetry timestamp"
+                      else "invalid unified telemetry envelope")
+            _LOGGER.warning("Rejected v3 telemetry for %s: %s", self.device_id, reason)
+
     @callback
     def _telemetry_snapshot(self, message):
         """Apply one ordered atomic v3 packet, display before foreground."""
@@ -232,11 +256,15 @@ class ForegroundSource:
             packet = decode_telemetry(
                 message.payload, self.device_id,
                 retained=getattr(message, "retain", None), wall_now=wall)
-        except (ValueError, TypeError, RecursionError):
+        except (ValueError, TypeError, RecursionError) as error:
+            self._log_rejected_packet(error, mono)
             self.invalidate()
             return
+        previous_epoch = self.telemetry_order.epoch
         if not self.telemetry_order.accept(packet, monotonic_now=mono):
             return  # Duplicate/replay cannot mutate display or accounting.
+        if previous_epoch is not None and previous_epoch != packet["epoch"]:
+            self._reset_epoch_evidence()
         self.system_uptime = packet["system"]["uptime_seconds"]
         self.system_status = dict(packet["system"])
         display_state = self._v3_display(packet, wall, mono)

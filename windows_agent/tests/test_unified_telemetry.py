@@ -434,3 +434,26 @@ def test_no_authenticated_sample_context_after_broker_disconnect():
     assert bridge.capture_foreground_context() is not None
     bridge.on_disconnect(bridge.client, None, None, None, None)
     assert bridge.capture_foreground_context() is None
+
+
+@pytest.mark.parametrize("step", [2.6, -2.6])
+def test_clock_step_recovers_without_mqtt_reconnect(rig, step, caplog):
+    bridge, client, clock = rig
+    assert bridge.publish_unified_telemetry(focus(clock), POLICY, 10)
+    original = payloads(client)[0]
+    generation = bridge.generation
+    clock.advance(1)
+    clock.wall += step
+    assert not bridge.publish_unified_telemetry(focus(clock), POLICY, 11)
+    assert len(payloads(client)) == 1
+    assert bridge._target_telemetry is None
+    assert bridge._raw_receipt is None and bridge._target_offer is None
+    assert "clock discontinuity" in caplog.text.lower()
+    clock.advance(4)
+    assert bridge.publish_unified_telemetry(focus(clock), POLICY, 15)
+    recovered = payloads(client)[1]
+    assert bridge.generation == generation
+    assert recovered["epoch"] != original["epoch"]
+    assert recovered["sequence"] == 1
+    assert recovered["observed_at"] == clock.wall
+    assert recovered["observed_at"] > original["observed_at"]
