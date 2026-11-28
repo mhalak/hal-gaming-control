@@ -1,3 +1,10 @@
+## 0.18.0 — Exact-second Sync bonus (#276)
+
+- Add native administrator action and button to top up the selected PC's discretionary bonuses to the highest peer entitlement for the local day. Valid offline peer journals may contribute; no peer is modified.
+- Preserve verified Unlimited credits as a separate local allowance. Store exact whole-second Sync grants with normal replay and Undo; no automatic sync or MQTT changes.
+- Parent bonus journal v2 is backward-readable by this integration; rollback to older versions requires restoring compatible backed-up options. Back up configuration before deployment.
+- Preview 50 source candidate; Windows 0.5.4 unchanged. Supervised acceptance remains separate.
+
 ## 0.17.0 — Verified Unlimited bonus (#164)
 
 - Preserve measured foreground usage and compensate only verified play during recorded Unlimited intervals for daily, weekly and per-game quotas.

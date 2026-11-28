@@ -406,7 +406,7 @@ def test_sync_bonus_uses_verified_unlimited_credit_without_copying_it():
     assert snapshot.selection.remaining_seconds == 5850
     assert bonus_entitlement_seconds(options, "pc1", at()) == 450
     receipt = smart_receipt(options, totals, at(), "pc1", snapshot, ())
-    assert receipt.remaining_seconds == 5850
+    assert receipt.remaining == 5850
     assert any(row.title == "Unlimited Bonus" and row.seconds == 1800
                for row in receipt.lines)
     assert any("Sync Bonus" in row.title and row.seconds == 450
