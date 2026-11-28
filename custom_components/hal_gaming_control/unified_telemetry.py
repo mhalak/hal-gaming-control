@@ -204,7 +204,7 @@ def _normalized_packet(packet, wall_now):
     return {**packet, "foreground": fg, "display": display}
 
 
-def decode_telemetry(payload, device_id, *, retained, wall_now):
+def decode_telemetry(payload, device_id, *, retained, wall_now, diagnostics=None):
     """One complete device-scoped, timestamped, non-retained v3 snapshot."""
     packet = _parse_packet(payload, retained)
     _validate_identity(packet, device_id)
@@ -213,6 +213,17 @@ def decode_telemetry(payload, device_id, *, retained, wall_now):
     _display(packet["display"])
     _system(packet["system"])
     _validate_legacy(packet)
+    if diagnostics is not None:
+        diagnostics.update(
+            clock_delta_seconds=round(packet["observed_at"] - wall_now, 2),
+            reported_foreground_state=packet["foreground"]["state"],
+            foreground_sample_age_ms=packet["foreground"]["sample_age_ms"],
+            foreground_sample_stale=_foreground_stale(packet, wall_now),
+            reported_display_state=packet["display"]["state"],
+            display_sample_age_ms=packet["display"]["sample_age_ms"],
+            display_sample_stale=_display_stale(packet, wall_now),
+            sequence=packet["sequence"],
+        )
     return _normalized_packet(packet, wall_now)
 
 

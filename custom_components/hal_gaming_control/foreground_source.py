@@ -15,6 +15,7 @@ from homeassistant.core import callback
 
 from .const import ROOT
 from .error_registry import ErrorRegistry
+from .diagnostic_evidence import age_seconds as _age_seconds, readiness_reason, transition_evidence
 from .app_registry import identity_key
 from .protocol import parse_discovery
 from .raw_foreground import HAOwnedForeground
@@ -40,6 +41,12 @@ class ForegroundSource:
         self._availability_seen = False
         self._online_since = None
         self._last_packet_at = None
+        self._evidence_received = self._evidence_accepted = None
+        self._evidence_gap = None
+        self._evidence_sample = {}
+        self._evidence_rejection = None
+        self._evidence_epoch_changes = 0
+        self._evidence_order_rejections = 0
         self._diagnostic_capable = False
         self._diagnostic_pending = None
         self._diagnostic_received = None
@@ -307,14 +314,21 @@ class ForegroundSource:
             self.invalidate()
             return
         wall, mono = time(), monotonic()
+        previous = self._evidence_received
+        self._evidence_gap = _age_seconds(mono, previous)
+        self._evidence_received = mono
+        evidence = {}
         try:
             packet = decode_telemetry(
                 message.payload, self.device_id,
-                retained=getattr(message, "retain", None), wall_now=wall)
+                retained=getattr(message, "retain", None), wall_now=wall,
+                diagnostics=evidence)
         except (ValueError, TypeError, RecursionError) as error:
             code = (error.code if isinstance(error, TelemetryTimestampError)
                     else "HA_INVALID_TELEMETRY")
             delta = error.delta if isinstance(error, TelemetryTimestampError) else None
+            self._evidence_rejection = code
+            self._evidence_sample = {"clock_delta_seconds": delta}
             self._last_packet_at = mono
             self.errors.resolve("HA_TELEMETRY_MISSING")
             self.errors.report(code, clock_delta_seconds=delta)
@@ -323,12 +337,18 @@ class ForegroundSource:
             return
         previous_epoch = self.telemetry_order.epoch
         if not self.telemetry_order.accept(packet, monotonic_now=mono):
+            self._evidence_rejection = "ORDER_REJECTED"
+            self._evidence_order_rejections += 1
             return  # Duplicate/replay cannot mutate display or accounting.
+        self._evidence_accepted = mono
+        self._evidence_sample = evidence
+        self._evidence_rejection = None
         self._last_packet_at = mono
         self.errors.resolve("HA_TELEMETRY_MISSING")
         for code in ("HA_CLOCK_SKEW", "HA_TELEMETRY_STALE", "HA_INVALID_TELEMETRY"):
             self.errors.resolve(code)
         if previous_epoch is not None and previous_epoch != packet["epoch"]:
+            self._evidence_epoch_changes += 1
             self._reset_epoch_evidence()
         self.system_uptime = packet["system"]["uptime_seconds"]
         self.system_status = dict(packet["system"])
@@ -429,6 +449,12 @@ class ForegroundSource:
         if self.display is not None and self.display.current(observed) == "off":
             return "idle"
         return self.ledger.current(observed)
+
+    def diagnostic_snapshot(self, observed, *, ready):
+        """Capture the actual observed readiness gate without changing it."""
+        reason = readiness_reason(self, observed, ready)
+        evidence = transition_evidence(self, observed)
+        return self.errors.capture(ready=ready, reason=reason, evidence=evidence)
 
     def totals(self, now):
         """Confirmed-only daily/weekly totals; no liveness extrapolation."""

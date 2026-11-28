@@ -1,3 +1,9 @@
+## 0.19.4 — Diagnostic incident evidence (#296)
+
+- Error state retains a reason code, explanation and frozen evidence per semantic transition. Distinguish packet receipt from validated acceptance, normal post-ON foreground waits, unknown or expired samples, missing discovery, timeout and unavailable remote diagnostics.
+- Retain bounded incident/recovery evidence in attributes (last eight completed non-OK intervals, counts and durations since integration load). HA Recorder history can preserve past published snapshots according to its retention policy; in-memory history resets on reload. Clock delta is not network latency. No change to readiness, accounting, or enforcement. Native Activity context attribution and physical acceptance remain separate.
+- Preview 55 / Windows 0.5.5 unchanged.
+
 ## 0.19.3 — Windows diagnostics (#291)
 
 - Enrich the existing Error state sensor with read-only Windows diagnostic reports using fresh nonce challenges independent of remote wall clock. Bound records and reject wrong identity, retained and stale responses. No new gaming entities, budget policy, control capability or telemetry fallback.
