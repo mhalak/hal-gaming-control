@@ -490,3 +490,18 @@ def test_holiday_sync_and_unlimited_credits_use_one_consistent_budget():
     assert any(row.title == "Weekend Bonus" and row.seconds == 3600 for row in receipt.lines)
     assert any(row.title == "Unlimited Bonus" and row.seconds == 1800 for row in receipt.lines)
     assert any("Sync Bonus" in row.title and row.seconds == 450 for row in receipt.lines)
+
+
+def test_unavailable_unlimited_budget_receipt_has_no_numeric_amounts():
+    from custom_components.hal_gaming_control.budget_select import (
+        budget_select_rows, TOTAL_ROW_INDEX, FIGURE_SPACE,
+    )
+    rows = budget_select_rows(settings(daily=-1, weekly=-1), "pc1",
+                              {"ready": False, "totals": {}}, at(23))
+    assert rows == [
+        ("∞ Daily Budget", None),
+        (f"∑{FIGURE_SPACE}Unlimited TOTAL", None),
+        ("− Unknown - Gaming Session", None),
+        ("∑ Unlimited - Remaining Budget", None),
+    ]
+    assert rows[TOTAL_ROW_INDEX] == rows[1]
