@@ -614,7 +614,14 @@ async def test_direct_terminate_capability_requires_matching_live_agent_metadata
 async def test_error_state_activity_context_is_unique_and_transition_only(
         hass, enable_custom_integrations, mqtt_mock):
     """A real entity state change must identify its own integration cause."""
+    from datetime import timedelta
+    from homeassistant.components.logbook.processor import EventProcessor
+    from homeassistant.components.recorder import get_instance
     from homeassistant.core import callback
+    from homeassistant.setup import async_setup_component
+    from homeassistant.util import dt as dt_util
+
+    assert await async_setup_component(hass, "logbook", {})
 
     entry = MockConfigEntry(domain=DOMAIN, title=DATA["name"], unique_id="pc1", data=DATA)
     entry.add_to_hass(hass)
@@ -663,5 +670,20 @@ async def test_error_state_activity_context_is_unique_and_transition_only(
     assert len(events) == 3
     assert hass.states.get(eid).context.id == events[2].context.id
     assert events[2].context.id not in {events[0].context.id, events[1].context.id}
+    await hass.async_block_till_done()
+    recorder = get_instance(hass)
+    await recorder.async_block_till_done()
+    event_type = "hal_gaming_control_diagnostic_transition"
+    assert event_type in hass.data["logbook"].external_events
+    processor = EventProcessor(hass, (event_type,), entity_ids=[eid])
+    now = dt_util.utcnow()
+    rows = await recorder.async_add_executor_job(
+        processor.get_events, now - timedelta(minutes=5), now + timedelta(minutes=5))
+    wait = next(row for row in rows if row.get("state") == "Waiting for telemetry")
+    assert wait["context_event_type"] == event_type
+    assert wait["context_domain"] == DOMAIN
+    assert "waiting for a newer foreground observation" in wait["context_name"]
+    assert wait["context_message"] == events[0].data["message"]
+    assert any(row.get("message") == events[1].data["message"] for row in rows)
     unsub()
     assert await hass.config_entries.async_unload(entry.entry_id)
