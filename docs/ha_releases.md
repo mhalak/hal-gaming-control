@@ -1,3 +1,10 @@
+## 0.19.0 — Public holidays (#140)
+
+- Optional per-device public holiday calendar: select a country, inspect the verified annual holiday data, and explicitly enable weekend-equivalent budget and schedule rules.
+- Use nationwide public holidays from the native HA Holiday library locally. Keep a validated three-year cache, refresh at year turnover and fall back to ordinary weekly rules with an unknown status when unavailable.
+- Preserve starting-date semantics for overnight schedules, historical bonus intent, independent Unlimited and Sync credits, and validated Profile Copy.
+- Preview 51 source candidate; Windows 0.5.4 unchanged. Initial dependency installation and supervised runtime acceptance remain separate from source CI.
+
 ## 0.18.0 — Exact-second Sync bonus (#276)
 
 - Add native administrator action and button to top up the selected PC's discretionary bonuses to the highest peer entitlement for the local day. Valid offline peer journals may contribute; no peer is modified.
