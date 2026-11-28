@@ -1,3 +1,14 @@
+## 0.19.2 — Budget Overview initialization (#294)
+
+- Render the existing receipt safely even when no integer amounts are available (including unavailable telemetry with unlimited budgets). Keep the minimum numeric column width, TOTAL default selection and policy/usage semantics unchanged.
+- Preview 53; Windows 0.5.4 unchanged. Source-only candidate.
+
+## 0.19.1 — HA Error state diagnostics (#291)
+
+- Add one default-enabled diagnostic sensor per device, independent of gameplay readiness, with structured error attributes and coalesced occurrences.
+- Distinguish waiting, offline, missing/stale/invalid telemetry, clock skew, broker and local storage/budget failures. Preserve exact existing telemetry validation, measured usage and policy behavior.
+- HA-only scope; Windows diagnostics transport is a subsequent increment. Preview 52, Windows 0.5.4 unchanged. Physical acceptance remains outstanding.
+
 ## 0.19.0 — Public holidays (#140)
 
 - Optional per-device public holiday calendar: select a country, inspect the verified annual holiday data, and explicitly enable weekend-equivalent budget and schedule rules.

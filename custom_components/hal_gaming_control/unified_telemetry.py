@@ -139,6 +139,15 @@ def _validate_identity(packet, device_id):
         raise ValueError("Invalid unified telemetry identity")
 
 
+class TelemetryTimestampError(ValueError):
+    """Preserve rejection semantics while exposing a safe structured reason."""
+
+    def __init__(self, code, delta=None):
+        super().__init__("Invalid unified telemetry timestamp")
+        self.code = code
+        self.delta = delta
+
+
 def _validate_stamp(packet, wall_now):
     if (not isinstance(packet["epoch"], str)
             or not EPOCH.fullmatch(packet["epoch"])
@@ -146,9 +155,13 @@ def _validate_stamp(packet, wall_now):
             or not 1 <= packet["sequence"] <= MAX_SEQUENCE):
         raise ValueError("Invalid unified telemetry ordering")
     stamp = packet["observed_at"]
-    if (not _finite(stamp) or stamp < 0 or not _finite(wall_now)
-            or not -MAX_FUTURE <= wall_now - stamp < MAX_AGE):
-        raise ValueError("Invalid unified telemetry timestamp")
+    if not _finite(stamp) or stamp < 0 or not _finite(wall_now):
+        raise TelemetryTimestampError("HA_INVALID_TELEMETRY")
+    if not -MAX_FUTURE <= wall_now - stamp < MAX_AGE:
+        delta = stamp - wall_now
+        raise TelemetryTimestampError(
+            "HA_CLOCK_SKEW" if delta > MAX_FUTURE else "HA_TELEMETRY_STALE",
+            round(max(-86400, min(86400, delta)), 2))
 
 
 def _validate_legacy(packet):
