@@ -2,7 +2,7 @@
 
 This directory is the **shared compatibility contract** between the actual Windows
 MQTT publisher and the Home Assistant consumer. All fixture payloads are valid,
-non-retained JSON examples with intentionally *fixed* sample times and opaque IDs.
+non-retained payload examples (JSON except the ASCII diagnostics nonce) with intentionally *fixed* sample times and opaque IDs.
 
 | Versioned message | MQTT topic | Windows producer coverage | HA consumer coverage |
 | --- | --- | --- | --- |
@@ -12,6 +12,15 @@ non-retained JSON examples with intentionally *fixed* sample times and opaque ID
 | `v2/popup-upsert.json`, `v2/popup-refresh.json` | `SmartHouse/Gaming/{device_id}/ui/popup` | HA producer: `tests/home_assistant/test_native_actions.py` verifies actual service publication | Windows consumer: `windows_agent/tests/test_popup_protocol.py` drives real Bridge/decoder and model |
 
 Popup v2 is HA → Windows (the producer/consumer roles are reversed from telemetry). The separate discovery capability `popup_ui_protocols: [1, 2]` preserves v1 clients; Unified MQTT v3 monitoring is unchanged.
+
+## Independent diagnostics v1
+
+| Shared fixture | Device-scoped topic | Producer and consumer coverage |
+| --- | --- | --- |
+| `v1/diagnostics-request.txt` | `SmartHouse/Gaming/{device_id}/diagnostics/request` | HA production poll publishes the exact 32-character lowercase hex nonce; Windows Bridge handles the same bytes (fixture newline is file formatting only). |
+| `v1/diagnostics-response.json` | `SmartHouse/Gaming/{device_id}/diagnostics/response` | Windows Bridge publishes the exact bounded response; HA production response handler verifies the pending nonce and updates the Error state registry. |
+
+Discovery advertises `diagnostics_protocol: 1`. Both directions use QoS 0, no retain; the Windows response expires after five seconds and HA accepts it only within its pending five-second challenge. Broker ACLs must grant the HA client request-write/response-read and the device client request-read/response-write only in its own namespace. This diagnostic channel never provides gameplay readiness or commands. Unified MQTT v3 remains the sole gameplay monitoring source.
 
 ## Rules
 

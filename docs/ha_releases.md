@@ -1,3 +1,9 @@
+## 0.19.3 — Windows diagnostics (#291)
+
+- Enrich the existing Error state sensor with read-only Windows diagnostic reports using fresh nonce challenges independent of remote wall clock. Bound records and reject wrong identity, retained and stale responses. No new gaming entities, budget policy, control capability or telemetry fallback.
+- Windows 0.5.5 advertises diagnostics protocol 1; older agents remain compatible with v3 gameplay but remote diagnostics are unavailable. Verify broker ACLs for the two new device-scoped topics; physical acceptance and additional Windows fault hooks remain separate.
+- Preview 54 source candidate.
+
 ## 0.19.2 — Budget Overview initialization (#294)
 
 - Render the existing receipt safely even when no integer amounts are available (including unavailable telemetry with unlimited budgets). Keep the minimum numeric column width, TOTAL default selection and policy/usage semantics unchanged.
