@@ -41,6 +41,9 @@ class ErrorStateSensor(GamingEntity, SensorEntity):
 
     def _diagnostic(self):
         data = self.coordinator.data or {}
+        if not self.coordinator.last_update_success:
+            return {"state": "Diagnostics unavailable",
+                    "attributes": {"diagnostic_scope": "HA only"}}
         return data.get("error_state") or {
             "state": "Diagnostics unavailable", "attributes": {"diagnostic_scope": "HA only"}}
 

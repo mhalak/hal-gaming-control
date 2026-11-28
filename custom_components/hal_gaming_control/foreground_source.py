@@ -275,8 +275,6 @@ class ForegroundSource:
             self.invalidate()
             return
         wall, mono = time(), monotonic()
-        self._last_packet_at = mono
-        self.errors.resolve("HA_TELEMETRY_MISSING")
         try:
             packet = decode_telemetry(
                 message.payload, self.device_id,
@@ -285,6 +283,8 @@ class ForegroundSource:
             code = (error.code if isinstance(error, TelemetryTimestampError)
                     else "HA_INVALID_TELEMETRY")
             delta = error.delta if isinstance(error, TelemetryTimestampError) else None
+            self._last_packet_at = mono
+            self.errors.resolve("HA_TELEMETRY_MISSING")
             self.errors.report(code, clock_delta_seconds=delta)
             self._log_rejected_packet(error, mono)
             self.invalidate()
@@ -292,6 +292,8 @@ class ForegroundSource:
         previous_epoch = self.telemetry_order.epoch
         if not self.telemetry_order.accept(packet, monotonic_now=mono):
             return  # Duplicate/replay cannot mutate display or accounting.
+        self._last_packet_at = mono
+        self.errors.resolve("HA_TELEMETRY_MISSING")
         for code in ("HA_CLOCK_SKEW", "HA_TELEMETRY_STALE", "HA_INVALID_TELEMETRY"):
             self.errors.resolve(code)
         if previous_epoch is not None and previous_epoch != packet["epoch"]:

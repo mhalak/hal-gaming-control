@@ -81,7 +81,11 @@ async def test_scoped_entities_and_safe_controls(hass, enable_custom_integration
     assert all(ids.values())
     assert all(registry.async_get(eid) is None for eid in legacy)
     owned = er.async_entries_for_config_entry(registry, entry.entry_id)
-    assert {e.unique_id for e in owned if e.entity_id.split(".")[0] in ("sensor","binary_sensor")} == {"pc1_uptime","pc1_daily_budget_remaining","pc1_weekly_budget_remaining","pc1_gaming_budget_remaining","pc1_agent_version","pc1_integration_version","pc1_active_game","pc1_gaming_time_daily","pc1_gaming_time_weekly", "pc1_gaming_time_display_daily", "pc1_gaming_time_display_weekly", "pc1_gaming_restriction"}
+    assert {e.unique_id for e in owned if e.entity_id.split(".")[0] in ("sensor","binary_sensor")} == {"pc1_uptime","pc1_daily_budget_remaining","pc1_weekly_budget_remaining","pc1_gaming_budget_remaining","pc1_agent_version","pc1_integration_version","pc1_active_game","pc1_gaming_time_daily","pc1_gaming_time_weekly", "pc1_gaming_time_display_daily", "pc1_gaming_time_display_weekly", "pc1_gaming_restriction", "pc1_error_state"}
+    error_id = registry.async_get_entity_id("sensor", DOMAIN, "pc1_error_state")
+    assert registry.async_get(error_id).entity_category.value == "diagnostic"
+    assert registry.async_get(error_id).device_id == registry.async_get(ids["uptime"]).device_id
+    assert hass.states.get(error_id).state != "unavailable"
     for old_key, old_domain in (("current_game", "sensor"), ("in_game", "binary_sensor"),
                                 ("gaming_active", "binary_sensor")):
         assert registry.async_get_entity_id(old_domain, DOMAIN, "pc1_" + old_key) is None
@@ -121,6 +125,7 @@ async def test_scoped_entities_and_safe_controls(hass, enable_custom_integration
         async_fire_mqtt_message(hass, ROOT+"/availability","offline")
         await hass.async_block_till_done()
         assert all(hass.states.get(eid).state == "unavailable" for eid in ids.values())
+        assert hass.states.get(error_id).state != "unavailable"
         assert publish.await_count == 1
     assert await hass.config_entries.async_unload(entry.entry_id)
 
