@@ -73,7 +73,8 @@ async def test_v3_only_transport_and_confirmed_foreground(hass):
     assert set(cb) == {
         f"{ROOT}/pc1/availability",
         f"{ROOT}/pc1/discovery",
-        f"{ROOT}/pc1/state/telemetry"}
+        f"{ROOT}/pc1/state/telemetry",
+        f"{ROOT}/pc1/diagnostics/response"}
     assert cb[f"{ROOT}/pc1/state/telemetry"][1] == 0
     assert f"{ROOT}/pc1/state/foreground_identity" not in cb
     assert f"{ROOT}/pc1/state/display_context" not in cb
@@ -87,7 +88,7 @@ async def test_v3_only_transport_and_confirmed_foreground(hass):
     assert total(watcher) == 2
     assert changed.call_count >= 4
     watcher.close()
-    assert len(unsub) == 4
+    assert len(unsub) == 5
 
 
 async def test_v3_rejects_wrong_identity_retained_and_old_protocol(hass):

@@ -82,7 +82,8 @@ async def test_v3_subscribes_single_read_only_source_and_ignores_legacy(hass):
     s, cb, changed, _, unsub = await start(hass)
     root = "SmartHouse/Gaming/pc1"
     assert set(cb) == {
-        root + "/availability", root + "/discovery", root + "/state/telemetry"}
+        root + "/availability", root + "/discovery", root + "/state/telemetry",
+        root + "/diagnostics/response"}
     assert cb[root + "/state/telemetry"][1] == 0
     deliver(cb, root + "/availability", "online", ts=99)
     deliver(cb, root + "/state/telemetry", v3(ts=100, seq=1), ts=100)
@@ -96,7 +97,7 @@ async def test_v3_subscribes_single_read_only_source_and_ignores_legacy(hass):
     assert s.last_raw["process"] == APP["process"]
     assert changed.call_count >= 3
     s.close()
-    assert len(unsub) == 4
+    assert len(unsub) == 5
 
 
 async def test_off_and_repeated_raw_focus_never_fabricate_game_time_or_bonus(hass):
@@ -427,7 +428,8 @@ async def test_default_source_is_unconditionally_v3_only(hass):
         await source.async_start()
     root = "SmartHouse/Gaming/pc1"
     assert set(callbacks) == {
-        root + "/availability", root + "/discovery", root + "/state/telemetry"}
+        root + "/availability", root + "/discovery", root + "/state/telemetry",
+        root + "/diagnostics/response"}
     assert root + "/state/foreground_identity" not in callbacks
     assert root + "/state/display_context" not in callbacks
     assert source.telemetry_order is not None

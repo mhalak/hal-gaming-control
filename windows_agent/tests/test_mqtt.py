@@ -437,3 +437,31 @@ def test_clean_cut_connection_drops_at_last_retained_tombstone_ack():
     assert b.refresh_requested
     assert not any(c.args[:2] == (b.root + "/availability", "online")
                    for c in b.client.publish.call_args_list)
+
+
+def test_read_only_diagnostics_request_survives_invalid_telemetry():
+    import json
+    b = connected_bridge()
+    from pathlib import Path
+    fixtures = Path(__file__).resolve().parents[2] / "tests" / "contracts" / "v1"
+    expected = json.loads((fixtures / "diagnostics-response.json").read_text(encoding="utf-8"))
+    b.errors.report("WIN_INVALID_SYSTEM_METADATA")
+    nonce = (fixtures / "diagnostics-request.txt").read_bytes().strip()
+    assert b.metadata["diagnostics_protocol"] == 1
+    assert b.root + "/diagnostics/request" in [c.args[0] for c in b.client.subscribe.call_args_list]
+    request = SimpleNamespace(topic=b.root + "/diagnostics/request", payload=nonce, retain=False)
+    b.client.publish.reset_mock()
+    b.on_message(b.client, None, request)
+    call, = b.client.publish.call_args_list
+    assert call.args[0] == b.root + "/diagnostics/response"
+    data = json.loads(call.args[1])
+    assert data == expected
+    assert data["nonce"] == nonce.decode("ascii")
+    assert call.kwargs["qos"] == 0
+    assert call.kwargs["properties"].MessageExpiryInterval == 5
+    assert call.kwargs["retain"] is False
+    assert list(b.drain_commands()) == []
+    b.client.publish.reset_mock()
+    request.retain = True
+    b.on_message(b.client, None, request)
+    assert not b.client.publish.called

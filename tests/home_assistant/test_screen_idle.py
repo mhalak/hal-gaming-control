@@ -337,7 +337,8 @@ async def test_end_to_end_unified_v3_suppresses_off_charging_and_recovers_on(has
         await source.async_start()
     root = f"SmartHouse/Gaming/{DEV}/"
     assert set(callbacks) == {
-        root + "availability", root + "discovery", root + "state/telemetry"}
+        root + "availability", root + "discovery", root + "state/telemetry",
+        root + "diagnostics/response"}
     fixture = (Path(__file__).resolve().parents[1] / "contracts" / "v3"
                / "telemetry-foreground.json")
     template = json.loads(fixture.read_text(encoding="utf-8"))
@@ -387,7 +388,7 @@ async def test_end_to_end_unified_v3_suppresses_off_charging_and_recovers_on(has
     source._connection(False)
     assert source.current(10114) is None
     source.close()
-    assert len(unsubscribed) == 4
+    assert len(unsubscribed) == 5
 
 
 def test_screen_idle_bonus_excludes_only_unlimited_overlap():

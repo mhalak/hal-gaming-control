@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "device_id": "pc1",
+  "nonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "active": [
+    {
+      "code": "WIN_INVALID_SYSTEM_METADATA",
+      "occurrences": 1
+    }
+  ],
+  "last_resolved": null
+}

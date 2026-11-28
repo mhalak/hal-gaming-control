@@ -51,6 +51,10 @@ async def async_setup_entry(hass, entry):
     # the calendar independently so annual turnover does not rely on silence.
     entry.async_on_unload(async_track_time_interval(
         hass, coordinator._async_refresh_holiday_cache, timedelta(hours=1)))
+    # Independent read-only diagnostics must run even when live v3 continually
+    # defers coordinator polling or cannot be constructed.
+    entry.async_on_unload(async_track_time_interval(
+        hass, coordinator.foreground.async_poll_diagnostics, timedelta(seconds=5)))
     # Policy/accounting must run even when the administrative update entity is disabled.
     entry.async_on_unload(coordinator.async_add_listener(lambda: None))
     entry.async_on_unload(entry.add_update_listener(_reload))
