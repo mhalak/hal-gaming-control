@@ -141,7 +141,8 @@ class GamingCoordinator(DataUpdateCoordinator):
 
     def _foreground_data(self, now):
         """Production path: never consult legacy current_game/process presence."""
-        alias = self.foreground.current(monotonic())
+        observed = monotonic()
+        alias = self.foreground.current(observed)
         raw = self.foreground.totals(now)
         names = {row["name"]: raw["per_game"].get(key, 0)
                  for key, row in self.foreground.ledger.apps.items()}
@@ -176,7 +177,7 @@ class GamingCoordinator(DataUpdateCoordinator):
                 "unified_telemetry": True,
                 "display_details": self.foreground.display_details,
                 "uptime_seconds": self.foreground.system_uptime,
-                "error_state": self.errors.snapshot(ready=ready)}
+                "error_state": self.foreground.diagnostic_snapshot(observed, ready=ready)}
 
     def restriction_violation(self):
         """Reevaluate live policy and verified accounting immediately."""

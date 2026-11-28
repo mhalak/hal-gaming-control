@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from time import monotonic
 
 from .diagnostic_protocol import WINDOWS_ERRORS
+from .diagnostic_evidence import IncidentHistory
 
 CATALOG = {
     "HA_STORAGE_FAILURE": ("critical", "Storage failure", "Check HA storage and logs."),
@@ -32,6 +33,7 @@ class ErrorRegistry:
         self._remote = {}
         self._remote_published_at = {}
         self._remote_resolved = None
+        self._incidents = IncidentHistory(clock, self._timestamp)
 
     def report(self, code, *, clock_delta_seconds=None):
         severity, title, action = CATALOG[code]
@@ -80,6 +82,15 @@ class ErrorRegistry:
         if resolved != self._remote_resolved:
             self._remote_resolved = dict(resolved) if resolved else None
         self.remote_status = "Current"
+
+    def capture(self, *, ready, reason, evidence):
+        """Record semantic transitions, not every periodic observation."""
+        snapshot = self.snapshot(ready=ready)
+        attrs = snapshot["attributes"]
+        code = attrs.get("code", reason)
+        description = attrs.get("description")
+        attrs.update(self._incidents.capture(snapshot["state"], code, evidence, description))
+        return snapshot
 
     def snapshot(self, *, ready=False):
         remote = [dict(row, evidence=self.remote_status) for row in self._remote.values()]
