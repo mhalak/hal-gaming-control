@@ -14,6 +14,7 @@ from homeassistant.util import dt as dt_util
 from .parent_bonus import parent_bonus_legacy_today, parent_grants_today, parent_smart_grants
 from .smart_policy import effective_snapshot
 from .gaming_penalty import active_penalties
+from .unlimited_bonus import credit_seconds
 from .smart_receipt import smart_receipt
 from .rule_engine import budget_overview
 from .screen_idle_bonus import screen_idle_events_today
@@ -178,10 +179,15 @@ def budget_select_rows(options, device_id, data, now, *, segments=None):
         return _penalty_display(options, device_id, data, now, snapshot, segments, penalties)
     has_smart = bool(parent_smart_grants(options, device_id, now)) or any(
         "smart_adjustments" in row for row in parent_grants_today(options, now))
-    if has_smart or (snapshot.selection.limiting_sources
+    if has_smart or _has_unlimited_credit(data) or (snapshot.selection.limiting_sources
                      and snapshot.selection.limiting_sources[0] != "daily"):
         return _smart_display(options, device_id, data, now, snapshot, segments)
     return _daily_display(options, device_id, data, now)
+
+
+def _has_unlimited_credit(data):
+    totals = data.get("totals", {})
+    return any(credit_seconds(totals, period) > 0 for period in ("daily", "weekly"))
 
 
 def _suspended_display(data, now, snapshot, penalties):
@@ -227,9 +233,7 @@ def _smart_display(options, device_id, data, now, snapshot, segments):
     if receipt is None:
         status = {"disabled": "Rules Disabled", "unlimited": "Unlimited"}.get(
             snapshot.selection.status, "Unknown")
-        return [(f"∑{FIGURE_SPACE}{status} - TOTAL", None),
-                ("− Unknown - Gaming Session", None),
-                (f"∑{FIGURE_SPACE}{status} - Remaining Budget", None)]
+        return _nonfinite_display(data, status)
     used, remaining = ceil(receipt.used / 60), floor(receipt.remaining / 60)
     total = used + remaining
     amounts = [floor(row.seconds / 60) for row in receipt.lines]
@@ -254,6 +258,20 @@ def _smart_display(options, device_id, data, now, snapshot, segments):
                  (_amount_label(used, title, width, sign="−"), None),
                  (_amount_label(remaining, "Remaining Budget", width, sign="∑"), None)])
     return _display_action_column(rows)
+
+
+def _nonfinite_display(data, status):
+    totals = data.get("totals", {})
+    credit = credit_seconds(totals, "daily")
+    used = totals.get("daily")
+    rows = []
+    if credit:
+        rows.append((_amount_label(floor(credit / 60), "Unlimited Bonus", 3), None))
+    usage = (_amount_label(ceil(used / 60), "Gaming Session", 3, sign="−")
+             if credit and type(used) in (int, float) and isfinite(used) and used >= 0
+             else "− Unknown - Gaming Session")
+    return rows + [(f"∑{FIGURE_SPACE}{status} - TOTAL", None), (usage, None),
+                   (f"∑{FIGURE_SPACE}{status} - Remaining Budget", None)]
 
 
 def _penalty_rows(penalties, now, remaining):

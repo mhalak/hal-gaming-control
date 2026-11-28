@@ -5,6 +5,7 @@ from typing import Mapping
 
 from .const import DEFAULTS
 from .gaming_penalty import project_penalties
+from .unlimited_bonus import credit_seconds
 from .parent_bonus import parent_smart_grants
 from .rule_engine import effective_budget_limit
 from .smart_budget import BudgetSelection, Seconds, select_budget
@@ -24,13 +25,13 @@ def _verified(value):
     return type(value) in (int, float) and isfinite(value) and value >= 0
 
 
-def quota_limits(options, now, adjustments):
+def quota_limits(options, now, adjustments, totals=None):
     """Base quota seconds, and effective seconds after smart adjustments."""
     base = {}
     for period in ("daily", "weekly"):
         limit = effective_budget_limit(options, now, period)
         if limit >= 0:
-            base[period] = limit * 60
+            base[period] = limit * 60 + credit_seconds(totals or {}, period)
     effective = dict(base)
     for period in effective:
         effective[period] += sum(getattr(row, period + "_seconds") for row in adjustments.values())
@@ -41,7 +42,7 @@ def effective_snapshot(options, totals, now, device_id, *, ready, include_penalt
     """One policy snapshot for restriction, future receipt, and warning actions."""
     settings = DEFAULTS | options
     adjustments = parent_smart_grants(settings, device_id, now)
-    base, effective = quota_limits(settings, now, adjustments)
+    base, effective = quota_limits(settings, now, adjustments, totals)
     intervals = [ScheduleExtension(row.schedule_start, row.schedule_end)
                  for row in adjustments.values() if row.schedule_end is not None]
     schedule = project_schedule(settings, now, intervals)

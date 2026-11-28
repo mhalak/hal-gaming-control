@@ -390,3 +390,24 @@ async def test_sync_button_requires_admin_context():
         await control.async_press()
         sync.assert_awaited_once_with(control.hass, entity.coordinator)
     assert not committed
+
+
+def test_sync_bonus_uses_verified_unlimited_credit_without_copying_it():
+    from custom_components.hal_gaming_control.smart_parent_control import prepare_live_sync_grant
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    from custom_components.hal_gaming_control.smart_receipt import smart_receipt
+    from custom_components.hal_gaming_control.bonus_sync import bonus_entitlement_seconds
+
+    settings = {"enabled": True, "daily": 120, "weekly": 300}
+    totals = {"daily": 3600, "weekly": 3600, "per_game": {},
+              "unlimited_bonus": {"daily": 1800, "weekly": 1800, "per_game": {}}}
+    options = prepare_live_sync_grant(settings, "pc1", at(), 450, totals, ready=True)
+    snapshot = effective_snapshot(options, totals, at(), "pc1", ready=True)
+    assert snapshot.selection.remaining_seconds == 5850
+    assert bonus_entitlement_seconds(options, "pc1", at()) == 450
+    receipt = smart_receipt(options, totals, at(), "pc1", snapshot, ())
+    assert receipt.remaining_seconds == 5850
+    assert any(row.title == "Unlimited Bonus" and row.seconds == 1800
+               for row in receipt.lines)
+    assert any("Sync Bonus" in row.title and row.seconds == 450
+               for row in receipt.lines)

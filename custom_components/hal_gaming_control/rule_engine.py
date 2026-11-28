@@ -1,6 +1,7 @@
 """Pure rule evaluation and calendar windows. All timestamps are timezone-aware."""
 from datetime import datetime, timedelta, time
 from .const import DEFAULTS
+from .unlimited_bonus import credit_seconds
 from .protocol import games_from_state
 
 
@@ -70,14 +71,14 @@ def daily_bonus_minutes(options, now):
     return value if type(value) is int and value >= 0 else 0
 
 
-def effective_budget_limit(options, now, period, *, device_id=None):
+def effective_budget_limit(options, now, period, *, device_id=None, totals=None):
     options = DEFAULTS | options
     if device_id is not None:
         from .parent_bonus import parent_smart_grants
         from .smart_policy import quota_limits
         if period not in ("daily", "weekly"):
             raise ValueError("Unsupported budget period")
-        _, limits = quota_limits(options, now, parent_smart_grants(options, device_id, now))
+        _, limits = quota_limits(options, now, parent_smart_grants(options, device_id, now), totals)
         if period not in limits:
             return -1
         minutes = limits[period] / 60
@@ -150,7 +151,7 @@ def violations(options, totals, now, active_games, *, device_id=None):
             reasons.append("schedule")
     for game in sorted(active_games):
         limit = options["per_game"].get(game, -1)
-        if limit >= 0 and totals["per_game"].get(game, 0) >= limit * 60:
+        if limit >= 0 and totals["per_game"].get(game, 0) - credit_seconds(totals, "per_game", game) >= limit * 60:
             reasons.append("game:" + game)
     return reasons
 
@@ -166,7 +167,7 @@ def remaining_budget_percent(options, totals, now, period, *, device_id=None):
     options = DEFAULTS | options
     if not options["enabled"] or options["unlimited"]:
         return None
-    limit = effective_budget_limit(options, now, period, device_id=device_id)
+    limit = effective_budget_limit(options, now, period, device_id=device_id, totals=totals)
     if limit < 0 or period not in totals:
         return None
     if limit == 0:
@@ -232,8 +233,8 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True, de
     from .screen_idle_bonus import screen_idle_bonus_total
     settings = DEFAULTS | options
     base = settings["daily"]
-    daily_limit = effective_budget_limit(settings, now, "daily", device_id=device_id)
-    weekly_limit = effective_budget_limit(settings, now, "weekly", device_id=device_id)
+    daily_limit = effective_budget_limit(settings, now, "daily", device_id=device_id, totals=totals)
+    weekly_limit = effective_budget_limit(settings, now, "weekly", device_id=device_id, totals=totals)
     daily_status = _receipt_status(settings, daily_limit)
     weekly_status = _receipt_status(settings, weekly_limit)
 
@@ -279,6 +280,8 @@ def budget_overview(options, totals, now, *, ready, coverage_incomplete=True, de
         "screen_idle_bonus_minutes": screen_idle_bonus_total(settings, now),
         "screen_idle_bonus_status": "automatic",
         "daily_limit_minutes": daily_finite,
+        "daily_unlimited_bonus_seconds": credit_seconds(totals, "daily") if ready else None,
+        "weekly_unlimited_bonus_seconds": credit_seconds(totals, "weekly") if ready else None,
         "daily_used_seconds": daily_used,
         "daily_used_minutes": whole_hundredths(daily_used),
         "daily_remaining_seconds": daily_left,

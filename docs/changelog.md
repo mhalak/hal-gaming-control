@@ -8,11 +8,20 @@ This is the **human-readable development changelog**. For full technical release
 
 > **Preview software, not a deployment log.** Version numbers below describe changes recorded in source; they do **not** prove that a tagged GitHub Release, a signed Windows installer or an update on any real PC/HA instance exists. Always check the deployed build and the [current compatibility/deployment instructions](known_limitations.md).
 
-**Current source (Preview 46):** **Home Assistant 0.16.1** and **Windows agent 0.5.2**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
+**Current source (Preview 49):** **Home Assistant 0.17.0** and **Windows agent 0.5.4**. These are **independently versioned**; a newer HA version does not imply a Windows update and vice versa. For the latest declared versions, see the always-updated [`release.json`](../release.json) rather than assuming this dated snapshot is still current.
 
 **🚨 BREAKING CHANGE** means an upgrade can require manual action or break compatibility with prior configs, entity IDs or MQTT payloads. Follow the linked migration instructions before updating; do not assume a normal in-place upgrade is safe.
 
 ## Home Assistant integration
+
+### 0.17.0 — Verified Unlimited bonus (#164)
+- Compensate verified gaming during Unlimited without rewriting recorded usage or double-counting Screen Off Bonus overlap.
+- Preserve device-local journal, suspension precedence and existing MQTT contract. Source candidate only.
+
+### 0.16.2 — Verified telemetry recovery (#288)
+- Recover subscriber-only MQTT reconnects, re-arm foreground on accepted epoch changes and log invalid telemetry without log flooding.
+- Preserve verified history, v3 freshness and anti-replay checks. Requires synchronized PC and HA clocks.
+- Windows 0.5.3 clears stale private receipts and starts a new publisher epoch after a clock step. No protocol shape change or deployment yet.
 
 ### 0.16.1 — Repeated restriction enforcement and Gaming Penalty (#280, #282)
 - Native opt-in violation trigger for restricted tracked gameplay, including relaunches and late offers.
@@ -224,6 +233,13 @@ This is the **human-readable development changelog**. For full technical release
 - Initial HA integration and Windows agent protocol used during early development.
 
 ## Windows agent
+
+### 0.5.4 — HAL Systems popup footer (#275)
+- Embed the approved banner wordmark locally; remove Powered by text, center the transparent logo and let the window fit content.
+- No changes to protocol or enforcement. Real Windows DPI and frozen-package visual acceptance remain required.
+
+### 0.5.3 — Telemetry recovery (#288)
+- Recover from wall-clock steps and discard stale private termination receipts; retain the v3 contract.
 
 ### 0.5.1 — Always-on-top warning popup (#8)
 - The HAL warning window requests topmost stacking by default. Refreshes never force keyboard focus, raise or reopen the window. Exclusive fullscreen and initial OS activation still require physical testing.

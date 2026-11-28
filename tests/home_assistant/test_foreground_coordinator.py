@@ -129,3 +129,51 @@ async def test_change_of_ha_application_list_requires_reload(hass):
     assert c.policy_snapshot(obj.options) != original
     assert obj.options["tracked_apps"][0]["name"] == "Java Minecraft"
     c.close()
+
+
+async def test_live_unlimited_credit_preserves_raw_totals_and_stable_app_identity(hass):
+    from datetime import timedelta
+    from custom_components.hal_gaming_control.unlimited_bonus import override_options
+
+    obj = entry(hass)
+    c = co.GamingCoordinator(hass, obj)
+    stream = fake_source()
+    now = datetime(2026, 11, 23, 12, tzinfo=timezone.utc)
+    start = now - timedelta(seconds=90)
+    stamp = now.timestamp()
+    updated = override_options(obj.options, "pc1", start, "unlimited", True)
+    updated = override_options(updated, "pc1", now - timedelta(seconds=30), "unlimited", False)
+    hass.config_entries.async_update_entry(obj, options=updated | {"enabled": True})
+    stream.export_segments.return_value = ((stamp - 120, stamp, KEY),)
+    stream.totals.return_value = {"daily": 120, "weekly": 120, "weekend_total": 0,
+                                 "per_game": {KEY: 120}}
+    c.foreground = stream
+    c.storage_healthy = True
+    data = c._foreground_data(now)
+    assert data["ready"]
+    assert data["recorded_totals"]["daily"] == 120
+    assert data["recorded_totals"]["per_game"] == {"Minecraft": 120}
+    assert "unlimited_bonus" not in data["recorded_totals"]
+    assert data["totals"]["unlimited_bonus"] == {
+        "daily": 60, "weekly": 60, "per_game": {"Minecraft": 60}}
+    # Offline/unknown samples do not turn a partial interval into a grant.
+    stream.current.return_value = None
+    offline = c._foreground_data(now)
+    assert not offline["ready"] and offline["totals"] == {}
+    assert offline["recorded_totals"] == data["recorded_totals"]
+    c.close()
+
+
+async def test_corrupt_unlimited_journal_does_not_invent_credit_or_erase_raw_usage(hass):
+    from custom_components.hal_gaming_control.unlimited_bonus import KEY as JOURNAL
+    obj = entry(hass)
+    c = co.GamingCoordinator(hass, obj)
+    c.foreground = fake_source()
+    c.storage_healthy = True
+    hass.config_entries.async_update_entry(obj, options=obj.options | {
+        JOURNAL: {"version": 999, "device_id": "pc1", "intervals": []}})
+    data = c._foreground_data(datetime(2026, 11, 23, 12, tzinfo=timezone.utc))
+    assert not data["ready"] and data["totals"] == {}
+    assert data["recorded_totals"]["daily"] == 2
+    assert data["reasons"] is None
+    c.close()
