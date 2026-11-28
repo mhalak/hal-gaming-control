@@ -327,3 +327,44 @@ def test_persistent_suspension_rejects_bonus():
     with pytest.raises(ValueError, match="suspend"):
         prepare_live_grant(settings(gaming_suspended=True), "pc1", at(23), 30,
                            {"daily": 0, "weekly": 0, "per_game": {}}, ready=True)
+
+
+def test_unlimited_bonus_preserves_both_quotas_and_per_game_usage():
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    from custom_components.hal_gaming_control.budget_select import budget_select_rows
+    opts = settings(daily=120, weekly=300, per_game={"Roblox": 60})
+    now = at(23)
+    totals = {"daily": 13200, "weekly": 15600, "per_game": {"Roblox": 13200},
+              "unlimited_bonus": {"daily": 10800, "weekly": 10800,
+                                  "per_game": {"Roblox": 10800}}}
+    snap = effective_snapshot(opts, totals, now, "pc1", ready=True)
+    assert snap.selection.remaining_seconds == 4800
+    assert snap.selection.balances["weekly"] == 13200
+    assert violations(opts, totals, now, ["Roblox"], device_id="pc1") == []
+    receipt = budget_overview(opts, totals, now, ready=True, device_id="pc1")
+    assert receipt["daily_limit_minutes"] == 300
+    assert receipt["weekly_limit_minutes"] == 480
+    assert receipt["daily_used_seconds"] == 13200
+    assert receipt["daily_unlimited_bonus_seconds"] == 10800
+    assert receipt["weekly_unlimited_bonus_seconds"] == 10800
+    rows = budget_select_rows(opts, "pc1", {"ready": True, "totals": totals}, now)
+    assert any("180 min - Unlimited Bonus" in label and key is None for label, key in rows)
+    assert "300 min - TOTAL" in rows[-3][0]
+    assert "220 min - Gaming Session" in rows[-2][0]
+    assert "80 min - Remaining Budget" in rows[-1][0]
+
+
+def test_unlimited_bonus_does_not_extend_schedule_or_erase_prior_penalty():
+    from custom_components.hal_gaming_control.smart_policy import effective_snapshot
+    from custom_components.hal_gaming_control.gaming_penalty import add_penalty
+    opts = settings(daily=120, weekly=300)
+    now = at(23, 18)
+    totals = {"daily": 7200, "weekly": 7200, "per_game": {},
+              "unlimited_bonus": {"daily": 3600, "weekly": 3600, "per_game": {}}}
+    opts = add_penalty(opts, "pc1", now, minutes=30, remaining_seconds=3600)
+    assert effective_snapshot(opts, totals, now, "pc1", ready=True).selection.remaining_seconds == 1800
+    opts |= {"schedule_enabled": True, "schedule_start": "16:00", "schedule_end": "17:00"}
+    assert effective_snapshot(opts, totals, now, "pc1", ready=True).selection.remaining_seconds == 0
+    assert "schedule" in violations(opts, totals, now, [], device_id="pc1")
+    opts = settings(daily=60, weekly=300)
+    assert effective_snapshot(opts, totals, now, "pc1", ready=True).selection.remaining_seconds == 0

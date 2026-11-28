@@ -1,3 +1,10 @@
+## 0.17.0 — Verified Unlimited bonus (#164)
+
+- Preserve measured foreground usage and compensate only verified play during recorded Unlimited intervals for daily, weekly and per-game quotas.
+- Keep the device-local interval journal and existing schedule, penalty and suspension precedence; no inferred historical credit.
+- Prevent duplicate Screen Off Bonus compensation for overlapping intervals.
+- Preview 49 source candidate; Windows 0.5.4 and the MQTT contract are unchanged. Physical acceptance remains separate.
+
 ## 0.16.2 — Recover verified v3 telemetry (#288)
 
 - Resume live telemetry after a subscriber-only MQTT reconnect without retiring a still-current publisher epoch; explicit publisher offline still retires it.
