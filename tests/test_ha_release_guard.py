@@ -41,6 +41,31 @@ class HaReleaseTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 module.ci_gate(modified, SHA)
 
+    def test_gate_accepts_actual_run_name_and_rejects_wrong_workflow_path(self):
+        # Selected fields from the eight main push runs for the failed 0.19.0
+        # publication; run-name is not the workflow's stable identity.
+        runs = json.loads("[\n  {\n    \"name\": \"CI tested commit 0b4a383155720921898d709b56f3049d4f208c6c\",\n    \"path\": \".github/workflows/hacs-validation.yml\",\n    \"head_branch\": \"main\",\n    \"head_sha\": \"0b4a383155720921898d709b56f3049d4f208c6c\",\n    \"event\": \"push\",\n    \"status\": \"completed\",\n    \"conclusion\": \"success\",\n    \"run_number\": 1189,\n    \"run_attempt\": 1\n  },\n  {\n    \"name\": \"CI tested commit 0b4a383155720921898d709b56f3049d4f208c6c\",\n    \"path\": \".github/workflows/recorder-coverage-ci.yml\",\n    \"head_branch\": \"main\",\n    \"head_sha\": \"0b4a383155720921898d709b56f3049d4f208c6c\",\n    \"event\": \"push\",\n    \"status\": \"completed\",\n    \"conclusion\": \"success\",\n    \"run_number\": 1189,\n    \"run_attempt\": 1\n  },\n  {\n    \"name\": \"CI tested commit 0b4a383155720921898d709b56f3049d4f208c6c\",\n    \"path\": \".github/workflows/security-ci.yml\",\n    \"head_branch\": \"main\",\n    \"head_sha\": \"0b4a383155720921898d709b56f3049d4f208c6c\",\n    \"event\": \"push\",\n    \"status\": \"completed\",\n    \"conclusion\": \"success\",\n    \"run_number\": 935,\n    \"run_attempt\": 1\n  },\n  {\n    \"name\": \"CI tested commit 0b4a383155720921898d709b56f3049d4f208c6c\",\n    \"path\": \".github/workflows/codeql.yml\",\n    \"head_branch\": \"main\",\n    \"head_sha\": \"0b4a383155720921898d709b56f3049d4f208c6c\",\n    \"event\": \"push\",\n    \"status\": \"completed\",\n    \"conclusion\": \"success\",\n    \"run_number\": 935,\n    \"run_attempt\": 1\n  },\n  {\n    \"name\": \"CI tested commit 0b4a383155720921898d709b56f3049d4f208c6c\",\n    \"path\": \".github/workflows/ha-ci.yml\",\n    \"head_branch\": \"main\",\n    \"head_sha\": \"0b4a383155720921898d709b56f3049d4f208c6c\",\n    \"event\": \"push\",\n    \"status\": \"completed\",\n    \"conclusion\": \"success\",\n    \"run_number\": 1189,\n    \"run_attempt\": 1\n  },\n  {\n    \"name\": \"CI tested commit 0b4a383155720921898d709b56f3049d4f208c6c\",\n    \"path\": \".github/workflows/code-quality.yml\",\n    \"head_branch\": \"main\",\n    \"head_sha\": \"0b4a383155720921898d709b56f3049d4f208c6c\",\n    \"event\": \"push\",\n    \"status\": \"completed\",\n    \"conclusion\": \"success\",\n    \"run_number\": 1159,\n    \"run_attempt\": 1\n  },\n  {\n    \"name\": \"CI tested commit 0b4a383155720921898d709b56f3049d4f208c6c\",\n    \"path\": \".github/workflows/windows-ci.yml\",\n    \"head_branch\": \"main\",\n    \"head_sha\": \"0b4a383155720921898d709b56f3049d4f208c6c\",\n    \"event\": \"push\",\n    \"status\": \"completed\",\n    \"conclusion\": \"success\",\n    \"run_number\": 1189,\n    \"run_attempt\": 1\n  },\n  {\n    \"name\": \"CI tested commit 0b4a383155720921898d709b56f3049d4f208c6c\",\n    \"path\": \".github/workflows/direct-mqtt-ci.yml\",\n    \"head_branch\": \"main\",\n    \"head_sha\": \"0b4a383155720921898d709b56f3049d4f208c6c\",\n    \"event\": \"push\",\n    \"status\": \"completed\",\n    \"conclusion\": \"success\",\n    \"run_number\": 1189,\n    \"run_attempt\": 1\n  }\n]")
+        sha = "0b4a383155720921898d709b56f3049d4f208c6c"
+        module.ci_gate(runs, sha)
+        for field, value in (("path", ".github/workflows/unrelated.yml"),
+                             ("path", None), ("head_branch", "feature"),
+                             ("head_sha", "b" * 40), ("event", "pull_request"),
+                             ("status", "in_progress"), ("conclusion", "failure")):
+            with self.subTest(field=field, value=value):
+                modified = [dict(runs[0], **{field: value}), *runs[1:]]
+                with self.assertRaises(ValueError):
+                    module.ci_gate(modified, sha)
+        newest = dict(runs[0], run_number=runs[0]["run_number"] + 1,
+                      conclusion="failure")
+        for candidate in ([*runs, newest], [newest, *runs]):
+            with self.assertRaises(ValueError):
+                module.ci_gate(candidate, sha)
+        retry = dict(runs[0], run_attempt=runs[0]["run_attempt"] + 1,
+                     status="in_progress", conclusion=None)
+        for candidate in ([*runs, retry], [retry, *runs]):
+            with self.assertRaises(ValueError):
+                module.ci_gate(candidate, sha)
+
     def test_marketplace_release_not_hidden_as_prerelease(self):
         workflow = (SOURCE.parents[1] / ".github/workflows/publish-ha-preview.yml").read_text(encoding="utf-8")
         self.assertIn("startsWith(github.event.comment.body, '/publish-ha-release ')", workflow)
