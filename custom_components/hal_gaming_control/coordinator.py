@@ -11,6 +11,7 @@ from datetime import timedelta
 from .const import DEFAULTS, DOMAIN, SCAN_SECONDS
 from .direct_mqtt import direct_mode
 from .foreground_source import ForegroundSource
+from .error_registry import ErrorRegistry
 from .foreground_store import ForegroundStore, ForegroundStoreError
 from .foreground_cutover import async_activate_cutover
 from .screen_idle_bonus import maybe_add_screen_idle_grant
@@ -36,6 +37,7 @@ class GamingCoordinator(DataUpdateCoordinator):
         # Manual buttons use the advertised action capabilities; no auto-enforcement.
         self.advertised = entry.data["actions"]
         self.foreground = None
+        self.errors = ErrorRegistry()
         self.foreground_store = None
         self.cutover_since = None
         self.storage_healthy = False
@@ -71,7 +73,7 @@ class GamingCoordinator(DataUpdateCoordinator):
             self.hass, self.device_id,
             self.entry.options.get("tracked_apps", []),
             self._live_foreground_changed, intervals=segments,
-            on_screen_off=self._screen_off)
+            on_screen_off=self._screen_off, errors=self.errors)
         try:
             await self.foreground.async_start()
         except BaseException:
@@ -122,6 +124,7 @@ class GamingCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Cannot persist verified foreground intervals for %s",
                           self.device_id)
             self.storage_healthy = False
+            self.errors.report("HA_STORAGE_FAILURE")
             self.hass.async_create_task(self.async_request_refresh())
         else:
             self._saved_segments = current
@@ -152,9 +155,13 @@ class GamingCoordinator(DataUpdateCoordinator):
                 credits["per_game"] = {row["name"]: credits["per_game"].get(key, 0)
                                        for key, row in self.foreground.ledger.apps.items()}
                 totals = dict(totals, unlimited_bonus=credits)
+                self.errors.resolve("HA_INVALID_BUDGET")
             except ValueError:
+                self.errors.report("HA_INVALID_BUDGET")
                 # Explicit suspension needs only trusted foreground, not credit.
                 ready = ready and self.options.get("gaming_suspended") is True
+        else:
+            self.errors.resolve("HA_INVALID_BUDGET")
         active = [alias] if ready and alias != "idle" else []
         # Confirmed intervals are a lower bound; gaps are never known idle.
         # The restriction signal is policy-only; never publish a command here.
@@ -168,7 +175,8 @@ class GamingCoordinator(DataUpdateCoordinator):
                 "reasons": reasons, "active": active,
                 "unified_telemetry": True,
                 "display_details": self.foreground.display_details,
-                "uptime_seconds": self.foreground.system_uptime}
+                "uptime_seconds": self.foreground.system_uptime,
+                "error_state": self.errors.snapshot(ready=ready)}
 
     def restriction_violation(self):
         """Reevaluate live policy and verified accounting immediately."""

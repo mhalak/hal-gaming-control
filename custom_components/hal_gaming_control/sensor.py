@@ -20,10 +20,45 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 GamingTimeDisplaySensor(c, "weekly", "Weekly gaming time"),
                 GamingTimeSensor(c, "daily", "Daily gaming time (minutes)"),
                 GamingTimeSensor(c, "weekly", "Weekly gaming time (minutes)"),
-                AgentVersionSensor(c), IntegrationVersionSensor(c)]
+                AgentVersionSensor(c), IntegrationVersionSensor(c), ErrorStateSensor(c)]
     if c.direct:
         entities.append(DirectUptime(c))
     async_add_entities(entities)
+
+
+class ErrorStateSensor(GamingEntity, SensorEntity):
+    """Single diagnostic entity, independent of live gaming readiness."""
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = True
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator, "error_state", "Error state")
+
+    @property
+    def available(self):
+        return True
+
+    def _diagnostic(self):
+        data = self.coordinator.data or {}
+        return data.get("error_state") or {
+            "state": "Diagnostics unavailable", "attributes": {"diagnostic_scope": "HA only"}}
+
+    @property
+    def native_value(self):
+        return self._diagnostic()["state"]
+
+    @property
+    def extra_state_attributes(self):
+        return self._diagnostic()["attributes"]
+
+    @property
+    def icon(self):
+        if self.native_value == "OK":
+            return "mdi:check-circle-outline"
+        if self.extra_state_attributes.get("active_error_count", 0):
+            return "mdi:alert-circle-outline"
+        return "mdi:information-outline"
 
 
 class BudgetSensor(GamingEntity, SensorEntity):
