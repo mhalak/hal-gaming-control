@@ -9,9 +9,14 @@ import subprocess
 import sys
 
 REQUIRED_WORKFLOWS = frozenset({
-    "HA integration CI", "Windows agent CI", "Direct MQTT runtime CI",
-    "Recorder coverage CI", "HACS validation", "Security CI",
-    "CodeQL", "Python code quality",
+    ".github/workflows/ha-ci.yml",
+    ".github/workflows/windows-ci.yml",
+    ".github/workflows/direct-mqtt-ci.yml",
+    ".github/workflows/recorder-coverage-ci.yml",
+    ".github/workflows/hacs-validation.yml",
+    ".github/workflows/security-ci.yml",
+    ".github/workflows/codeql.yml",
+    ".github/workflows/code-quality.yml",
 })
 SEMVER = re.compile(r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\Z")
 SHA = re.compile(r"[0-9a-f]{40}\Z")
@@ -37,6 +42,13 @@ def version_and_notes(root: Path) -> tuple[str, str]:
     return version, body
 
 
+def _run_order(run: dict) -> tuple[int, int]:
+    number, attempt = run.get("run_number"), run.get("run_attempt")
+    if any(type(value) is not int or value < 1 for value in (number, attempt)):
+        raise ValueError("Invalid CI run number or attempt")
+    return number, attempt
+
+
 def ci_gate(runs: list[dict], sha: str) -> None:
     if not SHA.fullmatch(sha):
         raise ValueError("Invalid source SHA")
@@ -45,11 +57,18 @@ def ci_gate(runs: list[dict], sha: str) -> None:
         if (run.get("head_sha") != sha or run.get("head_branch") != "main"
                 or run.get("event") != "push"):
             continue
-        name = run.get("name")
-        if name not in REQUIRED_WORKFLOWS:
+        # The Actions API name is the mutable run-name, not workflow identity.
+        path = run.get("path")
+        if path not in REQUIRED_WORKFLOWS:
             continue
-        if name not in matched or run.get("run_number", 0) > matched[name].get("run_number", 0):
-            matched[name] = run
+        order = _run_order(run)
+        previous = matched.get(path)
+        if previous is None or order > _run_order(previous):
+            matched[path] = run
+        elif order == _run_order(previous) and (
+                run.get("status"), run.get("conclusion")) != (
+                previous.get("status"), previous.get("conclusion")):
+            raise ValueError(f"Conflicting CI evidence for {path}")
     missing = sorted(REQUIRED_WORKFLOWS - matched.keys())
     pending = sorted(name for name, run in matched.items() if run.get("status") != "completed")
     failed = sorted(name for name, run in matched.items()

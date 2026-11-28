@@ -28,15 +28,23 @@ class HaReleaseTests(unittest.TestCase):
                 module.version_and_notes(root)
 
     def test_gate_requires_exact_eight_successful_main_pushes(self):
-        runs = [{"name": name, "head_branch": "main", "head_sha": SHA, "event": "push",
-                 "status": "completed", "conclusion": "success", "run_number": 4}
-                for name in module.REQUIRED_WORKFLOWS]
+        paths = (
+            ".github/workflows/ha-ci.yml", ".github/workflows/windows-ci.yml",
+            ".github/workflows/direct-mqtt-ci.yml", ".github/workflows/recorder-coverage-ci.yml",
+            ".github/workflows/hacs-validation.yml", ".github/workflows/security-ci.yml",
+            ".github/workflows/codeql.yml", ".github/workflows/code-quality.yml",
+        )
+        self.assertEqual(module.REQUIRED_WORKFLOWS, frozenset(paths))
+        runs = [{"path": path, "name": "Any display name", "head_branch": "main",
+                 "head_sha": SHA, "event": "push", "status": "completed",
+                 "conclusion": "success", "run_number": 4, "run_attempt": 1}
+                for path in paths]
         module.ci_gate(runs, SHA)
         with self.assertRaises(ValueError):
             module.ci_gate(runs[:-1], SHA)
         for field, value in (("conclusion", "failure"), ("head_sha", "b" * 40),
                              ("status", "queued"), ("event", "pull_request")):
-            modified = [dict(r, **{field: value}) if r["name"] == "HACS validation" else r
+            modified = [dict(r, **{field: value}) if r["path"] == ".github/workflows/hacs-validation.yml" else r
                         for r in runs]
             with self.assertRaises(ValueError):
                 module.ci_gate(modified, SHA)
@@ -55,6 +63,14 @@ class HaReleaseTests(unittest.TestCase):
                 modified = [dict(runs[0], **{field: value}), *runs[1:]]
                 with self.assertRaises(ValueError):
                     module.ci_gate(modified, sha)
+        for field, value in (("run_number", None), ("run_attempt", True),
+                             ("run_attempt", 0)):
+            modified = [dict(runs[0], **{field: value}), *runs[1:]]
+            with self.assertRaises(ValueError):
+                module.ci_gate(modified, sha)
+        conflicting = dict(runs[0], conclusion="failure")
+        with self.assertRaises(ValueError):
+            module.ci_gate([*runs, conflicting], sha)
         newest = dict(runs[0], run_number=runs[0]["run_number"] + 1,
                       conclusion="failure")
         for candidate in ([*runs, newest], [newest, *runs]):
